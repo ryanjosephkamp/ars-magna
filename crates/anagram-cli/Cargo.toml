@@ -1,0 +1,13 @@
+[package]
+name = "anagram-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Native driver for the Ars Magna engine: solving, counting, goldens, benchmarks."
+
+[dependencies]
+anagram-core.workspace = true
+
+[[bin]]
+name = "anagram"
+path = "src/main.rs"

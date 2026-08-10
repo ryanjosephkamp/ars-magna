@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "builtAt": "2026-08-10T06:53:03.764Z",
+  "source": {
+    "repo": "ryanjosephkamp/english-openlist",
+    "rev": "368bf0e4460461c985fca8bde49e4062d56c1516",
+    "wordsSha256": "58957d65714390e3a0392241a04483b30e770a7b282844e9c0fcc7db4f1e69e1"
+  },
+  "frequency": {
+    "repo": "hermitdave/FrequencyWords",
+    "rev": "525f9b560de45753a5ea01069454e72e9aa541c6"
+  },
+  "counts": {
+    "common": 39951,
+    "standard": 177197,
+    "full": 378844,
+    "signatures": 350469,
+    "withFrequency": 130578
+  },
+  "files": {
+    "full": {
+      "name": "full.d7bd1ecc3b82.bin",
+      "bytes": 2183116,
+      "brotliBytes": 700358,
+      "sha256": "d7bd1ecc3b82198acb41f71b569dd6a24b388c55e9b1a1438e6f23bd996297a9"
+    },
+    "common": {
+      "name": "common.cb94c5f0d918.bin",
+      "bytes": 222632,
+      "brotliBytes": 96616,
+      "sha256": "cb94c5f0d918a499eb09a58d44c76b684a32ecdecec23001d873135076c09878"
+    },
+    "tiers": {
+      "name": "tiers.d1708bbaad62.bits",
+      "bytes": 94728,
+      "brotliBytes": 55085,
+      "sha256": "d1708bbaad6215ee64d364858ae6801eda601716f369a047ff05004060540830"
+    }
+  }
+}
