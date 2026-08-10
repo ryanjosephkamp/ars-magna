@@ -10,8 +10,28 @@ import { mkdir, rename, stat, readFile, writeFile } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import { dirname } from 'node:path';
-import { FREQUENCY, OPENLIST, frequencyUrl, openlistUrl, type FilePin } from './pins.ts';
-import { FREQ_PATH, META_PATH, OPENLIST_CACHE, WORDS_PATH, FREQ_CACHE } from './paths.ts';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import {
+  FREQUENCY,
+  OPENLIST,
+  WORDNET,
+  frequencyUrl,
+  openlistUrl,
+  type FilePin,
+} from './pins.ts';
+import {
+  FREQ_PATH,
+  META_PATH,
+  OPENLIST_CACHE,
+  WORDS_PATH,
+  FREQ_CACHE,
+  WORDNET_ARCHIVE,
+  WORDNET_CACHE,
+  WORDNET_DICT,
+} from './paths.ts';
+
+const run = promisify(execFile);
 
 function human(bytes: number): string {
   return bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${(bytes / 1e3).toFixed(0)} KB`;
@@ -100,6 +120,26 @@ export async function fetchAll(): Promise<void> {
   }
 
   await download(frequencyUrl(), FREQ_PATH, FREQUENCY.bytes);
+
+  await mkdir(WORDNET_CACHE, { recursive: true });
+  await download(WORDNET.url, WORDNET_ARCHIVE, WORDNET.bytes, WORDNET.sha256);
+
+  // Only the sense index and gloss files are needed; the archive also carries
+  // morphology exceptions and verb framesets that nothing here reads.
+  const needed = await Promise.all(
+    WORDNET.members.map((member) =>
+      stat(`${WORDNET_CACHE}/${member}`).then(
+        () => true,
+        () => false,
+      ),
+    ),
+  );
+  if (needed.some((present) => !present)) {
+    console.log(`  ⇢ extracting ${WORDNET.members.length} WordNet files`);
+    await run('tar', ['-xzf', WORDNET_ARCHIVE, '-C', WORDNET_CACHE, ...WORDNET.members]);
+  } else {
+    console.log(`  ✓ wordnet — extracted (${WORDNET_DICT})`);
+  }
 
   await writeFile(
     `${OPENLIST_CACHE}/.integrity.json`,

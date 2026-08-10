@@ -7,6 +7,8 @@ import { PinnedStrip } from './components/PinnedStrip.tsx';
 import { useEngine, useResults } from './state/useEngine.ts';
 import { decodeQuery, shareUrl, syncUrl } from './lib/urlState.ts';
 import { useCopy } from './lib/useCopy.ts';
+import { Definitions } from './lib/definitions.ts';
+import type { WordDetail } from './components/WordDetails.tsx';
 
 export function App() {
   // The URL is the source of truth on first paint, so a shared link opens on
@@ -24,6 +26,30 @@ export function App() {
     useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
+
+  // One instance for the session, so its shard cache survives across rows.
+  const definitions = useMemo(() => new Definitions('/defs'), []);
+
+  /**
+   * Everything an expanded row needs about its words, in one call: the
+   * definition and provenance from the shard files, and the other spellings of
+   * the same letters from the engine. Fetched together so the row renders once
+   * rather than twice.
+   */
+  const wordDetails = useCallback(
+    async (words: readonly string[]): Promise<WordDetail[]> => {
+      const [spellingLists, infos] = await Promise.all([
+        Promise.all(words.map((word) => spellings(word))),
+        definitions.lookupAll(words),
+      ]);
+      return words.map((word, i) => ({
+        word,
+        spellings: spellingLists[i]?.length ? spellingLists[i]! : [word],
+        info: infos[i]!,
+      }));
+    },
+    [definitions, spellings],
+  );
 
   useEffect(() => syncUrl(query), [query]);
 
@@ -175,7 +201,7 @@ export function App() {
                   total={formatCount(total)}
                   hasMore={results.hasMore}
                   onLoadMore={loadMore}
-                  spellings={spellings}
+                  wordDetails={wordDetails}
                   pinned={pinned}
                   onTogglePin={togglePin}
                   copied={copied}

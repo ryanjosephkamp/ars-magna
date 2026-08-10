@@ -15,4 +15,9 @@ export const WORDS_PATH = resolve(OPENLIST_CACHE, 'merged_valid_words.txt');
 export const META_PATH = resolve(OPENLIST_CACHE, 'merged_valid_dict.json');
 export const FREQ_PATH = resolve(FREQ_CACHE, 'en_full.txt');
 
+export const WORDNET_CACHE = resolve(CACHE_DIR, 'wordnet');
+export const WORDNET_ARCHIVE = resolve(WORDNET_CACHE, 'wn31.tar.gz');
+export const WORDNET_DICT = resolve(WORDNET_CACHE, 'dict');
+
 export const DIST_DIR = resolve(REPO_ROOT, 'apps/web/public/dict');
+export const DEFS_DIR = resolve(REPO_ROOT, 'apps/web/public/defs');

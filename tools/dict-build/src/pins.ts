@@ -45,6 +45,41 @@ export const FREQUENCY = {
   bytes: 19_977_552,
 } as const;
 
+/**
+ * Princeton WordNet 3.1, for word definitions.
+ *
+ * English OpenList carries none: its card advertises "part of speech,
+ * definitions, and pronunciation" but the metadata file holds validation
+ * provenance only. WordNet covers the common vocabulary well and its licence
+ * permits redistribution with the copyright notice attached, which
+ * `apps/web/public/defs/LICENSE` carries.
+ */
+export const WORDNET = {
+  url: 'https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz',
+  bytes: 16_358_468,
+  sha256: '3f7d8be8ef6ecc7167d39b10d66954ec734280b5bdcd57f7d9eafe429d11c22a',
+  /**
+   * Files pulled out of the archive; the rest is verb framesets and tag counts.
+   * The `.exc` files hold irregular inflections (`men` -> `man`, `bought` ->
+   * `buy`) and are what let a definition be found for the many OpenList entries
+   * that WordNet only stores in base form.
+   */
+  members: [
+    'dict/data.noun',
+    'dict/data.verb',
+    'dict/data.adj',
+    'dict/data.adv',
+    'dict/index.noun',
+    'dict/index.verb',
+    'dict/index.adj',
+    'dict/index.adv',
+    'dict/noun.exc',
+    'dict/verb.exc',
+    'dict/adj.exc',
+    'dict/adv.exc',
+  ],
+} as const;
+
 export function openlistUrl(file: FilePin): string {
   return `https://huggingface.co/datasets/${OPENLIST.repo}/resolve/${OPENLIST.rev}/${file.path}`;
 }

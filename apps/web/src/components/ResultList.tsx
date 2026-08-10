@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Row } from '../state/resultBuffer.ts';
 import { countOrderings, orderings } from '../lib/orderings.ts';
+import { WordDetails, type WordDetail } from './WordDetails.tsx';
 
 /** Orderings shown before the list is cut off. 6 words is already 720. */
 const ORDERINGS_SHOWN = 48;
@@ -11,7 +12,7 @@ type Props = {
   total: string;
   hasMore: boolean;
   onLoadMore(): void;
-  spellings(word: string): Promise<string[]>;
+  wordDetails(words: readonly string[]): Promise<WordDetail[]>;
   pinned: readonly string[];
   onTogglePin(phrase: string): void;
   copied: string | null;
@@ -32,7 +33,7 @@ export function ResultList({
   total,
   hasMore,
   onLoadMore,
-  spellings,
+  wordDetails,
   pinned,
   onTogglePin,
   copied,
@@ -100,7 +101,7 @@ export function ResultList({
                 index={item.index}
                 expanded={expanded === item.index}
                 onToggle={toggle}
-                spellings={spellings}
+                wordDetails={wordDetails}
                 isPinned={pinnedSet.has(row.join(' '))}
                 onTogglePin={onTogglePin}
                 copied={copied}
@@ -125,7 +126,7 @@ function ResultRow({
   index,
   expanded,
   onToggle,
-  spellings,
+  wordDetails,
   isPinned,
   onTogglePin,
   copied,
@@ -135,41 +136,32 @@ function ResultRow({
   index: number;
   expanded: boolean;
   onToggle(index: number): void;
-  spellings(word: string): Promise<string[]>;
+  wordDetails(words: readonly string[]): Promise<WordDetail[]>;
   isPinned: boolean;
   onTogglePin(phrase: string): void;
   copied: string | null;
   onCopy(key: string, text: string): void;
 }) {
   const phrase = row.join(' ');
-  const [alternates, setAlternates] = useState<Record<string, string[]> | null>(null);
+  const [details, setDetails] = useState<WordDetail[] | null>(null);
 
+  // Definitions and spellings are fetched only for rows someone opened —
+  // there is no sense pulling shards for the thousands scrolling past.
   useEffect(() => {
-    if (!expanded || alternates) return;
+    if (!expanded || details) return;
     let live = true;
-    void Promise.all(row.map((word) => spellings(word))).then((lists) => {
-      if (!live) return;
-      const map: Record<string, string[]> = {};
-      row.forEach((word, i) => {
-        map[word] = lists[i] ?? [word];
-      });
-      setAlternates(map);
+    void wordDetails(row).then((result) => {
+      if (live) setDetails(result);
     });
     return () => {
       live = false;
     };
-  }, [expanded, alternates, row, spellings]);
+  }, [expanded, details, row, wordDetails]);
 
   // Orderings are cheap for the sizes that occur here, but there is no reason
   // to compute them for a row nobody opened.
   const orderCount = expanded ? countOrderings(row) : 0;
   const orders = expanded && orderCount > 1 ? orderings(row, ORDERINGS_SHOWN) : [];
-
-  // Only ~6% of anagram classes have a second spelling, so this stays quiet
-  // until a row is actually opened.
-  const extras = alternates
-    ? Object.entries(alternates).filter(([, list]) => list.length > 1)
-    : [];
 
   return (
     <div className={`border-b border-rule ${isPinned ? 'bg-accent-wash/40' : ''}`}>
@@ -238,26 +230,9 @@ function ResultRow({
 
           <div>
             <p className="mb-1.5 font-mono text-[11px] tracking-[0.08em] text-ink-faint uppercase">
-              Other spellings
+              Words
             </p>
-            {alternates === null ? (
-              <p className="font-mono text-xs text-ink-faint">…</p>
-            ) : extras.length === 0 ? (
-              <p className="text-ink-faint">
-                No other spelling uses these letters.
-              </p>
-            ) : (
-              <dl className="space-y-1">
-                {extras.map(([word, list]) => (
-                  <div key={word} className="flex flex-wrap items-baseline gap-x-2">
-                    <dt className="font-display text-ink-soft">{word}</dt>
-                    <dd className="font-display text-ink-faint">
-                      also {list.filter((w) => w !== word).join(', ')}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            )}
+            <WordDetails details={details} />
           </div>
         </div>
       )}

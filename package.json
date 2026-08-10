@@ -18,6 +18,7 @@
     "dict:fetch": "pnpm --filter @ars-magna/dict-build run fetch",
     "dict:build": "pnpm --filter @ars-magna/dict-build run build",
     "dict:verify": "pnpm --filter @ars-magna/dict-build run verify",
+    "dict:shards": "pnpm --filter @ars-magna/dict-build run shards",
     "wasm:build": "bash scripts/build-wasm.sh",
     "rust:test": "cargo test --workspace"
   },

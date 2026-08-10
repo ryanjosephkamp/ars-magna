@@ -26,6 +26,18 @@ results are reproducible. Three nested tiers are available in the UI:
 
 Standard excludes the ~64,800 algorithmically generated entries in the source data
 (`abacteremicer`, `nonlivabler`), which otherwise flood results with unrecognizable words.
+Nothing is removed from English OpenList itself — Full still carries every word, and
+expanding a result says where each word came from.
+
+## Definitions
+
+English OpenList carries no definitions despite its dataset card advertising them, so
+glosses come from [WordNet 3.1][wordnet] instead. 116,837 words (30.8% of the list) are
+covered; a little over half of those are reached through WordNet's own morphology, so
+`dormitories` gets `dormitory`'s definition and says that it did. Words with no gloss fall
+back to explaining their provenance.
+
+[wordnet]: https://wordnet.princeton.edu/
 
 [eol]: https://huggingface.co/datasets/ryanjosephkamp/english-openlist
 
@@ -33,11 +45,16 @@ Standard excludes the ~64,800 algorithmically generated entries in the source da
 
 ```bash
 pnpm install
-pnpm dict:fetch     # download pinned sources into .cache/ (~315 MB, once)
+pnpm dict:fetch     # download pinned sources into .cache/ (~330 MB, once)
 pnpm dict:build     # emit apps/web/public/dict/ artifacts
+pnpm dict:shards    # emit apps/web/public/defs/ definitions (~17 MB, not committed)
 pnpm wasm:build     # compile the Rust engine to WASM
 pnpm dev
 ```
+
+The dictionary artifacts are committed; the definition shards are not, because
+they are 17 MB of derived data. Run `pnpm dict:shards` once — without it the app
+works fine, it just shows no definitions.
 
 Requires Node 22+, pnpm, and a Rust toolchain with the `wasm32-unknown-unknown` target.
 
