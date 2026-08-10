@@ -58,10 +58,9 @@ async function streamFacts(
   const flags = new Uint8Array(wordCount);
   const nValid = new Uint8Array(wordCount);
 
-  const pipeline = chain([
-    createReadStream(metaPath),
-    StreamObject.withParser({ packKeys: true, packStrings: true, packNumbers: true }),
-  ]);
+  // `withParser` already assembles whole keys and values; the extra pack*
+  // options are its defaults, so they are left off rather than fought with.
+  const pipeline = chain([createReadStream(metaPath), StreamObject.withParser()]);
 
   let seen = 0;
 

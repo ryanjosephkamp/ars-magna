@@ -12,8 +12,7 @@
     "@ars-magna/engine": "workspace:*",
     "@tanstack/react-virtual": "^3.13.12",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "zustand": "^5.0.8"
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",

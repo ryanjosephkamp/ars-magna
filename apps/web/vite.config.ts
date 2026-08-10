@@ -7,6 +7,12 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  optimizeDeps: {
+    // The engine is a workspace package consumed as TypeScript source, and it
+    // owns the worker entry plus the wasm glue. Pre-bundling it would break
+    // both `new Worker(new URL(...))` and the wasm asset URL.
+    exclude: ['@ars-magna/engine'],
+  },
   build: {
     target: 'es2022',
     // The dictionary artifacts in public/dict are content-hashed and served

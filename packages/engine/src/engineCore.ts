@@ -75,7 +75,7 @@ export class EngineCore {
         case 'solve':
           return this.#solve(request.id, request.query, request.first);
         case 'page':
-          return this.#page(request.id, request.offset, request.len);
+          return this.#page(request.offset, request.len);
         case 'random':
           return this.#random(request.id, request.index);
         case 'spellings':
@@ -189,7 +189,7 @@ export class EngineCore {
     });
   }
 
-  #page(id: number, offset: number, len: number): void {
+  #page(offset: number, len: number): void {
     const session = this.#session;
     if (!session) throw new Error('no active query');
     // Paging replies carry the *session* id, not the page request's: the client

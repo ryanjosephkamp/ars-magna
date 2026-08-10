@@ -1,39 +1,95 @@
 @import 'tailwindcss';
 
+/*
+ * Ink on true white.
+ *
+ * Achromatic throughout (chroma 0) with one saturated accent. The warm
+ * near-white that every other typographic tool reaches for is deliberately
+ * avoided: this surface exists to be read for minutes at a time, and a tint
+ * costs contrast for nothing. Colour appears only where it means something —
+ * the result count, the active control, focus.
+ */
 @theme {
-  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia,
+    serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Ink on parchment, inverted for dark. Deliberately restrained so the
-     letters themselves carry the visual weight. */
-  --color-parchment: oklch(0.97 0.012 85);
-  --color-ink: oklch(0.22 0.015 60);
-  --color-gild: oklch(0.62 0.13 65);
+  --color-ground: oklch(0.985 0 0);
+  --color-surface: oklch(1 0 0);
+  --color-sunken: oklch(0.962 0 0);
+
+  /* 0.19 → ~16:1, 0.40 → ~7.4:1, 0.52 → ~4.6:1 on ground. Nothing below 0.52
+     carries text; the faint ramp is for rules and disabled states only. */
+  --color-ink: oklch(0.19 0 0);
+  --color-ink-soft: oklch(0.4 0 0);
+  --color-ink-faint: oklch(0.52 0 0);
+
+  --color-rule: oklch(0.915 0 0);
+  --color-rule-strong: oklch(0.82 0 0);
+
+  --color-accent: oklch(0.52 0.19 27);
+  --color-accent-hover: oklch(0.45 0.19 27);
+  --color-accent-wash: oklch(0.965 0.018 27);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@layer theme {
+  :root {
+    /* Semantic stacking order. Never an arbitrary 999. */
+    --z-dropdown: 10;
+    --z-sticky: 20;
+    --z-modal: 40;
+    --z-toast: 60;
+  }
 }
 
 @layer base {
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
+    /* Tabular figures everywhere: the result count changes as you type, and
+       proportional digits make it jitter. */
+    font-variant-numeric: tabular-nums;
   }
 
   html {
     -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
   }
 
   body {
     margin: 0;
-    background: var(--color-parchment);
+    background: var(--color-ground);
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  @media (prefers-color-scheme: dark) {
-    body {
-      background: oklch(0.18 0.012 60);
-      color: oklch(0.93 0.01 85);
-    }
+  /* One focus treatment for the whole app. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-accent-wash);
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  input {
+    font: inherit;
+    color: inherit;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -41,7 +97,28 @@
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
+  }
+}
+
+@layer components {
+  /* Results arrive in batches of a few hundred; a per-row entrance would be
+     noise at that rate, so only the first paint of a new query is marked. */
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .settle {
+    animation: settle 220ms var(--ease-out-quart) both;
   }
 }
