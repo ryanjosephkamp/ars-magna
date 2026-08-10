@@ -41,6 +41,25 @@ back to explaining their provenance.
 
 [eol]: https://huggingface.co/datasets/ryanjosephkamp/english-openlist
 
+## Offline
+
+Everything happens on your own machine — the search, the dictionary, the definitions —
+so after one visit the site works with no network at all. A service worker serves the
+shell from cache and the engine keeps the dictionary in Cache Storage; the page fills
+both on first load from a build-time `precache.json`, because a module worker's own
+script request never reaches a service worker's `fetch` handler and could not be cached
+any other way.
+
+The definition shards are the exception: they are fetched per word on demand, so a word
+you have not looked at before will show no gloss offline.
+
+## Keyboard
+
+Arrow keys walk the result list, `Home` / `End` jump to either end, `PageUp` / `PageDown`
+move ten at a time, and `Enter` opens a result. The list is virtualized, so tabbing alone
+would run out after a screenful — the arrow keys move a cursor that scrolls the target
+into view and then focuses it.
+
 ## Development
 
 ```bash

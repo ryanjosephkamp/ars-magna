@@ -1,0 +1,17 @@
+{
+  "name": "Ars Magna",
+  "short_name": "Ars Magna",
+  "description": "Every way your letters can spell something else.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfbfc",
+  "theme_color": "#fbfbfc",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

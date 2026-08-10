@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Row } from '../state/resultBuffer.ts';
 import { countOrderings, orderings } from '../lib/orderings.ts';
@@ -77,8 +85,90 @@ export function ResultList({
 
   const pinnedSet = useMemo(() => new Set(pinned), [pinned]);
 
+  /**
+   * Roving focus across the list.
+   *
+   * Only a screenful of rows exists in the DOM, so Tab alone cannot walk a
+   * result set of any size — it would run out after twenty rows. Arrow keys
+   * move a cursor instead: scroll the target into view, then focus it once the
+   * virtualizer has rendered it.
+   */
+  const [cursor, setCursor] = useState<number | null>(null);
+  const pendingFocus = useRef<number | null>(null);
+
+  const moveTo = useCallback(
+    (index: number) => {
+      const clamped = Math.max(0, Math.min(rows.length - 1, index));
+      setCursor(clamped);
+      pendingFocus.current = clamped;
+      virtualizer.scrollToIndex(clamped, { align: 'auto' });
+    },
+    [rows.length, virtualizer],
+  );
+
+  // Focusing a far-off row is a two-step affair: `scrollToIndex` has to run,
+  // then the virtualizer has to render the row, and only then can it take
+  // focus. Jumping to the end of a 250-row list skips far enough that the
+  // target does not exist yet on the frame the key was pressed, so this retries
+  // across a few frames rather than giving up after one.
+  useEffect(() => {
+    const index = pendingFocus.current;
+    if (index === null) return;
+
+    let frame = 0;
+    let attempts = 0;
+    const tryFocus = () => {
+      const node = anchor.current?.querySelector<HTMLElement>(
+        `[data-index="${index}"] button[aria-expanded]`,
+      );
+      if (node) {
+        node.focus({ preventScroll: true });
+        pendingFocus.current = null;
+        return;
+      }
+      if (++attempts < 10) frame = requestAnimationFrame(tryFocus);
+      else pendingFocus.current = null;
+    };
+    tryFocus();
+
+    return () => cancelAnimationFrame(frame);
+  });
+
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      const at = cursor ?? -1;
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault();
+          moveTo(at + 1);
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          if (at > 0) moveTo(at - 1);
+          break;
+        case 'Home':
+          event.preventDefault();
+          moveTo(0);
+          break;
+        case 'End':
+          event.preventDefault();
+          moveTo(rows.length - 1);
+          break;
+        case 'PageDown':
+          event.preventDefault();
+          moveTo(at + 10);
+          break;
+        case 'PageUp':
+          event.preventDefault();
+          moveTo(at - 10);
+          break;
+      }
+    },
+    [cursor, moveTo, rows.length],
+  );
+
   return (
-    <div ref={anchor}>
+    <div ref={anchor} onKeyDown={onKeyDown}>
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {items.map((item) => {
           const row = rows[item.index];
@@ -101,6 +191,7 @@ export function ResultList({
                 index={item.index}
                 expanded={expanded === item.index}
                 onToggle={toggle}
+                onFocus={setCursor}
                 wordDetails={wordDetails}
                 isPinned={pinnedSet.has(row.join(' '))}
                 onTogglePin={onTogglePin}
@@ -126,6 +217,7 @@ function ResultRow({
   index,
   expanded,
   onToggle,
+  onFocus,
   wordDetails,
   isPinned,
   onTogglePin,
@@ -136,6 +228,7 @@ function ResultRow({
   index: number;
   expanded: boolean;
   onToggle(index: number): void;
+  onFocus(index: number): void;
   wordDetails(words: readonly string[]): Promise<WordDetail[]>;
   isPinned: boolean;
   onTogglePin(phrase: string): void;
@@ -169,6 +262,7 @@ function ResultRow({
         <button
           type="button"
           onClick={() => onToggle(index)}
+          onFocus={() => onFocus(index)}
           aria-expanded={expanded}
           className="flex flex-1 items-baseline gap-3 py-3 text-left transition-colors duration-150
                      hover:bg-sunken focus-visible:bg-sunken"

@@ -21,6 +21,9 @@ export type CoreOptions = {
 
 const CACHE_NAME = 'ars-magna-dict-v1';
 
+/** Enough for any interactive query; a hard stop for the pathological ones. */
+const DEFAULT_MAX_NODES = 50_000_000;
+
 /** Fetch through the Cache Storage API when available.
  *
  *  Artifact filenames carry a content hash, so a cached entry can never be
@@ -73,7 +76,7 @@ export class EngineCore {
         case 'init':
           return await this.#init(request.id, request.baseUrl);
         case 'solve':
-          return this.#solve(request.id, request.query, request.first);
+          return this.#solve(request.id, request.query, request.first, request.maxNodes);
         case 'page':
           return this.#page(request.offset, request.len);
         case 'random':
@@ -159,7 +162,7 @@ export class EngineCore {
     return this.#engine;
   }
 
-  #solve(id: number, query: Query, first: number): void {
+  #solve(id: number, query: Query, first: number, maxNodes = DEFAULT_MAX_NODES): void {
     const engine = this.#require();
     const started = performance.now();
 
@@ -169,7 +172,7 @@ export class EngineCore {
       query.minWordLen,
       query.maxWords,
       [...query.mustInclude],
-      50_000_000,
+      maxNodes,
     );
 
     this.#session = { id, query, served: 0, exhausted: false };
@@ -178,7 +181,7 @@ export class EngineCore {
     // of answers the count lands in milliseconds while enumerating them all
     // never would, and "11,131,625 anagrams" is the more useful thing to show
     // first anyway.
-    const total = engine.count(100_000_000);
+    const total = engine.count(maxNodes * 2);
     this.#port.post({ k: 'count', id, total, candidates });
 
     this.#emit(id, 0, first);
@@ -202,19 +205,25 @@ export class EngineCore {
     const packed = engine.batch(offset, len);
     const rows = packed.length === 0 ? [] : packed.split('\n').map((row) => row.split(' '));
 
+    // A short batch is only "the end" when the search actually ran out; if it
+    // hit its node budget instead, more answers exist and saying otherwise
+    // would be a claim of completeness the engine cannot back.
+    const truncated = !engine.exhausted;
+    const done = rows.length < len && !truncated;
+
     if (this.#session) {
       this.#session.served = Math.max(this.#session.served, offset + rows.length);
-      this.#session.exhausted ||= rows.length < len;
+      this.#session.exhausted ||= done;
     }
 
-    this.#port.post({ k: 'batch', id, offset, rows, done: rows.length < len });
+    this.#port.post({ k: 'batch', id, offset, rows, done, truncated });
   }
 
   #random(id: number, index: string): void {
     const engine = this.#require();
     const packed = engine.nth(index);
     const rows = packed === undefined || packed === null ? [] : [packed.split(' ')];
-    this.#port.post({ k: 'batch', id, offset: -1, rows, done: true });
+    this.#port.post({ k: 'batch', id, offset: -1, rows, done: true, truncated: false });
   }
 
   #spellings(id: number, word: string, tier: Tier): void {

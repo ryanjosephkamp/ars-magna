@@ -23,6 +23,12 @@ class ResultBuffer {
   total = '0';
   /** True when more results exist than have been fetched. */
   hasMore = false;
+  /**
+   * The search stopped at its node budget rather than running out of answers,
+   * so the count is a floor and the list is incomplete. Said out loud in the
+   * interface rather than left to look like the full set.
+   */
+  truncated = false;
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
@@ -43,6 +49,7 @@ class ResultBuffer {
     this.#rows = [];
     this.total = '0';
     this.hasMore = false;
+    this.truncated = false;
     this.#notify();
   }
 
@@ -55,11 +62,12 @@ class ResultBuffer {
    * Place a batch at `offset`. Batches can in principle arrive out of order, so
    * rows are written by index rather than pushed.
    */
-  append(offset: number, rows: readonly Row[], done: boolean): void {
+  append(offset: number, rows: readonly Row[], done: boolean, truncated = false): void {
     for (let i = 0; i < rows.length; i++) {
       this.#rows[offset + i] = rows[i]!;
     }
     this.hasMore = !done;
+    this.truncated ||= truncated;
     this.#notify();
   }
 

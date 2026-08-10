@@ -164,6 +164,17 @@ export function App() {
                 )}
               </div>
 
+              {results.truncated && (
+                <p className="border-b border-rule px-3 py-2.5 text-sm text-ink-soft">
+                  This search hit its time limit, so the count is a floor and the list is
+                  incomplete.{' '}
+                  <span className="text-ink-faint">
+                    Raising the minimum word length or lowering the maximum number of words will
+                    let it finish.
+                  </span>
+                </p>
+              )}
+
               {surprise && (
                 <div className="settle flex items-baseline justify-between gap-4 border-b border-rule bg-accent-wash px-3 py-3">
                   <span className="font-display text-xl text-ink">{surprise.join(' ')}</span>

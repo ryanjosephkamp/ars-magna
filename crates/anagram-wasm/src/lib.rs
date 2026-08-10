@@ -54,6 +54,8 @@ fn pack(rows: &[Vec<String>]) -> String {
 pub struct Engine {
     dict: Dict,
     session: Option<Session>,
+    /// Set by `batch`: whether the last one ended naturally or was cut short.
+    exhausted: bool,
 }
 
 struct Session {
@@ -104,6 +106,7 @@ impl Engine {
         Ok(Engine {
             dict,
             session: None,
+            exhausted: true,
         })
     }
 
@@ -153,20 +156,26 @@ impl Engine {
         Ok(candidates)
     }
 
-    /// Exact solution count as a decimal string.
+    /// Solution count as a decimal string.
     ///
     /// A string because the total routinely exceeds `Number.MAX_SAFE_INTEGER` —
     /// an 18-million-result query is ordinary, and long inputs run far past
-    /// 2^53. A `>` prefix means the true count overflowed `u128` and this is a
-    /// floor.
+    /// 2^53.
+    ///
+    /// A `>` prefix means the number is a **floor**, not an exact figure. That
+    /// happens two ways: the true total overflowed `u128`, or the search hit its
+    /// node budget before finishing. Both must be reported, because presenting a
+    /// budget-truncated count as exact would be the site quietly lying about the
+    /// one number it exists to produce.
     #[wasm_bindgen]
     pub fn count(&mut self, node_budget: f64) -> Result<String, JsError> {
         let session = self
             .session
             .as_mut()
             .ok_or_else(|| JsError::new("no active query"))?;
-        let (total, saturated, _) = session.search.count(&mut session.memo, node_budget as u64);
-        Ok(if saturated {
+        let (total, saturated, stats) =
+            session.search.count(&mut session.memo, node_budget as u64);
+        Ok(if saturated || stats.truncated {
             format!(">{total}")
         } else {
             total.to_string()
@@ -174,6 +183,10 @@ impl Engine {
     }
 
     /// Solutions `offset..offset + len` in canonical order.
+    ///
+    /// Sets [`Engine::exhausted`]: false means the search stopped early rather
+    /// than running out of answers, so the caller must not treat a short batch
+    /// as the end of the list.
     #[wasm_bindgen]
     pub fn batch(&mut self, offset: usize, len: usize) -> Result<String, JsError> {
         let session = self
@@ -183,7 +196,7 @@ impl Engine {
 
         let mut rows: Vec<Vec<String>> = Vec::with_capacity(len);
         let mut seen = 0usize;
-        session.search.enumerate(|classes| {
+        let stats = session.search.enumerate(|classes| {
             if seen >= offset {
                 rows.push(session.search.spell(&self.dict, classes, session.tier));
             }
@@ -195,7 +208,18 @@ impl Engine {
             }
         });
 
+        // A short batch means one of two very different things: the result set
+        // genuinely ended, or the node budget ran out mid-search. Only the first
+        // is "no more results".
+        self.exhausted = rows.len() >= len || !stats.truncated;
         Ok(pack(&rows))
+    }
+
+    /// Whether the last [`Engine::batch`] ended because the results ran out,
+    /// rather than because the search was cut short.
+    #[wasm_bindgen(getter)]
+    pub fn exhausted(&self) -> bool {
+        self.exhausted
     }
 
     /// A single solution by index, without enumerating the ones before it.

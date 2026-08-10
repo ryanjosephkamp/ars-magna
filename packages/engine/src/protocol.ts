@@ -59,7 +59,18 @@ export type SolveStats = {
 
 export type Request =
   | { readonly k: 'init'; readonly id: number; readonly baseUrl: string }
-  | { readonly k: 'solve'; readonly id: number; readonly query: Query; readonly first: number }
+  | {
+      readonly k: 'solve';
+      readonly id: number;
+      readonly query: Query;
+      readonly first: number;
+      /**
+       * Search-effort ceiling in DFS nodes. Exists so a pathological input
+       * cannot hang the worker, and so the truncation path can be exercised
+       * by a test rather than taken on faith.
+       */
+      readonly maxNodes?: number;
+    }
   | { readonly k: 'page'; readonly id: number; readonly offset: number; readonly len: number }
   | { readonly k: 'random'; readonly id: number; readonly index: string }
   | { readonly k: 'spellings'; readonly id: number; readonly word: string; readonly tier: Tier }
@@ -104,6 +115,12 @@ export type Response =
       readonly rows: readonly (readonly string[])[];
       /** No further results exist after this batch. */
       readonly done: boolean;
+      /**
+       * The search stopped at its node budget rather than running out of
+       * answers. A short batch means very different things in the two cases,
+       * and the interface has to be able to tell them apart.
+       */
+      readonly truncated: boolean;
     }
   | { readonly k: 'solved'; readonly id: number; readonly stats: SolveStats }
   | { readonly k: 'spellings'; readonly id: number; readonly words: readonly string[] }

@@ -21,7 +21,12 @@ export * from './protocol.ts';
 export type SolveHandlers = {
   /** Exact total, ahead of any results. A `>` prefix means it is a floor. */
   onCount?(total: string, candidates: number): void;
-  onBatch?(offset: number, rows: readonly (readonly string[])[], done: boolean): void;
+  onBatch?(
+    offset: number,
+    rows: readonly (readonly string[])[],
+    done: boolean,
+    truncated: boolean,
+  ): void;
   onDone?(stats: SolveStats): void;
   onError?(code: ErrorCode, message: string): void;
 };
@@ -94,11 +99,11 @@ export class ArsMagnaClient {
    * Start a query. Returns the request id; results arrive through `handlers`.
    * Any earlier query's responses are discarded from this point on.
    */
-  solve(query: Query, handlers: SolveHandlers, first = 200): number {
+  solve(query: Query, handlers: SolveHandlers, first = 200, maxNodes?: number): number {
     const id = this.#nextId++;
     this.#activeQuery = id;
     this.#handlers.set(id, handlers);
-    this.#send({ k: 'solve', id, query, first });
+    this.#send(maxNodes === undefined ? { k: 'solve', id, query, first } : { k: 'solve', id, query, first, maxNodes });
     return id;
   }
 
@@ -169,7 +174,7 @@ export class ArsMagnaClient {
         handlers.onCount?.(message.total, message.candidates);
         break;
       case 'batch':
-        handlers.onBatch?.(message.offset, message.rows, message.done);
+        handlers.onBatch?.(message.offset, message.rows, message.done, message.truncated);
         break;
       case 'solved':
         handlers.onDone?.(message.stats);

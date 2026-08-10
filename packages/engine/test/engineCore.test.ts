@@ -240,6 +240,33 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(port.last('error')!.code).toBe('NOT_A_SUBSET');
   });
 
+  it('says so when the search runs out of budget instead of results', async () => {
+    // A node budget this small guarantees the search is cut off. The engine must
+    // report the count as a floor and mark the batch truncated — presenting a
+    // budget-limited count as exact would be the site lying about the one number
+    // it exists to produce.
+    port.reset();
+    await core.handle({
+      k: 'solve',
+      id: 40,
+      query: { ...DEFAULT_QUERY, input: 'conversationalpiece', minWordLen: 3 },
+      first: 50,
+      maxNodes: 200,
+    });
+
+    expect(port.last('count')!.total.startsWith('>')).toBe(true);
+    expect(port.last('batch')!.truncated).toBe(true);
+    // "Truncated" and "done" are mutually exclusive: more answers exist.
+    expect(port.last('batch')!.done).toBe(false);
+  });
+
+  it('reports an exact count and a finished list when it does complete', async () => {
+    const p = await solve('dormitory', { tier: 'common', minWordLen: 3 });
+    expect(p.last('count')!.total.startsWith('>')).toBe(false);
+    expect(p.last('batch')!.truncated).toBe(false);
+    expect(p.last('batch')!.done).toBe(true);
+  });
+
   it('pins every result to a must-include word', async () => {
     const p = await solve('astronomer', { minWordLen: 3, mustInclude: ['moon'] }, 100);
     const rows = rowsOf(p);

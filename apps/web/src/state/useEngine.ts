@@ -79,7 +79,8 @@ export function useEngine(query: Query) {
             results.setTotal(total);
             setState((s) => ({ ...s, candidates }));
           },
-          onBatch: (offset, rows, done) => results.append(offset, rows, done),
+          onBatch: (offset, rows, done, truncated) =>
+            results.append(offset, rows, done, truncated),
           onDone: () => setState((s) => ({ ...s, searching: false })),
           onError: (code, message) => {
             results.reset();
