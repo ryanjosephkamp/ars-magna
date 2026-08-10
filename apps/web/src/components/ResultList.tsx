@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Row } from '../state/resultBuffer.ts';
+import { countOrderings, orderings } from '../lib/orderings.ts';
+
+/** Orderings shown before the list is cut off. 6 words is already 720. */
+const ORDERINGS_SHOWN = 48;
 
 type Props = {
   rows: readonly Row[];
@@ -8,6 +12,10 @@ type Props = {
   hasMore: boolean;
   onLoadMore(): void;
   spellings(word: string): Promise<string[]>;
+  pinned: readonly string[];
+  onTogglePin(phrase: string): void;
+  copied: string | null;
+  onCopy(key: string, text: string): void;
 };
 
 /**
@@ -19,14 +27,24 @@ type Props = {
  * Window virtualization keeps the DOM to a screenful while the page behaves like
  * a page.
  */
-export function ResultList({ rows, total, hasMore, onLoadMore, spellings }: Props) {
+export function ResultList({
+  rows,
+  total,
+  hasMore,
+  onLoadMore,
+  spellings,
+  pinned,
+  onTogglePin,
+  copied,
+  onCopy,
+}: Props) {
   const anchor = useRef<HTMLDivElement>(null);
   const [offsetTop, setOffsetTop] = useState(0);
   const [expanded, setExpanded] = useState<number | null>(null);
 
   // The virtualizer positions against the document, so it needs to know where
-  // the list begins. Measured after layout, and again whenever the header above
-  // it can have changed height.
+  // the list begins. Re-measured whenever anything above it changes height —
+  // pinning a result does exactly that.
   useLayoutEffect(() => {
     const element = anchor.current;
     if (!element) return;
@@ -56,6 +74,8 @@ export function ResultList({ rows, total, hasMore, onLoadMore, spellings }: Prop
     setExpanded((current) => (current === index ? null : index));
   }, []);
 
+  const pinnedSet = useMemo(() => new Set(pinned), [pinned]);
+
   return (
     <div ref={anchor}>
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -81,6 +101,10 @@ export function ResultList({ rows, total, hasMore, onLoadMore, spellings }: Prop
                 expanded={expanded === item.index}
                 onToggle={toggle}
                 spellings={spellings}
+                isPinned={pinnedSet.has(row.join(' '))}
+                onTogglePin={onTogglePin}
+                copied={copied}
+                onCopy={onCopy}
               />
             </div>
           );
@@ -102,13 +126,22 @@ function ResultRow({
   expanded,
   onToggle,
   spellings,
+  isPinned,
+  onTogglePin,
+  copied,
+  onCopy,
 }: {
   row: Row;
   index: number;
   expanded: boolean;
   onToggle(index: number): void;
   spellings(word: string): Promise<string[]>;
+  isPinned: boolean;
+  onTogglePin(phrase: string): void;
+  copied: string | null;
+  onCopy(key: string, text: string): void;
 }) {
+  const phrase = row.join(' ');
   const [alternates, setAlternates] = useState<Record<string, string[]> | null>(null);
 
   useEffect(() => {
@@ -127,6 +160,11 @@ function ResultRow({
     };
   }, [expanded, alternates, row, spellings]);
 
+  // Orderings are cheap for the sizes that occur here, but there is no reason
+  // to compute them for a row nobody opened.
+  const orderCount = expanded ? countOrderings(row) : 0;
+  const orders = expanded && orderCount > 1 ? orderings(row, ORDERINGS_SHOWN) : [];
+
   // Only ~6% of anagram classes have a second spelling, so this stays quiet
   // until a row is actually opened.
   const extras = alternates
@@ -134,48 +172,127 @@ function ResultRow({
     : [];
 
   return (
-    <div className="border-b border-rule">
-      <button
-        type="button"
-        onClick={() => onToggle(index)}
-        aria-expanded={expanded}
-        className="group flex w-full items-baseline gap-3 py-3 text-left transition-colors
-                   duration-150 hover:bg-sunken focus-visible:bg-sunken"
-      >
-        <span className="w-10 shrink-0 pl-1 font-mono text-[11px] text-ink-faint tabular-nums">
-          {index + 1}
-        </span>
-        <span className="font-display flex-1 text-xl leading-snug text-ink">
-          {row.join(' ')}
-        </span>
-        <span
-          className="shrink-0 pr-2 font-mono text-[11px] text-ink-faint opacity-0 transition-opacity
-                     duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+    <div className={`border-b border-rule ${isPinned ? 'bg-accent-wash/40' : ''}`}>
+      <div className="group flex items-baseline gap-3">
+        <button
+          type="button"
+          onClick={() => onToggle(index)}
+          aria-expanded={expanded}
+          className="flex flex-1 items-baseline gap-3 py-3 text-left transition-colors duration-150
+                     hover:bg-sunken focus-visible:bg-sunken"
         >
-          {row.length} word{row.length === 1 ? '' : 's'}
+          <span className="w-10 shrink-0 pl-1 font-mono text-[11px] text-ink-faint tabular-nums">
+            {index + 1}
+          </span>
+          <span className="font-display flex-1 text-xl leading-snug text-ink">{phrase}</span>
+        </button>
+
+        <span className="flex shrink-0 items-baseline gap-2 pr-1 pl-2">
+          <RowAction
+            label={copied === phrase ? 'Copied' : 'Copy'}
+            active={copied === phrase}
+            onClick={() => onCopy(phrase, phrase)}
+          />
+          <RowAction
+            label={isPinned ? 'Unpin' : 'Pin'}
+            active={isPinned}
+            onClick={() => onTogglePin(phrase)}
+          />
         </span>
-      </button>
+      </div>
 
       {expanded && (
-        <div className="settle pb-4 pl-14 text-sm">
-          {alternates === null ? (
-            <p className="font-mono text-xs text-ink-faint">…</p>
-          ) : extras.length === 0 ? (
-            <p className="text-ink-faint">No other spelling uses these letters.</p>
-          ) : (
-            <dl className="space-y-1">
-              {extras.map(([word, list]) => (
-                <div key={word} className="flex flex-wrap items-baseline gap-x-2">
-                  <dt className="font-display text-ink-soft">{word}</dt>
-                  <dd className="font-display text-ink-faint">
-                    also {list.filter((w) => w !== word).join(', ')}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+        <div className="settle space-y-4 pb-4 pl-14 text-sm">
+          {orderCount > 1 && (
+            <div>
+              <p className="mb-1.5 font-mono text-[11px] tracking-[0.08em] text-ink-faint uppercase">
+                {orderCount === Infinity ? 'Many' : orderCount.toLocaleString()} orderings
+                {orders.length < orderCount && ` · first ${orders.length}`}
+              </p>
+              <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                {orders.map((order) => {
+                  const text = order.join(' ');
+                  return (
+                    <li key={text}>
+                      <button
+                        type="button"
+                        onClick={() => onCopy(text, text)}
+                        title="Copy this ordering"
+                        className={`font-display text-left transition-colors duration-150
+                                    hover:text-accent ${
+                                      copied === text
+                                        ? 'text-accent'
+                                        : text === phrase
+                                          ? 'text-ink'
+                                          : 'text-ink-soft'
+                                    }`}
+                      >
+                        {text}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
+
+          <div>
+            <p className="mb-1.5 font-mono text-[11px] tracking-[0.08em] text-ink-faint uppercase">
+              Other spellings
+            </p>
+            {alternates === null ? (
+              <p className="font-mono text-xs text-ink-faint">…</p>
+            ) : extras.length === 0 ? (
+              <p className="text-ink-faint">
+                No other spelling uses these letters.
+              </p>
+            ) : (
+              <dl className="space-y-1">
+                {extras.map(([word, list]) => (
+                  <div key={word} className="flex flex-wrap items-baseline gap-x-2">
+                    <dt className="font-display text-ink-soft">{word}</dt>
+                    <dd className="font-display text-ink-faint">
+                      also {list.filter((w) => w !== word).join(', ')}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Row actions fade in on hover — with thousands of rows on screen, a permanent
+ * pair of buttons on each would be the loudest thing on the page.
+ *
+ * They stay visible below `md`, though: there is no hover on a touch screen, so
+ * hiding them there would make copy and pin unreachable rather than discreet.
+ */
+function RowAction({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick(): void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`font-mono text-[11px] transition-opacity duration-150 hover:text-accent
+                  focus-visible:opacity-100 ${
+                    active
+                      ? 'text-accent opacity-100'
+                      : 'text-ink-faint md:opacity-0 md:group-hover:opacity-100'
+                  }`}
+    >
+      {label}
+    </button>
   );
 }

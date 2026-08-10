@@ -100,19 +100,32 @@ export function useEngine(query: Query) {
     clientRef.current?.page(results.length, PAGE);
   }, []);
 
+  /**
+   * The result at a given position, fetched by unranking rather than by
+   * counting forward. Result 8,000,000 costs the same as result 8.
+   */
+  const at = useCallback(async (index: bigint): Promise<string[] | null> => {
+    const client = clientRef.current;
+    if (!client || index < 0n) return null;
+    try {
+      return await client.nth(index);
+    } catch {
+      return null;
+    }
+  }, []);
+
   /** Pick a uniformly random result by unranking, so it works at any total. */
   const surpriseMe = useCallback(async (): Promise<string[] | null> => {
-    const client = clientRef.current;
     const total = results.total.replace('>', '');
-    if (!client || total === '0') return null;
+    if (total === '0') return null;
 
     const max = BigInt(total);
-    // Rejection-free: draw 64 random bits and reduce. The tiny modulo bias is
-    // irrelevant for picking something fun to look at.
+    // Draw 64 random bits and reduce. The modulo bias is far below anything
+    // that matters for picking something fun to look at.
     const bits = new BigUint64Array(1);
     crypto.getRandomValues(bits);
-    return await client.nth(bits[0]! % max);
-  }, []);
+    return await at(bits[0]! % max);
+  }, [at]);
 
   const spellings = useCallback(async (word: string): Promise<string[]> => {
     const client = clientRef.current;
@@ -124,7 +137,7 @@ export function useEngine(query: Query) {
     }
   }, [query.tier]);
 
-  return { ...state, loadMore, surpriseMe, spellings };
+  return { ...state, loadMore, at, surpriseMe, spellings };
 }
 
 export { DEFAULT_QUERY };
