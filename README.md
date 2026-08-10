@@ -41,6 +41,26 @@ back to explaining their provenance.
 
 [eol]: https://huggingface.co/datasets/ryanjosephkamp/english-openlist
 
+## Export
+
+Any result set can be downloaded as TXT (one anagram per line), JSON (the same list
+with the query and filters attached, words kept as arrays so the spacing survives), CSV
+(with word count and longest word, for sorting in a spreadsheet), or a ZIP of all three
+plus a README.
+
+Exports are capped at 100,000 rows. A query can have eleven million answers and writing
+them all would be gigabytes, so JSON and CSV both carry a `complete` flag and say what
+they left out — a file that has been emailed on has lost the interface that produced it
+and needs to disclose that itself.
+
+## Filtering and sorting
+
+The result list can be filtered by substring and sorted by word count, alphabetically, or
+by longest word. Both act on what has been loaded rather than on the whole answer space,
+since sorting results the engine never enumerated is not a thing that can be done. The
+status line says which it is, and offers to load everything when the total is small enough
+for that to be honest.
+
 ## Offline
 
 Everything happens on your own machine — the search, the dictionary, the definitions —

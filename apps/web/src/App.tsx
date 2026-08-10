@@ -9,6 +9,16 @@ import { decodeQuery, shareUrl, syncUrl } from './lib/urlState.ts';
 import { useCopy } from './lib/useCopy.ts';
 import { Definitions } from './lib/definitions.ts';
 import type { WordDetail } from './components/WordDetails.tsx';
+import { ResultToolbar } from './components/ResultToolbar.tsx';
+import { SiteFooter } from './components/SiteFooter.tsx';
+import { applyView, type SortMode } from './lib/resultView.ts';
+import {
+  EXPORT_LIMIT,
+  buildBlob,
+  download,
+  fileStem,
+  type ExportFormat,
+} from './lib/exporters.ts';
 
 export function App() {
   // The URL is the source of truth on first paint, so a shared link opens on
@@ -18,11 +28,15 @@ export function App() {
   const [filters, setFilters] = useState<Omit<Query, 'input'>>(initial);
   const [surprise, setSurprise] = useState<string[] | null>(null);
   const [pinned, setPinned] = useState<string[]>([]);
+  const [filter, setFilter] = useState('');
+  const [sort, setSort] = useState<SortMode>('default');
+  const [loadingAll, setLoadingAll] = useState(false);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
 
   const query = useMemo<Query>(() => ({ input, ...filters }), [input, filters]);
   const letters = useMemo(() => input.replace(/[^a-zA-Z]/g, '').toLowerCase(), [input]);
 
-  const { engine, searching, error, candidates, loadMore, at, surpriseMe, spellings } =
+  const { engine, searching, error, candidates, loadMore, collect, at, surpriseMe, spellings } =
     useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
@@ -87,6 +101,58 @@ export function App() {
       current.includes(phrase) ? current.filter((p) => p !== phrase) : [phrase, ...current],
     );
   }, []);
+
+  // A new query invalidates any filter or ordering applied to the old one.
+  useEffect(() => {
+    setFilter('');
+    setSort('default');
+  }, [query]);
+
+  const visibleRows = useMemo(
+    () => applyView(results.rows, { filter, sort }),
+    // The buffer mutates in place, so its version counter is what actually
+    // signals new rows; `results.rows` alone would be referentially stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [results.rows, results.length, filter, sort],
+  );
+
+  const exactTotal = total.startsWith('>') ? null : Number(total);
+  const canLoadAll =
+    exactTotal !== null && exactTotal > results.length && exactTotal <= EXPORT_LIMIT;
+
+  const loadAll = useCallback(async () => {
+    setLoadingAll(true);
+    try {
+      const { rows, complete } = await collect(EXPORT_LIMIT);
+      results.append(0, rows, complete);
+    } finally {
+      setLoadingAll(false);
+    }
+  }, [collect, results]);
+
+  const exportAs = useCallback(
+    async (format: ExportFormat) => {
+      setExporting(format);
+      try {
+        // Export the whole result set, not just what happens to be on screen —
+        // but respect the filter, since a filtered list is what the user is
+        // looking at and is what they mean by "these".
+        const { rows } = await collect(EXPORT_LIMIT);
+        const view = applyView(rows, { filter, sort });
+        const blob = buildBlob(format, {
+          query,
+          letters,
+          total,
+          rows: view,
+          generatedAt: new Date(),
+        });
+        download(blob, `${fileStem(query)}.${format}`);
+      } finally {
+        setExporting(null);
+      }
+    },
+    [collect, filter, sort, query, letters, total],
+  );
 
   return (
     <div className="min-h-dvh">
@@ -207,31 +273,40 @@ export function App() {
               {empty ? (
                 <NoResults letters={letters} tier={filters.tier} />
               ) : (
-                <ResultList
-                  rows={results.rows}
-                  total={formatCount(total)}
-                  hasMore={results.hasMore}
-                  onLoadMore={loadMore}
-                  wordDetails={wordDetails}
-                  pinned={pinned}
-                  onTogglePin={togglePin}
-                  copied={copied}
-                  onCopy={copy}
-                />
+                <>
+                  <ResultToolbar
+                    filter={filter}
+                    onFilterChange={setFilter}
+                    sort={sort}
+                    onSortChange={setSort}
+                    shown={visibleRows.length}
+                    loaded={results.length}
+                    total={formatCount(total)}
+                    canLoadAll={canLoadAll}
+                    loadingAll={loadingAll}
+                    onLoadAll={() => void loadAll()}
+                    onExport={(format) => void exportAs(format)}
+                    exporting={exporting}
+                  />
+                  <ResultList
+                    rows={visibleRows}
+                    total={formatCount(total)}
+                    hasMore={results.hasMore && filter.trim().length === 0}
+                    onLoadMore={loadMore}
+                    wordDetails={wordDetails}
+                    pinned={pinned}
+                    onTogglePin={togglePin}
+                    copied={copied}
+                    onCopy={copy}
+                  />
+                </>
               )}
             </>
           )}
         </section>
 
-        {counts && (
-          <footer className="mt-16 border-t border-rule pt-6 font-mono text-[11px] leading-relaxed text-ink-faint">
-            <p>
-              {counts.full.toLocaleString()} words · {counts.signatures.toLocaleString()} anagram
-              classes · English OpenList
-              {hasQuery && candidates > 0 && <> · {candidates.toLocaleString()} candidates</>}
-            </p>
-          </footer>
-        )}
+        <SiteFooter counts={counts} candidates={candidates} />
+
       </main>
     </div>
   );

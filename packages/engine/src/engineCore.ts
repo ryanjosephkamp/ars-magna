@@ -79,6 +79,8 @@ export class EngineCore {
           return this.#solve(request.id, request.query, request.first, request.maxNodes);
         case 'page':
           return this.#page(request.offset, request.len);
+        case 'collect':
+          return this.#collect(request.id, request.limit);
         case 'random':
           return this.#random(request.id, request.index);
         case 'spellings':
@@ -217,6 +219,19 @@ export class EngineCore {
     }
 
     this.#port.post({ k: 'batch', id, offset, rows, done, truncated });
+  }
+
+  /**
+   * One big enumeration for export. Deliberately does not touch the session
+   * cursor: exporting should not disturb where the reader is in the list.
+   */
+  #collect(id: number, limit: number): void {
+    const engine = this.#require();
+    const packed = engine.batch(0, limit);
+    const rows = packed.length === 0 ? [] : packed.split('\n').map((row) => row.split(' '));
+    // Short of the limit and the search finished on its own terms: that is
+    // everything there is. Otherwise the file is a partial list and has to say so.
+    this.#port.post({ k: 'collected', id, rows, complete: rows.length < limit && engine.exhausted });
   }
 
   #random(id: number, index: string): void {

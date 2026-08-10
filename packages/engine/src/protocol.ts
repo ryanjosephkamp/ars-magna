@@ -72,6 +72,16 @@ export type Request =
       readonly maxNodes?: number;
     }
   | { readonly k: 'page'; readonly id: number; readonly offset: number; readonly len: number }
+  | {
+      /**
+       * Materialize up to `limit` results in one go, for export. Separate from
+       * `page` because it is not part of the browsing session: it must not move
+       * the paging cursor or be mistaken for the visible list.
+       */
+      readonly k: 'collect';
+      readonly id: number;
+      readonly limit: number;
+    }
   | { readonly k: 'random'; readonly id: number; readonly index: string }
   | { readonly k: 'spellings'; readonly id: number; readonly word: string; readonly tier: Tier }
   | { readonly k: 'lookup'; readonly id: number; readonly word: string; readonly tier: Tier };
@@ -125,6 +135,13 @@ export type Response =
   | { readonly k: 'solved'; readonly id: number; readonly stats: SolveStats }
   | { readonly k: 'spellings'; readonly id: number; readonly words: readonly string[] }
   | { readonly k: 'lookup'; readonly id: number; readonly found: boolean }
+  | {
+      readonly k: 'collected';
+      readonly id: number;
+      readonly rows: readonly (readonly string[])[];
+      /** Every result was written; nothing was cut off by the limit or a budget. */
+      readonly complete: boolean;
+    }
   | {
       readonly k: 'error';
       readonly id: number;

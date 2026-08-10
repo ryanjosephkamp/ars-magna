@@ -102,6 +102,24 @@ export function useEngine(query: Query) {
   }, []);
 
   /**
+   * Materialize up to `limit` results in one call, for export or for filtering
+   * across the whole set. Returns them rather than writing to the shared buffer,
+   * so an export cannot disturb what the reader is looking at.
+   */
+  const collect = useCallback(
+    async (limit: number): Promise<{ rows: string[][]; complete: boolean }> => {
+      const client = clientRef.current;
+      if (!client) return { rows: [], complete: false };
+      try {
+        return await client.collect(limit);
+      } catch {
+        return { rows: [], complete: false };
+      }
+    },
+    [],
+  );
+
+  /**
    * The result at a given position, fetched by unranking rather than by
    * counting forward. Result 8,000,000 costs the same as result 8.
    */
@@ -138,7 +156,7 @@ export function useEngine(query: Query) {
     }
   }, [query.tier]);
 
-  return { ...state, loadMore, at, surpriseMe, spellings };
+  return { ...state, loadMore, collect, at, surpriseMe, spellings };
 }
 
 export { DEFAULT_QUERY };

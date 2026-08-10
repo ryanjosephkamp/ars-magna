@@ -118,6 +118,14 @@ export class ArsMagnaClient {
     return this.#ask<string[] | null>((id) => ({ k: 'random', id, index: index.toString() }));
   }
 
+  /**
+   * Materialize up to `limit` results for export. Does not affect the
+   * browsing session or its paging position.
+   */
+  collect(limit: number): Promise<{ rows: string[][]; complete: boolean }> {
+    return this.#ask((id) => ({ k: 'collect', id, limit }));
+  }
+
   /** Every spelling of the anagram class `word` belongs to. */
   spellings(word: string, tier: Tier): Promise<string[]> {
     return this.#ask<string[]>((id) => ({ k: 'spellings', id, word, tier }));
@@ -151,6 +159,8 @@ export class ArsMagnaClient {
       else if (message.k === 'spellings') oneShot.resolve(message.words as never);
       else if (message.k === 'lookup') oneShot.resolve(message.found as never);
       else if (message.k === 'batch') oneShot.resolve((message.rows[0] ?? null) as never);
+      else if (message.k === 'collected')
+        oneShot.resolve({ rows: message.rows, complete: message.complete } as never);
       return;
     }
 
