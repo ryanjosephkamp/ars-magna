@@ -1,0 +1,29 @@
+{
+  "name": "ars-magna",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ars Magna — find every multi-word anagram of any text.",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @ars-magna/web dev",
+    "build": "pnpm run wasm:build && pnpm --filter @ars-magna/web build",
+    "preview": "pnpm --filter @ars-magna/web preview",
+    "typecheck": "tsc --build --force",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dict:fetch": "pnpm --filter @ars-magna/dict-build run fetch",
+    "dict:build": "pnpm --filter @ars-magna/dict-build run build",
+    "dict:verify": "pnpm --filter @ars-magna/dict-build run verify",
+    "wasm:build": "bash scripts/build-wasm.sh",
+    "rust:test": "cargo test --workspace"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

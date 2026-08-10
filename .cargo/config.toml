@@ -1,0 +1,4 @@
+[target.wasm32-unknown-unknown]
+# simd128 powers the 26-byte sub-multiset test that dominates search time.
+# bulk-memory speeds up the letter-vector copies in the DFS hot path.
+rustflags = ["-C", "target-feature=+simd128,+bulk-memory,+nontrapping-fptoint"]

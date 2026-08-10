@@ -1,0 +1,20 @@
+{
+  "name": "@ars-magna/dict-build",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Build-time pipeline: pinned fetch, tiering, front-coded binary artifacts.",
+  "scripts": {
+    "fetch": "node --experimental-strip-types src/fetch.ts",
+    "build": "node --max-old-space-size=2048 --experimental-strip-types src/build.ts",
+    "verify": "node --max-old-space-size=2048 --experimental-strip-types src/build.ts --verify",
+    "shards": "node --max-old-space-size=2048 --experimental-strip-types src/shards.ts"
+  },
+  "dependencies": {
+    "stream-chain": "^3.4.0",
+    "stream-json": "^1.9.1"
+  },
+  "devDependencies": {
+    "@types/stream-json": "^1.7.8"
+  }
+}
