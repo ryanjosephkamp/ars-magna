@@ -40,7 +40,7 @@ jobs:
 
       # A prebuilt release binary; `cargo install wasm-pack` compiles it from
       # source and costs minutes on every cold cache.
-      - uses: jetli/wasm-pack-action@v0.4
+      - uses: jetli/wasm-pack-action@v0.4.0
         with:
           version: latest
 
