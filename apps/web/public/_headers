@@ -1,0 +1,40 @@
+# Cloudflare Pages response headers.
+#
+# Rules are matched most-specific-first, so the manifest exceptions must come
+# before the wildcards that would otherwise freeze them.
+
+# The manifest is the pointer to the content-hashed artifacts. If it were cached
+# hard, a dictionary rebuild would never be picked up — the browser would keep
+# asking for filenames that no longer exist.
+/dict/manifest.json
+  Cache-Control: public, max-age=300, must-revalidate
+
+/defs/manifest.json
+  Cache-Control: public, max-age=300, must-revalidate
+
+# Dictionary artifacts carry a content hash in the filename, so a change is a
+# new URL and these can never go stale.
+/dict/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Vite's own output is content-hashed too.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Definition shards are *not* content-hashed — they are addressed by word hash,
+# so `0.json` keeps its name across rebuilds. Cache them for a day and let
+# revalidation pick up a dictionary bump.
+/defs/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# The service worker must be re-fetched, or a bad one can never be replaced.
+/sw.js
+  Cache-Control: no-cache
+
+/precache.json
+  Cache-Control: no-cache
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN

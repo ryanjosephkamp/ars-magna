@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push makes an in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: TypeScript tests
+        run: pnpm test
+
+      # The golden and oracle suites read the committed dictionary artifacts,
+      # so they exercise the real 378,844-word list rather than a fixture.
+      - name: Rust tests
+        run: cargo test --release --workspace
+
+      - name: Dictionary artifacts are reproducible
+        # Rebuilds from the pinned sources and fails if the committed artifacts
+        # drift. Skipped unless the build inputs changed, since it downloads
+        # ~326 MB of pinned source data.
+        if: contains(github.event.head_commit.message, '[dict]')
+        run: pnpm dict:fetch && pnpm dict:verify

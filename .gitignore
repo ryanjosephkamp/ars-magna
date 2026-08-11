@@ -12,8 +12,10 @@ packages/engine/src/wasm/
 # large pinned source downloads (content-addressed by HF revision)
 .cache/
 
-# definition shards — generated, ~40 MB, not committed
-apps/web/public/defs/
+# Definition shards ARE committed (~18 MB). They are deterministic output of
+# pinned sources, and committing them means a deploy needs no 326 MB download
+# from Hugging Face — the site does not depend on a third party being up to
+# build. Regenerate with `pnpm dict:shards` when a pin moves.
 
 # local env / editor
 .env
