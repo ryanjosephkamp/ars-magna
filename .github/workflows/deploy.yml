@@ -38,8 +38,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
+      # A prebuilt release binary; `cargo install wasm-pack` compiles it from
+      # source and costs minutes on every cold cache.
+      - uses: jetli/wasm-pack-action@v0.4
+        with:
+          version: latest
 
       - name: Build
         run: pnpm build

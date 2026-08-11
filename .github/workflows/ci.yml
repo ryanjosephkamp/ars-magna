@@ -24,6 +24,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The wasm-bindgen output is generated, not committed, so a clean checkout
+      # has no `packages/engine/src/wasm/`. Typecheck and the TypeScript tests
+      # both import it, so the engine has to be built before either runs.
+      - name: Rust toolchain
+        run: rustup target add wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: jetli/wasm-pack-action@v0.4
+        with:
+          version: latest
+
+      - name: Build engine
+        run: pnpm wasm:build
+
       - name: Typecheck
         run: pnpm typecheck
 
