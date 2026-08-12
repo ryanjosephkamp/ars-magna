@@ -20,10 +20,10 @@ jobs:
       contents: read
       deployments: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -47,12 +47,21 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Wrangler is invoked directly rather than through cloudflare/wrangler-action.
+      # That action installs its own copy with a bare `pnpm add wrangler@...`,
+      # which pnpm refuses in a workspace root without `-w` -- so in this repo it
+      # fails before it ever reaches Cloudflare, and the error it prints is about
+      # pnpm rather than about the deploy. Calling the CLI is fewer moving parts,
+      # matches what a manual deploy does, and takes a third-party action off the
+      # critical path. Wrangler reads both credentials from the environment.
+      #
+      # Pinned rather than floating: this is the version the deploy was verified
+      # against, and a publish step is the wrong place to pick up a surprise.
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: >-
-            pages deploy apps/web/dist
-            --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
-            --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          pnpm dlx wrangler@4.121.0 pages deploy apps/web/dist
+          --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
+          --branch=main
