@@ -20,7 +20,7 @@ function compact(n: number): string {
 type Props = {
   query: Query;
   counts: DictCounts | null;
-  onChange(patch: Partial<Query>): void;
+  onChange(patch: Partial<Omit<Query, 'input'>>): void;
   invalidWord: string | null;
 };
 

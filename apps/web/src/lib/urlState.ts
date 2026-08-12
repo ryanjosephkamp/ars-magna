@@ -66,6 +66,23 @@ export function decodeQuery(hash: string): Query {
 }
 
 /**
+ * Split a decoded query into the text and everything else.
+ *
+ * The app keeps `input` in its own state, so the rest of the query is held as
+ * `Omit<Query, 'input'>`. That is a *compile-time* shape only: a whole `Query`
+ * satisfies it while still carrying `input` at runtime, and a later
+ * `{ ...filters }` then puts that stale value back over whatever the reader has
+ * typed. Doing the split here makes the runtime shape match the type.
+ */
+export function splitQuery(query: Query): {
+  input: string;
+  filters: Omit<Query, 'input'>;
+} {
+  const { input, ...filters } = query;
+  return { input, filters };
+}
+
+/**
  * Write the query to the address bar without adding a history entry.
  *
  * `replaceState`, not `pushState`: the query updates on every keystroke, and

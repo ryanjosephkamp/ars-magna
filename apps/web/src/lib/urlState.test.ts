@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_QUERY, UNLIMITED_WORDS, type Query } from '@ars-magna/engine';
-import { decodeQuery, encodeQuery } from './urlState.ts';
+import { decodeQuery, encodeQuery, splitQuery } from './urlState.ts';
 
 const query = (overrides: Partial<Query> = {}): Query => ({
   input: '',
@@ -76,5 +76,41 @@ describe('urlState', () => {
   it('tolerates a hash with or without its leading marker', () => {
     expect(decodeQuery('#q=dormitory').input).toBe('dormitory');
     expect(decodeQuery('q=dormitory').input).toBe('dormitory');
+  });
+});
+
+describe('splitQuery', () => {
+  it('removes input from the filters at runtime, not just in the type', () => {
+    const { input, filters } = splitQuery(query({ input: 'dormitory' }));
+
+    expect(input).toBe('dormitory');
+    // The bug this guards: `Omit<Query, 'input'>` is satisfied by an object that
+    // still carries `input`, so the property has to actually be gone.
+    expect(Object.keys(filters)).not.toContain('input');
+    expect('input' in filters).toBe(false);
+  });
+
+  it('keeps every filter it was given', () => {
+    const { filters } = splitQuery(
+      query({ input: 'x', tier: 'full', minWordLen: 3, maxWords: 4, mustInclude: ['cat'] }),
+    );
+
+    expect(filters).toEqual({
+      tier: 'full',
+      minWordLen: 3,
+      maxWords: 4,
+      mustInclude: ['cat'],
+    });
+  });
+
+  it('spreading the filters cannot shadow a newer input', () => {
+    // Exactly how App composes the live query. With `input` still inside
+    // `filters`, this produced the first-paint value on every keystroke, so the
+    // search silently ran on stale text -- an empty string on an ordinary visit,
+    // which the engine short-circuits to zero results.
+    const { filters } = splitQuery(query({ input: '' }));
+    const live = { ...filters, input: 'listen' };
+
+    expect(live.input).toBe('listen');
   });
 });

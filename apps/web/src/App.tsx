@@ -5,7 +5,7 @@ import { Controls } from './components/Controls.tsx';
 import { ResultList } from './components/ResultList.tsx';
 import { PinnedStrip } from './components/PinnedStrip.tsx';
 import { useEngine, useResults } from './state/useEngine.ts';
-import { decodeQuery, shareUrl, syncUrl } from './lib/urlState.ts';
+import { decodeQuery, shareUrl, splitQuery, syncUrl } from './lib/urlState.ts';
 import { useCopy } from './lib/useCopy.ts';
 import { Definitions } from './lib/definitions.ts';
 import type { WordDetail } from './components/WordDetails.tsx';
@@ -23,9 +23,9 @@ import {
 export function App() {
   // The URL is the source of truth on first paint, so a shared link opens on
   // exactly the search it was copied from.
-  const initial = useMemo(() => decodeQuery(window.location.hash), []);
+  const initial = useMemo(() => splitQuery(decodeQuery(window.location.hash)), []);
   const [input, setInput] = useState(initial.input);
-  const [filters, setFilters] = useState<Omit<Query, 'input'>>(initial);
+  const [filters, setFilters] = useState(initial.filters);
   const [surprise, setSurprise] = useState<string[] | null>(null);
   const [pinned, setPinned] = useState<string[]>([]);
   const [filter, setFilter] = useState('');
@@ -33,7 +33,10 @@ export function App() {
   const [loadingAll, setLoadingAll] = useState(false);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
 
-  const query = useMemo<Query>(() => ({ input, ...filters }), [input, filters]);
+  // `input` goes last so it always wins. Belt and braces alongside splitQuery:
+  // if a stale `input` ever gets back into `filters`, the search still follows
+  // what is in the field rather than silently reverting to first paint.
+  const query = useMemo<Query>(() => ({ ...filters, input }), [input, filters]);
   const letters = useMemo(() => input.replace(/[^a-zA-Z]/g, '').toLowerCase(), [input]);
 
   const { engine, searching, error, candidates, loadMore, collect, at, surpriseMe, spellings } =
@@ -70,9 +73,9 @@ export function App() {
   // Back/forward moves between searches the user actually navigated to.
   useEffect(() => {
     const onPop = () => {
-      const next = decodeQuery(window.location.hash);
+      const next = splitQuery(decodeQuery(window.location.hash));
       setInput(next.input);
-      setFilters(next);
+      setFilters(next.filters);
     };
     window.addEventListener('popstate', onPop);
     window.addEventListener('hashchange', onPop);
@@ -87,7 +90,9 @@ export function App() {
   const total = results.total;
   const empty = hasQuery && !searching && total === '0' && error === null;
 
-  const patch = useCallback((next: Partial<Query>) => {
+  // Deliberately cannot carry `input`: the text field owns that, and letting it
+  // through here is what let a stale value shadow the live one.
+  const patch = useCallback((next: Partial<Omit<Query, 'input'>>) => {
     setSurprise(null);
     setFilters((current) => ({ ...current, ...next }));
   }, []);
