@@ -7,7 +7,7 @@
  * nothing to do with threads.
  */
 import initWasm, { Engine, type InitInput } from './wasm/anagram.js';
-import type { Manifest, Query, Request, Response, Tier } from './protocol.ts';
+import type { Manifest, ManifestFile, Query, Request, Response, Tier } from './protocol.ts';
 
 export type Port = {
   post(message: Response): void;
@@ -29,7 +29,7 @@ const DEFAULT_MAX_NODES = 50_000_000;
  *  Artifact filenames carry a content hash, so a cached entry can never be
  *  stale — a rebuilt dictionary is a different URL. That makes the cache a pure
  *  win and lets the app work offline after one visit. */
-async function fetchArtifact(url: string, fetchImpl: typeof fetch): Promise<ArrayBuffer> {
+async function fetchOne(url: string, fetchImpl: typeof fetch): Promise<ArrayBuffer> {
   if (typeof caches !== 'undefined') {
     try {
       const cache = await caches.open(CACHE_NAME);
@@ -40,7 +40,10 @@ async function fetchArtifact(url: string, fetchImpl: typeof fetch): Promise<Arra
       if (!response.ok) throw new Error(`${url} -> HTTP ${response.status}`);
       await cache.put(url, response.clone());
       return await response.arrayBuffer();
-    } catch {
+    } catch (error) {
+      // A failed request must not be swallowed as "Cache Storage is missing" —
+      // that would silently fall through to a second identical request.
+      if (error instanceof Error && error.message.includes('-> HTTP')) throw error;
       // Cache Storage is unavailable in some private-browsing modes; fall
       // through to a plain fetch rather than failing the load.
     }
@@ -48,6 +51,53 @@ async function fetchArtifact(url: string, fetchImpl: typeof fetch): Promise<Arra
   const response = await fetchImpl(url);
   if (!response.ok) throw new Error(`${url} -> HTTP ${response.status}`);
   return await response.arrayBuffer();
+}
+
+/**
+ * Fetch an artifact, preferring the pre-compressed sibling.
+ *
+ * The dictionary is `application/octet-stream`, which Cloudflare will not
+ * compress on the fly, so the plain `.bin` crosses the wire at full size — 2.1
+ * MB of the 2.4 MB first load. The build already emits a `.br` next to every
+ * artifact, and the host serves it with `Content-Encoding: br`, so the browser
+ * decodes it transparently and this gets the same bytes for a third of the
+ * transfer.
+ *
+ * `Content-Encoding` is the one part of this that depends on the host being
+ * configured correctly, and getting it wrong yields undecoded brotli rather
+ * than an error — the engine would then fail deep inside `Dict::decode` with
+ * something unreadable. So the decoded length is checked against the manifest,
+ * and anything unexpected falls back to the uncompressed URL. A slow load beats
+ * a corrupt one.
+ */
+async function fetchArtifact(
+  baseUrl: string,
+  file: ManifestFile,
+  fetchImpl: typeof fetch,
+): Promise<ArrayBuffer> {
+  const plain = `${baseUrl}/${file.name}`;
+
+  if (file.brotliBytes !== undefined) {
+    const compressed = `${plain}.br`;
+    try {
+      const bytes = await fetchOne(compressed, fetchImpl);
+      if (bytes.byteLength === file.bytes) return bytes;
+
+      // Either the host served brotli without saying so, or a cache entry from
+      // a host that used to. Drop it so the next visit does not repeat this.
+      if (typeof caches !== 'undefined') {
+        try {
+          await (await caches.open(CACHE_NAME)).delete(compressed);
+        } catch {
+          // Nothing to clean up; the fallback below is what matters.
+        }
+      }
+    } catch {
+      // No sibling deployed, or the request failed. Fall back.
+    }
+  }
+
+  return await fetchOne(plain, fetchImpl);
 }
 
 type Session = {
@@ -143,8 +193,8 @@ export class EngineCore {
     }
 
     const [dictBytes, tierBytes] = await Promise.all([
-      fetchArtifact(`${baseUrl}/${full.name}`, fetchImpl),
-      fetchArtifact(`${baseUrl}/${tiers.name}`, fetchImpl),
+      fetchArtifact(baseUrl, full, fetchImpl),
+      fetchArtifact(baseUrl, tiers, fetchImpl),
     ]);
 
     this.#engine = new Engine(new Uint8Array(dictBytes), new Uint8Array(tierBytes));

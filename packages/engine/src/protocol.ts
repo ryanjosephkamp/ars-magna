@@ -40,14 +40,21 @@ export type DictCounts = {
   readonly signatures: number;
 };
 
+export type ManifestFile = {
+  readonly name: string;
+  /** Size decoded. The check that a compressed transfer arrived intact. */
+  readonly bytes: number;
+  /** Size of the sibling `.br`, when the build produced one. */
+  readonly brotliBytes?: number;
+  readonly sha256: string;
+};
+
 export type Manifest = {
   readonly schemaVersion: number;
   readonly builtAt: string;
   readonly source: { readonly repo: string; readonly rev: string };
   readonly counts: DictCounts;
-  readonly files: Readonly<
-    Record<string, { readonly name: string; readonly bytes: number; readonly sha256: string }>
-  >;
+  readonly files: Readonly<Record<string, ManifestFile>>;
 };
 
 export type SolveStats = {
