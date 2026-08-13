@@ -17,6 +17,7 @@ import type {
 } from './protocol.ts';
 
 export * from './protocol.ts';
+export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
 
 export type SolveHandlers = {
   /** Exact total, ahead of any results. A `>` prefix means it is a floor. */
@@ -136,6 +137,11 @@ export class ArsMagnaClient {
     return this.#ask<boolean>((id) => ({ k: 'lookup', id, word, tier }));
   }
 
+  /** Part-of-speech masks for `words`, in order. */
+  masks(words: readonly string[]): Promise<number[]> {
+    return this.#ask<number[]>((id) => ({ k: 'masks', id, words }));
+  }
+
   #ask<T>(build: (id: number) => Request): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const id = this.#nextId++;
@@ -158,6 +164,7 @@ export class ArsMagnaClient {
       if (message.k === 'error') oneShot.reject(new Error(message.message));
       else if (message.k === 'spellings') oneShot.resolve(message.words as never);
       else if (message.k === 'lookup') oneShot.resolve(message.found as never);
+      else if (message.k === 'masks') oneShot.resolve(message.masks as never);
       else if (message.k === 'batch') oneShot.resolve((message.rows[0] ?? null) as never);
       else if (message.k === 'collected')
         oneShot.resolve({ rows: message.rows, complete: message.complete } as never);

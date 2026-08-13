@@ -21,6 +21,7 @@ type Props = {
   hasMore: boolean;
   onLoadMore(): void;
   wordDetails(words: readonly string[]): Promise<WordDetail[]>;
+  wordMasks(words: readonly string[]): Promise<number[]>;
   pinned: readonly string[];
   onTogglePin(phrase: string): void;
   copied: string | null;
@@ -42,6 +43,7 @@ export function ResultList({
   hasMore,
   onLoadMore,
   wordDetails,
+  wordMasks,
   pinned,
   onTogglePin,
   copied,
@@ -193,6 +195,7 @@ export function ResultList({
                 onToggle={toggle}
                 onFocus={setCursor}
                 wordDetails={wordDetails}
+                wordMasks={wordMasks}
                 isPinned={pinnedSet.has(row.join(' '))}
                 onTogglePin={onTogglePin}
                 copied={copied}
@@ -219,6 +222,7 @@ function ResultRow({
   onToggle,
   onFocus,
   wordDetails,
+  wordMasks,
   isPinned,
   onTogglePin,
   copied,
@@ -230,6 +234,7 @@ function ResultRow({
   onToggle(index: number): void;
   onFocus(index: number): void;
   wordDetails(words: readonly string[]): Promise<WordDetail[]>;
+  wordMasks(words: readonly string[]): Promise<number[]>;
   isPinned: boolean;
   onTogglePin(phrase: string): void;
   copied: string | null;
@@ -237,6 +242,7 @@ function ResultRow({
 }) {
   const phrase = row.join(' ');
   const [details, setDetails] = useState<WordDetail[] | null>(null);
+  const [masks, setMasks] = useState<number[] | null>(null);
 
   // Definitions and spellings are fetched only for rows someone opened —
   // there is no sense pulling shards for the thousands scrolling past.
@@ -251,10 +257,24 @@ function ResultRow({
     };
   }, [expanded, details, row, wordDetails]);
 
+  // Masks rank the alternate orderings. Fetched alongside the definitions and
+  // for the same reason: only a row someone opened needs them.
+  useEffect(() => {
+    if (!expanded || masks) return;
+    let live = true;
+    void wordMasks(row).then((result) => {
+      if (live) setMasks(result);
+    });
+    return () => {
+      live = false;
+    };
+  }, [expanded, masks, row, wordMasks]);
+
   // Orderings are cheap for the sizes that occur here, but there is no reason
   // to compute them for a row nobody opened.
   const orderCount = expanded ? countOrderings(row) : 0;
-  const orders = expanded && orderCount > 1 ? orderings(row, ORDERINGS_SHOWN) : [];
+  const orders =
+    expanded && orderCount > 1 ? orderings(row, ORDERINGS_SHOWN, masks ?? undefined) : [];
 
   return (
     <div className={`border-b border-rule ${isPinned ? 'bg-accent-wash/40' : ''}`}>

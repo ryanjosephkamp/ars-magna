@@ -1,3 +1,5 @@
+import { scoreOrder } from '@ars-magna/engine';
+
 /**
  * Word orderings for a single result.
  *
@@ -39,11 +41,18 @@ export function countOrderings(words: readonly string[]): number {
  * Distinct orderings, capped at `limit`.
  *
  * The result's own order is emitted first — it is the one the user is already
- * looking at, and leading with a reshuffle of it would be disorienting. The
- * rest follow in a stable alphabetical walk so the list does not change between
- * openings.
+ * looking at, and leading with a reshuffle of it would be disorienting.
+ *
+ * When `masks` is supplied the rest are ranked by how well they read, using the
+ * same scoring the worker used to choose the order on display. Without it they
+ * fall back to a stable alphabetical walk, so the list never changes between
+ * openings either way.
  */
-export function orderings(words: readonly string[], limit: number): string[][] {
+export function orderings(
+  words: readonly string[],
+  limit: number,
+  masks?: readonly number[],
+): string[][] {
   if (words.length === 0 || limit <= 0) return [];
   if (words.length === 1) return [[...words]];
 
@@ -83,6 +92,26 @@ export function orderings(words: readonly string[], limit: number): string[][] {
   };
 
   walk();
+
+  // Rank by readability before the original is floated up, so the alternatives
+  // below it are in a useful order rather than an alphabetical one. Sorting by
+  // the same score the worker used means the list agrees with the choice it
+  // already made.
+  if (masks !== undefined && masks.length === words.length) {
+    const maskOf = new Map(words.map((word, i) => [word, masks[i]!]));
+    const cache = new Map<string, number>();
+    const rank = (row: string[]): number => {
+      const key = row.join(' ');
+      let value = cache.get(key);
+      if (value === undefined) {
+        value = scoreOrder(row, row.map((word) => maskOf.get(word) ?? 0));
+        cache.set(key, value);
+      }
+      return value;
+    };
+    // Stable: equal scores keep the alphabetical walk's order.
+    out.sort((a, b) => rank(b) - rank(a));
+  }
 
   // Float the row's own order to the front. If the cap cut it off, put it there
   // anyway and drop the last entry — the user's current view must be in the list.

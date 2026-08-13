@@ -39,8 +39,9 @@ export function App() {
   const query = useMemo<Query>(() => ({ ...filters, input }), [input, filters]);
   const letters = useMemo(() => input.replace(/[^a-zA-Z]/g, '').toLowerCase(), [input]);
 
-  const { engine, searching, error, candidates, loadMore, collect, at, surpriseMe, spellings } =
-    useEngine(query);
+  const {
+    engine, searching, error, candidates, loadMore, collect, at, surpriseMe, spellings, masks,
+  } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
 
@@ -299,6 +300,7 @@ export function App() {
                     hasMore={results.hasMore && filter.trim().length === 0}
                     onLoadMore={loadMore}
                     wordDetails={wordDetails}
+                    wordMasks={masks}
                     pinned={pinned}
                     onTogglePin={togglePin}
                     copied={copied}

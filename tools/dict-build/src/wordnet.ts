@@ -28,6 +28,8 @@ import { resolve } from 'node:path';
 import { normalize } from './normalize.ts';
 import { CURATED, type CuratedPos } from './glosses.ts';
 
+export type { CuratedPos };
+
 /** The four WordNet carries. Curated glosses add the closed classes it does not. */
 export type PartOfSpeech = 'n' | 'v' | 'adj' | 'adv';
 

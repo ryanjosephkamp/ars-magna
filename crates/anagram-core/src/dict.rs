@@ -20,6 +20,7 @@ const FORMAT_VERSION: u16 = 1;
 
 const SECTION_WORDS: u32 = 1;
 const SECTION_ZIPF: u32 = 3;
+const SECTION_POS: u32 = 4;
 
 #[derive(Debug)]
 pub enum DictError {
@@ -61,6 +62,9 @@ pub struct WordList {
     pub words: Vec<String>,
     /// Quantised zipf, one byte per word; 0 means "no frequency data".
     pub zipf: Vec<u8>,
+    /// Part-of-speech bitmask per word; 0 means "nothing known". Two bytes on
+    /// the wire because there are nine classes, one `u16` here.
+    pub pos: Vec<u16>,
 }
 
 impl WordList {
@@ -79,6 +83,7 @@ impl WordList {
 
         let mut words_section: Option<&[u8]> = None;
         let mut zipf_section: Option<&[u8]> = None;
+        let mut pos_section: Option<&[u8]> = None;
 
         for i in 0..section_count {
             let at = 24 + i * 12;
@@ -89,6 +94,7 @@ impl WordList {
             match kind {
                 SECTION_WORDS => words_section = Some(slice),
                 SECTION_ZIPF => zipf_section = Some(slice),
+                SECTION_POS => pos_section = Some(slice),
                 _ => {}
             }
         }
@@ -129,7 +135,16 @@ impl WordList {
             _ => vec![0; word_count],
         };
 
-        Ok(WordList { words, zipf })
+        // Absent is not an error: a dictionary built before this section
+        // existed still loads, and the ordering falls back to search order.
+        let pos = match pos_section {
+            Some(p) if p.len() >= word_count * 2 => (0..word_count)
+                .map(|i| u16::from_le_bytes([p[i * 2], p[i * 2 + 1]]))
+                .collect(),
+            _ => vec![0; word_count],
+        };
+
+        Ok(WordList { words, zipf, pos })
     }
 }
 
@@ -209,6 +224,8 @@ pub struct SigClass {
 pub struct Dict {
     pub words: Vec<String>,
     pub zipf: Vec<u8>,
+    /// Part-of-speech bitmask per word, parallel to `words`. 0 means unknown.
+    pub pos: Vec<u16>,
     pub classes: Vec<SigClass>,
     tiers: Option<TierBits>,
 }
@@ -216,7 +233,7 @@ pub struct Dict {
 impl Dict {
     /// Build from an already-decoded word list.
     pub fn new(list: WordList, tiers: Option<TierBits>) -> Result<Dict, DictError> {
-        let WordList { words, zipf } = list;
+        let WordList { words, zipf, pos } = list;
 
         let mut grouped: HashMap<Counts, Vec<u32>> = HashMap::with_capacity(words.len());
         for (index, word) in words.iter().enumerate() {
@@ -254,6 +271,7 @@ impl Dict {
         Ok(Dict {
             words,
             zipf,
+            pos,
             classes,
             tiers,
         })
@@ -270,6 +288,18 @@ impl Dict {
 
     pub fn word(&self, index: u32) -> &str {
         &self.words[index as usize]
+    }
+
+    /// Part-of-speech mask for `word`, or 0 when it is unknown or absent.
+    ///
+    /// Binary search rather than `find_class`, which scans every class: this is
+    /// called once per word of every row a reader is shown, and a linear scan
+    /// there would cost more than the ordering it feeds.
+    pub fn pos_of(&self, word: &str) -> u16 {
+        match self.words.binary_search_by(|w| w.as_str().cmp(word)) {
+            Ok(index) => self.pos.get(index).copied().unwrap_or(0),
+            Err(_) => 0,
+        }
     }
 
     /// Words of `class` that are members of `tier`.
@@ -322,7 +352,8 @@ impl Dict {
         list.sort();
         list.dedup();
         let zipf = vec![0; list.len()];
-        Dict::new(WordList { words: list, zipf }, None)
+        let pos = vec![0; list.len()];
+        Dict::new(WordList { words: list, zipf, pos }, None)
     }
 }
 

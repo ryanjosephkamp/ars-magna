@@ -8,6 +8,7 @@
  */
 import initWasm, { Engine, type InitInput } from './wasm/anagram.js';
 import type { Manifest, ManifestFile, Query, Request, Response, Tier } from './protocol.ts';
+import { bestOrder } from './wordOrder.ts';
 
 export type Port = {
   post(message: Response): void;
@@ -137,6 +138,8 @@ export class EngineCore {
           return this.#spellings(request.id, request.word, request.tier);
         case 'lookup':
           return this.#lookup(request.id, request.word, request.tier);
+        case 'masks':
+          return this.#masks(request.id, request.words);
       }
     } catch (error) {
       this.#fail(request.id, error);
@@ -252,10 +255,40 @@ export class EngineCore {
     this.#emit(session.id, offset, len);
   }
 
+
+  /**
+   * Unpack a batch and put each row into an order that reads like English.
+   *
+   * The single place rows are materialized. `#emit`, `#collect` and `#random`
+   * each had their own copy of the split, which meant the page, the export and
+   * "surprise me" could disagree about the same answer. They cannot now.
+   *
+   * The cost is proportional to rows *shown*, never to rows searched: a query
+   * that walked fifty million nodes and one that walked fifty pay the same here.
+   */
+  #rows(packed: string): string[][] {
+    if (packed.length === 0) return [];
+    const rows = packed.split('\n').map((row) => row.split(' '));
+
+    const flat = rows.flat();
+    if (flat.length === 0) return rows;
+
+    // One call across the whole batch rather than one per word.
+    const masks = this.#require().posMasks(flat.join(' '));
+    if (masks.length !== flat.length) return rows;
+
+    let at = 0;
+    return rows.map((row) => {
+      const slice = Array.from(masks.subarray(at, at + row.length));
+      at += row.length;
+      return bestOrder(row, slice);
+    });
+  }
+
   #emit(id: number, offset: number, len: number): void {
     const engine = this.#require();
     const packed = engine.batch(offset, len);
-    const rows = packed.length === 0 ? [] : packed.split('\n').map((row) => row.split(' '));
+    const rows = this.#rows(packed);
 
     // A short batch is only "the end" when the search actually ran out; if it
     // hit its node budget instead, more answers exist and saying otherwise
@@ -278,7 +311,7 @@ export class EngineCore {
   #collect(id: number, limit: number): void {
     const engine = this.#require();
     const packed = engine.batch(0, limit);
-    const rows = packed.length === 0 ? [] : packed.split('\n').map((row) => row.split(' '));
+    const rows = this.#rows(packed);
     // Short of the limit and the search finished on its own terms: that is
     // everything there is. Otherwise the file is a partial list and has to say so.
     this.#port.post({ k: 'collected', id, rows, complete: rows.length < limit && engine.exhausted });
@@ -287,7 +320,7 @@ export class EngineCore {
   #random(id: number, index: string): void {
     const engine = this.#require();
     const packed = engine.nth(index);
-    const rows = packed === undefined || packed === null ? [] : [packed.split(' ')];
+    const rows = packed === undefined || packed === null ? [] : this.#rows(packed);
     this.#port.post({ k: 'batch', id, offset: -1, rows, done: true, truncated: false });
   }
 
@@ -297,6 +330,14 @@ export class EngineCore {
 
   #lookup(id: number, word: string, tier: Tier): void {
     this.#port.post({ k: 'lookup', id, found: this.#require().has(word, tier) });
+  }
+
+  /** Part-of-speech masks, so the interface can rank the alternate orderings
+   *  by the same measure the worker used to pick the one it showed. */
+  #masks(id: number, words: readonly string[]): void {
+    const masks =
+      words.length === 0 ? [] : Array.from(this.#require().posMasks(words.join(' ')));
+    this.#port.post({ k: 'masks', id, masks });
   }
 
   get manifest(): Manifest | null {

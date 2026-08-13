@@ -256,6 +256,19 @@ impl Engine {
         }
     }
 
+    /// Part-of-speech masks for a space-separated list of words, in order.
+    ///
+    /// One call per batch rather than one per word: the worker flattens every
+    /// row it is about to show, asks once, and slices the answer back apart.
+    #[wasm_bindgen(js_name = posMasks)]
+    pub fn pos_masks(&self, words: &str) -> Vec<u16> {
+        words
+            .split(' ')
+            .filter(|w| !w.is_empty())
+            .map(|w| self.dict.pos_of(w))
+            .collect()
+    }
+
     /// Whether a word exists at a tier — used to validate "must include" chips.
     #[wasm_bindgen]
     pub fn has(&self, word: &str, tier: &str) -> bool {

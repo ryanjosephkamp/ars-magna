@@ -62,6 +62,37 @@ export const TAG_BIT: Record<Tag, number> = {
 /** Beyond this the exact search is no longer cheap; the input order is kept. */
 export const MAX_EXACT = 10;
 
+/**
+ * How much better a new order has to be before the words are moved.
+ *
+ * Zero was tried and is too low. The table ties or nearly ties constantly, so a
+ * third of all results came out rearranged on the strength of a single weak
+ * preference — `stomachers lo` becoming `lo stomachers`, which reads no better
+ * and costs the reader a second look.
+ *
+ * Three is the point where at least two rules have to agree: determiner first
+ * *and* noun after it, or adverb before adjective *and* adjective before noun.
+ *
+ * **Measured against the shipped tags, three reorders 35% of rows, not the 13%
+ * an earlier estimate suggested.** That estimate used the three senses in the
+ * definition shards; the tags actually shipped come from up to eight, so most
+ * words carry more parts of speech and the search has correspondingly more
+ * freedom. The curve, over 341 real rows:
+ *
+ *     >= 3   35%      >= 6   22%      >= 8   10%
+ *     >= 4   28%      >= 7   16%      >= 10   4%
+ *
+ * Most of what three admits and seven does not is one pattern: a row ending in
+ * a function word gets rearranged, because `conj -> $` and `prep -> $` are -4.
+ * English really does not end phrases on "or", so the rule is right; on word
+ * salad it is simply churn. Raise this to 7 to switch that off.
+ *
+ * No threshold catches the harder failure. `my pa rank` scores +12 because it
+ * is genuinely well-formed — determiner, noun, noun — and means nothing at all.
+ * The flaw there is semantic and this model is entirely syntactic.
+ */
+export const MIN_GAIN = 3;
+
 type Row = Partial<Record<Tag | '$', number>>;
 
 /**
@@ -199,13 +230,13 @@ export function bestOrder(words: readonly string[], masks: readonly number[]): s
   }
   if (bestSlot < 0) return [...words];
 
-  // Only move words when the new order is *strictly* better. Without this the
-  // table's many zero-scoring transitions tie constantly, the tie is broken by
+  // Only move words when the new order is better by `MIN_GAIN`. A bare
+  // improvement is not enough: the table ties constantly, the tie is broken by
   // whichever path the loops happened to reach first, and the result is a
   // reshuffle that reads no better than the original — `outlearns lar` becoming
   // `lar outlearns` for no reason a reader could name. Churn is worse than
   // leaving it alone, because it costs the reader attention and returns nothing.
-  if (bestScore <= scoreOrder(words, masks)) return [...words];
+  if (bestScore - scoreOrder(words, masks) < MIN_GAIN) return [...words];
 
   const order: number[] = [];
   for (let slot = bestSlot; slot >= 0; slot = from[slot]!) {

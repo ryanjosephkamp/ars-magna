@@ -133,6 +133,20 @@ export function useEngine(query: Query) {
     }
   }, []);
 
+  /**
+   * Part-of-speech masks, so the interface can rank a row's alternate orderings
+   * by the same measure the worker used to choose the one it displayed.
+   */
+  const masks = useCallback(async (words: readonly string[]): Promise<number[]> => {
+    const client = clientRef.current;
+    if (!client || words.length === 0) return [];
+    try {
+      return await client.masks(words);
+    } catch {
+      return [];
+    }
+  }, []);
+
   /** Pick a uniformly random result by unranking, so it works at any total. */
   const surpriseMe = useCallback(async (): Promise<string[] | null> => {
     const total = results.total.replace('>', '');
@@ -156,7 +170,7 @@ export function useEngine(query: Query) {
     }
   }, [query.tier]);
 
-  return { ...state, loadMore, collect, at, surpriseMe, spellings };
+  return { ...state, loadMore, collect, at, surpriseMe, spellings, masks };
 }
 
 export { DEFAULT_QUERY };

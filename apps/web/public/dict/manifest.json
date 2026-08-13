@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "builtAt": "2026-08-10T06:53:03.764Z",
+  "builtAt": "2026-08-13T03:32:14.769Z",
   "source": {
     "repo": "ryanjosephkamp/english-openlist",
     "rev": "368bf0e4460461c985fca8bde49e4062d56c1516",
@@ -19,10 +19,10 @@
   },
   "files": {
     "full": {
-      "name": "full.d7bd1ecc3b82.bin",
-      "bytes": 2183116,
-      "brotliBytes": 700358,
-      "sha256": "d7bd1ecc3b82198acb41f71b569dd6a24b388c55e9b1a1438e6f23bd996297a9"
+      "name": "full.ac462a3cd9b5.bin",
+      "bytes": 2940816,
+      "brotliBytes": 804185,
+      "sha256": "ac462a3cd9b57fa0956413e3227eb2b38b217bf0438a27d1a7ce384137af6e7b"
     },
     "common": {
       "name": "common.cb94c5f0d918.bin",

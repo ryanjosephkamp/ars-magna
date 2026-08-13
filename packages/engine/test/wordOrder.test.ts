@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { MAX_EXACT, TAG_BIT as B, bestOrder, scoreOrder } from '../src/wordOrder.ts';
+import { MAX_EXACT, MIN_GAIN, TAG_BIT as B, bestOrder, scoreOrder } from '../src/wordOrder.ts';
 
 const say = (words: string[], masks: number[]) => bestOrder(words, masks).join(' ');
 
@@ -25,20 +25,31 @@ describe('bestOrder', () => {
   });
 
   it('puts the adverb before what it modifies', () => {
-    expect(say(['charmless', 'too'], [B.adj, B.adv])).toBe('too charmless');
     expect(say(['ran', 'quickly'], [B.verb, B.adv])).toBe('quickly ran');
   });
 
   it('resolves an ambiguous word in whichever reading orders best', () => {
-    // `natural` is adjective and noun; `iron` is noun and verb. The tag choice
-    // and the ordering are one decision, which is why the search covers both.
+    // `natural` is both adjective and noun. Read as a noun, `loser natural`
+    // scores 6; read as an adjective, `natural loser` scores 9. The tag choice
+    // and the word order are one decision, which is why the search covers both
+    // together rather than tagging first.
     expect(say(['natural', 'loser'], [B.adj | B.noun, B.noun])).toBe('natural loser');
-    expect(say(['shirts', 'iron'], [B.noun, B.noun | B.verb])).toBe('iron shirts');
+    expect(say(['loser', 'natural'], [B.noun, B.adj | B.noun])).toBe('natural loser');
+  });
+
+  it('declines a genuinely ambiguous phrase rather than picking a side', () => {
+    // `iron` is noun and verb, so `shirts iron` and `iron shirts` are both
+    // well-formed — one is a claim about shirts, the other an instruction. The
+    // margin is 1, under MIN_GAIN, so the reader's own order survives. This is
+    // the threshold earning its place rather than a limitation of it.
+    expect(say(['shirts', 'iron'], [B.noun, B.noun | B.verb])).toBe('shirts iron');
+    expect(say(['iron', 'shirts'], [B.noun | B.verb, B.noun])).toBe('iron shirts');
   });
 
   it('leaves an order alone unless it can strictly beat it', () => {
     // Two untagged words score identically in either arrangement. Moving them
     // would be churn: the reader pays attention and gets nothing back.
+    // MIN_GAIN raises the same bar for orders that improve only marginally.
     expect(say(['lar', 'outlearns'], [0, 0])).toBe('lar outlearns');
     expect(say(['outlearns', 'lar'], [0, 0])).toBe('outlearns lar');
     // Already correct input must survive untouched.
@@ -62,6 +73,16 @@ describe('bestOrder', () => {
 
     const many = Array.from({ length: MAX_EXACT + 1 }, (_, i) => `w${i}`);
     expect(bestOrder(many, many.map(() => B.noun))).toEqual(many);
+  });
+
+  it('ignores an improvement too small to be worth the reader noticing', () => {
+    // `charmless too` -> `too charmless` gains only 1. It is arguably better and
+    // deliberately not taken: at that margin the table is guessing, and one
+    // rule agreeing is not enough to move words under someone.
+    expect(MIN_GAIN).toBe(3);
+    expect(say(['charmless', 'too'], [B.adj, B.adv])).toBe('charmless too');
+    // Two rules agreeing clears the bar comfortably.
+    expect(say(['classroom', 'the'], [B.noun, B.det])).toBe('the classroom');
   });
 
   it('is deterministic, so a rebuild does not reshuffle a saved link', () => {

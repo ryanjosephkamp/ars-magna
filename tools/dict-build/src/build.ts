@@ -14,10 +14,18 @@ import { resolve } from 'node:path';
 import { brotliCompressSync, constants as zlib } from 'node:zlib';
 
 import { EXPECTED, FREQUENCY, OPENLIST } from './pins.ts';
-import { DIST_DIR, FACTS_CACHE, FREQ_PATH, META_PATH, WORDS_PATH } from './paths.ts';
+import {
+  DIST_DIR,
+  FACTS_CACHE,
+  FREQ_PATH,
+  META_PATH,
+  WORDNET_DICT,
+  WORDS_PATH,
+} from './paths.ts';
 import { normalize, signature } from './normalize.ts';
 import { loadFacts } from './facts.ts';
 import { COMMON_RANK_CUTOFF, inCommon, inStandard, zipfByte, type WordFacts } from './tiers.ts';
+import { buildPos } from './pos.ts';
 import {
   bitsetCount,
   bitsetSet,
@@ -251,10 +259,19 @@ async function main(): Promise<void> {
     throw new Error('tier nesting violated: common ⊄ standard');
   }
 
-  console.log('\n6. artifacts');
+  console.log('\n6. parts of speech');
+  const pos = await buildPos({ dir: WORDNET_DICT, words });
+  console.log(
+    `   ${pos.fromCurated.toLocaleString()} curated · ` +
+      `${pos.fromWordNet.toLocaleString()} WordNet · ` +
+      `${pos.fromSuffix.toLocaleString()} suffix · ` +
+      `${pos.unknown.toLocaleString()} unknown`,
+  );
+
+  console.log('\n7. artifacts');
   await mkdir(DIST_DIR, { recursive: true });
 
-  const fullBin = encodeDict({ words, zipf, tier: TIER_FULL });
+  const fullBin = encodeDict({ words, zipf, pos: pos.bytes, tier: TIER_FULL });
   const commonBin = encodeDict({
     words: commonWords,
     zipf: Uint8Array.from(commonZipf),

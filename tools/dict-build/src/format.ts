@@ -21,8 +21,18 @@ export const BLOCK_SIZE = 64;
 export const SECTION_WORDS = 1;
 export const SECTION_RESTARTS = 2;
 export const SECTION_ZIPF = 3;
+/**
+ * Two bytes per word, little-endian: a bitmask of the parts of speech the word
+ * can be, in the bit order `packages/engine/src/wordOrder.ts` defines. Two and
+ * not one because there are nine classes and `interj` is the ninth bit.
+ *
+ * Optional, like ZIPF — a dictionary without it still loads, and the ordering
+ * falls back to whatever the search emitted.
+ */
+export const SECTION_POS = 4;
 
 export const FLAG_HAS_ZIPF = 1 << 0;
+export const FLAG_HAS_POS = 1 << 1;
 
 const HEADER_BYTES = 24;
 const SECTION_ENTRY_BYTES = 12;
@@ -32,6 +42,8 @@ export type DictSections = {
   readonly words: readonly string[];
   /** One byte per word; 0 means "no frequency data". */
   readonly zipf: Uint8Array | null;
+  /** Two bytes per word, little-endian; 0 means "no part of speech known". */
+  readonly pos?: Uint8Array | null;
   /** Identifies which tier this file carries. */
   readonly tier: number;
 };
@@ -75,9 +87,12 @@ function frontCode(words: readonly string[]): { payload: Uint8Array; restarts: U
   return { payload: payload.subarray(0, out), restarts };
 }
 
-export function encodeDict({ words, zipf, tier }: DictSections): Uint8Array {
+export function encodeDict({ words, zipf, pos, tier }: DictSections): Uint8Array {
   if (zipf && zipf.length !== words.length) {
     throw new Error(`zipf length ${zipf.length} != word count ${words.length}`);
+  }
+  if (pos && pos.length !== words.length * 2) {
+    throw new Error(`pos length ${pos.length} != 2 x word count ${words.length}`);
   }
 
   const { payload, restarts } = frontCode(words);
@@ -88,6 +103,7 @@ export function encodeDict({ words, zipf, tier }: DictSections): Uint8Array {
     { kind: SECTION_RESTARTS, data: restartBytes },
   ];
   if (zipf) sections.push({ kind: SECTION_ZIPF, data: zipf });
+  if (pos) sections.push({ kind: SECTION_POS, data: pos });
 
   const tableBytes = sections.length * SECTION_ENTRY_BYTES;
   let cursor = align4(HEADER_BYTES + tableBytes);
@@ -104,7 +120,7 @@ export function encodeDict({ words, zipf, tier }: DictSections): Uint8Array {
   for (let i = 0; i < 8; i++) out[i] = MAGIC_DICT.charCodeAt(i);
   view.setUint16(8, FORMAT_VERSION, true);
   out[10] = tier;
-  out[11] = zipf ? FLAG_HAS_ZIPF : 0;
+  out[11] = (zipf ? FLAG_HAS_ZIPF : 0) | (pos ? FLAG_HAS_POS : 0);
   view.setUint32(12, words.length, true);
   view.setUint16(16, BLOCK_SIZE, true);
   view.setUint16(18, placed.length, true);
@@ -124,7 +140,11 @@ export function encodeDict({ words, zipf, tier }: DictSections): Uint8Array {
 
 /** Reference decoder. The shipped decoder lives in packages/engine; this one
  *  exists so the build can verify every artifact round-trips before writing it. */
-export function decodeDict(buf: Uint8Array): { words: string[]; zipf: Uint8Array | null } {
+export function decodeDict(buf: Uint8Array): {
+  words: string[];
+  zipf: Uint8Array | null;
+  pos: Uint8Array | null;
+} {
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
   for (let i = 0; i < 8; i++) {
@@ -138,6 +158,7 @@ export function decodeDict(buf: Uint8Array): { words: string[]; zipf: Uint8Array
 
   let words: Uint8Array | null = null;
   let zipf: Uint8Array | null = null;
+  let pos: Uint8Array | null = null;
 
   for (let i = 0; i < sectionCount; i++) {
     const at = HEADER_BYTES + i * SECTION_ENTRY_BYTES;
@@ -147,6 +168,7 @@ export function decodeDict(buf: Uint8Array): { words: string[]; zipf: Uint8Array
     const slice = buf.subarray(offset, offset + length);
     if (kind === SECTION_WORDS) words = slice;
     else if (kind === SECTION_ZIPF) zipf = slice;
+    else if (kind === SECTION_POS) pos = slice;
   }
   if (!words) throw new Error('missing WORDS section');
 
@@ -166,7 +188,7 @@ export function decodeDict(buf: Uint8Array): { words: string[]; zipf: Uint8Array
     out[i] = String.fromCharCode(...scratch.subarray(0, length));
   }
 
-  return { words: out, zipf };
+  return { words: out, zipf, pos };
 }
 
 /**
