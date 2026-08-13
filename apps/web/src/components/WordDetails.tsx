@@ -12,6 +12,13 @@ const POS_LABEL: Record<string, string> = {
   v: 'verb',
   adj: 'adj.',
   adv: 'adv.',
+  // WordNet carries none of these — they arrive from the curated gloss table,
+  // which is the only reason `the`, `of` and `you` have a definition at all.
+  det: 'det.',
+  pron: 'pron.',
+  prep: 'prep.',
+  conj: 'conj.',
+  interj: 'interj.',
 };
 
 /**

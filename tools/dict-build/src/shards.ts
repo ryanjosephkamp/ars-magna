@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   });
 
   console.log('\n3. wordnet');
-  const { senses, direct, derived } = await loadSenses({
+  const { senses, direct, derived, curated } = await loadSenses({
     dir: WORDNET_DICT,
     keep: new Set(words),
     maxSenses: MAX_SENSES,
@@ -88,7 +88,8 @@ async function main(): Promise<void> {
   );
   console.log(
     `   ${direct.toLocaleString()} matched WordNet directly · ` +
-      `${derived.toLocaleString()} via an inflected base form`,
+      `${derived.toLocaleString()} via an inflected base form · ` +
+      `${curated.toLocaleString()} carry a curated gloss`,
   );
 
   console.log('\n4. sharding');

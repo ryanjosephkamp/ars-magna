@@ -26,11 +26,13 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { normalize } from './normalize.ts';
+import { CURATED, type CuratedPos } from './glosses.ts';
 
+/** The four WordNet carries. Curated glosses add the closed classes it does not. */
 export type PartOfSpeech = 'n' | 'v' | 'adj' | 'adv';
 
 export type Sense = {
-  readonly pos: PartOfSpeech;
+  readonly pos: CuratedPos;
   readonly gloss: string;
   /** Set when the definition belongs to a base form, e.g. `dormitories` -> `dormitory`. */
   readonly base?: string;
@@ -235,7 +237,12 @@ export async function loadSenses(options: {
   dir: string;
   keep: ReadonlySet<string>;
   maxSenses: number;
-}): Promise<{ senses: Map<string, Sense[]>; direct: number; derived: number }> {
+}): Promise<{
+  senses: Map<string, Sense[]>;
+  direct: number;
+  derived: number;
+  curated: number;
+}> {
   const { dir, keep, maxSenses } = options;
 
   const glosses = await readGlosses(dir);
@@ -246,6 +253,7 @@ export async function loadSenses(options: {
   const senses = new Map<string, Sense[]>();
   let direct = 0;
   let derived = 0;
+  let curated = 0;
 
   /** One WordNet sense, with everything needed to rank it against the others. */
   type Candidate = {
@@ -304,9 +312,13 @@ export async function loadSenses(options: {
       });
     }
 
-    if (candidates.length === 0) continue;
-    if (isDirect) direct++;
-    else derived++;
+    const curatedSenses = CURATED.get(word);
+    if (candidates.length === 0 && curatedSenses === undefined) continue;
+    if (curatedSenses !== undefined) curated++;
+    if (candidates.length > 0) {
+      if (isDirect) direct++;
+      else derived++;
+    }
 
     // Corpus frequency decides. Ties fall back to WordNet's own sense order,
     // and only then to the order the parts of speech happen to be listed in —
@@ -316,7 +328,10 @@ export async function loadSenses(options: {
       (a, b) => b.tag - a.tag || a.rank - b.rank || a.posOrder - b.posOrder,
     );
 
-    const list: Sense[] = [];
+    // Curated first, WordNet behind it. `mine` keeps its excavation, `ar` gains
+    // the letter R ahead of argon.
+    const list: Sense[] = curatedSenses === undefined ? [] : [...curatedSenses].slice(0, maxSenses);
+
     for (const c of candidates) {
       if (list.length >= maxSenses) break;
       // The same gloss can arrive twice via two lemmas or two base forms;
@@ -329,5 +344,5 @@ export async function loadSenses(options: {
     if (list.length > 0) senses.set(word, list);
   }
 
-  return { senses, direct, derived };
+  return { senses, direct, derived, curated };
 }
