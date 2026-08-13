@@ -1,12 +1,19 @@
 /**
  * WordNet 3.1 parsing, including enough of Morphy to match inflected words.
  *
- * Three file families matter. `data.<pos>` holds one synset per line, ending in
+ * Four file families matter. `data.<pos>` holds one synset per line, ending in
  * ` | ` followed by the gloss. `index.<pos>` maps a lemma to its synset offsets
- * **in sense order**, most frequent first — which is the whole reason to parse
- * the index files at all rather than reading glosses straight out of `data`.
- * Without that ordering, the first definition shown for `bank` would be
- * whichever synset happened to sit lowest in the file.
+ * in sense order, which is why the index files are parsed at all rather than
+ * reading glosses straight out of `data`.
+ *
+ * That ordering is only meaningful *within* one part of speech, and relying on
+ * it across parts of speech is what made `be` a metallic element and `do` an
+ * uproarious party: nouns were collected first and the three-sense budget was
+ * spent before any verb was reached. `index.sense` is the fix — it carries a
+ * **tag count** per sense, the number of times that exact sense was tagged in
+ * WordNet's hand-annotated corpus. The verb `be` scores 10,742; beryllium
+ * scores 0. Senses are ranked by it, so the three shown are the three a reader
+ * is most likely to have meant.
  *
  * `<pos>.exc` holds irregular inflections. It matters more than it sounds:
  * English OpenList is full of inflected forms (`dormitories`, `abandoning`,
@@ -103,6 +110,50 @@ async function readGlosses(dir: string): Promise<Map<string, string>> {
   return glosses;
 }
 
+/**
+ * `lemma|pos|offset` -> corpus tag count, from `index.sense`.
+ *
+ * Each line is `sense_key offset sense_number tag_cnt`, where the key is
+ * `lemma%ss_type:…`. `ss_type` runs 1..5 for noun, verb, adjective, adverb and
+ * adjective-satellite; satellites are adjectives for our purposes.
+ *
+ * Absent means zero: a sense that never appeared in the tagged corpus. Most
+ * senses are absent, which is fine — the count only has to separate the handful
+ * that are genuinely common from the long tail that is not.
+ */
+async function readSenseTags(dir: string): Promise<Map<string, number>> {
+  const tags = new Map<string, number>();
+  const byType: Record<string, PartOfSpeech> = {
+    '1': 'n',
+    '2': 'v',
+    '3': 'adj',
+    '4': 'adv',
+    '5': 'adj',
+  };
+
+  const text = await readFile(resolve(dir, 'index.sense'), 'latin1');
+  for (const line of text.split('\n')) {
+    const fields = line.split(' ');
+    if (fields.length < 4) continue;
+
+    const percent = fields[0]!.indexOf('%');
+    if (percent === -1) continue;
+
+    const lemma = normalize(fields[0]!.slice(0, percent));
+    const pos = byType[fields[0]![percent + 1]!];
+    if (lemma.length === 0 || pos === undefined) continue;
+
+    const count = Number.parseInt(fields[3]!, 10);
+    if (!Number.isFinite(count) || count <= 0) continue;
+
+    // Two surface lemmas can normalize together; keep the larger count rather
+    // than whichever line happened to come last.
+    const key = `${lemma}|${pos}|${fields[1]}`;
+    tags.set(key, Math.max(tags.get(key) ?? 0, count));
+  }
+  return tags;
+}
+
 type PosIndex = {
   /** normalized lemma -> synset offsets, in sense order */
   lemmas: Map<string, string[]>;
@@ -188,6 +239,7 @@ export async function loadSenses(options: {
   const { dir, keep, maxSenses } = options;
 
   const glosses = await readGlosses(dir);
+  const tags = await readSenseTags(dir);
   const indexes = new Map<PartOfSpeech, PosIndex>();
   for (const { file, pos } of FILES) indexes.set(pos, await readIndex(dir, file));
 
@@ -195,48 +247,86 @@ export async function loadSenses(options: {
   let direct = 0;
   let derived = 0;
 
-  const collect = (word: string, lemma: string, pos: PartOfSpeech, offsets: string[]): void => {
-    const list = senses.get(word) ?? [];
-    for (const offset of offsets) {
-      if (list.length >= maxSenses) break;
+  /** One WordNet sense, with everything needed to rank it against the others. */
+  type Candidate = {
+    readonly pos: PartOfSpeech;
+    readonly gloss: string;
+    readonly lemma: string;
+    readonly tag: number;
+    /** Position within this lemma's senses for this part of speech. */
+    readonly rank: number;
+    readonly posOrder: number;
+  };
+
+  const gather = (
+    into: Candidate[],
+    lemma: string,
+    pos: PartOfSpeech,
+    posOrder: number,
+    offsets: string[],
+  ): void => {
+    for (let rank = 0; rank < offsets.length; rank++) {
+      const offset = offsets[rank]!;
       const gloss = glosses.get(`${pos}:${offset}`);
       if (gloss === undefined) continue;
-      // The same gloss can arrive twice via two lemmas or two base forms;
-      // showing one sentence twice looks like a bug.
-      if (list.some((sense) => sense.gloss === gloss)) continue;
-      list.push(lemma === word ? { pos, gloss } : { pos, gloss, base: lemma });
+      into.push({
+        pos,
+        gloss,
+        lemma,
+        tag: tags.get(`${lemma}|${pos}|${offset}`) ?? 0,
+        rank,
+        posOrder,
+      });
     }
-    if (list.length > 0) senses.set(word, list);
   };
 
   for (const word of keep) {
+    const candidates: Candidate[] = [];
+
     // Direct hits first, across every part of speech, so a word that is its own
     // lemma never gets attributed to some other base form.
-    let hit = false;
-    for (const { pos } of FILES) {
+    FILES.forEach(({ pos }, posOrder) => {
       const offsets = indexes.get(pos)!.lemmas.get(word);
-      if (offsets) {
-        collect(word, word, pos, offsets);
-        hit = true;
-      }
-    }
-    if (hit) {
-      direct++;
-      continue;
+      if (offsets) gather(candidates, word, pos, posOrder, offsets);
+    });
+
+    const isDirect = candidates.length > 0;
+    if (!isDirect) {
+      FILES.forEach(({ pos }, posOrder) => {
+        const index = indexes.get(pos)!;
+        for (const base of baseForms(word, pos, index)) {
+          const offsets = index.lemmas.get(base);
+          if (offsets) {
+            gather(candidates, base, pos, posOrder, offsets);
+            break;
+          }
+        }
+      });
     }
 
-    for (const { pos } of FILES) {
-      const index = indexes.get(pos)!;
-      for (const base of baseForms(word, pos, index)) {
-        const offsets = index.lemmas.get(base);
-        if (offsets) {
-          collect(word, base, pos, offsets);
-          hit = true;
-          break;
-        }
-      }
+    if (candidates.length === 0) continue;
+    if (isDirect) direct++;
+    else derived++;
+
+    // Corpus frequency decides. Ties fall back to WordNet's own sense order,
+    // and only then to the order the parts of speech happen to be listed in —
+    // so when nothing is tagged a reader gets one sense per part of speech
+    // rather than three readings of the same noun.
+    candidates.sort(
+      (a, b) => b.tag - a.tag || a.rank - b.rank || a.posOrder - b.posOrder,
+    );
+
+    const list: Sense[] = [];
+    for (const c of candidates) {
+      if (list.length >= maxSenses) break;
+      // The same gloss can arrive twice via two lemmas or two base forms;
+      // showing one sentence twice looks like a bug.
+      if (list.some((sense) => sense.gloss === c.gloss)) continue;
+      list.push(
+        c.lemma === word ? { pos: c.pos, gloss: c.gloss } : { pos: c.pos, gloss: c.gloss, base: c.lemma },
+      );
     }
-    if (hit) derived++;
+    if (list.length > 0) senses.set(word, list);
   }
 
   return { senses, direct, derived };

@@ -92,6 +92,39 @@ describe.skipIf(!built)('Definitions', () => {
     expect(info.senses.map((s) => s.gloss.toLowerCase()).join(' ')).toContain('sleep');
   });
 
+  it('leads with the sense the word is actually used in', async () => {
+    // Senses used to be collected noun-first and truncated at three, so a word
+    // with three noun senses never reached its verb however common that verb
+    // was. `be` was defined as beryllium, `come` as semen, `more` as Thomas
+    // More. Ranking by WordNet's corpus tag count fixes all of them at once —
+    // the verb `be` is tagged 10,742 times, beryllium not once.
+    const expected: Record<string, { pos: string; contains: string }> = {
+      be: { pos: 'v', contains: 'quality of being' },
+      come: { pos: 'v', contains: 'move toward' },
+      say: { pos: 'v', contains: 'express in words' },
+      have: { pos: 'v', contains: 'possess' },
+      see: { pos: 'v', contains: 'perceive' },
+      go: { pos: 'v', contains: 'change location' },
+      more: { pos: 'adv', contains: 'comparative' },
+      begin: { pos: 'v', contains: 'first step' },
+      add: { pos: 'v', contains: 'addition' },
+    };
+
+    for (const [word, want] of Object.entries(expected)) {
+      const info = await defs.lookup(word);
+      expect(info.senses.length, word).toBeGreaterThan(0);
+      expect(info.senses[0]!.pos, word).toBe(want.pos);
+      expect(info.senses[0]!.gloss.toLowerCase(), word).toContain(want.contains);
+    }
+  });
+
+  it('reaches a common verb even when the noun senses outnumber it', async () => {
+    // `do` has three noun senses — a party, the musical note, and a doctorate —
+    // which used to consume the entire budget and leave the verb unreachable.
+    const info = await defs.lookup('do');
+    expect(info.senses.some((s) => s.pos === 'v')).toBe(true);
+  });
+
   it('reaches an inflected word through its base form', async () => {
     const info = await defs.lookup('dormitories');
     expect(info.senses.length).toBeGreaterThan(0);
