@@ -33,12 +33,22 @@ const PROVENANCE_OF: Record<string, Provenance> = {
   o: 'unattested',
 };
 
+/**
+ * Shown only when there is no definition, so each of these has to carry the
+ * "no definition" half of the message itself.
+ *
+ * `twl` used to read just "in the Scrabble dictionary", which is true and was
+ * doing a definition's job: it answered a question nobody asked instead of the
+ * one they did. A reader looking at `za` wants to know what it means, and the
+ * honest answer is that we do not have one — followed by the reason the word is
+ * in the list at all.
+ */
 export const PROVENANCE_LABEL: Record<Provenance, string | null> = {
   // The ordinary case needs no explanation; saying so would be noise on most rows.
   attested: null,
-  twl: 'in the Scrabble dictionary',
-  generated: 'a machine-derived form in English OpenList',
-  unattested: 'in the list, but no source confirms it',
+  twl: 'no definition found — valid in tournament play',
+  generated: 'no definition found — a machine-derived form in English OpenList',
+  unattested: 'no definition found — and no source confirms this word',
 };
 
 /**

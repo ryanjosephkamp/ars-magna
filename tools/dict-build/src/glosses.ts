@@ -321,6 +321,41 @@ const SHORT: Record<string, CuratedSense[]> = {
 };
 
 /**
+ * Short words whose only WordNet entry is a proper noun or an initialism.
+ *
+ * These are the residue after ranking and the groups above: `la` was Los
+ * Angeles rather than the note, `mi` a myocardial infarction, `ab` a bachelor's
+ * degree, `tao` an adherent of Taoism rather than the principle itself.
+ *
+ * They are handled here rather than by a separate "symbol for X" mechanism,
+ * which the plan called for and which measurement made unnecessary. Once
+ * ranking and the curated table were in, the words left over did not want a
+ * label saying they were abbreviations — they wanted the definition WordNet had
+ * never carried. A real gloss beats a disclaimer.
+ *
+ * Deliberately not included: `cpu`, `rom`, `led`, `rpm`, `pac`, `fet`, `als`,
+ * `pow`, `zed`, `zee`, `won`, `mon`, `sat`, `fed`. WordNet's expansion is what
+ * those words mean, and a curated line would only repeat it.
+ */
+const RESIDUAL: Record<string, CuratedSense[]> = {
+  ab: s('n', 'an abdominal muscle'),
+  bop: s('v', 'to hit, or to dance to popular music'),
+  cis: s('adj', 'on the same side, or matching the sex assigned at birth'),
+  dis: s('v', 'to belittle or show disrespect for, in informal use'),
+  doe: s('n', 'a female deer, rabbit or hare'),
+  eta: s('n', 'the seventh letter of the Greek alphabet'),
+  gad: s('v', 'to move about restlessly in search of pleasure'),
+  la: s('n', 'the sixth note of the sol-fa scale'),
+  lox: s('n', 'brined or smoked salmon'),
+  mi: s('n', 'the third note of the sol-fa scale'),
+  pe: s('n', 'a Hebrew letter'),
+  reb: s('n', 'a Confederate soldier in the American Civil War'),
+  tao: s('n', 'the absolute principle underlying the universe, in Taoism'),
+  tho: s('conj', 'though'),
+  yay: s('interj', 'expressing delight or approval'),
+};
+
+/**
  * Everything, keyed by the normalized word.
  *
  * A `Map`, not an object, and that is load-bearing. The caller looks this up
@@ -338,6 +373,7 @@ export const CURATED: ReadonlyMap<string, readonly CuratedSense[]> = new Map(
     ...VERBS,
     ...INTERJECTIONS,
     ...SHORT,
+    ...RESIDUAL,
   }),
 );
 
@@ -350,4 +386,5 @@ export const GROUPS = {
   verbs: VERBS,
   interjections: INTERJECTIONS,
   short: SHORT,
+  residual: RESIDUAL,
 } as const;

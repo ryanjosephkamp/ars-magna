@@ -125,6 +125,65 @@ describe.skipIf(!built)('Definitions', () => {
     expect(info.senses.some((s) => s.pos === 'v')).toBe(true);
   });
 
+  it('defines the words WordNet structurally cannot', async () => {
+    // WordNet has no pronouns, determiners, prepositions or conjunctions, so
+    // `you`, `the`, `of` and `and` — four of the commonest words in English —
+    // arrived with nothing at all.
+    for (const [word, pos] of [
+      ['you', 'pron'],
+      ['the', 'det'],
+      ['of', 'prep'],
+      ['and', 'conj'],
+      ['sh', 'interj'],
+    ] as const) {
+      const info = await defs.lookup(word);
+      expect(info.senses.length, word).toBeGreaterThan(0);
+      expect(info.senses[0]!.pos, word).toBe(pos);
+    }
+  });
+
+  it('puts a curated gloss in front of WordNet rather than instead of it', async () => {
+    // `me` was defined as a state in New England and nothing else. Prepending
+    // rather than replacing keeps the abbreviation, which is real, behind the
+    // pronoun, which is what a reader meant.
+    const me = await defs.lookup('me');
+    expect(me.senses[0]!.pos).toBe('pron');
+    expect(me.senses.map((s) => s.gloss).join(' ')).toContain('New England');
+
+    // The same mechanism is why `ar` no longer opens on argon.
+    const ar = await defs.lookup('ar');
+    expect(ar.senses[0]!.gloss).toContain('letter R');
+    expect(ar.senses.map((s) => s.gloss).join(' ')).toContain('inert gas');
+
+    // And it must not clobber a WordNet definition that was already good.
+    const mine = await defs.lookup('mine');
+    expect(mine.senses[0]!.pos).toBe('pron');
+    expect(mine.senses.map((s) => s.gloss).join(' ')).toContain('excavation');
+  });
+
+  it('reaches an -ly adverb through its adjective', async () => {
+    // These rules sit under `adj`, not `adv`, because that is where the base
+    // form is. Filed under `adv` they matched nothing at all.
+    for (const [word, base] of [
+      ['bizarrely', 'bizarre'],
+      ['awesomely', 'awesome'],
+      ['seamlessly', 'seamless'],
+    ] as const) {
+      const info = await defs.lookup(word);
+      expect(info.senses.length, word).toBeGreaterThan(0);
+      expect(info.senses[0]!.base, word).toBe(base);
+    }
+  });
+
+  it('leaves an agent noun undefined rather than calling it its own root', async () => {
+    // Stripping `-er` was tried and reverted: it made `carer` "a motor vehicle
+    // with four wheels". A missing definition beats a confident wrong one.
+    for (const word of ['carer', 'baller', 'basher']) {
+      const info = await defs.lookup(word);
+      expect(info.senses.length, word).toBe(0);
+    }
+  });
+
   it('reaches an inflected word through its base form', async () => {
     const info = await defs.lookup('dormitories');
     expect(info.senses.length).toBeGreaterThan(0);

@@ -60,7 +60,7 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
               ) : explain ? (
                 <p className="text-ink-faint">{PROVENANCE_LABEL[info.provenance]}</p>
               ) : (
-                <p className="text-ink-faint">No definition in WordNet.</p>
+                <p className="text-ink-faint">No definition found.</p>
               )}
 
               {others.length > 0 && (

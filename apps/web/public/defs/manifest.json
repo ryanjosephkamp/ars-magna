@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "shards": 512,
   "maxSenses": 3,
-  "definedWords": 116999,
+  "definedWords": 119593,
   "totalWords": 378844,
   "source": {
     "name": "WordNet 3.1",

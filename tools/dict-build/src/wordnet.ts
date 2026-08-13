@@ -71,14 +71,40 @@ const DETACH: Record<PartOfSpeech, [string, string][]> = {
     ['ing', ''],
     ['s', ''],
   ],
+  // The `-ly` rules live here, under the adjective, because that is where the
+  // base form actually is: `bizarrely` reduces to `bizarre`, which WordNet
+  // stores as an adjective. Filed under `adv` they matched nothing at all,
+  // because the adverb index has no entry for `bizarre`. Morphy has no adverb
+  // rules of its own -- WordNet stores adverbs as whole lemmas -- so these are
+  // an addition to it rather than part of it.
   adj: [
     ['est', ''],
     ['est', 'e'],
     ['er', ''],
     ['er', 'e'],
+    ['ily', 'y'],
+    ['ly', ''],
+    ['ly', 'e'],
   ],
   adv: [],
 };
+
+/**
+ * One extra noun rule, tried after Morphy's own: the plural of an agent noun.
+ *
+ * `rectifiers`, `wrigglers` and `digesters` were undefined while `rectifier`,
+ * `wriggler` and `digester` were right there. Mapping the plural to the
+ * singular is safe because the singular has to exist in WordNet for it to
+ * apply at all.
+ *
+ * Stripping `-er` itself was tried and reverted. It looks like the same idea
+ * and is not: it attributes the base's meaning to the agent, so `carer` came
+ * out as "a motor vehicle with four wheels", `baller` as "round object that is
+ * hit or thrown", `basher` as "a vigorous blow". Producing a confident wrong
+ * definition is the exact failure this work exists to remove, and leaving those
+ * words undefined is the better outcome.
+ */
+const EXTRA_NOUN: [string, string][] = [['ers', 'er']];
 
 /**
  * WordNet glosses run "definition; \"example\"; \"example\"". Only the
@@ -215,7 +241,8 @@ function baseForms(word: string, pos: PartOfSpeech, index: PosIndex): string[] {
   const exception = index.exceptions.get(word);
   if (exception !== undefined) out.push(exception);
 
-  for (const [suffix, replacement] of DETACH[pos]) {
+  const rules = pos === 'n' ? [...DETACH[pos], ...EXTRA_NOUN] : DETACH[pos];
+  for (const [suffix, replacement] of rules) {
     if (!word.endsWith(suffix)) continue;
     const stem = word.slice(0, word.length - suffix.length) + replacement;
     // Guard against reductions that leave nothing meaningful behind.
