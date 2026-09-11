@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { foldLetters, formatCount, type Query } from '@ars-magna/engine';
 import { SearchField } from './components/SearchField.tsx';
 import { Controls } from './components/Controls.tsx';
@@ -7,6 +7,7 @@ import { PinnedStrip } from './components/PinnedStrip.tsx';
 import { useEngine, useResults } from './state/useEngine.ts';
 import { decodeQuery, shareUrl, splitQuery, syncUrl } from './lib/urlState.ts';
 import { useCopy } from './lib/useCopy.ts';
+import { JumpEntry } from './lib/jump.ts';
 import { Definitions } from './lib/definitions.ts';
 import type { WordDetail } from './components/WordDetails.tsx';
 import { ResultToolbar } from './components/ResultToolbar.tsx';
@@ -383,14 +384,13 @@ function JumpTo({
   onResult(row: string[] | null): void;
 }) {
   const [value, setValue] = useState('');
-  const max = BigInt(total.replace('>', ''));
+  // Enter submits, and Enter also blurs the field, which submits again. The
+  // entry remembers what it sent and sends it once until the text changes.
+  const entry = useRef(new JumpEntry());
 
   const go = () => {
-    const digits = value.replace(/[^0-9]/g, '');
-    if (digits.length === 0) return;
-    const position = BigInt(digits);
-    if (position < 1n || position > max) return;
-    void at(position - 1n).then(onResult);
+    const index = entry.current.submit(value, total);
+    if (index !== null) void at(index).then(onResult);
   };
 
   return (
@@ -401,7 +401,10 @@ function JumpTo({
       <input
         id="jump"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => {
+          entry.current.changed();
+          setValue(event.target.value);
+        }}
         onKeyDown={(event) => event.key === 'Enter' && go()}
         onBlur={go}
         inputMode="numeric"
