@@ -6,7 +6,9 @@
   "description": "Worker-hosted anagram engine client: protocol, dictionary loading, WASM binding.",
   "exports": {
     ".": "./src/index.ts",
-    "./protocol": "./src/protocol.ts"
+    "./protocol": "./src/protocol.ts",
+    "./core": "./src/engineCore.ts",
+    "./fold": "./src/fold.ts"
   },
   "scripts": {
     "test": "vitest run"
