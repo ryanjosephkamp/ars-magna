@@ -17,5 +17,11 @@
     "@huggingface/hub": "^2.17.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
+  },
+  "exports": {
+    "./schema": "./src/schema.ts",
+    "./ids": "./src/ids.ts",
+    "./check": "./src/check.ts",
+    "./queue": "./src/queue.ts"
   }
 }

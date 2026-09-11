@@ -12,7 +12,7 @@
     "dev": "pnpm --filter @ars-magna/web dev",
     "build": "pnpm run wasm:build && pnpm --filter @ars-magna/web build",
     "preview": "pnpm --filter @ars-magna/web preview",
-    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p packages/engine && tsc --noEmit -p tools/dict-build && tsc --noEmit -p tools/hits",
+    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p packages/engine && tsc --noEmit -p tools/dict-build && tsc --noEmit -p tools/hits && tsc --noEmit -p packages/mcp",
     "test": "vitest run",
     "test:watch": "vitest",
     "dict:fetch": "pnpm --filter @ars-magna/dict-build run fetch",

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ars-magna": {
+      "command": "node",
+      "args": ["packages/mcp/bin/ars-magna-mcp.js"]
+    }
+  }
+}
