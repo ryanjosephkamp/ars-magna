@@ -91,6 +91,12 @@ export function App() {
   const total = results.total;
   const empty = hasQuery && !searching && total === '0' && error === null;
 
+  // Must-include problems belong on that control; anything else is about the
+  // query as a whole and replaces the result area rather than sitting beside
+  // an honest-looking "0 anagrams".
+  const queryError =
+    error && error.code !== 'UNKNOWN_WORD' && error.code !== 'NOT_A_SUBSET' ? error : null;
+
   // Deliberately cannot carry `input`: the text field owns that, and letting it
   // through here is what let a stale value shadow the live one.
   const patch = useCallback((next: Partial<Omit<Query, 'input'>>) => {
@@ -207,7 +213,20 @@ export function App() {
 
           {engine.state === 'ready' && !hasQuery && <Intro counts={counts} />}
 
-          {engine.state === 'ready' && hasQuery && (
+          {engine.state === 'ready' && hasQuery && queryError && (
+            <Notice>
+              {queryError.code === 'TOO_MANY_REPEATS' ? (
+                <>
+                  A letter appears more than 127 times, which is more of one letter than the
+                  search can hold.
+                </>
+              ) : (
+                <>The search failed. {queryError.message}</>
+              )}
+            </Notice>
+          )}
+
+          {engine.state === 'ready' && hasQuery && !queryError && (
             <>
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 border-b border-rule-strong pb-3">
                 <p aria-live="polite" className="text-ink">

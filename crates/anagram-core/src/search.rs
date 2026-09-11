@@ -87,6 +87,9 @@ pub enum SolveError {
     UnknownWord(String),
     /// A `must_include` word uses letters the input does not have.
     NotASubset(String),
+    /// One letter occurs more than 127 times, which is more than a count
+    /// byte can hold. Carries the offending letter.
+    TooManyRepeats(char),
 }
 
 impl std::fmt::Display for SolveError {
@@ -94,6 +97,7 @@ impl std::fmt::Display for SolveError {
         match self {
             SolveError::UnknownWord(w) => write!(f, "{w:?} is not in this dictionary tier"),
             SolveError::NotASubset(w) => write!(f, "{w:?} does not fit in the input letters"),
+            SolveError::TooManyRepeats(c) => write!(f, "{c:?} appears more than 127 times"),
         }
     }
 }
@@ -251,7 +255,21 @@ impl Search {
     ) -> Result<Search, SolveError> {
         let normalized = crate::counts::normalize(input);
         let empty_input = normalized.is_empty();
-        let mut remaining = Counts::from_word(&normalized).unwrap_or(Counts::EMPTY);
+        // `normalized` is `[a-z]` by construction, so the only way this fails
+        // is a letter past the 127-per-letter ceiling of a count byte. That
+        // used to fall back to an empty multiset, whose one partition is the
+        // empty one: "1 anagram", and a blank row. It is an error, and it says
+        // which letter.
+        let mut remaining = match Counts::from_word(&normalized) {
+            Some(counts) => counts,
+            None => {
+                let letter = (b'a'..=b'z')
+                    .map(char::from)
+                    .find(|&l| normalized.chars().filter(|&c| c == l).count() > 127)
+                    .unwrap_or('?');
+                return Err(SolveError::TooManyRepeats(letter));
+            }
+        };
 
         let mut forced = Forced {
             classes: Vec::new(),

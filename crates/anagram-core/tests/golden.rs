@@ -345,6 +345,35 @@ fn a_pinned_word_is_shown_as_the_word_that_was_pinned() {
 }
 
 #[test]
+fn more_than_127_of_one_letter_is_an_error_not_an_empty_result() {
+    let dict = dict_or_skip!();
+
+    // Counts are bytes with a 127 ceiling. Past it the input used to collapse
+    // to an empty multiset, whose single partition is the empty one: the site
+    // said "1 anagram" and showed a blank row. A pasted paragraph crosses the
+    // ceiling on the letter e at roughly 1,100 characters.
+    let just_under = "a".repeat(127) + "dormitory";
+    let search = Search::prepare(&dict, &just_under, opts(2, anagram_core::UNLIMITED_WORDS)).unwrap();
+    let mut rows = 0usize;
+    search.enumerate(|_| {
+        rows += 1;
+        Flow::Continue
+    });
+    assert!(rows > 0, "127 repeats is within range and must still solve");
+
+    let over = "a".repeat(128) + "dormitory";
+    let result = Search::prepare(&dict, &over, opts(2, anagram_core::UNLIMITED_WORDS));
+    match result {
+        Err(anagram_core::SolveError::TooManyRepeats('a')) => {}
+        Err(other) => panic!("expected TooManyRepeats('a'), got {other:?}"),
+        Ok(search) => {
+            let (count, _, _) = search.count(&mut Memo::new(), 1_000);
+            panic!("128 repeats must be an error, not {count} result(s)");
+        }
+    }
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 

@@ -154,9 +154,11 @@ export class EngineCore {
       ? 'UNKNOWN_WORD'
       : /does not fit in the input letters/.test(message)
         ? 'NOT_A_SUBSET'
-        : /HTTP|fetch|network/i.test(message)
-          ? 'FETCH_FAILED'
-          : 'INTERNAL';
+        : /appears more than 127 times/.test(message)
+          ? 'TOO_MANY_REPEATS'
+          : /HTTP|fetch|network/i.test(message)
+            ? 'FETCH_FAILED'
+            : 'INTERNAL';
     this.#port.post({ k: 'error', id, code, message });
   }
 

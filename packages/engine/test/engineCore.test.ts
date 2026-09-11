@@ -240,6 +240,16 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(port.last('error')!.code).toBe('NOT_A_SUBSET');
   });
 
+  it('reports more than 127 of one letter as an error, not as one empty result', async () => {
+    const under = await solve('a'.repeat(127) + 'dormitory', { minWordLen: 2 }, 5);
+    expect(under.last('error')).toBeUndefined();
+    expect(Number(under.last('count')!.total)).toBeGreaterThan(0);
+
+    const over = await solve('a'.repeat(128) + 'dormitory', { minWordLen: 2 }, 5);
+    expect(over.last('error')!.code).toBe('TOO_MANY_REPEATS');
+    expect(over.last('count')).toBeUndefined();
+  });
+
   it('says so when the search runs out of budget instead of results', async () => {
     // A node budget this small guarantees the search is cut off. The engine must
     // report the count as a floor and mark the batch truncated — presenting a

@@ -103,6 +103,8 @@ export type ErrorCode =
   | 'BAD_ARTIFACT'
   | 'UNKNOWN_WORD'
   | 'NOT_A_SUBSET'
+  /** One letter occurs more than 127 times; the engine's counts are bytes. */
+  | 'TOO_MANY_REPEATS'
   | 'INTERNAL';
 
 export const FATAL_ERRORS: readonly ErrorCode[] = ['WASM_INIT', 'BAD_ARTIFACT'];
