@@ -278,6 +278,41 @@ fn counting_matches_enumeration_on_real_data() {
 }
 
 #[test]
+fn truncated_count_does_not_poison_the_memo() {
+    let dict = dict_or_skip!();
+
+    // The browser counts with a node budget and then serves "Go to" and
+    // "Surprise me" from the same memo. A count that stops early must leave no
+    // partial subtree totals behind, or unranking lands on the wrong result.
+    let search = Search::prepare(&dict, "ryanjosephkamp", opts(3, anagram_core::UNLIMITED_WORDS))
+        .unwrap();
+
+    let mut streamed: Vec<Vec<u32>> = Vec::new();
+    search.enumerate(|classes| {
+        streamed.push(classes.to_vec());
+        Flow::Continue
+    });
+
+    let mut memo = Memo::new();
+    let (partial, _, stats) = search.count(&mut memo, 200);
+    assert!(stats.truncated, "a 200-node budget must cut the count short");
+    assert!((partial as usize) < streamed.len(), "the partial count must be a floor");
+
+    for (i, expected) in streamed.iter().enumerate() {
+        assert_eq!(
+            search.nth(&mut memo, i as u128).as_ref(),
+            Some(expected),
+            "nth({i}) diverged from the stream after a truncated count"
+        );
+    }
+    assert_eq!(search.nth(&mut memo, streamed.len() as u128), None);
+
+    // And the same memo now counts exactly, since nothing wrong was cached.
+    let (exact, _, _) = search.count(&mut memo, u64::MAX);
+    assert_eq!(exact as usize, streamed.len());
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 

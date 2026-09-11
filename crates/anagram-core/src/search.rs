@@ -608,7 +608,14 @@ impl Counter<'_> {
 
         let letter = rem.rarest().unwrap();
         let total = self.run(rem, letter, 0, budget);
-        self.memo.table.insert(key, total);
+        // A run cut short by the node budget has only a partial total. Writing
+        // it to the memo would poison every later lookup on this session —
+        // `nth` walks the tree by subtree sizes, and a subtree recorded as
+        // smaller than it is makes the walk land on the wrong result, silently.
+        // So a stopped counter leaves the memo exactly as it found it.
+        if !self.stopped {
+            self.memo.table.insert(key, total);
+        }
         total
     }
 
