@@ -1,5 +1,5 @@
 /**
- * `pnpm hits:prefilter [--date=YYYY-MM-DD] [--per-candidate=25]`
+ * `pnpm hits:prefilter [--date=YYYY-MM-DD] [--per-candidate=25] [--max-rows=300]`
  *
  * From everything the engine enumerated, keep what could possibly be a hit,
  * put each phrase in the order that reads best, and score it — with no model.
@@ -131,9 +131,11 @@ export function prefilterRow(row: RawRow): Prefiltered | null {
 /**
  * Keep the best `perCandidate` rows per candidate, deduplicated by hit id
  * (the head and the sample can overlap only by accident, but two orderings
- * of one multiset never survive as two rows).
+ * of one multiset never survive as two rows), then the best `maxRows`
+ * overall — a night's trending feed brings a hundred and more candidates,
+ * and the judge's batch has to stay the size one session can answer.
  */
-export function select(rows: readonly Prefiltered[], perCandidate: number): Prefiltered[] {
+export function select(rows: readonly Prefiltered[], perCandidate: number, maxRows = Infinity): Prefiltered[] {
   const byCandidate = new Map<string, Map<string, Prefiltered>>();
   for (const row of rows) {
     const group = byCandidate.get(row.candidate_id) ?? new Map<string, Prefiltered>();
@@ -148,13 +150,28 @@ export function select(rows: readonly Prefiltered[], perCandidate: number): Pref
       .slice(0, perCandidate);
     out.push(...best);
   }
-  return out;
+  if (out.length <= maxRows) return out;
+  // Every candidate keeps at least its single best row, so a night's queue
+  // never drops an input entirely; the rest of the budget goes by score.
+  const firsts = new Set<string>();
+  const guaranteed: Prefiltered[] = [];
+  const rest: Prefiltered[] = [];
+  for (const row of [...out].sort((a, b) => b.prefilter_score - a.prefilter_score || a.id.localeCompare(b.id))) {
+    if (!firsts.has(row.candidate_id)) {
+      firsts.add(row.candidate_id);
+      guaranteed.push(row);
+    } else {
+      rest.push(row);
+    }
+  }
+  return [...guaranteed, ...rest].slice(0, Math.max(maxRows, guaranteed.length));
 }
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const dir = await pickQueue(argv);
   const perCandidate = Number(flag(argv, 'per-candidate') ?? 25);
+  const maxRows = Number(flag(argv, 'max-rows') ?? 300);
 
   const kept: Prefiltered[] = [];
   const dropped = new Map<string, number>();
@@ -174,7 +191,7 @@ async function main(): Promise<void> {
     if (pre) kept.push(pre);
   }
 
-  const selected = select(kept, perCandidate);
+  const selected = select(kept, perCandidate, maxRows);
   const out = resolve(dir, PREFILTERED);
   await writeFile(out, selected.map((r) => JSON.stringify(r)).join('\n') + (selected.length ? '\n' : ''));
 

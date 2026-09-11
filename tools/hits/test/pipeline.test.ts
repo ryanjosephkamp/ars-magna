@@ -65,6 +65,19 @@ describe('prefilter', () => {
     const kept = select([a, b, c, other], 1);
     expect(kept.map((r) => r.id).sort()).toEqual(['dormitory:phrases:dirty-room', 'listen:phrases:silent']);
   });
+
+  it('caps the whole queue while keeping every candidate its best row', () => {
+    const rows = [
+      prefilterRow(raw())!,
+      prefilterRow(raw({ words: ['moody', 'trir'], zipf: [100, 10] }))!,
+      prefilterRow(raw({ words: ['dirt', 'yroom'], zipf: [90, 5] }))!,
+      prefilterRow(raw({ id: 'listen:phrases', input: 'listen', words: ['silent'], zipf: [1], tiers: ['common'], pos: [B.adj] }))!,
+    ];
+    const capped = select(rows, 25, 2);
+    expect(capped.map((r) => r.candidate_id).sort()).toEqual(['dormitory:phrases', 'listen:phrases']);
+    expect(capped[0]!.id).toBe('dormitory:phrases:dirty-room');
+    expect(select(rows, 25, 3)).toHaveLength(3);
+  });
 });
 
 const pre = (id: string, candidate: string, display: string): Prefiltered => ({
