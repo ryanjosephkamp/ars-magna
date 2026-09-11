@@ -320,8 +320,17 @@ describe.skipIf(!built)('EngineCore', () => {
 
     expect(port.last('count')!.total.startsWith('>')).toBe(true);
     expect(port.last('batch')!.truncated).toBe(true);
-    // "Truncated" and "done" are mutually exclusive: more answers exist.
-    expect(port.last('batch')!.done).toBe(false);
+    // Truncated implies done: more answers exist, but no further page can
+    // reach them — a re-page walks to the same budget and returns nothing,
+    // at the full cost of the budget each time. The truncated flag is what
+    // tells the interface to say the list is incomplete.
+    expect(port.last('batch')!.done).toBe(true);
+
+    // And a page request after that yields nothing further and stays done.
+    port.reset();
+    await core.handle({ k: 'page', id: 41, offset: 0, len: 50 });
+    expect(port.last('batch')!.done).toBe(true);
+    expect(port.last('batch')!.truncated).toBe(true);
   });
 
   it('reports an exact count and a finished list when it does complete', async () => {

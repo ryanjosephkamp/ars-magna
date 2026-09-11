@@ -296,11 +296,14 @@ export class EngineCore {
     const packed = engine.batch(offset, len);
     const rows = this.#rows(packed);
 
-    // A short batch is only "the end" when the search actually ran out; if it
-    // hit its node budget instead, more answers exist and saying otherwise
-    // would be a claim of completeness the engine cannot back.
+    // A short batch is "the end" of what this session can serve in two cases:
+    // the search ran out of answers, or it ran out of budget. They are told
+    // apart by `truncated`, and the count is already a floor in the second
+    // case — but both mean the list must stop asking for pages. Re-paging a
+    // truncated search re-walks to the same budget and returns nothing new,
+    // at the full cost of the budget each time.
     const truncated = !engine.exhausted;
-    const done = rows.length < len && !truncated;
+    const done = truncated || rows.length < len;
 
     if (this.#session) {
       this.#session.served = Math.max(this.#session.served, offset + rows.length);
