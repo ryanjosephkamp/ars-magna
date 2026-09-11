@@ -1,0 +1,55 @@
+name: Validate submission
+
+# A submitted anagram is checked by the engine as soon as the issue is opened
+# or edited: exactly the input's letters, every word in the chosen tier. The
+# verdict is posted as a comment and a label, so a maintainer only reads the
+# ones that pass. Accepting one is `pnpm hits:ingest --from-issue N`.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    if: contains(github.event.issue.labels.*.name, 'submission')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p anagram-cli
+
+      - name: Check the anagram
+        id: check
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set +e
+          node --experimental-strip-types tools/hits/src/submission.ts check > verdict.md
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat verdict.md
+
+      - name: Comment and label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          STATUS: ${{ steps.check.outputs.status }}
+        run: |
+          gh issue comment "$NUMBER" --body-file verdict.md
+          if [ "$STATUS" = "0" ]; then
+            gh issue edit "$NUMBER" --add-label "submission:valid" --remove-label "submission:invalid"
+          else
+            gh issue edit "$NUMBER" --add-label "submission:invalid" --remove-label "submission:valid"
+          fi
