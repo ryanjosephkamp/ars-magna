@@ -160,16 +160,6 @@ export type Response =
       readonly message: string;
     };
 
-/**
- * Results cross the boundary as one newline-delimited string rather than
- * thousands of arrays — a single large string is far cheaper to transfer, and
- * splitting happens in the worker, off the main thread.
- */
-export function unpackRows(packed: string): string[][] {
-  if (packed.length === 0) return [];
-  return packed.split('\n').map((row) => row.split(' '));
-}
-
 /** `1234567` -> `1,234,567`; passes through a `>` prefix. */
 export function formatCount(total: string): string {
   const floor = total.startsWith('>');

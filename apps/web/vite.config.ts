@@ -78,10 +78,5 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Required for the SharedArrayBuffer cancellation path (Phase 9).
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
   },
 });
