@@ -1,42 +1,42 @@
-{"id":"taylorswift:people","input":"Taylor Swift","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"beyonceknowles:people","input":"Beyoncé Knowles","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"leonardodicaprio:people","input":"Leonardo DiCaprio","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"arnoldschwarzenegger:people","input":"Arnold Schwarzenegger","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"elonmusk:people","input":"Elon Musk","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"oprahwinfrey:people","input":"Oprah Winfrey","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"keanureeves:people","input":"Keanu Reeves","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"tomhanks:people","input":"Tom Hanks","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"merylstreep:people","input":"Meryl Streep","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"harrystyles:people","input":"Harry Styles","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"billieeilish:people","input":"Billie Eilish","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"dwaynejohnson:people","input":"Dwayne Johnson","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"georgeclooney:people","input":"George Clooney","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"britneyspears:people","input":"Britney Spears","category":"people","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"microsoft:companies","input":"Microsoft","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"goldmansachs:companies","input":"Goldman Sachs","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"nintendo:companies","input":"Nintendo","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"netflix:companies","input":"Netflix","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"spotify:companies","input":"Spotify","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"generalmotors:companies","input":"General Motors","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"cocacola:companies","input":"Coca-Cola","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"americanairlines:companies","input":"American Airlines","category":"companies","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"playstation:products","input":"PlayStation","category":"products","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"iphone:products","input":"iPhone","category":"products","source":"manual","first_seen":"2026-09-11","status":"new"}
+{"id":"taylorswift:people","input":"Taylor Swift","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"beyonceknowles:people","input":"Beyoncé Knowles","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"leonardodicaprio:people","input":"Leonardo DiCaprio","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"arnoldschwarzenegger:people","input":"Arnold Schwarzenegger","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"elonmusk:people","input":"Elon Musk","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"oprahwinfrey:people","input":"Oprah Winfrey","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"keanureeves:people","input":"Keanu Reeves","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"tomhanks:people","input":"Tom Hanks","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"merylstreep:people","input":"Meryl Streep","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"harrystyles:people","input":"Harry Styles","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"billieeilish:people","input":"Billie Eilish","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"dwaynejohnson:people","input":"Dwayne Johnson","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"georgeclooney:people","input":"George Clooney","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"britneyspears:people","input":"Britney Spears","category":"people","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"microsoft:companies","input":"Microsoft","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"goldmansachs:companies","input":"Goldman Sachs","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"nintendo:companies","input":"Nintendo","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"netflix:companies","input":"Netflix","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"spotify:companies","input":"Spotify","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"generalmotors:companies","input":"General Motors","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"cocacola:companies","input":"Coca-Cola","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"americanairlines:companies","input":"American Airlines","category":"companies","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"playstation:products","input":"PlayStation","category":"products","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"iphone:products","input":"iPhone","category":"products","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
 {"id":"chatgpt:products","input":"ChatGPT","category":"products","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"kindle:products","input":"Kindle","category":"products","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"airpods:products","input":"AirPods","category":"products","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"nintendoswitch:products","input":"Nintendo Switch","category":"products","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"thegodfather:titles","input":"The Godfather","category":"titles","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"starwars:titles","input":"Star Wars","category":"titles","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"breakingbad:titles","input":"Breaking Bad","category":"titles","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"thegreatgatsby:titles","input":"The Great Gatsby","category":"titles","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"abbeyroad:titles","input":"Abbey Road","category":"titles","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"losangeles:places","input":"Los Angeles","category":"places","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"newyorkcity:places","input":"New York City","category":"places","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"sanfrancisco:places","input":"San Francisco","category":"places","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"greatbritain:places","input":"Great Britain","category":"places","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"neatsvillekentucky:places","input":"Neatsville, Kentucky","category":"places","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"helloworld:phrases","input":"hello world","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"ladiesandgentlemen:phrases","input":"ladies and gentlemen","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"happybirthday:phrases","input":"happy birthday","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"new"}
-{"id":"presidentoftheunitedstates:phrases","input":"president of the united states","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"new"}
+{"id":"kindle:products","input":"Kindle","category":"products","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"airpods:products","input":"AirPods","category":"products","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"nintendoswitch:products","input":"Nintendo Switch","category":"products","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"thegodfather:titles","input":"The Godfather","category":"titles","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"starwars:titles","input":"Star Wars","category":"titles","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"breakingbad:titles","input":"Breaking Bad","category":"titles","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"thegreatgatsby:titles","input":"The Great Gatsby","category":"titles","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"abbeyroad:titles","input":"Abbey Road","category":"titles","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"losangeles:places","input":"Los Angeles","category":"places","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"newyorkcity:places","input":"New York City","category":"places","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"sanfrancisco:places","input":"San Francisco","category":"places","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"greatbritain:places","input":"Great Britain","category":"places","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"neatsvillekentucky:places","input":"Neatsville, Kentucky","category":"places","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"helloworld:phrases","input":"hello world","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"ladiesandgentlemen:phrases","input":"ladies and gentlemen","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"happybirthday:phrases","input":"happy birthday","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"enumerated"}
+{"id":"presidentoftheunitedstates:phrases","input":"president of the united states","category":"phrases","source":"manual","first_seen":"2026-09-11","status":"enumerated"}

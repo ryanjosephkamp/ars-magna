@@ -37,6 +37,10 @@ describe('prefilter', () => {
     expect(reject(raw({ tiers: ['common', 'full'] }))).toBe('rare word');
     expect(reject(raw({ tiers: ['common', 'standard'] }))).toBe('rare word');
     expect(reject(raw({ category: 'celebrities' }))).toBe('category');
+    expect(reject(raw({ input: 'Star Wars', words: ['star', 'wars'], pos: [0, 0] }))).toBe('identity');
+    expect(reject(raw({ input: 'Star Wars', words: ['wars', 'star'], pos: [0, 0] }))).toBe('identity');
+    expect(reject(raw({ input: 'Star Wars', words: ['stars', 'war'], pos: [0, 0] }))).toBeNull();
+    expect(reject(raw({ input: 'The Godfather', words: ['father', 'the', 'god'], zipf: [1, 1, 1], tiers: ['common', 'common', 'common'], pos: [0, 0, 0] }))).toBe('identity');
   });
 
   it('orders the words the way the site would and keys the hit by the multiset', () => {
