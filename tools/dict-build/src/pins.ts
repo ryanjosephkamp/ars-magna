@@ -97,6 +97,7 @@ export const EXPECTED = {
   nonAsciiSurfaces: ['norteño', 'peléan'],
   /** Distinct sorted-letter signatures across the full list. */
   signatures: 350_469,
-  /** |Common ∪ TWL| is sensitive to the frequency cutoff; assert a band. */
-  standardRange: [175_000, 210_000],
+  /** Full minus the machine-generated entries; a band, so a small drift in
+   *  the generation flags is looked at rather than failing the build. */
+  standardRange: [305_000, 320_000],
 } as const;

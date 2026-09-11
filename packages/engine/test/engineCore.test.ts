@@ -126,6 +126,28 @@ describe.skipIf(!built)('EngineCore', () => {
     }
   });
 
+  it('folds accented letters to their base letters', async () => {
+    for (const [accented, plain] of [
+      ['Beyoncé Knowles', 'beyonce knowles'],
+      ['Björk', 'bjork'],
+      ['Straße', 'strasse'],
+      ['Motörhead', 'motorhead'],
+    ] as const) {
+      const a = await solve(accented, { minWordLen: 3, maxWords: 3 }, 200);
+      const total = a.last('count')!.total;
+      const rows = rowsOf(a);
+      const b = await solve(plain, { minWordLen: 3, maxWords: 3 }, 200);
+      expect(b.last('count')!.total).toBe(total);
+      expect(rowsOf(b)).toEqual(rows);
+    }
+
+    // A pinned word is folded too.
+    const pinned = await solve('Beyoncé', { minWordLen: 3, mustInclude: ['Beyoncé'] }, 5);
+    // "beyonce" is not a word, so this must fail as unknown, not as a subset
+    // problem caused by the accent being dropped from one side only.
+    expect(pinned.last('error')!.code).toBe('UNKNOWN_WORD');
+  });
+
   it('uses exactly the input letters in every result', async () => {
     const letters = (s: string) => [...s.replace(/[^a-z]/g, '')].sort().join('');
     for (const input of ['ryanjosephkamp', 'astronomer', 'banana']) {
@@ -147,6 +169,38 @@ describe.skipIf(!built)('EngineCore', () => {
 
     expect(second).toHaveLength(40);
     expect(new Set([...first, ...second]).size).toBe(80);
+  });
+
+  it('serves a page at any offset, and export does not move the paging cursor', async () => {
+    await solve('scarlett johansson', { minWordLen: 3, maxWords: 4 }, 10);
+    const total = Number(port.last('count')!.total);
+    expect(total).toBeGreaterThan(50_000);
+
+    // A page deep in the list equals the same positions fetched one by one.
+    const offset = Math.floor(total * 0.7);
+    port.reset();
+    await core.handle({ k: 'page', id: 50, offset, len: 5 });
+    const page = rowsOf(port).map((r) => r.join(' '));
+    expect(page).toHaveLength(5);
+    for (let i = 0; i < 5; i++) {
+      port.reset();
+      await core.handle({ k: 'random', id: 60 + i, index: String(offset + i) });
+      expect([...port.last('batch')!.rows[0]!].sort().join(' ')).toBe(page[i]);
+    }
+
+    // The next sequential page continues from there without a seek, and an
+    // export in between does not disturb it.
+    port.reset();
+    await core.handle({ k: 'collect', id: 70, limit: 100 });
+    expect(port.last('collected')!.rows).toHaveLength(100);
+    port.reset();
+    await core.handle({ k: 'page', id: 51, offset: offset + 5, len: 5 });
+    const next = rowsOf(port).map((r) => r.join(' '));
+    expect(next).toHaveLength(5);
+    expect(new Set([...page, ...next]).size).toBe(10);
+    port.reset();
+    await core.handle({ k: 'random', id: 80, index: String(offset + 5) });
+    expect([...port.last('batch')!.rows[0]!].sort().join(' ')).toBe(next[0]);
   });
 
   it('jumps to an arbitrary result by unranking', async () => {
@@ -240,6 +294,16 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(port.last('error')!.code).toBe('NOT_A_SUBSET');
   });
 
+  it('reports more than 127 of one letter as an error, not as one empty result', async () => {
+    const under = await solve('a'.repeat(127) + 'dormitory', { minWordLen: 2 }, 5);
+    expect(under.last('error')).toBeUndefined();
+    expect(Number(under.last('count')!.total)).toBeGreaterThan(0);
+
+    const over = await solve('a'.repeat(128) + 'dormitory', { minWordLen: 2 }, 5);
+    expect(over.last('error')!.code).toBe('TOO_MANY_REPEATS');
+    expect(over.last('count')).toBeUndefined();
+  });
+
   it('says so when the search runs out of budget instead of results', async () => {
     // A node budget this small guarantees the search is cut off. The engine must
     // report the count as a floor and mark the batch truncated — presenting a
@@ -256,8 +320,17 @@ describe.skipIf(!built)('EngineCore', () => {
 
     expect(port.last('count')!.total.startsWith('>')).toBe(true);
     expect(port.last('batch')!.truncated).toBe(true);
-    // "Truncated" and "done" are mutually exclusive: more answers exist.
-    expect(port.last('batch')!.done).toBe(false);
+    // Truncated implies done: more answers exist, but no further page can
+    // reach them — a re-page walks to the same budget and returns nothing,
+    // at the full cost of the budget each time. The truncated flag is what
+    // tells the interface to say the list is incomplete.
+    expect(port.last('batch')!.done).toBe(true);
+
+    // And a page request after that yields nothing further and stays done.
+    port.reset();
+    await core.handle({ k: 'page', id: 41, offset: 0, len: 50 });
+    expect(port.last('batch')!.done).toBe(true);
+    expect(port.last('batch')!.truncated).toBe(true);
   });
 
   it('reports an exact count and a finished list when it does complete', async () => {

@@ -18,6 +18,7 @@ import type {
 
 export * from './protocol.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
+export { foldLetters, normalizeLetters, type Folded } from './fold.ts';
 
 export type SolveHandlers = {
   /** Exact total, ahead of any results. A `>` prefix means it is a floor. */
@@ -39,22 +40,29 @@ export type EngineStatus =
 
 export class ArsMagnaClient {
   #worker: Worker;
+  /** Makes a fresh worker, so a runaway search can be killed and replaced. */
+  #respawn: (() => Worker) | null;
+  #baseUrl = '/dict';
   #nextId = 1;
   #activeQuery = 0;
+  /** The query the worker is busy with, or 0 once it has answered. */
+  #inFlight = 0;
   #handlers = new Map<number, SolveHandlers>();
   #pending = new Map<number, { resolve(value: never): void; reject(error: Error): void }>();
   #status: EngineStatus = { state: 'loading' };
   #statusListeners = new Set<(status: EngineStatus) => void>();
 
-  constructor(worker: Worker) {
+  constructor(worker: Worker, respawn: (() => Worker) | null = null) {
     this.#worker = worker;
+    this.#respawn = respawn;
     this.#worker.onmessage = (event: MessageEvent<Response>) => this.#receive(event.data);
   }
 
   /** Spawn the worker and load the dictionary. */
   static async create(baseUrl = '/dict'): Promise<ArsMagnaClient> {
-    const worker = new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' });
-    const client = new ArsMagnaClient(worker);
+    const spawn = () =>
+      new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' });
+    const client = new ArsMagnaClient(spawn(), spawn);
     await client.#init(baseUrl);
     return client;
   }
@@ -79,6 +87,7 @@ export class ArsMagnaClient {
   }
 
   #init(baseUrl: string): Promise<void> {
+    this.#baseUrl = baseUrl;
     return new Promise((resolve) => {
       const id = this.#nextId++;
       this.#handlers.set(id, {
@@ -101,8 +110,17 @@ export class ArsMagnaClient {
    * Any earlier query's responses are discarded from this point on.
    */
   solve(query: Query, handlers: SolveHandlers, first = 200, maxNodes?: number): number {
+    // The search cannot be interrupted from inside: a query that is still
+    // running when the next one arrives would make the new one wait behind
+    // it, for minutes on a pasted sentence. So a busy worker is killed and
+    // replaced. The dictionary reloads from Cache Storage, which costs a few
+    // hundred milliseconds — only ever paid when the previous search had not
+    // finished within the typing debounce, which is exactly when it matters.
+    if (this.#inFlight !== 0 && this.#respawn) this.#restart();
+
     const id = this.#nextId++;
     this.#activeQuery = id;
+    this.#inFlight = id;
     this.#handlers.set(id, handlers);
     this.#send(maxNodes === undefined ? { k: 'solve', id, query, first } : { k: 'solve', id, query, first, maxNodes });
     return id;
@@ -157,7 +175,63 @@ export class ArsMagnaClient {
     this.#worker.terminate();
   }
 
+  /** Whether the worker is still busy with a query. */
+  get busy(): boolean {
+    return this.#inFlight !== 0;
+  }
+
+  /** Kill the worker mid-search and start a fresh one on the same dictionary. */
+  #restart(): void {
+    this.#worker.terminate();
+    const reason = new Error('search cancelled: a newer query replaced it');
+    for (const [id, waiter] of this.#pending) {
+      this.#pending.delete(id);
+      waiter.reject(reason);
+    }
+    // Nothing the old worker was doing can complete now; its callers must
+    // not be left waiting for an onDone that will never come.
+    this.#handlers.clear();
+    this.#inFlight = 0;
+
+    this.#worker = this.#respawn!();
+    this.#worker.onmessage = (event: MessageEvent<Response>) => this.#receive(event.data);
+    const id = this.#nextId++;
+    this.#handlers.set(id, {
+      onError: (code, message) => this.#setStatus({ state: 'failed', code, message }),
+    });
+    this.#send({ k: 'init', id, baseUrl: this.#baseUrl });
+  }
+
+  /** Fail everything in flight; the worker is gone. */
+  #crash(code: ErrorCode, message: string): void {
+    for (const [id, waiter] of this.#pending) {
+      this.#pending.delete(id);
+      waiter.reject(new Error(message));
+    }
+    const active = this.#handlers.get(this.#activeQuery);
+    if (active) {
+      active.onError?.(code, message);
+      this.#handlers.delete(this.#activeQuery);
+    } else if (this.#status.state === 'loading') {
+      // Crashed while the dictionary was still loading: that is a failed
+      // load, and the init promise is waiting on it.
+      this.#setStatus({ state: 'failed', code, message });
+      this.#readyResolve?.();
+      this.#readyResolve = null;
+    }
+  }
+
   #receive(message: Response): void {
+    // The worker itself crashed (a WebAssembly panic, an out-of-memory abort)
+    // rather than any one request failing. Its `onerror` posts id -1, which
+    // belongs to nothing; before this, nothing received it and the page sat
+    // on "searching…" for good. Every waiting caller is told, and the active
+    // query fails with the message so the interface can show it.
+    if (message.k === 'error' && message.id === -1) {
+      this.#crash(message.code, message.message);
+      return;
+    }
+
     const oneShot = this.#pending.get(message.id);
     if (oneShot) {
       this.#pending.delete(message.id);
@@ -194,9 +268,11 @@ export class ArsMagnaClient {
         handlers.onBatch?.(message.offset, message.rows, message.done, message.truncated);
         break;
       case 'solved':
+        if (message.id === this.#inFlight) this.#inFlight = 0;
         handlers.onDone?.(message.stats);
         break;
       case 'error':
+        if (message.id === this.#inFlight) this.#inFlight = 0;
         handlers.onError?.(message.code, message.message);
         this.#handlers.delete(message.id);
         break;

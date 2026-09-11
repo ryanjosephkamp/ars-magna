@@ -9,6 +9,7 @@
 import initWasm, { Engine, type InitInput } from './wasm/anagram.js';
 import type { Manifest, ManifestFile, Query, Request, Response, Tier } from './protocol.ts';
 import { bestOrder } from './wordOrder.ts';
+import { normalizeLetters } from './fold.ts';
 
 export type Port = {
   post(message: Response): void;
@@ -154,9 +155,11 @@ export class EngineCore {
       ? 'UNKNOWN_WORD'
       : /does not fit in the input letters/.test(message)
         ? 'NOT_A_SUBSET'
-        : /HTTP|fetch|network/i.test(message)
-          ? 'FETCH_FAILED'
-          : 'INTERNAL';
+        : /appears more than 127 times/.test(message)
+          ? 'TOO_MANY_REPEATS'
+          : /HTTP|fetch|network/i.test(message)
+            ? 'FETCH_FAILED'
+            : 'INTERNAL';
     this.#port.post({ k: 'error', id, code, message });
   }
 
@@ -221,12 +224,15 @@ export class EngineCore {
     const engine = this.#require();
     const started = performance.now();
 
+    // Folded here as well as in Rust: the engine's normalize() does the same
+    // thing, but the worker is the boundary every caller crosses, and folding
+    // on both sides means neither can regress the other unnoticed.
     const candidates = engine.begin(
-      query.input,
+      normalizeLetters(query.input),
       query.tier,
       query.minWordLen,
       query.maxWords,
-      [...query.mustInclude],
+      query.mustInclude.map(normalizeLetters),
       maxNodes,
     );
 
@@ -235,8 +241,11 @@ export class EngineCore {
     // The exact total goes out before any results do: on a query with millions
     // of answers the count lands in milliseconds while enumerating them all
     // never would, and "11,131,625 anagrams" is the more useful thing to show
-    // first anyway.
-    const total = engine.count(maxNodes * 2);
+    // first anyway. Same node budget as enumeration: a count node is far more
+    // expensive than a walk node (it scans a whole bucket), so doubling it
+    // bought minutes of frozen worker on a pasted sentence, not accuracy. The
+    // engine also caps the memo, so a count cannot grow without bound.
+    const total = engine.count(maxNodes);
     this.#port.post({ k: 'count', id, total, candidates });
 
     this.#emit(id, 0, first);
@@ -290,11 +299,14 @@ export class EngineCore {
     const packed = engine.batch(offset, len);
     const rows = this.#rows(packed);
 
-    // A short batch is only "the end" when the search actually ran out; if it
-    // hit its node budget instead, more answers exist and saying otherwise
-    // would be a claim of completeness the engine cannot back.
+    // A short batch is "the end" of what this session can serve in two cases:
+    // the search ran out of answers, or it ran out of budget. They are told
+    // apart by `truncated`, and the count is already a floor in the second
+    // case — but both mean the list must stop asking for pages. Re-paging a
+    // truncated search re-walks to the same budget and returns nothing new,
+    // at the full cost of the budget each time.
     const truncated = !engine.exhausted;
-    const done = rows.length < len && !truncated;
+    const done = truncated || rows.length < len;
 
     if (this.#session) {
       this.#session.served = Math.max(this.#session.served, offset + rows.length);
@@ -310,7 +322,7 @@ export class EngineCore {
    */
   #collect(id: number, limit: number): void {
     const engine = this.#require();
-    const packed = engine.batch(0, limit);
+    const packed = engine.collect(limit);
     const rows = this.#rows(packed);
     // Short of the limit and the search finished on its own terms: that is
     // everything there is. Otherwise the file is a partial list and has to say so.
@@ -325,11 +337,13 @@ export class EngineCore {
   }
 
   #spellings(id: number, word: string, tier: Tier): void {
-    this.#port.post({ k: 'spellings', id, words: this.#require().spellingsOf(word, tier) });
+    const words = this.#require().spellingsOf(normalizeLetters(word), tier);
+    this.#port.post({ k: 'spellings', id, words });
   }
 
   #lookup(id: number, word: string, tier: Tier): void {
-    this.#port.post({ k: 'lookup', id, found: this.#require().has(word, tier) });
+    const found = this.#require().has(normalizeLetters(word), tier);
+    this.#port.post({ k: 'lookup', id, found });
   }
 
   /** Part-of-speech masks, so the interface can rank the alternate orderings

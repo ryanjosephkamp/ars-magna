@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import {
   ArsMagnaClient,
   DEFAULT_QUERY,
+  normalizeLetters,
   type EngineStatus,
   type ErrorCode,
   type Query,
@@ -62,7 +63,7 @@ export function useEngine(query: Query) {
     const client = clientRef.current;
     if (!client || state.engine.state !== 'ready') return;
 
-    if (query.input.replace(/[^a-zA-Z]/g, '').length === 0) {
+    if (normalizeLetters(query.input).length === 0) {
       results.reset();
       setState((s) => ({ ...s, searching: false, error: null, candidates: 0 }));
       return;

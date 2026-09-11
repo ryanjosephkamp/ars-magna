@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "builtAt": "2026-08-13T03:32:14.769Z",
+  "builtAt": "2026-09-11T20:40:07.784Z",
   "source": {
     "repo": "ryanjosephkamp/english-openlist",
     "rev": "368bf0e4460461c985fca8bde49e4062d56c1516",
@@ -12,29 +12,23 @@
   },
   "counts": {
     "common": 39951,
-    "standard": 177197,
+    "standard": 314007,
     "full": 378844,
     "signatures": 350469,
-    "withFrequency": 130578
+    "withFrequency": 130577
   },
   "files": {
     "full": {
-      "name": "full.ac462a3cd9b5.bin",
+      "name": "full.f05d3fd19948.bin",
       "bytes": 2940816,
-      "brotliBytes": 804185,
-      "sha256": "ac462a3cd9b57fa0956413e3227eb2b38b217bf0438a27d1a7ce384137af6e7b"
-    },
-    "common": {
-      "name": "common.cb94c5f0d918.bin",
-      "bytes": 222632,
-      "brotliBytes": 96616,
-      "sha256": "cb94c5f0d918a499eb09a58d44c76b684a32ecdecec23001d873135076c09878"
+      "brotliBytes": 803768,
+      "sha256": "f05d3fd199488348a46ed4ce900afa2e3f73360a0bc069dc86fce9928fc6b1d1"
     },
     "tiers": {
-      "name": "tiers.d1708bbaad62.bits",
+      "name": "tiers.6fe72ac64ec1.bits",
       "bytes": 94728,
-      "brotliBytes": 55085,
-      "sha256": "d1708bbaad6215ee64d364858ae6801eda601716f369a047ff05004060540830"
+      "brotliBytes": 51900,
+      "sha256": "6fe72ac64ec1a6faed7cf98c21f58ca9704152954938219ca0aa4b2ba99b8f3a"
     }
   }
 }

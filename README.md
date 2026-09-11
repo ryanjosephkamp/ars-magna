@@ -7,6 +7,16 @@ Give the site any text. It returns every way those exact letters can be re-parti
 real English words: spaces move freely, every letter is used exactly once, nothing is added
 and nothing is dropped. No AI — a deterministic search, verified against known cases.
 
+## Input
+
+Accented letters are forced to their unaccented base letter, so *Beyoncé* has three e's and
+*Björk* is searched as *bjork*; ß becomes ss, æ becomes ae, ø becomes o, and so on. The
+same folding is applied to the dictionary, so the two always agree. Spaces and punctuation
+are ignored silently. Digits, symbols and letters of other scripts are ignored too, and the
+letters line under the field says how many characters were skipped so that never looks like
+a bug. English only. An input with more than 127 copies of one letter is refused with a
+message rather than searched, since letter counts are bytes.
+
 ```
 dormitory   →  dirty room
 astronomer  →  moon starer
@@ -20,12 +30,14 @@ results are reproducible. Three nested tiers are available in the UI:
 
 | Tier | Words | What it is |
 |---|---|---|
-| Common | ~40k | Everyday vocabulary |
-| **Standard** (default) | ~190k | Common plus the TWL Scrabble dictionary |
+| Common | 39,951 | Everyday vocabulary: the 40,000 most frequent words, plus the tournament two-letter list |
+| **Standard** (default) | 314,007 | Every attested word |
 | Full | 378,844 | The complete list |
 
-Standard excludes the ~64,800 algorithmically generated entries in the source data
+Standard is the list minus the 64,837 algorithmically generated entries in the source data
 (`abacteremicer`, `nonlivabler`), which otherwise flood results with unrecognizable words.
+It used to be Common plus the TWL Scrabble dictionary, which sounded reasonable and was not:
+TWL stops at 15 letters, so almost every longer word was missing from the default tier.
 Nothing is removed from English OpenList itself — Full still carries every word, and
 expanding a result says where each word came from.
 
@@ -86,14 +98,16 @@ into view and then focuses it.
 pnpm install
 pnpm dict:fetch     # download pinned sources into .cache/ (~330 MB, once)
 pnpm dict:build     # emit apps/web/public/dict/ artifacts
-pnpm dict:shards    # emit apps/web/public/defs/ definitions (~17 MB, not committed)
+pnpm dict:shards    # emit apps/web/public/defs/ definitions (~18 MB, committed)
 pnpm wasm:build     # compile the Rust engine to WASM
 pnpm dev
 ```
 
-The dictionary artifacts are committed; the definition shards are not, because
-they are 17 MB of derived data. Run `pnpm dict:shards` once — without it the app
-works fine, it just shows no definitions.
+The dictionary artifacts and the definition shards (514 files, 18 MB) are both
+committed. They are deterministic output of pinned sources, and committing them
+means a deploy needs no download from Hugging Face: publishing does not depend on
+a third party being up. Regenerate with `pnpm dict:build` and `pnpm dict:shards`
+when a pin moves.
 
 Requires Node 22+, pnpm, and a Rust toolchain with the `wasm32-unknown-unknown` target.
 
@@ -115,16 +129,17 @@ apps/web               React UI
 
 ## Deploying
 
-CI runs on every push. The deploy workflow is wired up but **switched off until a
-Cloudflare project is named** — it skips rather than failing, because a job that is
-always red trains people to stop reading it.
+CI runs on every push. The deploy workflow publishes `main` to Cloudflare Pages, project
+`ars-magna`, at <https://ars-magna.pages.dev>. It skips rather than failing when the
+project variable below is unset, because a job that is always red trains people to stop
+reading it.
 
 The build happens in GitHub Actions rather than in Cloudflare's build image, so the Rust
 toolchain is under our control. The dictionary artifacts and definition shards are
 committed, so no build step reaches Hugging Face: publishing does not depend on a third
 party being up.
 
-To switch it on:
+To set it up on a fork:
 
 1. In the Cloudflare dashboard, create a **Pages** project (Workers & Pages → Create →
    Pages). Use *Direct Upload* — the repo does not need to be connected, since Actions
@@ -158,9 +173,9 @@ gh workflow run Deploy
 ### How the dictionary gets compressed
 
 Cloudflare compresses by content type and does not compress `application/octet-stream`,
-so the dictionary would cross the wire at full size. It is measured on the live
-deployment at **2,277,844 bytes uncompressed against 755,443 with brotli** — a 3.02×
-difference on every first visit.
+so the dictionary would cross the wire at full size. The current build is
+**3,035,544 bytes uncompressed against 855,668 with brotli** across the two artifacts —
+a 3.5× difference on every first visit.
 
 Pages will not negotiate between sibling files, so the `.br` artifacts `dict:build`
 produces are served under their own URLs with an explicit `Content-Encoding: br` in

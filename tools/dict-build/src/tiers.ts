@@ -87,8 +87,19 @@ export function inCommon({ word, facts, freqRank }: TierInputs): boolean {
   return freqRank > 0 && freqRank <= COMMON_RANK_CUTOFF;
 }
 
+/**
+ * Standard is every attested word: the full list minus the 64,837
+ * machine-generated entries.
+ *
+ * It used to be Common ∪ TWL, which sounded reasonable and was not: TWL stops
+ * at 15 letters, so of the 34,327 words of 16 letters or more only 35 made it
+ * in, and about 136,800 attested words in total were missing from the default
+ * tier — "internationalization", "compartmentalization" and
+ * "electroencephalogram" among them. The README had always described Standard
+ * as "the list without the generated entries"; now it is.
+ */
 export function inStandard(input: TierInputs): boolean {
-  return inCommon(input) || input.facts.twl;
+  return !input.facts.generated;
 }
 
 /**

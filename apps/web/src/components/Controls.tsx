@@ -1,5 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { TIERS, UNLIMITED_WORDS, type Query, type Tier, type DictCounts } from '@ars-magna/engine';
+import {
+  TIERS,
+  UNLIMITED_WORDS,
+  normalizeLetters,
+  type Query,
+  type Tier,
+  type DictCounts,
+} from '@ars-magna/engine';
 
 const TIER_LABEL: Record<Tier, string> = {
   common: 'Common',
@@ -185,7 +192,7 @@ function MustInclude({
   }, [value]);
 
   const commit = (next: string) => {
-    const cleaned = next.replace(/[^a-zA-Z]/g, '').toLowerCase();
+    const cleaned = normalizeLetters(next);
     committed.current = cleaned;
     onChange(cleaned);
   };

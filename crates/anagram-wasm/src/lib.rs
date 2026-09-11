@@ -10,16 +10,17 @@
 //! The search is recursive and cannot be suspended mid-descent, so results are
 //! served in two ways depending on what the UI needs:
 //!
-//! * `batch(offset, len)` re-enumerates and skips — cheap while `offset` is
-//!   small, which covers scrolling through the first few thousand results.
-//! * `nth(index)` unranks using the counting DP — O(depth), so it stays instant
-//!   at result 12,000,000, which is what makes deep paging and "surprise me"
-//!   possible at all.
+//! * `batch(offset, len)` serves pages from a resumable cursor kept in the
+//!   session. A page that continues where the last one ended costs only its
+//!   own length; any other offset is reached by unranking with the counting
+//!   memo, O(depth), and the walk resumes from there. Scrolling is linear.
+//! * `nth(index)` unranks a single result the same way, which is what makes
+//!   "Go to" and "Surprise me" instant at result 12,000,000.
 //!
-//! The memo is owned by the session and shared across both, so the expensive
-//! counting pass happens once per query rather than once per call.
+//! The memo is owned by the session and shared across all of it, so the
+//! expensive counting pass happens once per query rather than once per call.
 
-use anagram_core::{Dict, Flow, Memo, Search, SolveOptions, Tier};
+use anagram_core::{Cursor, Dict, Memo, Search, SolveOptions, Tier};
 use wasm_bindgen::prelude::*;
 
 fn tier_from(name: &str) -> Tier {
@@ -62,6 +63,9 @@ struct Session {
     search: Search,
     memo: Memo,
     tier: Tier,
+    /// The paging cursor. `None` until the first batch, or after a seek past
+    /// the end.
+    cursor: Option<Cursor>,
 }
 
 #[wasm_bindgen]
@@ -94,11 +98,9 @@ impl QueryStats {
 
 #[wasm_bindgen]
 impl Engine {
-    /// Build an engine from the shipped artifacts.
-    ///
-    /// `tier_bytes` may be omitted when loading a standalone tier file (the
-    /// Common artifact carries no bitsets, because every word in it is a
-    /// member by construction).
+    /// Build an engine from the shipped artifacts: the full word list and the
+    /// tier bitsets over it. `tier_bytes` may be omitted for a list that has
+    /// no tiers, in which case every word is in every tier.
     #[wasm_bindgen(constructor)]
     pub fn new(dict_bytes: &[u8], tier_bytes: Option<Box<[u8]>>) -> Result<Engine, JsError> {
         let dict = Dict::decode(dict_bytes, tier_bytes.as_deref())
@@ -152,6 +154,7 @@ impl Engine {
             search,
             memo: Memo::new(),
             tier,
+            cursor: None,
         });
         Ok(candidates)
     }
@@ -184,34 +187,69 @@ impl Engine {
 
     /// Solutions `offset..offset + len` in canonical order.
     ///
-    /// Sets [`Engine::exhausted`]: false means the search stopped early rather
-    /// than running out of answers, so the caller must not treat a short batch
-    /// as the end of the list.
+    /// Continues the session's cursor when `offset` is where it left off, and
+    /// seeks otherwise. Sets [`Engine::exhausted`]: false means the search
+    /// stopped early rather than running out of answers, so the caller must
+    /// not treat a short batch as the end of the list.
     #[wasm_bindgen]
     pub fn batch(&mut self, offset: usize, len: usize) -> Result<String, JsError> {
         let session = self
             .session
             .as_mut()
             .ok_or_else(|| JsError::new("no active query"))?;
+        let Session { search, memo, tier, cursor } = session;
+
+        let resumes = matches!(cursor, Some(c) if c.position() == offset as u128 && !c.truncated());
+        if !resumes {
+            *cursor = if offset == 0 {
+                Some(search.cursor())
+            } else {
+                search.cursor_at(memo, offset as u128)
+            };
+        }
+
+        let Some(cursor) = cursor.as_mut() else {
+            // Past the end: nothing there, and nothing was cut short.
+            self.exhausted = true;
+            return Ok(String::new());
+        };
 
         let mut rows: Vec<Vec<String>> = Vec::with_capacity(len);
-        let mut seen = 0usize;
-        let stats = session.search.enumerate(|classes| {
-            if seen >= offset {
-                rows.push(session.search.spell(&self.dict, classes, session.tier));
+        while rows.len() < len {
+            match cursor.next(search) {
+                Some(classes) => rows.push(search.spell(&self.dict, classes, *tier)),
+                None => break,
             }
-            seen += 1;
-            if rows.len() >= len {
-                Flow::Stop
-            } else {
-                Flow::Continue
-            }
-        });
+        }
 
         // A short batch means one of two very different things: the result set
         // genuinely ended, or the node budget ran out mid-search. Only the first
         // is "no more results".
-        self.exhausted = rows.len() >= len || !stats.truncated;
+        self.exhausted = rows.len() >= len || !cursor.truncated();
+        Ok(pack(&rows))
+    }
+
+    /// Up to `limit` solutions from the start, for export.
+    ///
+    /// Uses its own cursor so the browsing session's paging position is left
+    /// exactly where the reader had it. Sets [`Engine::exhausted`] like
+    /// [`Engine::batch`] does.
+    #[wasm_bindgen]
+    pub fn collect(&mut self, limit: usize) -> Result<String, JsError> {
+        let session = self
+            .session
+            .as_ref()
+            .ok_or_else(|| JsError::new("no active query"))?;
+
+        let mut cursor = session.search.cursor();
+        let mut rows: Vec<Vec<String>> = Vec::with_capacity(limit.min(1 << 16));
+        while rows.len() < limit {
+            match cursor.next(&session.search) {
+                Some(classes) => rows.push(session.search.spell(&self.dict, classes, session.tier)),
+                None => break,
+            }
+        }
+        self.exhausted = rows.len() >= limit || !cursor.truncated();
         Ok(pack(&rows))
     }
 

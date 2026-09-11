@@ -278,6 +278,301 @@ fn counting_matches_enumeration_on_real_data() {
 }
 
 #[test]
+fn truncated_count_does_not_poison_the_memo() {
+    let dict = dict_or_skip!();
+
+    // The browser counts with a node budget and then serves "Go to" and
+    // "Surprise me" from the same memo. A count that stops early must leave no
+    // partial subtree totals behind, or unranking lands on the wrong result.
+    let search = Search::prepare(&dict, "ryanjosephkamp", opts(3, anagram_core::UNLIMITED_WORDS))
+        .unwrap();
+
+    let mut streamed: Vec<Vec<u32>> = Vec::new();
+    search.enumerate(|classes| {
+        streamed.push(classes.to_vec());
+        Flow::Continue
+    });
+
+    let mut memo = Memo::new();
+    let (partial, _, stats) = search.count(&mut memo, 200);
+    assert!(stats.truncated, "a 200-node budget must cut the count short");
+    assert!((partial as usize) < streamed.len(), "the partial count must be a floor");
+
+    for (i, expected) in streamed.iter().enumerate() {
+        assert_eq!(
+            search.nth(&mut memo, i as u128).as_ref(),
+            Some(expected),
+            "nth({i}) diverged from the stream after a truncated count"
+        );
+    }
+    assert_eq!(search.nth(&mut memo, streamed.len() as u128), None);
+
+    // And the same memo now counts exactly, since nothing wrong was cached.
+    let (exact, _, _) = search.count(&mut memo, u64::MAX);
+    assert_eq!(exact as usize, streamed.len());
+}
+
+#[test]
+fn a_pinned_word_is_shown_as_the_word_that_was_pinned() {
+    let dict = dict_or_skip!();
+
+    // `starer` shares a class with `arrest`, `rarest` and `raters`, and
+    // `arrest` is the commoner spelling. Pinning `starer` must still show
+    // `starer`: the reader asked for that word and the row has to contain it.
+    for (input, pinned) in [("astronomer", "starer"), ("listen", "silent"), ("dormitory", "dirty")] {
+        let options = SolveOptions {
+            must_include: vec![pinned.to_owned()],
+            ..opts(3, anagram_core::UNLIMITED_WORDS)
+        };
+        let search = Search::prepare(&dict, input, options).unwrap();
+
+        let mut rows = 0usize;
+        search.enumerate(|classes| {
+            let words = search.spell(&dict, classes, Tier::Standard);
+            assert!(
+                words.iter().any(|w| w == pinned),
+                "{input:?} pinned to {pinned:?} showed {words:?}"
+            );
+            rows += 1;
+            Flow::Continue
+        });
+        assert!(rows > 0, "{input:?} with {pinned:?} produced no rows");
+
+        // Unranked results are spelled the same way as streamed ones.
+        let first = search.nth(&mut Memo::new(), 0).unwrap();
+        assert!(search.spell(&dict, &first, Tier::Standard).iter().any(|w| w == pinned));
+    }
+}
+
+#[test]
+fn more_than_127_of_one_letter_is_an_error_not_an_empty_result() {
+    let dict = dict_or_skip!();
+
+    // Counts are bytes with a 127 ceiling. Past it the input used to collapse
+    // to an empty multiset, whose single partition is the empty one: the site
+    // said "1 anagram" and showed a blank row. A pasted paragraph crosses the
+    // ceiling on the letter e at roughly 1,100 characters.
+    let just_under = "a".repeat(127) + "dormitory";
+    let search = Search::prepare(&dict, &just_under, opts(2, anagram_core::UNLIMITED_WORDS)).unwrap();
+    let mut rows = 0usize;
+    search.enumerate(|_| {
+        rows += 1;
+        Flow::Continue
+    });
+    assert!(rows > 0, "127 repeats is within range and must still solve");
+
+    let over = "a".repeat(128) + "dormitory";
+    let result = Search::prepare(&dict, &over, opts(2, anagram_core::UNLIMITED_WORDS));
+    match result {
+        Err(anagram_core::SolveError::TooManyRepeats('a')) => {}
+        Err(other) => panic!("expected TooManyRepeats('a'), got {other:?}"),
+        Ok(search) => {
+            let (count, _, _) = search.count(&mut Memo::new(), 1_000);
+            panic!("128 repeats must be an error, not {count} result(s)");
+        }
+    }
+}
+
+#[test]
+fn accented_spellings_search_the_same_letters_as_plain_ones() {
+    let dict = dict_or_skip!();
+
+    // Every accented letter folds to its base letter, so an accented name and
+    // its plain spelling are the same query. Before, the accent was dropped
+    // along with its letter: "Beyoncé" searched as "beyonc".
+    for (accented, plain) in [
+        ("Beyoncé Knowles", "beyonce knowles"),
+        ("Penélope Cruz", "penelope cruz"),
+        ("Zoë Kravitz", "zoe kravitz"),
+        ("Renée Zellweger", "renee zellweger"),
+        ("Björk", "bjork"),
+        ("Motörhead", "motorhead"),
+        ("Straße", "strasse"),
+    ] {
+        let options = opts(3, 3);
+        let a = solutions(&dict, accented, options.clone());
+        let b = solutions(&dict, plain, options);
+        assert_eq!(a, b, "{accented:?} and {plain:?} must give the same results");
+        assert_eq!(
+            anagram_core::normalize(accented).len(),
+            anagram_core::normalize(plain).len(),
+            "{accented:?} lost or gained a letter"
+        );
+    }
+}
+
+#[test]
+fn class_index_agrees_with_a_linear_scan() {
+    let dict = dict_or_skip!();
+
+    // `find_class` used to scan every class; it now probes a hash index. The
+    // two must agree for every word at every tier, including words that exist
+    // only at Full and words whose class has members across tiers.
+    let scan = |word: &str, tier: Tier| -> Option<usize> {
+        let counts = Counts::from_word(word)?;
+        dict.classes.iter().position(|c| {
+            c.counts == counts && c.words.iter().any(|&i| dict.word(i) == word && dict.in_tier(i, tier))
+        })
+    };
+
+    let mut checked = 0usize;
+    for word in dict.words.iter().step_by(97) {
+        for tier in [Tier::Common, Tier::Standard, Tier::Full] {
+            assert_eq!(dict.find_class(word, tier), scan(word, tier), "{word:?} at {tier:?}");
+            checked += 1;
+        }
+    }
+    assert!(checked > 10_000);
+
+    // Words that are not in the list at all, including anagrams of real words.
+    for word in ["tinsle", "zzzz", "beyonce", "arsmagna"] {
+        assert_eq!(dict.find_class(word, Tier::Full), scan(word, Tier::Full), "{word:?}");
+    }
+}
+
+#[test]
+fn pages_served_by_the_cursor_concatenate_to_one_enumeration() {
+    let dict = dict_or_skip!();
+
+    // Pages of a real result set, each fetched by seeking to its offset the
+    // way the worker does when the reader jumps, must join back into exactly
+    // the stream a single enumeration produces.
+    let search = Search::prepare(&dict, "scarlett johansson", opts(3, 4)).unwrap();
+    let mut streamed: Vec<Vec<u32>> = Vec::new();
+    search.enumerate(|classes| {
+        streamed.push(classes.to_vec());
+        Flow::Continue
+    });
+    assert!(streamed.len() > 50_000, "expected a large result set, got {}", streamed.len());
+
+    let mut memo = Memo::new();
+    let page = 5_000usize;
+    let mut joined: Vec<Vec<u32>> = Vec::new();
+    let mut offset = 0usize;
+    while offset < streamed.len() {
+        let mut cursor = search.cursor_at(&mut memo, offset as u128).expect("offset in range");
+        for _ in 0..page {
+            match cursor.next(&search) {
+                Some(classes) => joined.push(classes.to_vec()),
+                None => break,
+            }
+        }
+        offset += page;
+    }
+    assert_eq!(joined, streamed);
+
+    // And sequential paging from one cursor, without seeking, is the same.
+    let mut cursor = search.cursor();
+    let mut sequential: Vec<Vec<u32>> = Vec::new();
+    loop {
+        let before = sequential.len();
+        for _ in 0..page {
+            match cursor.next(&search) {
+                Some(classes) => sequential.push(classes.to_vec()),
+                None => break,
+            }
+        }
+        if sequential.len() == before {
+            break;
+        }
+    }
+    assert_eq!(sequential, streamed);
+    assert!(cursor.is_done() && !cursor.truncated());
+}
+
+#[test]
+fn a_page_at_a_random_offset_equals_the_unranked_slice() {
+    let dict = dict_or_skip!();
+
+    // The case from the audit: 85,182 results, where page 340 used to cost
+    // a full re-enumeration. Random offsets, compared against nth() so the
+    // test does not need to enumerate the whole set.
+    let search = Search::prepare(&dict, "arnold schwarzenegger", opts(3, 4)).unwrap();
+    let mut memo = Memo::new();
+    let (total, saturated, _) = search.count(&mut memo, u64::MAX);
+    assert!(!saturated && total > 80_000, "total {total}");
+
+    // A fixed linear congruential sequence: deterministic, spread out.
+    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+    for _ in 0..25 {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let offset = (seed >> 33) as u128 % total;
+        let len = 37usize;
+
+        let mut cursor = search.cursor_at(&mut memo, offset).expect("offset in range");
+        let mut page: Vec<Vec<u32>> = Vec::new();
+        for _ in 0..len {
+            match cursor.next(&search) {
+                Some(classes) => page.push(classes.to_vec()),
+                None => break,
+            }
+        }
+
+        let expected: Vec<Vec<u32>> = (0..len as u128)
+            .filter_map(|i| search.nth(&mut memo, offset + i))
+            .collect();
+        assert_eq!(page, expected, "page at offset {offset}");
+        assert_eq!(cursor.position(), offset + page.len() as u128);
+    }
+
+    // Past the end is None, not a panic and not an empty cursor that lies.
+    assert!(search.cursor_at(&mut memo, total).is_none());
+
+    // With a pinned word, the forced slot leads every result the cursor emits.
+    let pinned = SolveOptions {
+        must_include: vec!["moon".to_owned()],
+        ..opts(3, anagram_core::UNLIMITED_WORDS)
+    };
+    let search = Search::prepare(&dict, "astronomer", pinned).unwrap();
+    let mut streamed: Vec<Vec<u32>> = Vec::new();
+    search.enumerate(|classes| {
+        streamed.push(classes.to_vec());
+        Flow::Continue
+    });
+    let mut memo = Memo::new();
+    for start in [0usize, 1, streamed.len() / 2, streamed.len() - 1] {
+        let mut cursor = search.cursor_at(&mut memo, start as u128).unwrap();
+        let mut rest = Vec::new();
+        while let Some(classes) = cursor.next(&search) {
+            rest.push(classes.to_vec());
+        }
+        assert_eq!(rest, &streamed[start..], "pinned, resumed from {start}");
+    }
+}
+
+#[test]
+fn a_memo_cap_yields_a_floor_rather_than_unbounded_growth() {
+    let dict = dict_or_skip!();
+
+    // A 26-letter phrase needs ~140k memo entries to count exactly. Capped
+    // far below that, the count must stop, say so, hold the memo near the cap,
+    // and still be usable for unranking afterwards.
+    let search = Search::prepare(
+        &dict,
+        "president of the united states",
+        opts(3, anagram_core::UNLIMITED_WORDS),
+    )
+    .unwrap();
+
+    let mut capped = Memo::with_cap(2_000);
+    let (floor, saturated, stats) = search.count(&mut capped, u64::MAX);
+    assert!(stats.truncated, "the cap must cut the count short");
+    assert!(!saturated);
+    assert!(floor > 0);
+    assert!(capped.len() <= 2_000 + 64, "memo held {} entries against a cap of 2,000", capped.len());
+
+    let mut exact = Memo::new();
+    let (total, _, exact_stats) = search.count(&mut exact, u64::MAX);
+    assert!(!exact_stats.truncated);
+    assert!(floor < total, "floor {floor} must be below the exact total {total}");
+    assert_eq!(exact.cap(), anagram_core::DEFAULT_MEMO_CAP);
+
+    // Unranking is not held to the cap, and the capped memo was not poisoned.
+    let first = search.nth(&mut capped, 0).expect("result 0 exists");
+    assert_eq!(Some(first), search.nth(&mut exact, 0));
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 

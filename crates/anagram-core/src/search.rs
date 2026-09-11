@@ -87,6 +87,9 @@ pub enum SolveError {
     UnknownWord(String),
     /// A `must_include` word uses letters the input does not have.
     NotASubset(String),
+    /// One letter occurs more than 127 times, which is more than a count
+    /// byte can hold. Carries the offending letter.
+    TooManyRepeats(char),
 }
 
 impl std::fmt::Display for SolveError {
@@ -94,6 +97,7 @@ impl std::fmt::Display for SolveError {
         match self {
             SolveError::UnknownWord(w) => write!(f, "{w:?} is not in this dictionary tier"),
             SolveError::NotASubset(w) => write!(f, "{w:?} does not fit in the input letters"),
+            SolveError::TooManyRepeats(c) => write!(f, "{c:?} appears more than 127 times"),
         }
     }
 }
@@ -122,6 +126,10 @@ pub enum Flow {
 /// The classes that must be in every result, already resolved.
 struct Forced {
     classes: Vec<u32>,
+    /// The exact word the caller asked for, parallel to `classes`. A class
+    /// has many spellings and `spell` normally shows the commonest, but a
+    /// reader who pinned `starer` must see `starer`, not `arrest`.
+    words: Vec<u32>,
     counts: Counts,
 }
 
@@ -190,20 +198,51 @@ impl Candidates {
     }
 }
 
+/// Default ceiling on memo entries during a count. Each entry is roughly 80
+/// bytes with hash-table overhead, so this is about 320 MB — a long way past
+/// what any interactive query needs (a 26-letter phrase counts its 18 billion
+/// answers in ~140k entries) and a long way short of what a 35-letter pangram
+/// would consume if let run: it fills 3 million entries in about a minute
+/// natively and would run for hours toward gigabytes. A capped count reports
+/// a floor, like a count cut off by the node budget.
+pub const DEFAULT_MEMO_CAP: usize = 4_000_000;
+
 /// Reusable memo for counting and unranking.
 ///
 /// Kept outside [`Search`] and owned by the caller so a session can count once
 /// and then serve many `nth` lookups without rebuilding the table — which is
 /// what makes deep pagination cheap.
-#[derive(Default)]
 pub struct Memo {
     table: HashMap<MemoKey, u128>,
     hits: u64,
+    /// Ceiling on `table.len()` while counting. Unranking is not held to it:
+    /// a seek adds at most O(depth × bucket) entries on top of what the count
+    /// already built, and refusing it would just make "Go to" fail.
+    cap: usize,
+}
+
+impl Default for Memo {
+    fn default() -> Memo {
+        Memo::with_cap(DEFAULT_MEMO_CAP)
+    }
 }
 
 impl Memo {
     pub fn new() -> Memo {
         Memo::default()
+    }
+
+    /// A memo that stops a count once it holds `cap` entries.
+    pub fn with_cap(cap: usize) -> Memo {
+        Memo {
+            table: HashMap::new(),
+            hits: 0,
+            cap,
+        }
+    }
+
+    pub fn cap(&self) -> usize {
+        self.cap
     }
 
     pub fn len(&self) -> usize {
@@ -247,10 +286,25 @@ impl Search {
     ) -> Result<Search, SolveError> {
         let normalized = crate::counts::normalize(input);
         let empty_input = normalized.is_empty();
-        let mut remaining = Counts::from_word(&normalized).unwrap_or(Counts::EMPTY);
+        // `normalized` is `[a-z]` by construction, so the only way this fails
+        // is a letter past the 127-per-letter ceiling of a count byte. That
+        // used to fall back to an empty multiset, whose one partition is the
+        // empty one: "1 anagram", and a blank row. It is an error, and it says
+        // which letter.
+        let mut remaining = match Counts::from_word(&normalized) {
+            Some(counts) => counts,
+            None => {
+                let letter = (b'a'..=b'z')
+                    .map(char::from)
+                    .find(|&l| normalized.chars().filter(|&c| c == l).count() > 127)
+                    .unwrap_or('?');
+                return Err(SolveError::TooManyRepeats(letter));
+            }
+        };
 
         let mut forced = Forced {
             classes: Vec::new(),
+            words: Vec::new(),
             counts: Counts::EMPTY,
         };
 
@@ -263,9 +317,17 @@ impl Search {
             if !counts.fits_in(remaining) {
                 return Err(SolveError::NotASubset(word));
             }
+            // `find_class` succeeded, so the word is a member of this class.
+            let word_index = dict.classes[class]
+                .words
+                .iter()
+                .copied()
+                .find(|&i| dict.word(i) == word)
+                .expect("find_class returned a class without the word");
             remaining = remaining.sub(counts);
             forced.counts = forced.counts.add(counts);
             forced.classes.push(class as u32);
+            forced.words.push(word_index);
         }
 
         let candidates = Candidates::build(dict, remaining, &options);
@@ -344,12 +406,14 @@ impl Search {
             .max_words
             .saturating_sub(self.forced.classes.len() as u8);
 
+        let memo_cap = memo.cap;
         let mut counter = Counter {
             candidates: &self.candidates,
             memo,
             unlimited,
             saturated: false,
             node_budget,
+            memo_cap,
             stats: Stats {
                 candidates: self.candidates.len(),
                 ..Stats::default()
@@ -394,6 +458,7 @@ impl Search {
             unlimited,
             saturated: false,
             node_budget: u64::MAX,
+            memo_cap: usize::MAX,
             stats: Stats::default(),
             stopped: false,
         };
@@ -406,16 +471,126 @@ impl Search {
     }
 
     /// Resolve class indices to concrete words, best spelling first.
+    ///
+    /// Forced words occupy the first slots of every solution, and those are
+    /// spelled exactly as the caller wrote them; the rest take the commonest
+    /// spelling in `tier`.
     pub fn spell(&self, dict: &Dict, classes: &[u32], tier: Tier) -> Vec<String> {
         classes
             .iter()
-            .map(|&c| {
+            .enumerate()
+            .map(|(slot, &c)| {
+                if let Some(&word) = self.forced.words.get(slot) {
+                    if self.forced.classes[slot] == c {
+                        return dict.word(word).to_owned();
+                    }
+                }
                 dict.class_words(c as usize, tier)
                     .next()
                     .map(|w| dict.word(w).to_owned())
                     .unwrap_or_default()
             })
             .collect()
+    }
+
+    /// A resumable enumeration starting at result 0.
+    ///
+    /// Yields exactly what [`Search::enumerate`] yields, in the same order, but
+    /// as a cursor that can be paused between results and picked up again.
+    pub fn cursor(&self) -> Cursor {
+        let mut cursor = self.blank_cursor();
+        let max_words = self.options.max_words as usize;
+
+        if self.empty_input || self.forced.classes.len() > max_words {
+            cursor.done = true;
+            return cursor;
+        }
+        if self.remaining.is_empty() {
+            // Forced words consumed every letter: one result, the forced ones.
+            cursor.emit_empty = true;
+            return cursor;
+        }
+
+        // The root pivot, mirroring the first step of `Walker::pivot`.
+        cursor.stats.nodes += 1;
+        if !can_still_fit(&self.candidates, self.remaining, self.forced.classes.len(), max_words)
+            || (max_words < UNLIMITED_WORDS as usize && self.forced.classes.len() + 1 > max_words)
+        {
+            cursor.done = true;
+            return cursor;
+        }
+        let letter = self.remaining.rarest().unwrap();
+        cursor.frames.push(Frame { rem: self.remaining, letter: letter as u8, pos: 0 });
+        cursor
+    }
+
+    /// A resumable enumeration positioned so that its first `next` is result
+    /// `index`, built by unranking rather than by walking: O(depth × bucket),
+    /// the same cost as [`Search::nth`]. `None` when `index` is past the end.
+    pub fn cursor_at(&self, memo: &mut Memo, index: u128) -> Option<Cursor> {
+        let max_words = self.options.max_words as usize;
+        if self.empty_input || self.forced.classes.len() > max_words {
+            return None;
+        }
+        let mut cursor = self.blank_cursor();
+        cursor.position = index;
+
+        if self.remaining.is_empty() {
+            if index != 0 {
+                return None;
+            }
+            cursor.emit_empty = true;
+            return Some(cursor);
+        }
+
+        let unlimited = self.options.max_words >= UNLIMITED_WORDS;
+        let budget_left = self
+            .options
+            .max_words
+            .saturating_sub(self.forced.classes.len() as u8);
+        let mut counter = Counter {
+            candidates: &self.candidates,
+            memo,
+            unlimited,
+            saturated: false,
+            node_budget: u64::MAX,
+            memo_cap: usize::MAX,
+            stats: Stats::default(),
+            stopped: false,
+        };
+        let found = counter.seek_pivot(
+            self.remaining,
+            budget_left,
+            index,
+            &mut cursor.frames,
+            &mut cursor.chosen,
+        );
+        if !found {
+            return None;
+        }
+        cursor.pending_emit = true;
+        Some(cursor)
+    }
+
+    fn blank_cursor(&self) -> Cursor {
+        Cursor {
+            frames: Vec::with_capacity(32),
+            chosen: Vec::with_capacity(32),
+            solution: self.forced.classes.clone(),
+            forced_len: self.forced.classes.len(),
+            pending_emit: false,
+            pending_pop: false,
+            emit_empty: false,
+            position: 0,
+            max_words: self.options.max_words as usize,
+            node_budget: self.options.max_nodes,
+            stats: Stats {
+                candidates: self.candidates.len(),
+                ..Stats::default()
+            },
+            stopped: false,
+            done: false,
+        }
     }
 }
 
@@ -525,17 +700,198 @@ impl Walker<'_> {
         }
     }
 
-    /// Cheap admissibility check against `max_words`: even using the longest
-    /// candidate every time, can the rest still be covered in budget?
     fn can_still_fit(&self, rem: Counts) -> bool {
-        if self.max_words >= UNLIMITED_WORDS as usize {
-            return true;
+        can_still_fit(self.candidates, rem, self.stack.len() + self.forced_len, self.max_words)
+    }
+}
+
+// ------------------------------------------------------------------- cursor
+
+/// Cheap admissibility check against `max_words`: even using the longest
+/// candidate every time, can the rest still be covered in budget?
+fn can_still_fit(candidates: &Candidates, rem: Counts, used: usize, max_words: usize) -> bool {
+    if max_words >= UNLIMITED_WORDS as usize {
+        return true;
+    }
+    if candidates.longest == 0 {
+        return false;
+    }
+    let needed = rem.total().div_ceil(candidates.longest) as usize;
+    used + needed <= max_words
+}
+
+/// One frame of a resumable walk: a run on `letter` over `rem`, where `pos`
+/// is the next position in `buckets[letter]` to try.
+#[derive(Clone, Copy, Debug)]
+struct Frame {
+    rem: Counts,
+    letter: u8,
+    pos: u32,
+}
+
+/// A suspended enumeration: the explicit-stack form of [`Walker`].
+///
+/// [`Search::enumerate`] recurses, which is fast and cannot be paused, so
+/// serving page `k` used to mean re-enumerating from result zero every time
+/// and scrolling was quadratic. A cursor holds the walk's stack as data, so
+/// the next page costs only its own length, and [`Search::cursor_at`] builds
+/// the stack for an arbitrary position by unranking, so a jump costs O(depth).
+///
+/// The two walkers must agree exactly, and `tests/oracle.rs` and
+/// `tests/golden.rs` hold them together: a cursor stream equals an enumerate
+/// stream, and a cursor seeked to `i` continues with results `i, i+1, …`.
+pub struct Cursor {
+    frames: Vec<Frame>,
+    /// Candidate indices chosen along the current path: one per frame below
+    /// the root, plus one more while a result is being emitted.
+    chosen: Vec<u32>,
+    /// The buffer handed out by `next`: forced classes, then `chosen`'s classes.
+    solution: Vec<u32>,
+    forced_len: usize,
+    /// `chosen` is a result that has not been emitted yet. Set by
+    /// `cursor_at`, which lands exactly on a result.
+    pending_emit: bool,
+    /// The last call emitted; its final chosen index is still on the path
+    /// and must be popped before the walk continues.
+    pending_pop: bool,
+    /// The forced words consumed every letter: emit the forced-only result
+    /// once. The empty multiset has exactly one partition, the empty one.
+    emit_empty: bool,
+    /// Results emitted so far, which is also the index of the next result.
+    position: u128,
+    max_words: usize,
+    node_budget: u64,
+    pub stats: Stats,
+    stopped: bool,
+    done: bool,
+}
+
+impl Cursor {
+    /// Index of the result the next call to `next` will produce.
+    pub fn position(&self) -> u128 {
+        self.position
+    }
+
+    /// The walk stopped at its node budget rather than at the end.
+    pub fn truncated(&self) -> bool {
+        self.stats.truncated
+    }
+
+    /// The walk ran out of results (as opposed to running out of budget).
+    pub fn is_done(&self) -> bool {
+        self.done
+    }
+
+    fn emit(&mut self, candidates: &Candidates) -> Option<&[u32]> {
+        self.solution.truncate(self.forced_len);
+        for &index in &self.chosen {
+            self.solution.push(candidates.class[index as usize]);
         }
-        if self.candidates.longest == 0 {
-            return false;
+        self.position += 1;
+        self.stats.emitted += 1;
+        Some(&self.solution)
+    }
+
+    /// The next result as class indices, or `None` when the walk is over —
+    /// check [`Cursor::truncated`] to learn which kind of over.
+    pub fn next(&mut self, search: &Search) -> Option<&[u32]> {
+        let candidates = &search.candidates;
+        if self.done || self.stopped {
+            return None;
         }
-        let needed = rem.total().div_ceil(self.candidates.longest) as usize;
-        self.stack.len() + self.forced_len + needed <= self.max_words
+        if self.emit_empty {
+            self.emit_empty = false;
+            self.done = true;
+            return self.emit(candidates);
+        }
+        if self.pending_emit {
+            self.pending_emit = false;
+            self.pending_pop = true;
+            return self.emit(candidates);
+        }
+        if self.pending_pop {
+            self.pending_pop = false;
+            self.chosen.pop();
+        }
+
+        loop {
+            let Some(top) = self.frames.last().copied() else {
+                self.done = true;
+                return None;
+            };
+            let letter = top.letter as usize;
+            let bucket = &candidates.buckets[letter];
+            let room = top.rem.total();
+            let mut pos = top.pos as usize;
+            let mut descended = false;
+
+            while pos < bucket.len() {
+                let index = bucket[pos];
+                pos += 1;
+                let slot = index as usize;
+
+                // Candidates are ordered longest-first, so anything still too
+                // long just gets skipped; the tail of the bucket is all short.
+                if candidates.len[slot] as u32 > room {
+                    continue;
+                }
+                self.stats.subset_tests += 1;
+                let counts = candidates.counts[slot];
+                if !counts.fits_in(top.rem) {
+                    continue;
+                }
+
+                // Resume after this candidate whatever happens below.
+                self.frames.last_mut().unwrap().pos = pos as u32;
+                let next = top.rem.sub(counts);
+                self.chosen.push(index);
+
+                if next.is_empty() {
+                    self.pending_pop = true;
+                    return self.emit(candidates);
+                }
+
+                // Mirrors the check at the top of `Walker::run`: can another
+                // word be added at all under `max_words`?
+                let used = self.chosen.len() + self.forced_len;
+                if self.max_words < UNLIMITED_WORDS as usize && used + 1 > self.max_words {
+                    self.chosen.pop();
+                    continue;
+                }
+
+                if next.get(letter) > 0 {
+                    // The pivot letter survives: the run continues, and the
+                    // index floor is this candidate, which sits at `pos - 1`.
+                    self.frames.push(Frame { rem: next, letter: top.letter, pos: (pos - 1) as u32 });
+                } else {
+                    // Run boundary: a fresh pivot, mirroring `Walker::pivot`.
+                    self.stats.nodes += 1;
+                    if self.stats.nodes > self.node_budget {
+                        self.stopped = true;
+                        self.stats.truncated = true;
+                        return None;
+                    }
+                    if !can_still_fit(candidates, next, used, self.max_words) {
+                        self.chosen.pop();
+                        continue;
+                    }
+                    let pivot = next.rarest().unwrap();
+                    self.frames.push(Frame { rem: next, letter: pivot as u8, pos: 0 });
+                }
+                descended = true;
+                break;
+            }
+
+            if descended {
+                continue;
+            }
+            // This frame is exhausted; the candidate that opened it comes off
+            // the path with it. The root opened nothing.
+            self.frames.pop();
+            if !self.frames.is_empty() {
+                self.chosen.pop();
+            }
+        }
     }
 }
 
@@ -552,6 +908,8 @@ struct Counter<'a> {
     unlimited: bool,
     saturated: bool,
     node_budget: u64,
+    /// Stop, like the node budget, once the memo holds this many entries.
+    memo_cap: usize,
     stats: Stats,
     stopped: bool,
 }
@@ -593,7 +951,7 @@ impl Counter<'_> {
         }
 
         self.stats.nodes += 1;
-        if self.stats.nodes > self.node_budget {
+        if self.stats.nodes > self.node_budget || self.memo.table.len() >= self.memo_cap {
             self.stopped = true;
             return 0;
         }
@@ -608,7 +966,14 @@ impl Counter<'_> {
 
         let letter = rem.rarest().unwrap();
         let total = self.run(rem, letter, 0, budget);
-        self.memo.table.insert(key, total);
+        // A run cut short by the node budget has only a partial total. Writing
+        // it to the memo would poison every later lookup on this session —
+        // `nth` walks the tree by subtree sizes, and a subtree recorded as
+        // smaller than it is makes the walk land on the wrong result, silently.
+        // So a stopped counter leaves the memo exactly as it found it.
+        if !self.stopped {
+            self.memo.table.insert(key, total);
+        }
         total
     }
 
@@ -720,6 +1085,83 @@ impl Counter<'_> {
                 };
             }
             *index -= subtree;
+        }
+        false
+    }
+    // -------------------------------------------------------------- seeking
+
+    /// `unrank_pivot`, but recording the walk as cursor frames so it can be
+    /// resumed from the result it lands on.
+    fn seek_pivot(
+        &mut self,
+        rem: Counts,
+        budget: u8,
+        index: u128,
+        frames: &mut Vec<Frame>,
+        chosen: &mut Vec<u32>,
+    ) -> bool {
+        if rem.is_empty() {
+            return index == 0;
+        }
+        if budget == 0 {
+            return false;
+        }
+        let letter = rem.rarest().unwrap();
+        frames.push(Frame { rem, letter: letter as u8, pos: 0 });
+        self.seek_run(rem, letter, 0, budget, index, frames, chosen)
+    }
+
+    /// `unrank_run` with recording. `start` is a bucket *position*: 0 for a
+    /// fresh pivot, or the position of the candidate that continued the run —
+    /// the same set `partition_point` yields for that candidate's index.
+    #[allow(clippy::too_many_arguments)]
+    fn seek_run(
+        &mut self,
+        rem: Counts,
+        letter: usize,
+        start: usize,
+        budget: u8,
+        mut index: u128,
+        frames: &mut Vec<Frame>,
+        chosen: &mut Vec<u32>,
+    ) -> bool {
+        if budget == 0 {
+            return false;
+        }
+        let bucket = self.candidates.buckets[letter].clone();
+        let room = rem.total();
+
+        for position in start..bucket.len() {
+            let candidate = bucket[position];
+            let slot = candidate as usize;
+            if self.candidates.len[slot] as u32 > room {
+                continue;
+            }
+            let counts = self.candidates.counts[slot];
+            if !counts.fits_in(rem) {
+                continue;
+            }
+
+            let next = rem.sub(counts);
+            let stays = next.get(letter) > 0;
+            let next_budget = self.spend(budget);
+            let subtree = if stays {
+                self.run(next, letter, candidate, next_budget)
+            } else {
+                self.pivot(next, next_budget)
+            };
+
+            if index < subtree {
+                frames.last_mut().expect("a run has a frame").pos = (position + 1) as u32;
+                chosen.push(candidate);
+                return if stays {
+                    frames.push(Frame { rem: next, letter: letter as u8, pos: position as u32 });
+                    self.seek_run(next, letter, position, next_budget, index, frames, chosen)
+                } else {
+                    self.seek_pivot(next, next_budget, index, frames, chosen)
+                };
+            }
+            index -= subtree;
         }
         false
     }

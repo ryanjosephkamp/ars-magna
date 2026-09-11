@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { formatCount, type Query } from '@ars-magna/engine';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { foldLetters, formatCount, type Query } from '@ars-magna/engine';
 import { SearchField } from './components/SearchField.tsx';
 import { Controls } from './components/Controls.tsx';
 import { ResultList } from './components/ResultList.tsx';
@@ -7,6 +7,7 @@ import { PinnedStrip } from './components/PinnedStrip.tsx';
 import { useEngine, useResults } from './state/useEngine.ts';
 import { decodeQuery, shareUrl, splitQuery, syncUrl } from './lib/urlState.ts';
 import { useCopy } from './lib/useCopy.ts';
+import { JumpEntry } from './lib/jump.ts';
 import { Definitions } from './lib/definitions.ts';
 import type { WordDetail } from './components/WordDetails.tsx';
 import { ResultToolbar } from './components/ResultToolbar.tsx';
@@ -37,7 +38,10 @@ export function App() {
   // if a stale `input` ever gets back into `filters`, the search still follows
   // what is in the field rather than silently reverting to first paint.
   const query = useMemo<Query>(() => ({ ...filters, input }), [input, filters]);
-  const letters = useMemo(() => input.replace(/[^a-zA-Z]/g, '').toLowerCase(), [input]);
+  // The same fold the engine applies, so the letters line and the search
+  // never disagree about what "Beyoncé" contains.
+  const folded = useMemo(() => foldLetters(input), [input]);
+  const letters = folded.letters;
 
   const {
     engine, searching, error, candidates, loadMore, collect, at, surpriseMe, spellings, masks,
@@ -90,6 +94,12 @@ export function App() {
   const hasQuery = letters.length > 0;
   const total = results.total;
   const empty = hasQuery && !searching && total === '0' && error === null;
+
+  // Must-include problems belong on that control; anything else is about the
+  // query as a whole and replaces the result area rather than sitting beside
+  // an honest-looking "0 anagrams".
+  const queryError =
+    error && error.code !== 'UNKNOWN_WORD' && error.code !== 'NOT_A_SUBSET' ? error : null;
 
   // Deliberately cannot carry `input`: the text field owns that, and letting it
   // through here is what let a stale value shadow the live one.
@@ -175,7 +185,7 @@ export function App() {
           </p>
         </header>
 
-        <SearchField value={input} onChange={setInput} letters={letters} />
+        <SearchField value={input} onChange={setInput} letters={letters} skipped={folded.skipped} />
 
         <div className="mt-10">
           <Controls
@@ -207,7 +217,20 @@ export function App() {
 
           {engine.state === 'ready' && !hasQuery && <Intro counts={counts} />}
 
-          {engine.state === 'ready' && hasQuery && (
+          {engine.state === 'ready' && hasQuery && queryError && (
+            <Notice>
+              {queryError.code === 'TOO_MANY_REPEATS' ? (
+                <>
+                  A letter appears more than 127 times, which is more of one letter than the
+                  search can hold.
+                </>
+              ) : (
+                <>The search failed. {queryError.message}</>
+              )}
+            </Notice>
+          )}
+
+          {engine.state === 'ready' && hasQuery && !queryError && (
             <>
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 border-b border-rule-strong pb-3">
                 <p aria-live="polite" className="text-ink">
@@ -361,14 +384,13 @@ function JumpTo({
   onResult(row: string[] | null): void;
 }) {
   const [value, setValue] = useState('');
-  const max = BigInt(total.replace('>', ''));
+  // Enter submits, and Enter also blurs the field, which submits again. The
+  // entry remembers what it sent and sends it once until the text changes.
+  const entry = useRef(new JumpEntry());
 
   const go = () => {
-    const digits = value.replace(/[^0-9]/g, '');
-    if (digits.length === 0) return;
-    const position = BigInt(digits);
-    if (position < 1n || position > max) return;
-    void at(position - 1n).then(onResult);
+    const index = entry.current.submit(value, total);
+    if (index !== null) void at(index).then(onResult);
   };
 
   return (
@@ -379,7 +401,10 @@ function JumpTo({
       <input
         id="jump"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => {
+          entry.current.changed();
+          setValue(event.target.value);
+        }}
         onKeyDown={(event) => event.key === 'Enter' && go()}
         onBlur={go}
         inputMode="numeric"

@@ -35,7 +35,6 @@ import {
   makeBitset,
 } from './format.ts';
 
-const TIER_COMMON = 0;
 const TIER_FULL = 2;
 
 const verifyOnly = process.argv.includes('--verify');
@@ -232,16 +231,10 @@ async function main(): Promise<void> {
   console.log('\n5. tiers');
   const commonSet = makeBitset(words.length);
   const standardSet = makeBitset(words.length);
-  const commonWords: string[] = [];
-  const commonZipf: number[] = [];
 
   for (let i = 0; i < words.length; i++) {
     const input = { word: words[i]!, facts: facts[i]!, freqRank: rank[i]! };
-    if (inCommon(input)) {
-      bitsetSet(commonSet, i);
-      commonWords.push(words[i]!);
-      commonZipf.push(zipf[i]!);
-    }
+    if (inCommon(input)) bitsetSet(commonSet, i);
     if (inStandard(input)) bitsetSet(standardSet, i);
   }
 
@@ -271,12 +264,10 @@ async function main(): Promise<void> {
   console.log('\n7. artifacts');
   await mkdir(DIST_DIR, { recursive: true });
 
+  // One word list plus two bitsets. A standalone Common artifact used to be
+  // emitted as well; nothing ever loaded it, since switching tiers is a
+  // bitset lookup over the one list.
   const fullBin = encodeDict({ words, zipf, pos: pos.bytes, tier: TIER_FULL });
-  const commonBin = encodeDict({
-    words: commonWords,
-    zipf: Uint8Array.from(commonZipf),
-    tier: TIER_COMMON,
-  });
   const bits = encodeBitsets(words.length, [commonSet, standardSet]);
 
   // Round-trip every artifact before it is written. A silent encoder bug here
@@ -288,19 +279,9 @@ async function main(): Promise<void> {
       throw new Error(`round-trip: word ${i} "${roundTrip.words[i]}" != "${words[i]}"`);
     }
   }
-  const commonRoundTrip = decodeDict(commonBin);
-  for (let i = 0; i < commonWords.length; i++) {
-    if (commonRoundTrip.words[i] !== commonWords[i]) {
-      throw new Error(`round-trip: common word ${i} differs`);
-    }
-  }
   console.log('   round-trip ✓');
 
-  const artifacts = [
-    await emit('full', 'bin', fullBin),
-    await emit('common', 'bin', commonBin),
-    await emit('tiers', 'bits', bits),
-  ];
+  const artifacts = [await emit('full', 'bin', fullBin), await emit('tiers', 'bits', bits)];
 
   for (const a of artifacts) {
     console.log(`   ${a.name.padEnd(28)} ${human(a.bytes).padStart(9)} → ${human(a.brotliBytes)} br`);
