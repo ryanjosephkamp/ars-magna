@@ -32,3 +32,7 @@ packages/engine/src/wasm/
 data/queue/*/raw.jsonl
 data/queue/*/judge-input-*.md
 dataset/
+
+# Built by apps/web/scripts/build-hits.ts from data/hits.jsonl before every dev and build.
+apps/web/public/hits.json
+apps/web/public/hits/

@@ -3,8 +3,8 @@ name: Deploy
 on:
   push:
     branches: [main]
-    # The site does not read the queue or the candidates; only the hits
-    # (Phase I's gallery) redeploy it.
+    # The site does not read the queue or the candidates; the hits do (the
+    # gallery is built from data/hits.jsonl), so those still redeploy.
     paths-ignore:
       - 'data/queue/**'
       - 'data/candidates.jsonl'
