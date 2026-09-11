@@ -158,7 +158,36 @@ export class ArsMagnaClient {
     this.#worker.terminate();
   }
 
+  /** Fail everything in flight; the worker is gone. */
+  #crash(code: ErrorCode, message: string): void {
+    for (const [id, waiter] of this.#pending) {
+      this.#pending.delete(id);
+      waiter.reject(new Error(message));
+    }
+    const active = this.#handlers.get(this.#activeQuery);
+    if (active) {
+      active.onError?.(code, message);
+      this.#handlers.delete(this.#activeQuery);
+    } else if (this.#status.state === 'loading') {
+      // Crashed while the dictionary was still loading: that is a failed
+      // load, and the init promise is waiting on it.
+      this.#setStatus({ state: 'failed', code, message });
+      this.#readyResolve?.();
+      this.#readyResolve = null;
+    }
+  }
+
   #receive(message: Response): void {
+    // The worker itself crashed (a WebAssembly panic, an out-of-memory abort)
+    // rather than any one request failing. Its `onerror` posts id -1, which
+    // belongs to nothing; before this, nothing received it and the page sat
+    // on "searching…" for good. Every waiting caller is told, and the active
+    // query fails with the message so the interface can show it.
+    if (message.k === 'error' && message.id === -1) {
+      this.#crash(message.code, message.message);
+      return;
+    }
+
     const oneShot = this.#pending.get(message.id);
     if (oneShot) {
       this.#pending.delete(message.id);
