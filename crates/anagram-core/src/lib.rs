@@ -32,6 +32,7 @@
 
 pub mod counts;
 pub mod dict;
+mod fold_table;
 pub mod search;
 
 pub use counts::{normalize, Counts};

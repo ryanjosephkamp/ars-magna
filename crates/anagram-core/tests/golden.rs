@@ -374,6 +374,34 @@ fn more_than_127_of_one_letter_is_an_error_not_an_empty_result() {
 }
 
 #[test]
+fn accented_spellings_search_the_same_letters_as_plain_ones() {
+    let dict = dict_or_skip!();
+
+    // Every accented letter folds to its base letter, so an accented name and
+    // its plain spelling are the same query. Before, the accent was dropped
+    // along with its letter: "Beyoncé" searched as "beyonc".
+    for (accented, plain) in [
+        ("Beyoncé Knowles", "beyonce knowles"),
+        ("Penélope Cruz", "penelope cruz"),
+        ("Zoë Kravitz", "zoe kravitz"),
+        ("Renée Zellweger", "renee zellweger"),
+        ("Björk", "bjork"),
+        ("Motörhead", "motorhead"),
+        ("Straße", "strasse"),
+    ] {
+        let options = opts(3, 3);
+        let a = solutions(&dict, accented, options.clone());
+        let b = solutions(&dict, plain, options);
+        assert_eq!(a, b, "{accented:?} and {plain:?} must give the same results");
+        assert_eq!(
+            anagram_core::normalize(accented).len(),
+            anagram_core::normalize(plain).len(),
+            "{accented:?} lost or gained a letter"
+        );
+    }
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 

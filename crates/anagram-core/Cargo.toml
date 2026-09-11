@@ -9,6 +9,9 @@ description = "Multi-word anagram search: rarest-letter run-forced DFS over sign
 
 [dev-dependencies]
 proptest = "1.8"
+# Only a test oracle: the shipped fold is a generated table, because these
+# tables would add ~50 KB to the compressed WASM payload.
+unicode-normalization = "0.1"
 
 [lib]
 crate-type = ["rlib"]

@@ -3,8 +3,10 @@ import { useEffect, useId, useRef } from 'react';
 type Props = {
   value: string;
   onChange(value: string): void;
-  /** Letters that will actually be used, after stripping. */
+  /** Letters that will actually be used, after folding accents and stripping. */
   letters: string;
+  /** Characters that carried something (digits, symbols, other scripts) and were ignored. */
+  skipped: number;
 };
 
 /**
@@ -12,7 +14,7 @@ type Props = {
  * Set in the display face at reading size so the text they type already looks
  * like the results it will become.
  */
-export function SearchField({ value, onChange, letters }: Props) {
+export function SearchField({ value, onChange, letters, skipped }: Props) {
   const id = useId();
   const field = useRef<HTMLInputElement>(null);
 
@@ -53,6 +55,12 @@ export function SearchField({ value, onChange, letters }: Props) {
             {letters.length} letter{letters.length === 1 ? '' : 's'}
             <span className="mx-2 text-rule-strong">·</span>
             <span className="tracking-[0.18em] uppercase">{[...letters].sort().join('')}</span>
+            {skipped > 0 && (
+              <>
+                <span className="mx-2 text-rule-strong">·</span>
+                {skipped} character{skipped === 1 ? '' : 's'} skipped
+              </>
+            )}
           </>
         )}
       </p>

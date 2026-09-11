@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_QUERY, UNLIMITED_WORDS, type Query } from '@ars-magna/engine';
 import { decodeQuery, encodeQuery, splitQuery } from './urlState.ts';
 
+describe('urlState accent folding', () => {
+  it('folds an accented must-include word the way the engine will', () => {
+    expect(decodeQuery('#q=caf%C3%A9&i=caf%C3%A9,Stra%C3%9Fe').mustInclude).toEqual(['cafe', 'strasse']);
+  });
+});
+
 const query = (overrides: Partial<Query> = {}): Query => ({
   input: '',
   ...DEFAULT_QUERY,

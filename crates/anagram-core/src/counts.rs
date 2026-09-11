@@ -180,18 +180,44 @@ impl fmt::Debug for Counts {
     }
 }
 
-/// Strip everything but ASCII letters and lowercase the rest.
+/// Text -> the `[a-z]` letters the search uses.
 ///
-/// Mirrors `normalize()` in the dictionary build, so "Ryan Joseph Kamp" and
-/// "ryanjosephkamp" are the same query. Non-ASCII input is decomposed by the
-/// caller (the browser does NFKD); anything left that is not `[A-Za-z]` is
-/// dropped, which is what makes digits and punctuation disappear.
+/// Every accented letter is forced to its unaccented base letter, so "Beyoncé"
+/// has three e's. The mapping is the generated table in `fold_table.rs`:
+/// Unicode NFKD over the Latin blocks (decompose, drop the combining marks,
+/// keep the ASCII letters) plus a hand-written list for the Latin letters
+/// that have no decomposition: ß -> ss, æ -> ae, œ -> oe, ø -> o, đ -> d,
+/// ł -> l, þ -> th, ð -> d, ı -> i. Anything else that is not a Latin letter
+/// — punctuation, spaces, digits, other scripts, emoji — is dropped.
+///
+/// A table rather than a normalization crate because the same tables would
+/// add ~50 KB to the compressed WASM payload. The tests below check the table
+/// against `unicode-normalization` over the covered ranges, and the TypeScript
+/// side (`packages/engine/src/fold.ts`) carries the identical generated table
+/// and checks it against the browser's NFKD, so the two cannot drift.
 pub fn normalize(input: &str) -> String {
-    input
-        .chars()
-        .filter(|c| c.is_ascii_alphabetic())
-        .map(|c| c.to_ascii_lowercase())
-        .collect()
+    let mut out = String::with_capacity(input.len());
+    for c in input.chars() {
+        if c.is_ascii() {
+            if c.is_ascii_alphabetic() {
+                out.push(c.to_ascii_lowercase());
+            }
+            continue;
+        }
+        if let Some(folded) = fold_char(c) {
+            out.push_str(folded);
+        }
+    }
+    out
+}
+
+/// The table entry for a non-ASCII character, if it folds to any letters.
+fn fold_char(c: char) -> Option<&'static str> {
+    let table = &crate::fold_table::FOLD;
+    table
+        .binary_search_by_key(&c, |&(ch, _)| ch)
+        .ok()
+        .map(|i| table[i].1)
 }
 
 #[cfg(test)]
@@ -249,5 +275,85 @@ mod tests {
         assert_eq!(normalize("O'Brien-Smith"), "obriensmith");
         assert_eq!(normalize(""), "");
         assert_eq!(normalize("1234!!"), "");
+    }
+
+    /// Mirrors FOLD_CASES in `packages/engine/test/fold.test.ts`. The two
+    /// implementations have to agree byte for byte or a word silently fails
+    /// to match the dictionary.
+    #[test]
+    fn normalize_folds_accents_to_base_letters() {
+        let cases = [
+            ("Beyoncé Knowles", "beyonceknowles"),
+            ("Penélope Cruz", "penelopecruz"),
+            ("Zoë Kravitz", "zoekravitz"),
+            ("Renée Zellweger", "reneezellweger"),
+            ("Björk", "bjork"),
+            ("Motörhead", "motorhead"),
+            ("Straße", "strasse"),
+            ("Ærø", "aero"),
+            ("Łódź", "lodz"),
+            ("Þórður", "thordur"),
+            ("İstanbul", "istanbul"),
+            ("Ben Shelton 🎾 2026", "benshelton"),
+            ("Владимир", ""),
+            ("東京", ""),
+            // The dictionary build's two accented surfaces.
+            ("norteño", "norteno"),
+            ("peléan", "pelean"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(normalize(input), expected, "{input:?}");
+        }
+    }
+
+    /// The generated table must equal NFKD-derived folding over every code
+    /// point it claims to cover, and must be sorted (it is binary-searched).
+    #[test]
+    fn fold_table_matches_nfkd_over_its_ranges() {
+        use unicode_normalization::char::is_combining_mark;
+        use unicode_normalization::UnicodeNormalization;
+
+        let table = &crate::fold_table::FOLD;
+        assert!(table.windows(2).all(|w| w[0].0 < w[1].0), "table must be sorted");
+
+        let special = |c: char| -> Option<&'static str> {
+            Some(match c {
+                'ß' | 'ẞ' => "ss",
+                'æ' | 'Æ' => "ae",
+                'œ' | 'Œ' => "oe",
+                'ø' | 'Ø' => "o",
+                'đ' | 'Đ' => "d",
+                'ł' | 'Ł' => "l",
+                'þ' | 'Þ' => "th",
+                'ð' | 'Ð' => "d",
+                'ı' => "i",
+                _ => return None,
+            })
+        };
+
+        for &(lo, hi) in &crate::fold_table::RANGES {
+            for cp in lo..=hi {
+                let Some(c) = char::from_u32(cp) else { continue };
+                let expected: String = match special(c) {
+                    Some(s) => s.to_owned(),
+                    None => c
+                        .nfkd()
+                        .filter(|&p| !is_combining_mark(p))
+                        .filter(char::is_ascii_alphabetic)
+                        .map(|p| p.to_ascii_lowercase())
+                        .collect(),
+                };
+                let actual = super::fold_char(c).unwrap_or("");
+                assert_eq!(actual, expected, "U+{cp:04X} {c:?}");
+            }
+        }
+        // And nothing in the table lies outside the ranges.
+        for &(c, _) in table.iter() {
+            let cp = c as u32;
+            assert!(
+                crate::fold_table::RANGES.iter().any(|&(lo, hi)| (lo..=hi).contains(&cp)),
+                "U+{cp:04X} is in the table but outside every range"
+            );
+        }
     }
 }

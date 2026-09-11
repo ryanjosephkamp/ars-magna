@@ -18,6 +18,7 @@ import type {
 
 export * from './protocol.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
+export { foldLetters, normalizeLetters, type Folded } from './fold.ts';
 
 export type SolveHandlers = {
   /** Exact total, ahead of any results. A `>` prefix means it is a floor. */

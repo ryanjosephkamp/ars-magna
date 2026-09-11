@@ -10,7 +10,14 @@
  * Only non-default values are written, so an ordinary search produces
  * `#q=dormitory` rather than a wall of parameters.
  */
-import { DEFAULT_QUERY, TIERS, UNLIMITED_WORDS, type Query, type Tier } from '@ars-magna/engine';
+import {
+  DEFAULT_QUERY,
+  TIERS,
+  UNLIMITED_WORDS,
+  normalizeLetters,
+  type Query,
+  type Tier,
+} from '@ars-magna/engine';
 
 const KEY = {
   input: 'q',
@@ -53,7 +60,7 @@ export function decodeQuery(hash: string): Query {
 
   const mustInclude = (params.get(KEY.mustInclude) ?? '')
     .split(',')
-    .map((word) => word.replace(/[^a-zA-Z]/g, '').toLowerCase())
+    .map(normalizeLetters)
     .filter((word) => word.length > 0);
 
   return {

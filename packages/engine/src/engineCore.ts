@@ -9,6 +9,7 @@
 import initWasm, { Engine, type InitInput } from './wasm/anagram.js';
 import type { Manifest, ManifestFile, Query, Request, Response, Tier } from './protocol.ts';
 import { bestOrder } from './wordOrder.ts';
+import { normalizeLetters } from './fold.ts';
 
 export type Port = {
   post(message: Response): void;
@@ -223,12 +224,15 @@ export class EngineCore {
     const engine = this.#require();
     const started = performance.now();
 
+    // Folded here as well as in Rust: the engine's normalize() does the same
+    // thing, but the worker is the boundary every caller crosses, and folding
+    // on both sides means neither can regress the other unnoticed.
     const candidates = engine.begin(
-      query.input,
+      normalizeLetters(query.input),
       query.tier,
       query.minWordLen,
       query.maxWords,
-      [...query.mustInclude],
+      query.mustInclude.map(normalizeLetters),
       maxNodes,
     );
 
@@ -327,11 +331,13 @@ export class EngineCore {
   }
 
   #spellings(id: number, word: string, tier: Tier): void {
-    this.#port.post({ k: 'spellings', id, words: this.#require().spellingsOf(word, tier) });
+    const words = this.#require().spellingsOf(normalizeLetters(word), tier);
+    this.#port.post({ k: 'spellings', id, words });
   }
 
   #lookup(id: number, word: string, tier: Tier): void {
-    this.#port.post({ k: 'lookup', id, found: this.#require().has(word, tier) });
+    const found = this.#require().has(normalizeLetters(word), tier);
+    this.#port.post({ k: 'lookup', id, found });
   }
 
   /** Part-of-speech masks, so the interface can rank the alternate orderings

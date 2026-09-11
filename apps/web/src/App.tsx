@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { formatCount, type Query } from '@ars-magna/engine';
+import { foldLetters, formatCount, type Query } from '@ars-magna/engine';
 import { SearchField } from './components/SearchField.tsx';
 import { Controls } from './components/Controls.tsx';
 import { ResultList } from './components/ResultList.tsx';
@@ -37,7 +37,10 @@ export function App() {
   // if a stale `input` ever gets back into `filters`, the search still follows
   // what is in the field rather than silently reverting to first paint.
   const query = useMemo<Query>(() => ({ ...filters, input }), [input, filters]);
-  const letters = useMemo(() => input.replace(/[^a-zA-Z]/g, '').toLowerCase(), [input]);
+  // The same fold the engine applies, so the letters line and the search
+  // never disagree about what "Beyoncé" contains.
+  const folded = useMemo(() => foldLetters(input), [input]);
+  const letters = folded.letters;
 
   const {
     engine, searching, error, candidates, loadMore, collect, at, surpriseMe, spellings, masks,
@@ -181,7 +184,7 @@ export function App() {
           </p>
         </header>
 
-        <SearchField value={input} onChange={setInput} letters={letters} />
+        <SearchField value={input} onChange={setInput} letters={letters} skipped={folded.skipped} />
 
         <div className="mt-10">
           <Controls

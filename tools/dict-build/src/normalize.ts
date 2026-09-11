@@ -1,17 +1,21 @@
+import { normalizeLetters } from '../../../packages/engine/src/fold.ts';
+
 /**
  * Surface form -> search form.
  *
  * The pinned list contains 188 hyphenated surfaces (`across-the-board`,
  * `avant-garde`, and one trailing-hyphen artifact `behind-`) plus two accented
- * entries (`norteño`, `peléan`). NFKD decomposition splits the accent into a
- * combining mark, which the `[^a-z]` strip then removes, so both cases fall out
- * of one rule: `norteño` -> `norteno`, `across-the-board` -> `acrosstheboard`.
+ * entries (`norteño`, `peléan`). Accents fold to their base letter and
+ * everything that is not a Latin letter is dropped, so both cases fall out of
+ * one rule: `norteño` -> `norteno`, `across-the-board` -> `acrosstheboard`.
  *
- * This is the same transform applied to user input, which is what makes
- * "Ryan Joseph Kamp" and "ryanjosephkamp" the same query.
+ * This is the *same function* the app applies to user input — imported, not
+ * copied — which is what makes "Ryan Joseph Kamp", "ryanjosephkamp" and
+ * "Beyoncé" line up with the dictionary. The Rust engine's `normalize()` is
+ * held to the same table by its own tests.
  */
 export function normalize(surface: string): string {
-  return surface.normalize('NFKD').toLowerCase().replace(/[^a-z]/g, '');
+  return normalizeLetters(surface);
 }
 
 /** 26-slot letter-count vector. Index 0 = 'a'. */

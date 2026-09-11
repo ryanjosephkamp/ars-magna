@@ -126,6 +126,28 @@ describe.skipIf(!built)('EngineCore', () => {
     }
   });
 
+  it('folds accented letters to their base letters', async () => {
+    for (const [accented, plain] of [
+      ['Beyoncé Knowles', 'beyonce knowles'],
+      ['Björk', 'bjork'],
+      ['Straße', 'strasse'],
+      ['Motörhead', 'motorhead'],
+    ] as const) {
+      const a = await solve(accented, { minWordLen: 3, maxWords: 3 }, 200);
+      const total = a.last('count')!.total;
+      const rows = rowsOf(a);
+      const b = await solve(plain, { minWordLen: 3, maxWords: 3 }, 200);
+      expect(b.last('count')!.total).toBe(total);
+      expect(rowsOf(b)).toEqual(rows);
+    }
+
+    // A pinned word is folded too.
+    const pinned = await solve('Beyoncé', { minWordLen: 3, mustInclude: ['Beyoncé'] }, 5);
+    // "beyonce" is not a word, so this must fail as unknown, not as a subset
+    // problem caused by the accent being dropped from one side only.
+    expect(pinned.last('error')!.code).toBe('UNKNOWN_WORD');
+  });
+
   it('uses exactly the input letters in every result', async () => {
     const letters = (s: string) => [...s.replace(/[^a-z]/g, '')].sort().join('');
     for (const input of ['ryanjosephkamp', 'astronomer', 'banana']) {
