@@ -98,11 +98,9 @@ impl QueryStats {
 
 #[wasm_bindgen]
 impl Engine {
-    /// Build an engine from the shipped artifacts.
-    ///
-    /// `tier_bytes` may be omitted when loading a standalone tier file (the
-    /// Common artifact carries no bitsets, because every word in it is a
-    /// member by construction).
+    /// Build an engine from the shipped artifacts: the full word list and the
+    /// tier bitsets over it. `tier_bytes` may be omitted for a list that has
+    /// no tiers, in which case every word is in every tier.
     #[wasm_bindgen(constructor)]
     pub fn new(dict_bytes: &[u8], tier_bytes: Option<Box<[u8]>>) -> Result<Engine, JsError> {
         let dict = Dict::decode(dict_bytes, tier_bytes.as_deref())

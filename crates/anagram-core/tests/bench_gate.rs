@@ -46,27 +46,35 @@ fn load() -> Option<Dict> {
 
 /// `(input, max candidates, max count nodes, max enumeration subset tests)`
 ///
-/// Measured on the pinned dictionary at Standard, minWordLen 3:
+/// Measured on the pinned dictionary at Standard, minWordLen 3. Standard was
+/// redefined in September 2026 from Common ∪ TWL (177,197 words) to every
+/// attested word (314,007): the TWL definition dropped nearly every word over
+/// 15 letters, which the README had never claimed. The new tier admits more
+/// candidates on every input, so the measurements moved and the thresholds
+/// were re-derived from them at the same ~1.5× headroom; the old figures are
+/// kept alongside so the size of the shift is on record.
 ///
 /// ```text
-/// dormitory              61 candidates      59 nodes         976 tests
-/// astronomer            273 candidates     190 nodes      21,429 tests
-/// arsmagna               52 candidates      37 nodes         426 tests
-/// woodrowwilson         130 candidates     187 nodes      33,567 tests
-/// ryanjosephkamp        817 candidates   2,659 nodes   2,996,048 tests
-/// internationalization  568 candidates   4,589 nodes  90,137,342 tests
+///                        candidates      count nodes      enumeration tests
+/// dormitory                61 →    65      59 →    62         976 →       1,075
+/// astronomer              273 →   281     190 →   193      21,429 →      21,809
+/// arsmagna                 52 →    53      37 →    38         426 →         427
+/// woodrowwilson           130 →   134     187 →   194      33,567 →      35,454
+/// ryanjosephkamp          817 →   893   2,659 → 2,760   2,996,048 →   3,432,461
+/// internationalization    568 →   704   4,589 → 4,824  90,137,342 → 116,466,920
 /// ```
 ///
-/// Note how far apart counting and enumeration are on the last row: 4,589 nodes
-/// to count 252,995 answers, against 90 million sub-multiset tests to actually
-/// list them. That gap is the entire reason the interface leads with the count.
+/// Note how far apart counting and enumeration are on the last row: under
+/// five thousand nodes to count the answers, against 116 million sub-multiset
+/// tests to actually list them. That gap is the entire reason the interface
+/// leads with the count.
 const GATES: &[(&str, usize, u64, u64)] = &[
-    ("dormitory", 100, 90, 1_500),
-    ("astronomer", 420, 290, 32_000),
+    ("dormitory", 100, 95, 1_600),
+    ("astronomer", 420, 290, 33_000),
     ("arsmagna", 80, 60, 650),
-    ("woodrowwilson", 200, 290, 50_000),
-    ("ryanjosephkamp", 1_250, 4_000, 4_500_000),
-    ("internationalization", 900, 7_000, 135_000_000),
+    ("woodrowwilson", 200, 290, 53_000),
+    ("ryanjosephkamp", 1_350, 4_200, 5_200_000),
+    ("internationalization", 1_050, 7_300, 175_000_000),
 ];
 
 #[test]
