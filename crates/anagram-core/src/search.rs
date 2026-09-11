@@ -122,6 +122,10 @@ pub enum Flow {
 /// The classes that must be in every result, already resolved.
 struct Forced {
     classes: Vec<u32>,
+    /// The exact word the caller asked for, parallel to `classes`. A class
+    /// has many spellings and `spell` normally shows the commonest, but a
+    /// reader who pinned `starer` must see `starer`, not `arrest`.
+    words: Vec<u32>,
     counts: Counts,
 }
 
@@ -251,6 +255,7 @@ impl Search {
 
         let mut forced = Forced {
             classes: Vec::new(),
+            words: Vec::new(),
             counts: Counts::EMPTY,
         };
 
@@ -263,9 +268,17 @@ impl Search {
             if !counts.fits_in(remaining) {
                 return Err(SolveError::NotASubset(word));
             }
+            // `find_class` succeeded, so the word is a member of this class.
+            let word_index = dict.classes[class]
+                .words
+                .iter()
+                .copied()
+                .find(|&i| dict.word(i) == word)
+                .expect("find_class returned a class without the word");
             remaining = remaining.sub(counts);
             forced.counts = forced.counts.add(counts);
             forced.classes.push(class as u32);
+            forced.words.push(word_index);
         }
 
         let candidates = Candidates::build(dict, remaining, &options);
@@ -406,10 +419,20 @@ impl Search {
     }
 
     /// Resolve class indices to concrete words, best spelling first.
+    ///
+    /// Forced words occupy the first slots of every solution, and those are
+    /// spelled exactly as the caller wrote them; the rest take the commonest
+    /// spelling in `tier`.
     pub fn spell(&self, dict: &Dict, classes: &[u32], tier: Tier) -> Vec<String> {
         classes
             .iter()
-            .map(|&c| {
+            .enumerate()
+            .map(|(slot, &c)| {
+                if let Some(&word) = self.forced.words.get(slot) {
+                    if self.forced.classes[slot] == c {
+                        return dict.word(word).to_owned();
+                    }
+                }
                 dict.class_words(c as usize, tier)
                     .next()
                     .map(|w| dict.word(w).to_owned())

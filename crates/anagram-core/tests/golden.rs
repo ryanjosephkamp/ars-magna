@@ -313,6 +313,38 @@ fn truncated_count_does_not_poison_the_memo() {
 }
 
 #[test]
+fn a_pinned_word_is_shown_as_the_word_that_was_pinned() {
+    let dict = dict_or_skip!();
+
+    // `starer` shares a class with `arrest`, `rarest` and `raters`, and
+    // `arrest` is the commoner spelling. Pinning `starer` must still show
+    // `starer`: the reader asked for that word and the row has to contain it.
+    for (input, pinned) in [("astronomer", "starer"), ("listen", "silent"), ("dormitory", "dirty")] {
+        let options = SolveOptions {
+            must_include: vec![pinned.to_owned()],
+            ..opts(3, anagram_core::UNLIMITED_WORDS)
+        };
+        let search = Search::prepare(&dict, input, options).unwrap();
+
+        let mut rows = 0usize;
+        search.enumerate(|classes| {
+            let words = search.spell(&dict, classes, Tier::Standard);
+            assert!(
+                words.iter().any(|w| w == pinned),
+                "{input:?} pinned to {pinned:?} showed {words:?}"
+            );
+            rows += 1;
+            Flow::Continue
+        });
+        assert!(rows > 0, "{input:?} with {pinned:?} produced no rows");
+
+        // Unranked results are spelled the same way as streamed ones.
+        let first = search.nth(&mut Memo::new(), 0).unwrap();
+        assert!(search.spell(&dict, &first, Tier::Standard).iter().any(|w| w == pinned));
+    }
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 
