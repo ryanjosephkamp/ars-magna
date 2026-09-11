@@ -97,11 +97,11 @@ export function explain(validator: ValidateFunction): string {
 }
 
 export class RecordError extends Error {
-  constructor(
-    message: string,
-    public readonly line: number,
-  ) {
+  readonly line: number;
+  // No parameter properties: Node's strip-types mode refuses them.
+  constructor(message: string, line: number) {
     super(message);
+    this.line = line;
   }
 }
 
