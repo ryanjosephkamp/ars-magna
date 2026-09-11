@@ -1,5 +1,10 @@
 /**
- * `pnpm hits:ingest [--date=YYYY-MM-DD] [--model=NAME] [--threshold=11]`
+ * `pnpm hits:ingest [--date=YYYY-MM-DD] [--model=NAME] [--threshold=11] [--no-engine-check]`
+ * `pnpm hits:ingest --from-issue=N`
+ *
+ * The second form takes a submission from the GitHub issue form: it reads the
+ * issue, checks the phrase with the engine, and records a candidate and a
+ * proposed hit credited to the submitter. A person still promotes it.
  *
  * Turn the judge's answers into proposed hits. Nothing is trusted: every
  * verdict must name a candidate from the batch, score inside the rubric,
@@ -13,11 +18,15 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { execFileSync } from 'node:child_process';
+
 import { Engine } from './engine.ts';
-import { checkAnagram } from './check.ts';
+import { checkAnagram, sameLetters } from './check.ts';
+import { alphagram, candidateId, hitId } from './ids.ts';
+import { parseIssueForm } from './submission.ts';
 import { rubric, type Verdict } from './judge.ts';
 import type { Prefiltered } from './prefilter.ts';
-import { INGEST_REPORT, JUDGE_OUTPUT, PREFILTERED, flag, pickQueue } from './queue.ts';
+import { INGEST_REPORT, JUDGE_OUTPUT, PREFILTERED, flag, has, pickQueue } from './queue.ts';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
@@ -28,9 +37,51 @@ import {
   readJsonl,
   today,
   writeJsonl,
+  type Candidate,
   type Hit,
   type Judgement,
 } from './schema.ts';
+
+async function fromIssue(number: string): Promise<void> {
+  const raw = execFileSync('gh', ['issue', 'view', number, '--json', 'body,author,url'], { encoding: 'utf8' });
+  const issue = JSON.parse(raw) as { body: string; author: { login: string }; url: string };
+  const parsed = parseIssueForm(issue.body);
+  if ('error' in parsed) throw new Error(`issue #${number}: ${parsed.error}`);
+
+  const engine = await Engine.boot();
+  const verdict = await checkAnagram(engine, parsed.input, parsed.words, parsed.tier);
+  if (!verdict.ok) throw new Error(`issue #${number}: not an anagram: ${verdict.reason}`);
+
+  const date = today();
+  const candidate: Candidate = {
+    id: candidateId(parsed.input, parsed.category),
+    input: parsed.input,
+    category: parsed.category,
+    source: 'submission',
+    first_seen: date,
+    status: 'enumerated',
+    notes: issue.url,
+  };
+  const hit: Hit = {
+    id: hitId(parsed.input, parsed.category, parsed.words),
+    input: parsed.input,
+    category: parsed.category,
+    words: parsed.words,
+    display: parsed.words.join(' '),
+    letters: alphagram(parsed.input),
+    prefilter_score: 0,
+    judge: [],
+    submitter: parsed.credit || issue.author.login,
+    added: date,
+    dictionary: await dictionaryPin(),
+    tier: parsed.tier,
+    tags: parsed.why ? ['submitted', `note:${parsed.why.slice(0, 80)}`] : ['submitted'],
+    status: 'proposed',
+  };
+  await appendJsonl(CANDIDATES_PATH, [candidate], await candidateSchema());
+  const added = await appendJsonl(HITS_PATH, [hit], await hitSchema());
+  console.log(added.length ? `proposed ${hit.id} from issue #${number}` : `${hit.id} was already in data/hits.jsonl`);
+}
 
 export const DEFAULT_THRESHOLD = 11;
 
@@ -126,6 +177,8 @@ export function buildHits(
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+  const issue = flag(argv, 'from-issue');
+  if (issue) return fromIssue(issue);
   const dir = await pickQueue(argv);
   const model = flag(argv, 'model') ?? 'claude-code-session';
   const threshold = Number(flag(argv, 'threshold') ?? DEFAULT_THRESHOLD);
@@ -145,12 +198,19 @@ async function main(): Promise<void> {
 
   const { ok, rejected } = validateVerdicts(verdicts, batch);
 
-  // Re-check every phrase with the engine before anything is written.
-  const engine = await Engine.boot();
+  // Re-check every phrase before anything is written. The rows came from
+  // the engine, so this guards against a garbled file, not a wrong search;
+  // with --no-engine-check (a sandbox without the WASM build) the letters
+  // are still compared and only the dictionary lookup is skipped.
+  const engine = has(argv, 'no-engine-check') ? null : await Engine.boot();
   const verified: Verdict[] = [];
   for (const v of ok) {
     const row = batch.get(v.id)!;
-    const verdict = await checkAnagram(engine, row.input, row.words, row.tier);
+    const verdict = engine
+      ? await checkAnagram(engine, row.input, row.words, row.tier)
+      : sameLetters(row.input, row.words)
+        ? { ok: true as const }
+        : { ok: false as const, reason: 'the letters differ' };
     if (verdict.ok) verified.push(v);
     else rejected.push({ id: v.id, reason: `not an anagram: ${verdict.reason}` });
   }
