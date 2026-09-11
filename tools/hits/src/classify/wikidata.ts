@@ -104,7 +104,7 @@ export async function classifyTitles(
     const batch = titles.slice(i, i + BATCH);
     const query = buildQuery(batch, table);
     let bindings: Binding[] = [];
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 4; attempt++) {
       const response = await deps.fetch(`${ENDPOINT}?format=json`, {
         method: 'POST',
         headers: {
@@ -114,8 +114,10 @@ export async function classifyTitles(
         },
         body: `query=${encodeURIComponent(query)}`,
       });
-      if (response.status === 429 || response.status === 503) {
-        await sleep(2_000 * attempt);
+      // 429 is rate limiting; 502, 503 and 504 are the query service having a
+      // moment, which it does several times a day. All are worth a retry.
+      if ([429, 502, 503, 504].includes(response.status)) {
+        await sleep(3_000 * attempt);
         continue;
       }
       if (!response.ok) throw new Error(`Wikidata SPARQL -> HTTP ${response.status}`);
