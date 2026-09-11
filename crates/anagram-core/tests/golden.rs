@@ -431,6 +431,116 @@ fn class_index_agrees_with_a_linear_scan() {
 }
 
 #[test]
+fn pages_served_by_the_cursor_concatenate_to_one_enumeration() {
+    let dict = dict_or_skip!();
+
+    // Pages of a real result set, each fetched by seeking to its offset the
+    // way the worker does when the reader jumps, must join back into exactly
+    // the stream a single enumeration produces.
+    let search = Search::prepare(&dict, "scarlett johansson", opts(3, 4)).unwrap();
+    let mut streamed: Vec<Vec<u32>> = Vec::new();
+    search.enumerate(|classes| {
+        streamed.push(classes.to_vec());
+        Flow::Continue
+    });
+    assert!(streamed.len() > 50_000, "expected a large result set, got {}", streamed.len());
+
+    let mut memo = Memo::new();
+    let page = 5_000usize;
+    let mut joined: Vec<Vec<u32>> = Vec::new();
+    let mut offset = 0usize;
+    while offset < streamed.len() {
+        let mut cursor = search.cursor_at(&mut memo, offset as u128).expect("offset in range");
+        for _ in 0..page {
+            match cursor.next(&search) {
+                Some(classes) => joined.push(classes.to_vec()),
+                None => break,
+            }
+        }
+        offset += page;
+    }
+    assert_eq!(joined, streamed);
+
+    // And sequential paging from one cursor, without seeking, is the same.
+    let mut cursor = search.cursor();
+    let mut sequential: Vec<Vec<u32>> = Vec::new();
+    loop {
+        let before = sequential.len();
+        for _ in 0..page {
+            match cursor.next(&search) {
+                Some(classes) => sequential.push(classes.to_vec()),
+                None => break,
+            }
+        }
+        if sequential.len() == before {
+            break;
+        }
+    }
+    assert_eq!(sequential, streamed);
+    assert!(cursor.is_done() && !cursor.truncated());
+}
+
+#[test]
+fn a_page_at_a_random_offset_equals_the_unranked_slice() {
+    let dict = dict_or_skip!();
+
+    // The case from the audit: 85,182 results, where page 340 used to cost
+    // a full re-enumeration. Random offsets, compared against nth() so the
+    // test does not need to enumerate the whole set.
+    let search = Search::prepare(&dict, "arnold schwarzenegger", opts(3, 4)).unwrap();
+    let mut memo = Memo::new();
+    let (total, saturated, _) = search.count(&mut memo, u64::MAX);
+    assert!(!saturated && total > 80_000, "total {total}");
+
+    // A fixed linear congruential sequence: deterministic, spread out.
+    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+    for _ in 0..25 {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let offset = (seed >> 33) as u128 % total;
+        let len = 37usize;
+
+        let mut cursor = search.cursor_at(&mut memo, offset).expect("offset in range");
+        let mut page: Vec<Vec<u32>> = Vec::new();
+        for _ in 0..len {
+            match cursor.next(&search) {
+                Some(classes) => page.push(classes.to_vec()),
+                None => break,
+            }
+        }
+
+        let expected: Vec<Vec<u32>> = (0..len as u128)
+            .filter_map(|i| search.nth(&mut memo, offset + i))
+            .collect();
+        assert_eq!(page, expected, "page at offset {offset}");
+        assert_eq!(cursor.position(), offset + page.len() as u128);
+    }
+
+    // Past the end is None, not a panic and not an empty cursor that lies.
+    assert!(search.cursor_at(&mut memo, total).is_none());
+
+    // With a pinned word, the forced slot leads every result the cursor emits.
+    let pinned = SolveOptions {
+        must_include: vec!["moon".to_owned()],
+        ..opts(3, anagram_core::UNLIMITED_WORDS)
+    };
+    let search = Search::prepare(&dict, "astronomer", pinned).unwrap();
+    let mut streamed: Vec<Vec<u32>> = Vec::new();
+    search.enumerate(|classes| {
+        streamed.push(classes.to_vec());
+        Flow::Continue
+    });
+    let mut memo = Memo::new();
+    for start in [0usize, 1, streamed.len() / 2, streamed.len() - 1] {
+        let mut cursor = search.cursor_at(&mut memo, start as u128).unwrap();
+        let mut rest = Vec::new();
+        while let Some(classes) = cursor.next(&search) {
+            rest.push(classes.to_vec());
+        }
+        assert_eq!(rest, &streamed[start..], "pinned, resumed from {start}");
+    }
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 

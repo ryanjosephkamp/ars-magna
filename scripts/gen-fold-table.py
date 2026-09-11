@@ -87,7 +87,9 @@ def emit_rust(table: dict[str, str]) -> str:
         lines.append(f"    ('\\u{{{ord(char):04x}}}', \"{folded}\"), // {char}")
     lines.append("];")
     lines.append("")
-    lines.append("/// Inclusive code point ranges the table was generated over.")
+    lines.append("/// Inclusive code point ranges the table was generated over. Used by the")
+    lines.append("/// tests to check the table against a real normalizer.")
+    lines.append("#[cfg_attr(not(test), allow(dead_code))]")
     lines.append("pub(crate) const RANGES: [(u32, u32); %d] = [" % len(RANGES))
     for lo, hi in RANGES:
         lines.append(f"    (0x{lo:04X}, 0x{hi:04X}),")

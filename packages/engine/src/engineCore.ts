@@ -316,7 +316,7 @@ export class EngineCore {
    */
   #collect(id: number, limit: number): void {
     const engine = this.#require();
-    const packed = engine.batch(0, limit);
+    const packed = engine.collect(limit);
     const rows = this.#rows(packed);
     // Short of the limit and the search finished on its own terms: that is
     // everything there is. Otherwise the file is a partial list and has to say so.

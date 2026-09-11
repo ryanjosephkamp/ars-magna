@@ -171,6 +171,38 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(new Set([...first, ...second]).size).toBe(80);
   });
 
+  it('serves a page at any offset, and export does not move the paging cursor', async () => {
+    await solve('scarlett johansson', { minWordLen: 3, maxWords: 4 }, 10);
+    const total = Number(port.last('count')!.total);
+    expect(total).toBeGreaterThan(50_000);
+
+    // A page deep in the list equals the same positions fetched one by one.
+    const offset = Math.floor(total * 0.7);
+    port.reset();
+    await core.handle({ k: 'page', id: 50, offset, len: 5 });
+    const page = rowsOf(port).map((r) => r.join(' '));
+    expect(page).toHaveLength(5);
+    for (let i = 0; i < 5; i++) {
+      port.reset();
+      await core.handle({ k: 'random', id: 60 + i, index: String(offset + i) });
+      expect([...port.last('batch')!.rows[0]!].sort().join(' ')).toBe(page[i]);
+    }
+
+    // The next sequential page continues from there without a seek, and an
+    // export in between does not disturb it.
+    port.reset();
+    await core.handle({ k: 'collect', id: 70, limit: 100 });
+    expect(port.last('collected')!.rows).toHaveLength(100);
+    port.reset();
+    await core.handle({ k: 'page', id: 51, offset: offset + 5, len: 5 });
+    const next = rowsOf(port).map((r) => r.join(' '));
+    expect(next).toHaveLength(5);
+    expect(new Set([...page, ...next]).size).toBe(10);
+    port.reset();
+    await core.handle({ k: 'random', id: 80, index: String(offset + 5) });
+    expect([...port.last('batch')!.rows[0]!].sort().join(' ')).toBe(next[0]);
+  });
+
   it('jumps to an arbitrary result by unranking', async () => {
     await solve('ryanjosephkamp', { minWordLen: 3 }, 1);
     port.reset();

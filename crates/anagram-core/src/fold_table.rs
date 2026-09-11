@@ -591,7 +591,9 @@ pub(crate) static FOLD: [(char, &str); 584] = [
     ('\u{ff5a}', "z"), // ｚ
 ];
 
-/// Inclusive code point ranges the table was generated over.
+/// Inclusive code point ranges the table was generated over. Used by the
+/// tests to check the table against a real normalizer.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) const RANGES: [(u32, u32); 4] = [
     (0x00C0, 0x024F),
     (0x1E00, 0x1EFF),

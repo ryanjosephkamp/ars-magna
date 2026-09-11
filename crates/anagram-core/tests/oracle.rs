@@ -219,6 +219,57 @@ fn unrank_walks_the_same_order_as_enumeration() {
     }
 }
 
+/// The cursor is a second walker, so it gets the same treatment as the first:
+/// its stream must equal enumeration, and a cursor seeked to `i` must continue
+/// with results `i, i+1, …` to the end, for every `i`.
+#[test]
+fn cursor_matches_enumeration_and_resumes_from_any_position() {
+    let dict = small_dict();
+    for input in ["dormitory", "moondirt", "tomcat", "listen", "artdean", "stone", "candied"] {
+        for (min_word_len, max_words) in [(1u8, anagram_core::UNLIMITED_WORDS), (2, anagram_core::UNLIMITED_WORDS), (2, 2), (2, 3), (3, 4)] {
+            let options = SolveOptions {
+                tier: Tier::Full,
+                min_word_len,
+                max_words,
+                limit: 0,
+                ..Default::default()
+            };
+            let search = Search::prepare(&dict, input, options).unwrap();
+
+            let mut streamed: Vec<Vec<u32>> = Vec::new();
+            search.enumerate(|classes| {
+                streamed.push(classes.to_vec());
+                Flow::Continue
+            });
+
+            // A cursor from zero, run to the end.
+            let mut cursor = search.cursor();
+            let mut walked: Vec<Vec<u32>> = Vec::new();
+            while let Some(classes) = cursor.next(&search) {
+                walked.push(classes.to_vec());
+            }
+            assert_eq!(walked, streamed, "{input:?} min={min_word_len} max={max_words}: cursor stream");
+            assert!(!cursor.truncated());
+            assert_eq!(cursor.position(), streamed.len() as u128);
+
+            // A cursor seeked to every position, run to the end from there.
+            let mut memo = Memo::new();
+            for start in 0..streamed.len() {
+                let mut cursor = search
+                    .cursor_at(&mut memo, start as u128)
+                    .unwrap_or_else(|| panic!("{input:?}: cursor_at({start}) found nothing"));
+                assert_eq!(cursor.position(), start as u128);
+                let mut rest: Vec<Vec<u32>> = Vec::new();
+                while let Some(classes) = cursor.next(&search) {
+                    rest.push(classes.to_vec());
+                }
+                assert_eq!(rest, &streamed[start..], "{input:?}: resumed from {start}");
+            }
+            assert!(search.cursor_at(&mut memo, streamed.len() as u128).is_none());
+        }
+    }
+}
+
 #[test]
 fn max_words_filter_is_a_subset() {
     let dict = small_dict();

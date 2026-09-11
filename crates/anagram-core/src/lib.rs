@@ -37,7 +37,9 @@ pub mod search;
 
 pub use counts::{normalize, Counts};
 pub use dict::{Dict, DictError, SigClass, Tier, TierBits, WordList};
-pub use search::{Candidates, Flow, Memo, Search, SolveError, SolveOptions, Stats, UNLIMITED_WORDS};
+pub use search::{
+    Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, UNLIMITED_WORDS,
+};
 
 /// One solution, as words.
 pub type Solution = Vec<String>;
