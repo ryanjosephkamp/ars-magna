@@ -1,0 +1,60 @@
+---
+license: mit
+language:
+  - en
+pretty_name: Ars Magna Greatest Hits
+size_categories:
+  - n<1K
+task_categories:
+  - text-classification
+tags:
+  - anagrams
+  - wordplay
+  - english
+configs:
+{{CONFIGS}}
+---
+
+# Ars Magna Greatest Hits
+
+The funniest and most apt anagrams of people, companies, products, titles, places and phrases, found by [Ars Magna](https://ars-magna.pages.dev) and kept by hand.
+
+Every row is a real anagram: the words use exactly the input's letters, checked against a pinned revision of [English OpenList]({{SOURCE_URL}}) (`{{DICT_REV}}`), and every word is in the tier the row names. Accented letters fold to their base letter, so *Beyoncé* has three e's.
+
+## Subsets
+
+| Config | What it holds | Rows |
+|---|---|---|
+{{SUBSET_TABLE}}
+
+```python
+from datasets import load_dataset
+people = load_dataset("{{DATASET_ID}}", "people")
+```
+
+## Fields
+
+| Field | Meaning |
+|---|---|
+| `id` | The input's folded letters, its category, and its words as a multiset. Stable. |
+| `input` | The text as a person would write it. |
+| `category` | One of `people`, `companies`, `products`, `titles`, `places`, `phrases`. |
+| `words` | The anagram's words, in reading order. |
+| `display` | The words joined with spaces. |
+| `letters` | The sorted letters the input and the anagram share. |
+| `prefilter_score` | The model-free score that put it in front of a judge (ordering, word frequency, length). |
+| `judge` | One entry per judge: model, rubric version, aptness, grammar and memorability (1–5 each), total, rationale, date. |
+| `submitter` | Who found it, when it was submitted rather than mined. |
+| `added` | The date it entered the list. |
+| `dictionary` | The English OpenList revision it was verified against. |
+| `tier` | The smallest dictionary tier that contains every word: `common`, `standard` or `full`. |
+| `tags` | Free-form labels; `classic` marks the ones everyone knows. |
+| `status` | `accepted` or `featured`. Proposed and retired rows are not published. |
+
+## How rows get here
+
+Inputs are gathered without a model (hand-picked, or from the day's most-viewed Wikipedia articles classified through Wikidata). The Ars Magna engine enumerates every anagram; a deterministic prefilter keeps phrases made of everyday words in their best reading order; a language model scores each against a fixed rubric ({{RUBRIC}}); a person accepts what is worth keeping. The pipeline, the schemas and the rubric are in the [repository](https://github.com/ryanjosephkamp/ars-magna).
+
+## Changelog
+
+{{CHANGELOG}}

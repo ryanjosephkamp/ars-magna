@@ -31,3 +31,4 @@ packages/engine/src/wasm/
 # judge's answers and the ingest report are committed.
 data/queue/*/raw.jsonl
 data/queue/*/judge-input-*.md
+dataset/

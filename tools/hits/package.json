@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@ars-magna/engine": "workspace:*",
+    "@huggingface/hub": "^2.17.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
   }
