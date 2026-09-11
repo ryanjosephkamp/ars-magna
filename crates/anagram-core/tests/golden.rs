@@ -541,6 +541,38 @@ fn a_page_at_a_random_offset_equals_the_unranked_slice() {
 }
 
 #[test]
+fn a_memo_cap_yields_a_floor_rather_than_unbounded_growth() {
+    let dict = dict_or_skip!();
+
+    // A 26-letter phrase needs ~140k memo entries to count exactly. Capped
+    // far below that, the count must stop, say so, hold the memo near the cap,
+    // and still be usable for unranking afterwards.
+    let search = Search::prepare(
+        &dict,
+        "president of the united states",
+        opts(3, anagram_core::UNLIMITED_WORDS),
+    )
+    .unwrap();
+
+    let mut capped = Memo::with_cap(2_000);
+    let (floor, saturated, stats) = search.count(&mut capped, u64::MAX);
+    assert!(stats.truncated, "the cap must cut the count short");
+    assert!(!saturated);
+    assert!(floor > 0);
+    assert!(capped.len() <= 2_000 + 64, "memo held {} entries against a cap of 2,000", capped.len());
+
+    let mut exact = Memo::new();
+    let (total, _, exact_stats) = search.count(&mut exact, u64::MAX);
+    assert!(!exact_stats.truncated);
+    assert!(floor < total, "floor {floor} must be below the exact total {total}");
+    assert_eq!(exact.cap(), anagram_core::DEFAULT_MEMO_CAP);
+
+    // Unranking is not held to the cap, and the capped memo was not poisoned.
+    let first = search.nth(&mut capped, 0).expect("result 0 exists");
+    assert_eq!(Some(first), search.nth(&mut exact, 0));
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 

@@ -241,8 +241,11 @@ export class EngineCore {
     // The exact total goes out before any results do: on a query with millions
     // of answers the count lands in milliseconds while enumerating them all
     // never would, and "11,131,625 anagrams" is the more useful thing to show
-    // first anyway.
-    const total = engine.count(maxNodes * 2);
+    // first anyway. Same node budget as enumeration: a count node is far more
+    // expensive than a walk node (it scans a whole bucket), so doubling it
+    // bought minutes of frozen worker on a pasted sentence, not accuracy. The
+    // engine also caps the memo, so a count cannot grow without bound.
+    const total = engine.count(maxNodes);
     this.#port.post({ k: 'count', id, total, candidates });
 
     this.#emit(id, 0, first);

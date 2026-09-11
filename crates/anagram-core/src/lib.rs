@@ -38,7 +38,8 @@ pub mod search;
 pub use counts::{normalize, Counts};
 pub use dict::{Dict, DictError, SigClass, Tier, TierBits, WordList};
 pub use search::{
-    Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, UNLIMITED_WORDS,
+    Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, DEFAULT_MEMO_CAP,
+    UNLIMITED_WORDS,
 };
 
 /// One solution, as words.

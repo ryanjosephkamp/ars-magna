@@ -31,6 +31,20 @@ function connect(): { client: ArsMagnaClient; worker: FakeWorker } {
   return { client, worker };
 }
 
+/** A client that can replace its worker, with every worker it ever made. */
+function connectRespawning(): { client: ArsMagnaClient; workers: FakeWorker[] } {
+  const workers: FakeWorker[] = [];
+  const spawn = () => {
+    const worker = new FakeWorker();
+    workers.push(worker);
+    return worker as unknown as Worker;
+  };
+  const client = new ArsMagnaClient(spawn(), spawn);
+  return { client, workers };
+}
+
+const QUERY = { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [] } as const;
+
 const ready = (worker: FakeWorker, id: number) =>
   worker.reply({
     k: 'ready',
@@ -90,6 +104,54 @@ describe('ArsMagnaClient', () => {
 
     expect(statuses.at(-1)).toBe('failed');
     expect(client.status).toEqual({ state: 'failed', code: 'INTERNAL', message: 'out of memory' });
+  });
+
+  it('kills and replaces a worker that is still busy when a new query arrives', async () => {
+    const { client, workers } = connectRespawning();
+    const [first] = workers;
+    ready(first!, 0);
+
+    let firstDone = 0;
+    client.solve({ ...QUERY, input: 'the quick brown fox jumps over the lazy dog' }, {
+      onDone: () => firstDone++,
+    });
+    expect(client.busy).toBe(true);
+    const pendingJump = client.nth(3n);
+
+    // The reader keeps typing before the pangram search answers.
+    let secondCount = '';
+    const secondId = client.solve({ ...QUERY, input: 'dormitory' }, {
+      onCount: (total) => (secondCount = total),
+    });
+
+    expect(first!.terminated).toBe(true);
+    expect(workers).toHaveLength(2);
+    const second = workers[1]!;
+    expect(second.sent.map((m) => m.k)).toEqual(['init', 'solve']);
+    expect(second.sent[0]).toMatchObject({ k: 'init', baseUrl: '/dict' });
+    await expect(pendingJump).rejects.toThrow('cancelled');
+
+    // The new worker answers; the old query's handlers are gone.
+    ready(second, second.sent[0]!.id);
+    second.reply({ k: 'count', id: secondId, total: '3', candidates: 9 });
+    second.reply({ k: 'solved', id: secondId, stats: { candidates: 9, elapsedMs: 1 } });
+    expect(secondCount).toBe('3');
+    expect(client.busy).toBe(false);
+    expect(firstDone).toBe(0);
+
+    // An idle worker is kept: a third query does not respawn.
+    client.solve({ ...QUERY, input: 'listen' }, {});
+    expect(workers).toHaveLength(2);
+    expect(second.terminated).toBe(false);
+  });
+
+  it('does not respawn when it has no way to', () => {
+    const { client, worker } = connect();
+    ready(worker, 0);
+    client.solve(QUERY, {});
+    client.solve(QUERY, {});
+    expect(worker.terminated).toBe(false);
+    expect(worker.sent.filter((m) => m.k === 'solve')).toHaveLength(2);
   });
 
   it('still routes ordinary per-request errors to their own handler', () => {

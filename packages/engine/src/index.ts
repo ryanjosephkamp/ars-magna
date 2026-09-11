@@ -40,22 +40,29 @@ export type EngineStatus =
 
 export class ArsMagnaClient {
   #worker: Worker;
+  /** Makes a fresh worker, so a runaway search can be killed and replaced. */
+  #respawn: (() => Worker) | null;
+  #baseUrl = '/dict';
   #nextId = 1;
   #activeQuery = 0;
+  /** The query the worker is busy with, or 0 once it has answered. */
+  #inFlight = 0;
   #handlers = new Map<number, SolveHandlers>();
   #pending = new Map<number, { resolve(value: never): void; reject(error: Error): void }>();
   #status: EngineStatus = { state: 'loading' };
   #statusListeners = new Set<(status: EngineStatus) => void>();
 
-  constructor(worker: Worker) {
+  constructor(worker: Worker, respawn: (() => Worker) | null = null) {
     this.#worker = worker;
+    this.#respawn = respawn;
     this.#worker.onmessage = (event: MessageEvent<Response>) => this.#receive(event.data);
   }
 
   /** Spawn the worker and load the dictionary. */
   static async create(baseUrl = '/dict'): Promise<ArsMagnaClient> {
-    const worker = new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' });
-    const client = new ArsMagnaClient(worker);
+    const spawn = () =>
+      new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' });
+    const client = new ArsMagnaClient(spawn(), spawn);
     await client.#init(baseUrl);
     return client;
   }
@@ -80,6 +87,7 @@ export class ArsMagnaClient {
   }
 
   #init(baseUrl: string): Promise<void> {
+    this.#baseUrl = baseUrl;
     return new Promise((resolve) => {
       const id = this.#nextId++;
       this.#handlers.set(id, {
@@ -102,8 +110,17 @@ export class ArsMagnaClient {
    * Any earlier query's responses are discarded from this point on.
    */
   solve(query: Query, handlers: SolveHandlers, first = 200, maxNodes?: number): number {
+    // The search cannot be interrupted from inside: a query that is still
+    // running when the next one arrives would make the new one wait behind
+    // it, for minutes on a pasted sentence. So a busy worker is killed and
+    // replaced. The dictionary reloads from Cache Storage, which costs a few
+    // hundred milliseconds — only ever paid when the previous search had not
+    // finished within the typing debounce, which is exactly when it matters.
+    if (this.#inFlight !== 0 && this.#respawn) this.#restart();
+
     const id = this.#nextId++;
     this.#activeQuery = id;
+    this.#inFlight = id;
     this.#handlers.set(id, handlers);
     this.#send(maxNodes === undefined ? { k: 'solve', id, query, first } : { k: 'solve', id, query, first, maxNodes });
     return id;
@@ -156,6 +173,33 @@ export class ArsMagnaClient {
 
   terminate(): void {
     this.#worker.terminate();
+  }
+
+  /** Whether the worker is still busy with a query. */
+  get busy(): boolean {
+    return this.#inFlight !== 0;
+  }
+
+  /** Kill the worker mid-search and start a fresh one on the same dictionary. */
+  #restart(): void {
+    this.#worker.terminate();
+    const reason = new Error('search cancelled: a newer query replaced it');
+    for (const [id, waiter] of this.#pending) {
+      this.#pending.delete(id);
+      waiter.reject(reason);
+    }
+    // Nothing the old worker was doing can complete now; its callers must
+    // not be left waiting for an onDone that will never come.
+    this.#handlers.clear();
+    this.#inFlight = 0;
+
+    this.#worker = this.#respawn!();
+    this.#worker.onmessage = (event: MessageEvent<Response>) => this.#receive(event.data);
+    const id = this.#nextId++;
+    this.#handlers.set(id, {
+      onError: (code, message) => this.#setStatus({ state: 'failed', code, message }),
+    });
+    this.#send({ k: 'init', id, baseUrl: this.#baseUrl });
   }
 
   /** Fail everything in flight; the worker is gone. */
@@ -224,9 +268,11 @@ export class ArsMagnaClient {
         handlers.onBatch?.(message.offset, message.rows, message.done, message.truncated);
         break;
       case 'solved':
+        if (message.id === this.#inFlight) this.#inFlight = 0;
         handlers.onDone?.(message.stats);
         break;
       case 'error':
+        if (message.id === this.#inFlight) this.#inFlight = 0;
         handlers.onError?.(message.code, message.message);
         this.#handlers.delete(message.id);
         break;

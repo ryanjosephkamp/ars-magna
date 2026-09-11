@@ -198,20 +198,51 @@ impl Candidates {
     }
 }
 
+/// Default ceiling on memo entries during a count. Each entry is roughly 80
+/// bytes with hash-table overhead, so this is about 320 MB — a long way past
+/// what any interactive query needs (a 26-letter phrase counts its 18 billion
+/// answers in ~140k entries) and a long way short of what a 35-letter pangram
+/// would consume if let run: it fills 3 million entries in about a minute
+/// natively and would run for hours toward gigabytes. A capped count reports
+/// a floor, like a count cut off by the node budget.
+pub const DEFAULT_MEMO_CAP: usize = 4_000_000;
+
 /// Reusable memo for counting and unranking.
 ///
 /// Kept outside [`Search`] and owned by the caller so a session can count once
 /// and then serve many `nth` lookups without rebuilding the table — which is
 /// what makes deep pagination cheap.
-#[derive(Default)]
 pub struct Memo {
     table: HashMap<MemoKey, u128>,
     hits: u64,
+    /// Ceiling on `table.len()` while counting. Unranking is not held to it:
+    /// a seek adds at most O(depth × bucket) entries on top of what the count
+    /// already built, and refusing it would just make "Go to" fail.
+    cap: usize,
+}
+
+impl Default for Memo {
+    fn default() -> Memo {
+        Memo::with_cap(DEFAULT_MEMO_CAP)
+    }
 }
 
 impl Memo {
     pub fn new() -> Memo {
         Memo::default()
+    }
+
+    /// A memo that stops a count once it holds `cap` entries.
+    pub fn with_cap(cap: usize) -> Memo {
+        Memo {
+            table: HashMap::new(),
+            hits: 0,
+            cap,
+        }
+    }
+
+    pub fn cap(&self) -> usize {
+        self.cap
     }
 
     pub fn len(&self) -> usize {
@@ -375,12 +406,14 @@ impl Search {
             .max_words
             .saturating_sub(self.forced.classes.len() as u8);
 
+        let memo_cap = memo.cap;
         let mut counter = Counter {
             candidates: &self.candidates,
             memo,
             unlimited,
             saturated: false,
             node_budget,
+            memo_cap,
             stats: Stats {
                 candidates: self.candidates.len(),
                 ..Stats::default()
@@ -425,6 +458,7 @@ impl Search {
             unlimited,
             saturated: false,
             node_budget: u64::MAX,
+            memo_cap: usize::MAX,
             stats: Stats::default(),
             stopped: false,
         };
@@ -520,6 +554,7 @@ impl Search {
             unlimited,
             saturated: false,
             node_budget: u64::MAX,
+            memo_cap: usize::MAX,
             stats: Stats::default(),
             stopped: false,
         };
@@ -873,6 +908,8 @@ struct Counter<'a> {
     unlimited: bool,
     saturated: bool,
     node_budget: u64,
+    /// Stop, like the node budget, once the memo holds this many entries.
+    memo_cap: usize,
     stats: Stats,
     stopped: bool,
 }
@@ -914,7 +951,7 @@ impl Counter<'_> {
         }
 
         self.stats.nodes += 1;
-        if self.stats.nodes > self.node_budget {
+        if self.stats.nodes > self.node_budget || self.memo.table.len() >= self.memo_cap {
             self.stopped = true;
             return 0;
         }
