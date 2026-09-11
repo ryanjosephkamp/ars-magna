@@ -227,6 +227,10 @@ pub struct Dict {
     /// Part-of-speech bitmask per word, parallel to `words`. 0 means unknown.
     pub pos: Vec<u16>,
     pub classes: Vec<SigClass>,
+    /// Letter multiset -> index into `classes`. Built once at load so a lookup
+    /// is a hash probe rather than a scan of 350,469 classes; `find_class`
+    /// runs on every must-include check and every word of an expanded row.
+    class_of: HashMap<Counts, u32>,
     tiers: Option<TierBits>,
 }
 
@@ -268,11 +272,18 @@ impl Dict {
                 .then_with(|| words[a.words[0] as usize].cmp(&words[b.words[0] as usize]))
         });
 
+        let class_of = classes
+            .iter()
+            .enumerate()
+            .map(|(index, class)| (class.counts, index as u32))
+            .collect();
+
         Ok(Dict {
             words,
             zipf,
             pos,
             classes,
+            class_of,
             tiers,
         })
     }
@@ -318,20 +329,20 @@ impl Dict {
         self.class_words(class, tier).next().is_some()
     }
 
-    /// Look up a word's class, if it exists in `tier`.
+    /// Look up a word's class, if the word exists in `tier`.
     pub fn find_class(&self, word: &str, tier: Tier) -> Option<usize> {
         let counts = Counts::from_word(word)?;
-        self.classes.iter().position(|c| {
-            c.counts == counts
-                && self
-                    .class_words_slice(c)
-                    .iter()
-                    .any(|&i| self.words[i as usize] == word && self.in_tier(i, tier))
-        })
+        let class = *self.class_of.get(&counts)? as usize;
+        let member = self.classes[class]
+            .words
+            .iter()
+            .any(|&i| self.words[i as usize] == word && self.in_tier(i, tier));
+        member.then_some(class)
     }
 
-    fn class_words_slice<'a>(&self, class: &'a SigClass) -> &'a [u32] {
-        &class.words
+    /// The class for an exact letter multiset, regardless of tier.
+    pub fn class_of_counts(&self, counts: Counts) -> Option<usize> {
+        self.class_of.get(&counts).map(|&c| c as usize)
     }
 
     pub fn in_tier(&self, word_index: u32, tier: Tier) -> bool {
@@ -376,6 +387,19 @@ mod tests {
         let dict = Dict::from_words(["a", "abc", "ab", "abcd"]).unwrap();
         let lens: Vec<u8> = dict.classes.iter().map(|c| c.len).collect();
         assert_eq!(lens, vec![4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn find_class_is_exact_and_tier_aware() {
+        let dict = Dict::from_words(["listen", "silent", "stone", "notes", "tones"]).unwrap();
+        let listen = dict.find_class("listen", Tier::Full).unwrap();
+        assert_eq!(dict.find_class("silent", Tier::Full), Some(listen));
+        assert_eq!(dict.find_class("tinsel", Tier::Full), None, "same letters, not a member");
+        assert_eq!(dict.find_class("stone", Tier::Full), dict.find_class("tones", Tier::Full));
+        assert_ne!(dict.find_class("stone", Tier::Full), Some(listen));
+        assert_eq!(dict.find_class("Listen", Tier::Full), None, "input must be normalized");
+        assert_eq!(dict.find_class("", Tier::Full), None);
+        assert_eq!(dict.class_of_counts(Counts::from_word("enlist").unwrap()), Some(listen));
     }
 
     #[test]

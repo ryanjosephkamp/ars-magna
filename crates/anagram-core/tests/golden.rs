@@ -402,6 +402,35 @@ fn accented_spellings_search_the_same_letters_as_plain_ones() {
 }
 
 #[test]
+fn class_index_agrees_with_a_linear_scan() {
+    let dict = dict_or_skip!();
+
+    // `find_class` used to scan every class; it now probes a hash index. The
+    // two must agree for every word at every tier, including words that exist
+    // only at Full and words whose class has members across tiers.
+    let scan = |word: &str, tier: Tier| -> Option<usize> {
+        let counts = Counts::from_word(word)?;
+        dict.classes.iter().position(|c| {
+            c.counts == counts && c.words.iter().any(|&i| dict.word(i) == word && dict.in_tier(i, tier))
+        })
+    };
+
+    let mut checked = 0usize;
+    for word in dict.words.iter().step_by(97) {
+        for tier in [Tier::Common, Tier::Standard, Tier::Full] {
+            assert_eq!(dict.find_class(word, tier), scan(word, tier), "{word:?} at {tier:?}");
+            checked += 1;
+        }
+    }
+    assert!(checked > 10_000);
+
+    // Words that are not in the list at all, including anagrams of real words.
+    for word in ["tinsle", "zzzz", "beyonce", "arsmagna"] {
+        assert_eq!(dict.find_class(word, Tier::Full), scan(word, Tier::Full), "{word:?}");
+    }
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 
