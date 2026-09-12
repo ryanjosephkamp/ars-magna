@@ -11,9 +11,10 @@ How the dataset grows, what runs where, and what to do by hand.
 | prefilter | `pnpm hits:prefilter` | Everyday words only, one to four of them, best reading order, scored; the best 300 into `prefiltered.jsonl`. No model. A candidate that leaves nothing keepable moves to `enumerated` with a note, so it is not run again. | nightly Action · laptop |
 | judge | `pnpm hits:judge` | Writes `judge-input-N.md` for a Claude session to answer into `judge-output.jsonl`. `--via=api` calls the Claude API instead. An empty queue gets an empty answer, not an error. | Claude routine · laptop |
 | ingest | `pnpm hits:ingest --model=…` | Validates the verdicts, re-checks the letters, writes proposed hits, moves candidates to `enumerated`, writes `ingest-report.md`. | Claude routine · laptop |
+| set | `pnpm hits:set --status=accepted id…` | Changes the status of hits by id (`accepted`, `featured`, `proposed`, `retired`). Refuses an unknown id or status and writes nothing; otherwise rewrites `data/hits.jsonl` through the schema and prints each change. | a person · laptop |
 | publish | `pnpm hits:publish` | Builds `dataset/` and pushes accepted and featured hits to Hugging Face. | publish Action · laptop |
 
-Nothing enters the published dataset without a person changing a hit's `status` from `proposed` to `accepted` (or `featured`) in `data/hits.jsonl` and merging that to `main`.
+Nothing enters the published dataset without a person setting a hit to `accepted` or `featured` with `pnpm hits:set` and merging that to `main`.
 
 ## Automation
 
@@ -28,10 +29,19 @@ The CI and deploy workflows ignore `data/queue/**` and `data/candidates.jsonl`, 
 ## Reviewing a pull request from the routine
 
 1. Read the ingest report in the body. Each proposed hit shows its total, the input, the phrase and the judge's one-line rationale.
-2. For each hit worth keeping, edit its line in `data/hits.jsonl`: `"status":"proposed"` → `"status":"accepted"` (or `"featured"`). Leave the rest as `proposed`, or set `retired` to bury one for good.
-3. Merge. The publish Action pushes the new rows to Hugging Face.
+2. Check out the branch: `gh pr checkout <number>`.
+3. Set the ones worth keeping, by id, and leave the rest `proposed`:
 
-A rationale that starts with `sensitive` means the judge saw something rude or aimed at a real person; look before accepting.
+   ```bash
+   pnpm hits:set --status=accepted <id> <id>
+   pnpm hits:set --status=featured <id>    # accepted, and shown first
+   pnpm hits:set --status=retired <id>     # bury one for good
+   ```
+
+   The id is `input letters:category:words sorted and joined with -`, as in `data/hits.jsonl`. Each command prints what it changed.
+4. Commit `data/hits.jsonl` on the branch, push, and merge once CI is green. The publish Action pushes the new rows to Hugging Face and the deploy rebuilds the gallery.
+
+A rationale that starts with `sensitive` means the judge saw something rude or aimed at a real person; look before accepting. The full review, with the prompt that does it, is in `docs/OPERATOR.md`.
 
 ## Doing it all by hand
 
@@ -54,10 +64,4 @@ After the table grows, `pnpm hits:fetch --reclassify` asks Wikidata again about 
 
 ## Secrets
 
-| Name | Used by | Needed |
-|---|---|---|
-| `HF_TOKEN` | publish Action, `pnpm hits:publish` | yes, for publishing |
-| `ANTHROPIC_API_KEY` | `hits:judge --via=api`, `hits:fetch --classify-with-haiku` | optional |
-| `XAI_API_KEY` | `hits:judge --via=api` second column | optional |
-
-The nightly Action and the submission validator use the default `GITHUB_TOKEN`.
+Every secret and variable, what uses it, and how to rotate it: "Rotate a secret" in `docs/OPERATOR.md`.
