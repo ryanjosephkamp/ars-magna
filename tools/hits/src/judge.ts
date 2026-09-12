@@ -13,6 +13,7 @@
  * xAI API when `XAI_API_KEY` is set. Both write the same output file with the
  * model named on every line.
  */
+import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -149,7 +150,14 @@ async function main(): Promise<void> {
     .split('\n')
     .filter((l) => l.trim().length > 0)
     .map((l) => JSON.parse(l) as Prefiltered);
-  if (rows.length === 0) throw new Error(`${dir}/${PREFILTERED} is empty; run pnpm hits:prefilter first`);
+  // A thin night: the prefilter kept nothing. Not an error. Leave an empty
+  // answer so ingest can close the queue out and the routine moves on.
+  if (rows.length === 0) {
+    const out = resolve(dir, JUDGE_OUTPUT);
+    if (!existsSync(out)) await writeFile(out, '');
+    console.log(`nothing to judge: ${resolve(dir, PREFILTERED)} is empty; wrote an empty ${out}`);
+    return;
+  }
 
   const { text: rubricText, version } = await rubric();
   const split = batches(rows, size);

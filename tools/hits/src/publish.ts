@@ -32,6 +32,20 @@ const SOURCE_URL = 'https://huggingface.co/datasets/ryanjosephkamp/english-openl
 
 export type Config = { name: string; file: string; rows: Hit[] };
 
+/**
+ * A row as it is published. The repository file leaves `submitter` out of a
+ * mined hit, but a dataset reader infers one schema for the whole file and
+ * the JSON loader in the `datasets` library fails outright on a key that
+ * some rows have and others lack. So every published row carries every
+ * field, with `null` where the file has nothing.
+ */
+export type PublishedRow = Omit<Hit, 'submitter'> & { submitter: string | null };
+
+export function publishRow(hit: Hit): PublishedRow {
+  const { submitter, ...rest } = hit;
+  return { ...rest, submitter: submitter ?? null };
+}
+
 /** The rows that are published: accepted and featured, nothing else. */
 export function publishable(hits: readonly Hit[]): Hit[] {
   return hits.filter((h) => h.status === 'accepted' || h.status === 'featured');
@@ -67,12 +81,18 @@ export async function renderCard(options: {
   previousChangelog?: string;
 }): Promise<string> {
   const template = await readFile(TEMPLATE_PATH, 'utf8');
-  const configYaml = options.configs
+  // An empty file cannot be loaded (`datasets` infers the schema from the
+  // rows and stops on none), so a category with no rows keeps its file and
+  // its line in the table but is not offered as a config until it has one.
+  const loadable = options.configs.filter((c) => c.rows.length > 0);
+  const configYaml = loadable
     .map((c) => `  - config_name: ${c.name}\n    data_files: ${c.file}`)
     .join('\n');
   const table = options.configs
     .map((c) => `| \`${c.name}\` | ${describe(c.name as Category | 'all')} | ${c.rows.length} |`)
     .join('\n');
+  // The card's example loads the fullest category, so it works as printed.
+  const example = [...loadable.slice(1)].sort((a, b) => b.rows.length - a.rows.length)[0]?.name ?? 'all';
   const all = options.configs[0]!.rows.length;
   const entry = `- ${options.date}: ${all} rows across ${options.configs.length - 1} categories, dictionary \`${options.dictionary.rev.slice(0, 12)}\`, rubric ${options.rubricVersion}.`;
   const changelog = options.previousChangelog ? `${entry}\n${options.previousChangelog}` : entry;
@@ -83,6 +103,7 @@ export async function renderCard(options: {
     .replace('{{DICT_REV}}', options.dictionary.rev)
     .replace('{{SUBSET_TABLE}}', table)
     .replace('{{DATASET_ID}}', options.datasetId)
+    .replaceAll('{{EXAMPLE_CONFIG}}', example)
     .replace('{{RUBRIC}}', options.rubricVersion)
     .replace('{{CHANGELOG}}', changelog);
 }
@@ -100,7 +121,7 @@ export async function buildDataset(options: {
   await mkdir(options.out, { recursive: true });
   const files: string[] = [];
   for (const config of built) {
-    await writeFile(resolve(options.out, config.file), toJsonl(config.rows));
+    await writeFile(resolve(options.out, config.file), toJsonl(config.rows.map(publishRow)));
     files.push(config.file);
   }
   let previousChangelog: string | undefined;

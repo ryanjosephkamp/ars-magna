@@ -11,10 +11,10 @@ import { fileURLToPath } from 'node:url';
 
 import { cleanTitle, isJunk } from '../src/classify/junk.ts';
 import { buildQuery, categoryTable, classifyTitles, interpret } from '../src/classify/wikidata.ts';
-import { runFetch, toCandidates } from '../src/fetch.ts';
+import { reclassify, runFetch, titleOf, toCandidates } from '../src/fetch.ts';
 import { previousDay, wikipediaTop } from '../src/sources/wikipedia-top.ts';
 import { USER_AGENT } from '../src/sources/source.ts';
-import { candidateSchema } from '../src/schema.ts';
+import { candidateSchema, type Candidate } from '../src/schema.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) => readFile(resolve(here, 'fixtures', name), 'utf8');
@@ -134,6 +134,31 @@ describe('fetch', () => {
     // The pure step is stable: the same inputs give the same records.
     const again = toCandidates([{ title: 'Ben Shelton', source: 's', weight: 1 }], new Map(first.classified.map((c) => [c.title, c])), new Map(), '2026-09-11');
     expect(again[0]).toEqual(by.get('Ben Shelton'));
+  });
+});
+
+describe('reclassify', () => {
+  it('moves an unclassified candidate into the category Wikidata now gives it, without duplicating one already there', () => {
+    const c = (over: Partial<Candidate>): Candidate => ({ id: 'x:phrases', input: 'x', category: 'phrases', source: 'trending', first_seen: '2026-09-11', status: 'unclassified', ...over });
+    const candidates = [
+      c({ id: 'youtube:phrases', input: 'YouTube' }),
+      c({ id: 'sabahfk:phrases', input: 'Sabah FK', notes: 'Wikipedia: Sabah FK (Azerbaijan)' }),
+      c({ id: 'sabahfk:companies', input: 'Sabah FK', category: 'companies', status: 'new' }),
+      c({ id: 'houthis:phrases', input: 'Houthis' }),
+      c({ id: 'dolly:people', input: 'Dolly', category: 'people', status: 'enumerated' }),
+    ];
+    expect(titleOf(candidates[1]!)).toBe('Sabah FK (Azerbaijan)');
+    expect(titleOf(candidates[0]!)).toBe('YouTube');
+    const classified = new Map([
+      ['YouTube', { title: 'YouTube', qid: 'Q866', classes: ['Q35127'], category: 'products' as const }],
+      ['Sabah FK (Azerbaijan)', { title: 'Sabah FK (Azerbaijan)', qid: 'Q43082535', classes: ['Q476028'], category: 'companies' as const }],
+      ['Houthis', { title: 'Houthis', qid: 'Q3042087', classes: ['Q2738074'], category: null }],
+    ]);
+    const { candidates: out, moved } = reclassify(candidates, classified);
+    expect(moved.map((m) => m.id)).toEqual(['youtube:products', 'sabahfk:companies']);
+    expect(out.map((m) => m.id)).toEqual(['youtube:products', 'sabahfk:companies', 'houthis:phrases', 'dolly:people']);
+    expect(out[0]).toMatchObject({ category: 'products', status: 'new', wikidata_qid: 'Q866', source: 'trending' });
+    expect(out.filter((m) => m.id === 'sabahfk:companies')).toHaveLength(1);
   });
 });
 

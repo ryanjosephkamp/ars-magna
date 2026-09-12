@@ -12,7 +12,7 @@
  * reader would.
  */
 import { createReadStream } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
@@ -20,7 +20,8 @@ import { bestOrder, scoreOrder } from '@ars-magna/engine';
 import { normalizeLetters } from '@ars-magna/engine/fold';
 
 import { hitId, alphagram, isCategory, type Category } from './ids.ts';
-import { PREFILTERED, RAW, flag, pickQueue } from './queue.ts';
+import { PREFILTERED, RAW, SUMMARY, flag, pickQueue } from './queue.ts';
+import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate } from './schema.ts';
 
 /** One line of raw.jsonl, as `anagram batch` writes it. */
 export type RawRow = {
@@ -167,6 +168,31 @@ export function select(rows: readonly Prefiltered[], perCandidate: number, maxRo
   return [...guaranteed, ...rest].slice(0, Math.max(maxRows, guaranteed.length));
 }
 
+/**
+ * A candidate the engine ran that left nothing for the judge is done: it
+ * moves to `enumerated` with a note, so the next night does not enumerate it
+ * again and again. Only candidates this run actually enumerated count
+ * (`ran`, from the batch summary), and only rows that passed the rules
+ * matter (`kept`), not the global cap, which guarantees every candidate its
+ * best row anyway. Returns the candidates it changed.
+ */
+export function settleEmpty(
+  candidates: Candidate[],
+  ran: ReadonlySet<string>,
+  kept: ReadonlySet<string>,
+  date: string,
+): Candidate[] {
+  const settled: Candidate[] = [];
+  for (const c of candidates) {
+    if (c.status !== 'new' || !ran.has(c.id) || kept.has(c.id)) continue;
+    c.status = 'enumerated';
+    const note = `nothing keepable ${date}`;
+    c.notes = c.notes ? `${c.notes}; ${note}` : note;
+    settled.push(c);
+  }
+  return settled;
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const dir = await pickQueue(argv);
@@ -201,6 +227,18 @@ async function main(): Promise<void> {
     console.log(`  dropped ${n.toLocaleString().padStart(10)}  ${why}`);
   }
   console.log(`-> ${out}`);
+
+  // Close out the candidates that produced nothing keepable.
+  const summary = JSON.parse(await readFile(resolve(dir, SUMMARY), 'utf8')) as { candidates: { id: string }[] };
+  const ran = new Set(summary.candidates.map((c) => c.id));
+  const keptIds = new Set(kept.map((r) => r.candidate_id));
+  const validate = await candidateSchema();
+  const all = await readJsonl(CANDIDATES_PATH, validate);
+  const settled = settleEmpty(all, ran, keptIds, today());
+  if (settled.length > 0) {
+    await writeJsonl(CANDIDATES_PATH, all, validate);
+    console.log(`${settled.length} candidates produced nothing keepable and moved to enumerated: ${settled.map((c) => c.input).join(', ')}`);
+  }
 }
 
 if (process.argv[1] && import.meta.filename === process.argv[1]) {
