@@ -92,7 +92,8 @@ on a laptop, with the engine check turned back on.
 
 2. `pnpm hits:judge --date=<folder>` writes `judge-input-N.md` files into the folder: the rubric, then the
    candidates.
-3. Have a Claude session answer every file into `judge-output.jsonl`, one JSON line per candidate. With
+3. Have a Claude session answer every file into `judge-output.jsonl`, one JSON line per candidate, forming
+   each verdict itself rather than giving groups of rows a default score by script. With
    `ANTHROPIC_API_KEY` set in your shell, `pnpm hits:judge --date=<folder> --via=api` writes the answers
    through the API instead.
 4. `pnpm hits:ingest --date=<folder> --model=<the model that judged>` re-checks every phrase with the
@@ -138,7 +139,10 @@ What to do:
     `data/candidates.jsonl` in a pull request, weighted toward phrases, titles, products and places.
     After it merges, and before the next 06:00 UTC run, run Hits nightly by hand from the Actions tab
     with `max_rows` set to 800, so each candidate gets about twenty rows, as the 2026-09-11 batch did.
-    Left to the scheduled run, forty candidates share 300 rows.
+    Left to the scheduled run, forty candidates share 300 rows. The seeds stay `new` until the pull
+    request for their judged queue merges, and every nightly enumerates the `new` candidates again, so
+    merge that pull request before the following 06:00 UTC run, or disable Hits nightly until it is
+    merged; otherwise the routine judges the smaller repeat queue instead.
   - Grow the category table and run `pnpm hits:fetch --reclassify`, which moves unclassified candidates
     that now fit to `new` ("Growing the category table" in `automation/RUNBOOK.md`).
   - Run Hits nightly by hand from the Actions tab with a larger `limit`. `limit` is how many of the day's
