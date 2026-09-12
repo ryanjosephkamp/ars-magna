@@ -1,0 +1,11 @@
+{
+  "tier": "standard",
+  "min_word_len": 3,
+  "max_words": 4,
+  "first": 2000,
+  "sample": 500,
+  "seed": 1,
+  "max_nodes": 50000000,
+  "candidates": [],
+  "rows": 0
+}
