@@ -105,14 +105,14 @@
 {"id":"millenniumprizeproblems:phrases","input":"Millennium Prize Problems","category":"phrases","source":"trending","first_seen":"2026-09-11","status":"unclassified","wikidata_qid":"Q727000"}
 {"id":"reacherseason:titles","input":"Reacher season 4","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q141015508"}
 {"id":"erikakirk:people","input":"Erika Kirk","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q116508021","notes":"nothing keepable 2026-09-12"}
-{"id":"iphoneduo:products","input":"IPhone Duo","category":"products","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q141393879"}
+{"id":"iphoneduo:products","input":"IPhone Duo","category":"products","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q141393879"}
 {"id":"timcook:people","input":"Tim Cook","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q265852"}
-{"id":"thefallingman:titles","input":"The Falling Man","category":"titles","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q1259460"}
+{"id":"thefallingman:titles","input":"The Falling Man","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q1259460"}
 {"id":"sardar:titles","input":"Sardar 2","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q129255849"}
 {"id":"vinodkhosla:people","input":"Vinod Khosla","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q738005"}
 {"id":"eliraridon:people","input":"Eli Raridon","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q136035435"}
 {"id":"casualtiesoftheseptemberattacks:phrases","input":"Casualties of the September 11 attacks","category":"phrases","source":"trending","first_seen":"2026-09-11","status":"unclassified"}
-{"id":"youtube:products","input":"YouTube","category":"products","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q866"}
+{"id":"youtube:products","input":"YouTube","category":"products","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q866"}
 {"id":"haraldv:people","input":"Harald V","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q57287"}
 {"id":"jeffbezos:people","input":"Jeff Bezos","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q312556","notes":"nothing keepable 2026-09-12"}
 {"id":"brucespringsteen:people","input":"Bruce Springsteen","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q1225"}
@@ -128,7 +128,7 @@
 {"id":"robertlewandowski:people","input":"Robert Lewandowski","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q151269"}
 {"id":"brucespringsteendiscography:phrases","input":"Bruce Springsteen discography","category":"phrases","source":"trending","first_seen":"2026-09-11","status":"unclassified","wikidata_qid":"Q991822"}
 {"id":"helenabuonannofoulkes:people","input":"Helena Buonanno Foulkes","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q21067177"}
-{"id":"digger:titles","input":"Digger","category":"titles","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q129677718","notes":"Wikipedia: Digger (2026 film)"}
+{"id":"digger:titles","input":"Digger","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q129677718","notes":"Wikipedia: Digger (2026 film)"}
 {"id":"aaronrodgers:people","input":"Aaron Rodgers","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q302581"}
 {"id":"como:companies","input":"Como 1907","category":"companies","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q1120838","notes":"nothing keepable 2026-09-12"}
 {"id":"primetime:titles","input":"Primetime","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q133273688","notes":"Wikipedia: Primetime (film)"}
@@ -137,7 +137,7 @@
 {"id":"katiepiper:people","input":"Katie Piper","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q468230"}
 {"id":"xxxx:products","input":"XXXX","category":"products","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q924355","notes":"Wikipedia: XXXX (beer); nothing keepable 2026-09-12"}
 {"id":"cocogauff:people","input":"Coco Gauff","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q39263365"}
-{"id":"worldtradecenter:places","input":"World Trade Center","category":"places","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q11235","notes":"Wikipedia: World Trade Center (1973–2001)"}
+{"id":"worldtradecenter:places","input":"World Trade Center","category":"places","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q11235","notes":"Wikipedia: World Trade Center (1973–2001)"}
 {"id":"valdasdambrauskas:people","input":"Valdas Dambrauskas","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q28794022"}
 {"id":"anseladams:people","input":"Ansel Adams","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q60809"}
 {"id":"mikemccready:people","input":"Mike McCready","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q381797"}
@@ -152,7 +152,7 @@
 {"id":"ashleystclair:people","input":"Ashley St. Clair","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q130212725"}
 {"id":"stevejobs:people","input":"Steve Jobs","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q19837"}
 {"id":"bryanshelton:people","input":"Bryan Shelton","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q174287"}
-{"id":"remain:titles","input":"Remain","category":"titles","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q134979717","notes":"Wikipedia: Remain (film)"}
+{"id":"remain:titles","input":"Remain","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q134979717","notes":"Wikipedia: Remain (film)"}
 {"id":"michaeljackson:people","input":"Michael Jackson","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q2831"}
 {"id":"gloriasteinem:people","input":"Gloria Steinem","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q231178"}
 {"id":"mohamedatta:people","input":"Mohamed Atta","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q110067"}
@@ -161,7 +161,7 @@
 {"id":"sydneysweeney:people","input":"Sydney Sweeney","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q49561909"}
 {"id":"theshards:titles","input":"The Shards","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q136722498","notes":"Wikipedia: The Shards (TV series)"}
 {"id":"mikevrabel:people","input":"Mike Vrabel","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q1382305"}
-{"id":"seattleseahawks:companies","input":"Seattle Seahawks","category":"companies","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q221878"}
+{"id":"seattleseahawks:companies","input":"Seattle Seahawks","category":"companies","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q221878"}
 {"id":"kaiagerber:people","input":"Kaia Gerber","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q22673974"}
 {"id":"hijackersintheseptemberattacks:phrases","input":"Hijackers in the September 11 attacks","category":"phrases","source":"trending","first_seen":"2026-09-11","status":"unclassified","wikidata_qid":"Q3709182"}
 {"id":"haydenpanettiere:people","input":"Hayden Panettiere","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q171571"}
@@ -182,147 +182,147 @@
 {"id":"romeodoubs:people","input":"Romeo Doubs","category":"people","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q110647780"}
 {"id":"hodgeconjecture:phrases","input":"Hodge conjecture","category":"phrases","source":"trending","first_seen":"2026-09-11","status":"unclassified","wikidata_qid":"Q1143138"}
 {"id":"appleinc:companies","input":"Apple Inc.","category":"companies","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q312"}
-{"id":"residentevil:titles","input":"Resident Evil","category":"titles","source":"trending","first_seen":"2026-09-11","status":"new","wikidata_qid":"Q136565785","notes":"Wikipedia: Resident Evil (2026 film)"}
+{"id":"residentevil:titles","input":"Resident Evil","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q136565785","notes":"Wikipedia: Resident Evil (2026 film)"}
 {"id":"mayday:titles","input":"Mayday","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q124743667","notes":"Wikipedia: Mayday (2026 film)"}
 {"id":"lioness:titles","input":"Lioness","category":"titles","source":"trending","first_seen":"2026-09-11","status":"enumerated","wikidata_qid":"Q116199566","notes":"Wikipedia: Lioness (American TV series)"}
 {"id":"sabahfk:companies","input":"Sabah FK","category":"companies","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q43082535","notes":"Wikipedia: Sabah FK (Azerbaijan); nothing keepable 2026-09-12"}
-{"id":"lasvegas:places","input":"Las Vegas","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"neworleans:places","input":"New Orleans","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"buenosaires:places","input":"Buenos Aires","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"amsterdam:places","input":"Amsterdam","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"barcelona:places","input":"Barcelona","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"manchester:places","input":"Manchester","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"liverpool:places","input":"Liverpool","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"stockholm:places","input":"Stockholm","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"singapore:places","input":"Singapore","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"capetown:places","input":"Cape Town","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"melbourne:places","input":"Melbourne","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"mounteverest:places","input":"Mount Everest","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"grandcanyon:places","input":"Grand Canyon","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"niagarafalls:places","input":"Niagara Falls","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"siliconvalley:places","input":"Silicon Valley","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"timessquare:places","input":"Times Square","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"deathvalley:places","input":"Death Valley","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"statueofliberty:places","input":"Statue of Liberty","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"eiffeltower:places","input":"Eiffel Tower","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"greatbarrierreef:places","input":"Great Barrier Reef","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"cocacola:products","input":"Coca Cola","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"nutella:products","input":"Nutella","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"doritos:products","input":"Doritos","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"fordmustang:products","input":"Ford Mustang","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"instagram:products","input":"Instagram","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"snapchat:products","input":"Snapchat","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"photoshop:products","input":"Photoshop","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"bitcoin:products","input":"Bitcoin","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"peloton:products","input":"Peloton","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"monopoly:products","input":"Monopoly","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"teslamodels:products","input":"Tesla Model S","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"postitnotes:products","input":"Post-it Notes","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"clinteastwood:people","input":"Clint Eastwood","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"tomcruise:people","input":"Tom Cruise","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"jenniferaniston:people","input":"Jennifer Aniston","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"morganfreeman:people","input":"Morgan Freeman","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"serenawilliams:people","input":"Serena Williams","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"rogerfederer:people","input":"Roger Federer","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"lionelmessi:people","input":"Lionel Messi","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"tigerwoods:people","input":"Tiger Woods","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"alberteinstein:people","input":"Albert Einstein","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"isaacnewton:people","input":"Isaac Newton","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"charlesdarwin:people","input":"Charles Darwin","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"mariecurie:people","input":"Marie Curie","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
+{"id":"lasvegas:places","input":"Las Vegas","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"neworleans:places","input":"New Orleans","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"buenosaires:places","input":"Buenos Aires","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"amsterdam:places","input":"Amsterdam","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"barcelona:places","input":"Barcelona","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"manchester:places","input":"Manchester","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"liverpool:places","input":"Liverpool","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"stockholm:places","input":"Stockholm","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"singapore:places","input":"Singapore","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"capetown:places","input":"Cape Town","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"melbourne:places","input":"Melbourne","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"mounteverest:places","input":"Mount Everest","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"grandcanyon:places","input":"Grand Canyon","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"niagarafalls:places","input":"Niagara Falls","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"siliconvalley:places","input":"Silicon Valley","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"timessquare:places","input":"Times Square","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"deathvalley:places","input":"Death Valley","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"statueofliberty:places","input":"Statue of Liberty","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"eiffeltower:places","input":"Eiffel Tower","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"greatbarrierreef:places","input":"Great Barrier Reef","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"cocacola:products","input":"Coca Cola","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"nutella:products","input":"Nutella","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"doritos:products","input":"Doritos","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"fordmustang:products","input":"Ford Mustang","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"instagram:products","input":"Instagram","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"snapchat:products","input":"Snapchat","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"photoshop:products","input":"Photoshop","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"bitcoin:products","input":"Bitcoin","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"peloton:products","input":"Peloton","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"monopoly:products","input":"Monopoly","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"teslamodels:products","input":"Tesla Model S","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"postitnotes:products","input":"Post-it Notes","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"clinteastwood:people","input":"Clint Eastwood","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"tomcruise:people","input":"Tom Cruise","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"jenniferaniston:people","input":"Jennifer Aniston","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"morganfreeman:people","input":"Morgan Freeman","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"serenawilliams:people","input":"Serena Williams","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"rogerfederer:people","input":"Roger Federer","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"lionelmessi:people","input":"Lionel Messi","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"tigerwoods:people","input":"Tiger Woods","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"alberteinstein:people","input":"Albert Einstein","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"isaacnewton:people","input":"Isaac Newton","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"charlesdarwin:people","input":"Charles Darwin","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"mariecurie:people","input":"Marie Curie","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
 {"id":"amazon:companies","input":"Amazon","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated","notes":"nothing keepable 2026-09-12"}
-{"id":"disney:companies","input":"Disney","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"walmart:companies","input":"Walmart","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"starbucks:companies","input":"Starbucks","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"samsung:companies","input":"Samsung","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"toyota:companies","input":"Toyota","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"ferrari:companies","input":"Ferrari","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"morganstanley:companies","input":"Morgan Stanley","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"berkshirehathaway:companies","input":"Berkshire Hathaway","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"unilever:companies","input":"Unilever","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"pulpfiction:titles","input":"Pulp Fiction","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"forrestgump:titles","input":"Forrest Gump","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"thematrix:titles","input":"The Matrix","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"interstellar:titles","input":"Interstellar","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"citizenkane:titles","input":"Citizen Kane","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"gameofthrones:titles","input":"Game of Thrones","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"strangerthings:titles","input":"Stranger Things","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"prideandprejudice:titles","input":"Pride and Prejudice","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"romeoandjuliet:titles","input":"Romeo and Juliet","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"thelionking:titles","input":"The Lion King","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"slotmachines:phrases","input":"Slot machines","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"elevenplustwo:phrases","input":"Eleven plus two","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"agentleman:phrases","input":"A gentleman","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"conversation:phrases","input":"Conversation","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"themorsecode:phrases","input":"The Morse code","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"electionresults:phrases","input":"Election results","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"adecimalpoint:phrases","input":"A decimal point","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"softwareengineer:phrases","input":"Software engineer","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
+{"id":"disney:companies","input":"Disney","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"walmart:companies","input":"Walmart","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"starbucks:companies","input":"Starbucks","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"samsung:companies","input":"Samsung","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"toyota:companies","input":"Toyota","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"ferrari:companies","input":"Ferrari","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"morganstanley:companies","input":"Morgan Stanley","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"berkshirehathaway:companies","input":"Berkshire Hathaway","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"unilever:companies","input":"Unilever","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"pulpfiction:titles","input":"Pulp Fiction","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"forrestgump:titles","input":"Forrest Gump","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"thematrix:titles","input":"The Matrix","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"interstellar:titles","input":"Interstellar","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"citizenkane:titles","input":"Citizen Kane","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"gameofthrones:titles","input":"Game of Thrones","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"strangerthings:titles","input":"Stranger Things","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"prideandprejudice:titles","input":"Pride and Prejudice","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"romeoandjuliet:titles","input":"Romeo and Juliet","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"thelionking:titles","input":"The Lion King","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"slotmachines:phrases","input":"Slot machines","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"elevenplustwo:phrases","input":"Eleven plus two","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"agentleman:phrases","input":"A gentleman","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"conversation:phrases","input":"Conversation","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"themorsecode:phrases","input":"The Morse code","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"electionresults:phrases","input":"Election results","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"adecimalpoint:phrases","input":"A decimal point","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"softwareengineer:phrases","input":"Software engineer","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
 {"id":"timelineforthedayoftheseptemberattacks:phrases","input":"Timeline for the day of the September 11 attacks","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q2140891"}
-{"id":"vishwanathsons:titles","input":"Vishwanath & Sons","category":"titles","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q135094933"}
-{"id":"princessastridmrsferner:people","input":"Princess Astrid, Mrs. Ferner","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q270685"}
-{"id":"bigbrother:titles","input":"Big Brother 28","category":"titles","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q140365577","notes":"Wikipedia: Big Brother 28 (American season)"}
-{"id":"toddbeamer:people","input":"Todd Beamer","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q1282319"}
-{"id":"jonasbrothers:people","input":"Jonas Brothers","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q134233"}
-{"id":"wellescrowther:people","input":"Welles Crowther","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q6067721"}
+{"id":"vishwanathsons:titles","input":"Vishwanath & Sons","category":"titles","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q135094933"}
+{"id":"princessastridmrsferner:people","input":"Princess Astrid, Mrs. Ferner","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q270685"}
+{"id":"bigbrother:titles","input":"Big Brother 28","category":"titles","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q140365577","notes":"Wikipedia: Big Brother 28 (American season)"}
+{"id":"toddbeamer:people","input":"Todd Beamer","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q1282319"}
+{"id":"jonasbrothers:people","input":"Jonas Brothers","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q134233"}
+{"id":"wellescrowther:people","input":"Welles Crowther","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q6067721"}
 {"id":"collapseoftheworldtradecenter:phrases","input":"Collapse of the World Trade Center","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q62179"}
-{"id":"khalidsheikhmohammed:people","input":"Khalid Sheikh Mohammed","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q319068"}
+{"id":"khalidsheikhmohammed:people","input":"Khalid Sheikh Mohammed","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q319068"}
 {"id":"haiwaan:titles","input":"Haiwaan","category":"titles","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q138622151","notes":"Wikipedia: Haiwaan (film); nothing keepable 2026-09-12"}
 {"id":"alqaeda:phrases","input":"Al-Qaeda","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q34490"}
 {"id":"roshhashanah:phrases","input":"Rosh Hashanah","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q131028"}
-{"id":"deebosamuel:people","input":"Deebo Samuel","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q48885295"}
+{"id":"deebosamuel:people","input":"Deebo Samuel","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q48885295"}
 {"id":"ziadjarrah:people","input":"Ziad Jarrah","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q198290","notes":"nothing keepable 2026-09-12"}
-{"id":"solomonpappaiah:people","input":"Solomon Pappaiah","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q7558728"}
-{"id":"marwanalshehhi:people","input":"Marwan al-Shehhi","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q700838"}
-{"id":"rickrescorla:people","input":"Rick Rescorla","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q6068455"}
-{"id":"mikeevans:people","input":"Mike Evans","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q14951064","notes":"Wikipedia: Mike Evans (wide receiver)"}
-{"id":"oneworldtradecenter:places","input":"One World Trade Center","category":"places","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q11245"}
-{"id":"marcyborders:people","input":"Marcy Borders","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q20880365"}
-{"id":"nickjonas:people","input":"Nick Jonas","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q201656"}
-{"id":"georgewbush:people","input":"George W. Bush","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q207"}
-{"id":"lucasbravo:people","input":"Lucas Bravo","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q99460747"}
+{"id":"solomonpappaiah:people","input":"Solomon Pappaiah","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q7558728"}
+{"id":"marwanalshehhi:people","input":"Marwan al-Shehhi","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q700838"}
+{"id":"rickrescorla:people","input":"Rick Rescorla","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q6068455"}
+{"id":"mikeevans:people","input":"Mike Evans","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q14951064","notes":"Wikipedia: Mike Evans (wide receiver)"}
+{"id":"oneworldtradecenter:places","input":"One World Trade Center","category":"places","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q11245"}
+{"id":"marcyborders:people","input":"Marcy Borders","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q20880365"}
+{"id":"nickjonas:people","input":"Nick Jonas","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q201656"}
+{"id":"georgewbush:people","input":"George W. Bush","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q207"}
+{"id":"lucasbravo:people","input":"Lucas Bravo","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q99460747"}
 {"id":"brics:phrases","input":"BRICS","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q243630"}
 {"id":"joejonas:people","input":"Joe Jonas","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q191088","notes":"nothing keepable 2026-09-12"}
-{"id":"bettyong:people","input":"Betty Ong","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q2254875"}
+{"id":"bettyong:people","input":"Betty Ong","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q2254875"}
 {"id":"dada:phrases","input":"Dada","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q6034"}
-{"id":"howardlutnick:people","input":"Howard Lutnick","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q16194176"}
-{"id":"kevinjonas:people","input":"Kevin Jonas","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q210172"}
-{"id":"rememberme:titles","input":"Remember Me","category":"titles","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q632680","notes":"Wikipedia: Remember Me (2010 film)"}
-{"id":"mychaljudge:people","input":"Mychal Judge","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q601424"}
-{"id":"daniellewin:people","input":"Daniel Lewin","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q92858"}
-{"id":"brockpurdy:people","input":"Brock Purdy","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q71605297"}
-{"id":"mylesgarrett:people","input":"Myles Garrett","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q18207047"}
-{"id":"hanihanjour:people","input":"Hani Hanjour","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q738921"}
+{"id":"howardlutnick:people","input":"Howard Lutnick","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q16194176"}
+{"id":"kevinjonas:people","input":"Kevin Jonas","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q210172"}
+{"id":"rememberme:titles","input":"Remember Me","category":"titles","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q632680","notes":"Wikipedia: Remember Me (2010 film)"}
+{"id":"mychaljudge:people","input":"Mychal Judge","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q601424"}
+{"id":"daniellewin:people","input":"Daniel Lewin","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q92858"}
+{"id":"brockpurdy:people","input":"Brock Purdy","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q71605297"}
+{"id":"mylesgarrett:people","input":"Myles Garrett","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q18207047"}
+{"id":"hanihanjour:people","input":"Hani Hanjour","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q738921"}
 {"id":"hamburgcell:phrases","input":"Hamburg cell","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q327701"}
-{"id":"codysimpson:people","input":"Cody Simpson","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q314319"}
-{"id":"cantorfitzgerald:companies","input":"Cantor Fitzgerald","category":"companies","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q2936874"}
-{"id":"melbournecricketground:places","input":"Melbourne Cricket Ground","category":"places","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q330136"}
-{"id":"lukekuechly:people","input":"Luke Kuechly","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q3267090"}
-{"id":"larrysilverstein:people","input":"Larry Silverstein","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q463668"}
+{"id":"codysimpson:people","input":"Cody Simpson","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q314319"}
+{"id":"cantorfitzgerald:companies","input":"Cantor Fitzgerald","category":"companies","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q2936874"}
+{"id":"melbournecricketground:places","input":"Melbourne Cricket Ground","category":"places","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q330136"}
+{"id":"lukekuechly:people","input":"Luke Kuechly","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q3267090"}
+{"id":"larrysilverstein:people","input":"Larry Silverstein","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q463668"}
 {"id":"pukanacua:people","input":"Puka Nacua","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q115492436","notes":"nothing keepable 2026-09-12"}
 {"id":"motivesfortheseptemberattacks:phrases","input":"Motives for the September 11 attacks","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified"}
-{"id":"mamithabaiju:people","input":"Mamitha Baiju","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q107304740"}
+{"id":"mamithabaiju:people","input":"Mamitha Baiju","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q107304740"}
 {"id":"langstrothhive:phrases","input":"Langstroth hive","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified"}
-{"id":"zacariasmoussaoui:people","input":"Zacarias Moussaoui","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q139204"}
-{"id":"condoleezzarice:people","input":"Condoleezza Rice","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q47216"}
-{"id":"garnetbailey:people","input":"Garnet Bailey","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q448490"}
+{"id":"zacariasmoussaoui:people","input":"Zacarias Moussaoui","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q139204"}
+{"id":"condoleezzarice:people","input":"Condoleezza Rice","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q47216"}
+{"id":"garnetbailey:people","input":"Garnet Bailey","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q448490"}
 {"id":"conspiracytheories:phrases","input":"9/11 conspiracy theories","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified"}
-{"id":"brianclark:people","input":"Brian Clark","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q4963362","notes":"Wikipedia: Brian Clark (September 11 survivor)"}
+{"id":"brianclark:people","input":"Brian Clark","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q4963362","notes":"Wikipedia: Brian Clark (September 11 survivor)"}
 {"id":"healtheffectsarisingfromtheseptemberattacks:phrases","input":"Health effects arising from the September 11 attacks","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q2059842"}
-{"id":"galgadot:people","input":"Gal Gadot","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q185654"}
-{"id":"windowsontheworld:companies","input":"Windows on the World","category":"companies","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q11706"}
-{"id":"yemen:places","input":"Yemen","category":"places","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q805"}
-{"id":"demarcusrobinson:people","input":"Demarcus Robinson","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q24060917"}
-{"id":"matthewstafford:people","input":"Matthew Stafford","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q889130"}
-{"id":"taylortownsend:people","input":"Taylor Townsend","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q766964"}
+{"id":"galgadot:people","input":"Gal Gadot","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q185654"}
+{"id":"windowsontheworld:companies","input":"Windows on the World","category":"companies","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q11706"}
+{"id":"yemen:places","input":"Yemen","category":"places","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q805"}
+{"id":"demarcusrobinson:people","input":"Demarcus Robinson","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q24060917"}
+{"id":"matthewstafford:people","input":"Matthew Stafford","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q889130"}
+{"id":"taylortownsend:people","input":"Taylor Townsend","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q766964"}
 {"id":"killingofosamabinladen:phrases","input":"Killing of Osama bin Laden","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q19085"}
 {"id":"neijuan:phrases","input":"Neijuan","category":"phrases","source":"trending","first_seen":"2026-09-12","status":"unclassified","wikidata_qid":"Q116045021"}
-{"id":"united:titles","input":"United 93","category":"titles","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q282804","notes":"Wikipedia: United 93 (film)"}
-{"id":"ednacintron:people","input":"Edna Cintrón","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q108560907"}
-{"id":"markbingham:people","input":"Mark Bingham","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q3849446"}
-{"id":"themosquitobowl:titles","input":"The Mosquito Bowl","category":"titles","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q137826900"}
-{"id":"heatherpenney:people","input":"Heather Penney","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q16204409"}
-{"id":"jenniferlawrence:people","input":"Jennifer Lawrence","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q189490"}
-{"id":"stanleypraimnath:people","input":"Stanley Praimnath","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q2331775"}
-{"id":"priyankachopra:people","input":"Priyanka Chopra","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q158957"}
-{"id":"conorbenn:people","input":"Conor Benn","category":"people","source":"trending","first_seen":"2026-09-12","status":"new","wikidata_qid":"Q26837896"}
+{"id":"united:titles","input":"United 93","category":"titles","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q282804","notes":"Wikipedia: United 93 (film)"}
+{"id":"ednacintron:people","input":"Edna Cintrón","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q108560907"}
+{"id":"markbingham:people","input":"Mark Bingham","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q3849446"}
+{"id":"themosquitobowl:titles","input":"The Mosquito Bowl","category":"titles","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q137826900"}
+{"id":"heatherpenney:people","input":"Heather Penney","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q16204409"}
+{"id":"jenniferlawrence:people","input":"Jennifer Lawrence","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q189490"}
+{"id":"stanleypraimnath:people","input":"Stanley Praimnath","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q2331775"}
+{"id":"priyankachopra:people","input":"Priyanka Chopra","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q158957"}
+{"id":"conorbenn:people","input":"Conor Benn","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q26837896"}
