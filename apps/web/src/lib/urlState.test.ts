@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_QUERY, UNLIMITED_WORDS, type Query } from '@ars-magna/engine';
-import { decodeQuery, encodeQuery, splitQuery } from './urlState.ts';
+import { cleanPhrase, decodeQuery, encodeQuery, encodeShared, keptPhrases, splitQuery } from './urlState.ts';
 
 describe('urlState accent folding', () => {
   it('folds an accented must-include word the way the engine will', () => {
@@ -118,5 +118,52 @@ describe('splitQuery', () => {
     const live = { ...filters, input: 'listen' };
 
     expect(live.input).toBe('listen');
+  });
+});
+
+describe('kept phrases', () => {
+  it('cleans a phrase the way the engine folds a query', () => {
+    expect(cleanPhrase('Dirty  Room')).toBe('dirty room');
+    expect(cleanPhrase(' moon   starer ')).toBe('moon starer');
+    expect(cleanPhrase('caf\u00e9 ol\u00e9')).toBe('cafe ole');
+    expect(cleanPhrase('   ')).toBe('');
+  });
+
+  it('adds the kept phrases after the query and keeps the link readable', () => {
+    expect(encodeShared(query({ input: 'dormitory' }), ['dirty room'])).toBe('q=dormitory&p=dirty%20room');
+    expect(encodeShared(query({ input: 'dormitory' }), ['dirty room', 'room dirty'])).toBe(
+      'q=dormitory&p=dirty%20room%2Croom%20dirty',
+    );
+    expect(encodeShared(query({ input: 'dormitory' }), [])).toBe('q=dormitory');
+    expect(encodeShared(query({ input: 'dormitory' }), ['  '])).toBe('q=dormitory');
+  });
+
+  it('round-trips a kept phrase, in the order given', () => {
+    const hash = `#${encodeShared(query({ input: 'dormitory' }), ['room dirty'])}`;
+    expect(keptPhrases(hash, 'dormitory')).toEqual(['room dirty']);
+    expect(decodeQuery(hash).input).toBe('dormitory');
+    const two = `#${encodeShared(query({ input: 'dormitory' }), ['room dirty', 'dirty room'])}`;
+    expect(keptPhrases(two, 'dormitory')).toEqual(['room dirty', 'dirty room']);
+  });
+
+  it('rejects a phrase whose letters differ from the query', () => {
+    expect(keptPhrases('#q=dormitory&p=dirty%20rooms', 'dormitory')).toEqual([]);
+    expect(keptPhrases('#q=dormitory&p=dirty%20room,dirty%20rooms,room%20dirty', 'dormitory')).toEqual([
+      'dirty room',
+      'room dirty',
+    ]);
+    expect(keptPhrases('#q=dormitory&p=dirty%20room', 'astronomer')).toEqual([]);
+  });
+
+  it('folds accents and case on both sides, drops repeats, and ignores junk', () => {
+    expect(keptPhrases('#q=Beyonc%C3%A9&p=Obey%20Cen', 'Beyonc\u00e9')).toEqual(['obey cen']);
+    expect(keptPhrases('#q=dormitory&p=dirty%20room,dirty%20room', 'dormitory')).toEqual(['dirty room']);
+    expect(keptPhrases('#q=dormitory&p=,,', 'dormitory')).toEqual([]);
+    expect(keptPhrases('#q=dormitory', 'dormitory')).toEqual([]);
+    expect(keptPhrases('#p=dirty%20room', '')).toEqual([]);
+  });
+
+  it('is invisible to the query decoder', () => {
+    expect(decodeQuery('#q=dormitory&p=dirty%20room')).toEqual(query({ input: 'dormitory' }));
   });
 });

@@ -5,8 +5,10 @@ import { Controls } from './components/Controls.tsx';
 import { ResultList } from './components/ResultList.tsx';
 import { PinnedStrip } from './components/PinnedStrip.tsx';
 import { useEngine, useResults } from './state/useEngine.ts';
-import { decodeQuery, shareUrl, splitQuery, syncUrl } from './lib/urlState.ts';
+import { decodeQuery, keptPhrases, shareRowUrl, shareUrl, splitQuery, syncUrl } from './lib/urlState.ts';
 import { useCopy } from './lib/useCopy.ts';
+import { choose, rowKey, type Chosen } from './lib/chosen.ts';
+import type { ShareContext } from './components/ResultList.tsx';
 import { JumpEntry } from './lib/jump.ts';
 import { Definitions } from './lib/definitions.ts';
 import type { WordDetail } from './components/WordDetails.tsx';
@@ -24,11 +26,27 @@ import {
 export function App() {
   // The URL is the source of truth on first paint, so a shared link opens on
   // exactly the search it was copied from.
-  const initial = useMemo(() => splitQuery(decodeQuery(window.location.hash)), []);
+  const initial = useMemo(() => {
+    const query = decodeQuery(window.location.hash);
+    // A link to one anagram carries the phrase to keep, in the sharer's order.
+    // Only a phrase the letters really spell gets through.
+    return { ...splitQuery(query), kept: keptPhrases(window.location.hash, query.input) };
+  }, []);
   const [input, setInput] = useState(initial.input);
   const [filters, setFilters] = useState(initial.filters);
   const [surprise, setSurprise] = useState<string[] | null>(null);
-  const [pinned, setPinned] = useState<string[]>([]);
+  const [pinned, setPinned] = useState<string[]>(initial.kept);
+  // The orders readers chose, keyed by each result's words. A kept phrase
+  // from a link is also the chosen order for its row, so the row agrees with
+  // the pin above it.
+  const [chosen, setChosen] = useState<Chosen>(() => {
+    const map = new Map<string, readonly string[]>();
+    for (const phrase of initial.kept) {
+      const words = phrase.split(' ');
+      map.set(rowKey(words), words);
+    }
+    return map;
+  });
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState<SortMode>('default');
   const [loadingAll, setLoadingAll] = useState(false);
@@ -108,9 +126,21 @@ export function App() {
     setFilters((current) => ({ ...current, ...next }));
   }, []);
 
-  // Pins belong to the letters, not to the filters — narrowing minWordLen
-  // should not silently discard what you set aside.
-  useEffect(() => setPinned([]), [letters]);
+  // Pins and chosen orders belong to the letters, not to the filters —
+  // narrowing minWordLen should not silently discard what you set aside. The
+  // first letters are the link's own, so what the link kept survives first
+  // paint (and StrictMode's second pass over the effects).
+  const lastLetters = useRef(letters);
+  useEffect(() => {
+    if (lastLetters.current === letters) return;
+    lastLetters.current = letters;
+    setPinned([]);
+    setChosen(new Map());
+  }, [letters]);
+
+  const onChoose = useCallback((order: readonly string[]) => {
+    setChosen((current) => choose(current, order));
+  }, []);
 
   const togglePin = useCallback((phrase: string) => {
     setPinned((current) =>
@@ -130,6 +160,11 @@ export function App() {
     // signals new rows; `results.rows` alone would be referentially stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [results.rows, results.length, filter, sort],
+  );
+
+  const shareContext = useMemo<ShareContext>(
+    () => ({ input, total, urlFor: (phrase) => shareRowUrl(query, phrase) }),
+    [input, total, query],
   );
 
   const exactTotal = total.startsWith('>') ? null : Number(total);
@@ -328,6 +363,9 @@ export function App() {
                     onTogglePin={togglePin}
                     copied={copied}
                     onCopy={copy}
+                    chosen={chosen}
+                    onChoose={onChoose}
+                    share={shareContext}
                   />
                 </>
               )}

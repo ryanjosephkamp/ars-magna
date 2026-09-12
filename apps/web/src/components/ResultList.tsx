@@ -9,7 +9,10 @@ import {
 } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Row } from '../state/resultBuffer.ts';
-import { countOrderings, orderings } from '../lib/orderings.ts';
+import { countOrderings, nextOrdering, orderings } from '../lib/orderings.ts';
+import { displayOrder, type Chosen } from '../lib/chosen.ts';
+import type { Shareable } from '../lib/share.ts';
+import { ShareActions } from './ShareActions.tsx';
 import { WordDetails, type WordDetail } from './WordDetails.tsx';
 
 /** Orderings shown before the list is cut off. 6 words is already 720. */
@@ -26,6 +29,18 @@ type Props = {
   onTogglePin(phrase: string): void;
   copied: string | null;
   onCopy(key: string, text: string): void;
+  /** The orders readers chose, keyed by the row's words. */
+  chosen: Chosen;
+  onChoose(order: readonly string[]): void;
+  /** What a share of any row needs beyond its phrase. */
+  share: ShareContext;
+};
+
+export type ShareContext = {
+  input: string;
+  /** The engine's total as reported, `>`-prefixed when a floor. */
+  total: string;
+  urlFor(phrase: string): string;
 };
 
 /**
@@ -48,6 +63,9 @@ export function ResultList({
   onTogglePin,
   copied,
   onCopy,
+  chosen,
+  onChoose,
+  share,
 }: Props) {
   const anchor = useRef<HTMLDivElement>(null);
   const [offsetTop, setOffsetTop] = useState(0);
@@ -196,10 +214,13 @@ export function ResultList({
                 onFocus={setCursor}
                 wordDetails={wordDetails}
                 wordMasks={wordMasks}
-                isPinned={pinnedSet.has(row.join(' '))}
+                shown={displayOrder(chosen, row)}
+                isPinned={pinnedSet.has(displayOrder(chosen, row).join(' '))}
                 onTogglePin={onTogglePin}
                 copied={copied}
                 onCopy={onCopy}
+                onChoose={onChoose}
+                share={share}
               />
             </div>
           );
@@ -217,6 +238,7 @@ export function ResultList({
 
 function ResultRow({
   row,
+  shown,
   index,
   expanded,
   onToggle,
@@ -227,8 +249,13 @@ function ResultRow({
   onTogglePin,
   copied,
   onCopy,
+  onChoose,
+  share,
 }: {
+  /** The engine's order: the row's identity and the root of its orderings. */
   row: Row;
+  /** The order on display: the reader's choice, or `row`. */
+  shown: readonly string[];
   index: number;
   expanded: boolean;
   onToggle(index: number): void;
@@ -239,10 +266,31 @@ function ResultRow({
   onTogglePin(phrase: string): void;
   copied: string | null;
   onCopy(key: string, text: string): void;
+  onChoose(order: readonly string[]): void;
+  share: ShareContext;
 }) {
-  const phrase = row.join(' ');
+  const phrase = shown.join(' ');
   const [details, setDetails] = useState<WordDetail[] | null>(null);
   const [masks, setMasks] = useState<number[] | null>(null);
+  const [sharing, setSharing] = useState(false);
+
+  // Step to the next ordering in the ranked list. The masks that rank it are
+  // fetched on first use, so a collapsed row can be reordered without opening.
+  const reorder = useCallback(async () => {
+    let ranked = masks;
+    if (!ranked) {
+      ranked = await wordMasks(row);
+      setMasks(ranked);
+    }
+    onChoose(nextOrdering(row, shown, ORDERINGS_SHOWN, ranked.length === row.length ? ranked : undefined));
+  }, [masks, wordMasks, row, shown, onChoose]);
+
+  const shareable: Shareable = {
+    input: share.input,
+    phrase,
+    url: share.urlFor(phrase),
+    total: share.total,
+  };
 
   // Definitions and spellings are fetched only for rows someone opened —
   // there is no sense pulling shards for the thousands scrolling past.
@@ -270,15 +318,15 @@ function ResultRow({
     };
   }, [expanded, masks, row, wordMasks]);
 
-  // Orderings are cheap for the sizes that occur here, but there is no reason
-  // to compute them for a row nobody opened.
-  const orderCount = expanded ? countOrderings(row) : 0;
+  // Counting is a few multiplications; the orderings themselves are computed
+  // only for a row somebody opened.
+  const orderCount = row.length > 1 ? countOrderings(row) : 1;
   const orders =
     expanded && orderCount > 1 ? orderings(row, ORDERINGS_SHOWN, masks ?? undefined) : [];
 
   return (
     <div className={`border-b border-rule ${isPinned ? 'bg-accent-wash/40' : ''}`}>
-      <div className="group flex items-baseline gap-3">
+      <div className="group flex flex-wrap items-baseline gap-x-3">
         <button
           type="button"
           onClick={() => onToggle(index)}
@@ -293,7 +341,12 @@ function ResultRow({
           <span className="font-display flex-1 text-xl leading-snug text-ink">{phrase}</span>
         </button>
 
-        <span className="flex shrink-0 items-baseline gap-2 pr-1 pl-2">
+        {/* Four actions no longer fit beside a phrase on a phone; below `sm`
+            they take their own line under it instead of squeezing the words. */}
+        <span className="flex basis-full shrink-0 items-baseline gap-2 pb-2 pl-14 sm:basis-auto sm:pb-0 sm:pl-2 sm:pr-1">
+          {orderCount > 1 && (
+            <RowAction label="Reorder" active={false} onClick={() => void reorder()} />
+          )}
           <RowAction
             label={copied === phrase ? 'Copied' : 'Copy'}
             active={copied === phrase}
@@ -304,8 +357,15 @@ function ResultRow({
             active={isPinned}
             onClick={() => onTogglePin(phrase)}
           />
+          <RowAction label="Share" active={sharing} onClick={() => setSharing((open) => !open)} />
         </span>
       </div>
+
+      {sharing && (
+        <div className="settle pb-3 pl-14">
+          <ShareActions item={shareable} id={`row:${phrase}`} copied={copied} onCopy={onCopy} />
+        </div>
+      )}
 
       {expanded && (
         <div className="settle space-y-4 pb-4 pl-14 text-sm">
@@ -318,20 +378,16 @@ function ResultRow({
               <ul className="flex flex-wrap gap-x-4 gap-y-1">
                 {orders.map((order) => {
                   const text = order.join(' ');
+                  const current = text === phrase;
                   return (
                     <li key={text}>
                       <button
                         type="button"
-                        onClick={() => onCopy(text, text)}
-                        title="Copy this ordering"
+                        onClick={() => onChoose(order)}
+                        title={current ? 'The order shown' : 'Show this order'}
+                        aria-pressed={current}
                         className={`font-display text-left transition-colors duration-150
-                                    hover:text-accent ${
-                                      copied === text
-                                        ? 'text-accent'
-                                        : text === phrase
-                                          ? 'text-ink'
-                                          : 'text-ink-soft'
-                                    }`}
+                                    hover:text-accent ${current ? 'text-ink' : 'text-ink-soft'}`}
                       >
                         {text}
                       </button>
