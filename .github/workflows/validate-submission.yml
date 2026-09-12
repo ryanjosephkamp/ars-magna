@@ -3,7 +3,7 @@ name: Validate submission
 # A submitted anagram is checked by the engine as soon as the issue is opened
 # or edited: exactly the input's letters, every word in the chosen tier. The
 # verdict is posted as a comment and a label, so a maintainer only reads the
-# ones that pass. Accepting one is `pnpm hits:ingest --from-issue N`.
+# ones that pass. Accepting one is `pnpm hits:ingest --from-issue=N`.
 
 on:
   issues:

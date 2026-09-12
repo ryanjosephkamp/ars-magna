@@ -134,14 +134,16 @@ What to do:
 - **Nothing keepable:** nothing. The candidates are already marked, so they are not run again.
 - **Nothing new, night after night:** the candidate pool is dry, and every night will be thin until new
   inputs arrive. Three remedies exist today:
-  - Seed a batch by hand: append lines to `data/candidates.jsonl` in a pull request, as
-    [#4](https://github.com/ryanjosephkamp/ars-magna/pull/4) did with 72. The next nightly enumerates
-    them.
+  - Seed a batch by hand, the chosen supply for now: append about forty lines to
+    `data/candidates.jsonl` in a pull request, weighted toward phrases, titles, products and places.
+    After it merges, and before the next 06:00 UTC run, run Hits nightly by hand from the Actions tab
+    with `max_rows` set to 800, so each candidate gets about twenty rows, as the 2026-09-11 batch did.
+    Left to the scheduled run, forty candidates share 300 rows.
   - Grow the category table and run `pnpm hits:fetch --reclassify`, which moves unclassified candidates
     that now fit to `new` ("Growing the category table" in `automation/RUNBOOK.md`).
   - Run Hits nightly by hand from the Actions tab with a larger `limit`. `limit` is how many of the day's
     top titles are considered (150 by default, of about 1,000 in the feed) before they are checked
-    against the pool; the form labels it "New candidates to take", which it is not.
+    against the pool.
 
 A seeded candidate is one line:
 
