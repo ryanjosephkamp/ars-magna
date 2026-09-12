@@ -54,6 +54,15 @@ jobs:
         id: enumerate
         run: |
           DATE=$(date -u +%Y-%m-%d)
+          # A second run on the same UTC day (a manual run after the scheduled
+          # one, or the reverse) gets its own folder, as the pilots did by hand:
+          # the judge answers a folder once, and a folder that already holds a
+          # queue must not be overwritten.
+          if [ -e "data/queue/$DATE/prefiltered.jsonl" ]; then
+            for s in b c d e f g h; do
+              if [ ! -e "data/queue/$DATE$s/prefiltered.jsonl" ]; then DATE="$DATE$s"; break; fi
+            done
+          fi
           echo "date=$DATE" >> "$GITHUB_OUTPUT"
           pnpm hits:enumerate --date=$DATE
 
