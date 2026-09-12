@@ -20,7 +20,8 @@ import { resolve } from 'node:path';
 
 import { execFileSync } from 'node:child_process';
 
-import { Engine } from './engine.ts';
+// The engine is imported only where it boots: loading it needs the WASM
+// build, which the judge routine's sandbox does not have (--no-engine-check).
 import { checkAnagram, sameLetters } from './check.ts';
 import { alphagram, candidateId, hitId } from './ids.ts';
 import { parseIssueForm } from './submission.ts';
@@ -48,6 +49,7 @@ async function fromIssue(number: string): Promise<void> {
   const parsed = parseIssueForm(issue.body);
   if ('error' in parsed) throw new Error(`issue #${number}: ${parsed.error}`);
 
+  const { Engine } = await import('./engine.ts');
   const engine = await Engine.boot();
   const verdict = await checkAnagram(engine, parsed.input, parsed.words, parsed.tier);
   if (!verdict.ok) throw new Error(`issue #${number}: not an anagram: ${verdict.reason}`);
@@ -209,7 +211,7 @@ async function main(): Promise<void> {
   // the engine, so this guards against a garbled file, not a wrong search;
   // with --no-engine-check (a sandbox without the WASM build) the letters
   // are still compared and only the dictionary lookup is skipped.
-  const engine = has(argv, 'no-engine-check') ? null : await Engine.boot();
+  const engine = has(argv, 'no-engine-check') ? null : await (await import('./engine.ts')).Engine.boot();
   const verified: Verdict[] = [];
   for (const v of ok) {
     const row = batch.get(v.id)!;
