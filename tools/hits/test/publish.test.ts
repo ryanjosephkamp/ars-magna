@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildDataset, configs, publishable } from '../src/publish.ts';
+import { buildDataset, configs, publishRow, publishable } from '../src/publish.ts';
 import { hitSchema, type Hit } from '../src/schema.ts';
 
 const hit = (over: Partial<Hit>): Hit => ({
@@ -35,6 +35,12 @@ describe('publish', () => {
     expect(publishable(hits).map((h) => h.id)).toEqual(['dormitory:phrases:dirty-room', 'starwars:titles:stars-war']);
   });
 
+  it('fills a mined row\'s submitter with null and keeps a submitted one', () => {
+    expect(publishRow(hit({})).submitter).toBeNull();
+    expect(publishRow(hit({ submitter: 'seed' })).submitter).toBe('seed');
+    expect(Object.keys(publishRow(hit({})))).toEqual(Object.keys(publishRow(hit({ submitter: 'seed' }))));
+  });
+
   it('builds one config per category plus all, each holding only its own rows', () => {
     const built = configs(hits);
     expect(built.map((c) => c.name)).toEqual(['all', 'people', 'companies', 'products', 'titles', 'places', 'phrases']);
@@ -57,17 +63,29 @@ describe('publish', () => {
     expect(files).toEqual(['all.jsonl', 'people.jsonl', 'companies.jsonl', 'products.jsonl', 'titles.jsonl', 'places.jsonl', 'phrases.jsonl', 'README.md']);
 
     const validate = await hitSchema();
-    const all = (await readFile(join(out, 'all.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Hit);
+    const all = (await readFile(join(out, 'all.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(all).toHaveLength(2);
-    for (const row of all) expect(validate(row)).toBe(true);
+    // Every published row carries every field: a dataset reader infers one
+    // schema for the file and chokes on a key some rows lack.
+    for (const row of all) {
+      expect(Object.keys(row)).toContain('submitter');
+      const { submitter, ...rest } = row;
+      expect(validate(submitter === null ? rest : row)).toBe(true);
+    }
+    expect(all.map((r) => r['submitter'])).toEqual([null, null]);
     expect(await readFile(join(out, 'products.jsonl'), 'utf8')).toBe('');
 
     const card = await readFile(join(out, 'README.md'), 'utf8');
     expect(card).toContain('config_name: titles\n    data_files: titles.jsonl');
+    // An empty category keeps its line in the table but is not a config.
+    expect(card).not.toContain('config_name: products');
+    expect(card).not.toContain('config_name: people');
+    expect(card).toContain('| `products` | Products, software, devices, brands. | 0 |');
     expect(card).toContain('| `all` | Every published hit. | 2 |');
     expect(card).toContain('| `titles` |');
     expect(card).toContain('bbbbbbbbbbbb');
-    expect(card).toContain('load_dataset("someone/some-hits", "people")');
+    // The example loads the fullest category (ties go to the earlier one), so it works as printed.
+    expect(card).toContain('titles = load_dataset("someone/some-hits", "titles")');
     expect(card).toContain('- 2026-09-11: 2 rows across 6 categories');
 
     // A second build keeps the earlier changelog entry.

@@ -191,7 +191,14 @@ async function main(): Promise<void> {
       batch.set(row.id, row);
     }
   }
-  const raw = await readFile(resolve(dir, JUDGE_OUTPUT), 'utf8');
+  // An empty queue may have no answer file at all; that is the same as an
+  // empty one. A missing answer to a real queue is still an error.
+  let raw = '';
+  try {
+    raw = await readFile(resolve(dir, JUDGE_OUTPUT), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || batch.size > 0) throw error;
+  }
   const { parseVerdicts } = await import('./judge.ts');
   const verdicts = parseVerdicts(raw);
   const { version } = await rubric();
@@ -235,6 +242,7 @@ async function main(): Promise<void> {
     `# Ingest ${date}`,
     '',
     `Queue: ${dir}`,
+    ...(batch.size === 0 ? ['Nothing to judge: the queue was empty.'] : []),
     `Verdicts: ${verdicts.length} read · ${verified.length} valid · ${rejected.length} rejected`,
     `Hits: ${hits.length} at or above ${threshold} of 15 · ${added.length} new in data/hits.jsonl`,
     `Candidates moved to enumerated: ${moved}`,

@@ -7,10 +7,10 @@ import { describe, expect, it } from 'vitest';
 
 import { TAG_BIT as B } from '@ars-magna/engine';
 
-import { prefilterRow, reject, score, select, type RawRow } from '../src/prefilter.ts';
+import { prefilterRow, reject, score, select, settleEmpty, type RawRow } from '../src/prefilter.ts';
 import { batches, parseVerdicts, renderBatch, rubric, type Verdict } from '../src/judge.ts';
 import { buildHits, validateVerdicts } from '../src/ingest.ts';
-import { hitSchema } from '../src/schema.ts';
+import { hitSchema, type Candidate } from '../src/schema.ts';
 import type { Prefiltered } from '../src/prefilter.ts';
 
 const raw = (over: Partial<RawRow> = {}): RawRow => ({
@@ -77,6 +77,20 @@ describe('prefilter', () => {
     expect(capped.map((r) => r.candidate_id).sort()).toEqual(['dormitory:phrases', 'listen:phrases']);
     expect(capped[0]!.id).toBe('dormitory:phrases:dirty-room');
     expect(select(rows, 25, 3)).toHaveLength(3);
+  });
+
+  it('settles a candidate that ran and left nothing keepable, and only that one', () => {
+    const c = (id: string, status: Candidate['status'] = 'new', notes?: string): Candidate => ({
+      id, input: id.split(':')[0]!, category: 'phrases', source: 'manual', first_seen: '2026-09-11', status, ...(notes ? { notes } : {}),
+    });
+    const candidates = [c('empty:phrases'), c('kept:phrases'), c('notrun:phrases'), c('done:phrases', 'enumerated'), c('noted:phrases', 'new', 'Wikipedia: Noted (film)')];
+    const settled = settleEmpty(candidates, new Set(['empty:phrases', 'kept:phrases', 'done:phrases', 'noted:phrases']), new Set(['kept:phrases']), '2026-09-12');
+    expect(settled.map((x) => x.id)).toEqual(['empty:phrases', 'noted:phrases']);
+    expect(candidates.map((x) => x.status)).toEqual(['enumerated', 'new', 'new', 'enumerated', 'enumerated']);
+    expect(candidates[0]!.notes).toBe('nothing keepable 2026-09-12');
+    expect(candidates[4]!.notes).toBe('Wikipedia: Noted (film); nothing keepable 2026-09-12');
+    // A second pass changes nothing.
+    expect(settleEmpty(candidates, new Set(['empty:phrases']), new Set(), '2026-09-13')).toEqual([]);
   });
 });
 

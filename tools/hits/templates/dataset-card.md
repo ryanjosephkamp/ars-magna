@@ -27,9 +27,11 @@ Every row is a real anagram: the words use exactly the input's letters, checked 
 |---|---|---|
 {{SUBSET_TABLE}}
 
+A category with no rows yet is listed here but not offered as a config until it has one.
+
 ```python
 from datasets import load_dataset
-people = load_dataset("{{DATASET_ID}}", "people")
+{{EXAMPLE_CONFIG}} = load_dataset("{{DATASET_ID}}", "{{EXAMPLE_CONFIG}}")
 ```
 
 ## Fields
@@ -44,7 +46,7 @@ people = load_dataset("{{DATASET_ID}}", "people")
 | `letters` | The sorted letters the input and the anagram share. |
 | `prefilter_score` | The model-free score that put it in front of a judge (ordering, word frequency, length). |
 | `judge` | One entry per judge: model, rubric version, aptness, grammar and memorability (1–5 each), total, rationale, date. |
-| `submitter` | Who found it, when it was submitted rather than mined. |
+| `submitter` | Who found it, when it was submitted rather than mined; `null` for a mined hit. |
 | `added` | The date it entered the list. |
 | `dictionary` | The English OpenList revision it was verified against. |
 | `tier` | The smallest dictionary tier that contains every word: `common`, `standard` or `full`. |
