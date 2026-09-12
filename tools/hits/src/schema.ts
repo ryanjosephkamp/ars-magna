@@ -50,7 +50,8 @@ export type Judgement = {
 };
 
 export type Tier = 'common' | 'standard' | 'full';
-export type HitStatus = 'proposed' | 'accepted' | 'featured' | 'retired';
+export const HIT_STATUSES = ['proposed', 'accepted', 'featured', 'retired'] as const;
+export type HitStatus = (typeof HIT_STATUSES)[number];
 
 export type Hit = {
   id: string;

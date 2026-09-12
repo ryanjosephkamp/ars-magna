@@ -10,7 +10,8 @@
     "prefilter": "node --experimental-strip-types src/prefilter.ts",
     "judge": "node --experimental-strip-types src/judge.ts",
     "ingest": "node --experimental-strip-types src/ingest.ts",
-    "publish": "node --experimental-strip-types src/publish.ts"
+    "publish": "node --experimental-strip-types src/publish.ts",
+    "set": "node --experimental-strip-types src/set.ts"
   },
   "dependencies": {
     "@ars-magna/engine": "workspace:*",

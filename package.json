@@ -25,6 +25,7 @@
     "hits:judge": "pnpm --filter @ars-magna/hits run judge",
     "hits:ingest": "pnpm --filter @ars-magna/hits run ingest",
     "hits:publish": "pnpm --filter @ars-magna/hits run publish",
+    "hits:set": "pnpm --filter @ars-magna/hits run set",
     "wasm:build": "bash scripts/build-wasm.sh",
     "rust:test": "cargo test --workspace"
   },
