@@ -1,0 +1,27 @@
+{
+  "name": "@ars-magna/hits",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Greatest Hits pipeline: find inputs, enumerate, prefilter, judge, ingest, publish.",
+  "scripts": {
+    "fetch": "node --experimental-strip-types src/fetch.ts",
+    "enumerate": "node --experimental-strip-types src/enumerate.ts",
+    "prefilter": "node --experimental-strip-types src/prefilter.ts",
+    "judge": "node --experimental-strip-types src/judge.ts",
+    "ingest": "node --experimental-strip-types src/ingest.ts",
+    "publish": "node --experimental-strip-types src/publish.ts"
+  },
+  "dependencies": {
+    "@ars-magna/engine": "workspace:*",
+    "@huggingface/hub": "^2.17.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "exports": {
+    "./schema": "./src/schema.ts",
+    "./ids": "./src/ids.ts",
+    "./check": "./src/check.ts",
+    "./queue": "./src/queue.ts"
+  }
+}

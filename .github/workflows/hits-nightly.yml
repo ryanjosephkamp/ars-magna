@@ -1,0 +1,83 @@
+name: Hits nightly
+
+# The model-free half of the Greatest Hits pipeline, every night: find the
+# day's trending inputs, enumerate their anagrams with the Rust engine, keep
+# the few hundred worth judging, and commit that queue. The judging itself is
+# a Claude Code routine (see automation/judge-routine.md), which reads what
+# this job leaves behind and opens a pull request; nothing lands in the
+# dataset without a person merging it.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'New candidates to take from the trending feed'
+        default: '150'
+      max_rows:
+        description: 'Rows to keep for the judge'
+        default: '300'
+
+concurrency:
+  group: hits-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `anagram batch` is native Rust; the runner ships a toolchain and the
+      # cache keeps the build to seconds after the first night.
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p anagram-cli
+
+      - name: Find trending candidates
+        run: pnpm hits:fetch --limit=${{ github.event.inputs.limit || '150' }}
+
+      - name: Enumerate
+        id: enumerate
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          pnpm hits:enumerate --date=$DATE
+
+      - name: Prefilter
+        run: pnpm hits:prefilter --date=${{ steps.enumerate.outputs.date }} --max-rows=${{ github.event.inputs.max_rows || '300' }}
+
+      # The raw enumeration is millions of rows; it is kept for ninety days
+      # as an artifact rather than in git.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raw-${{ steps.enumerate.outputs.date }}
+          path: data/queue/${{ steps.enumerate.outputs.date }}/raw.jsonl
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Commit the queue
+        run: |
+          git config user.name "hits-nightly"
+          git config user.email "hits-nightly@users.noreply.github.com"
+          git add data/candidates.jsonl data/queue/${{ steps.enumerate.outputs.date }}/prefiltered.jsonl data/queue/${{ steps.enumerate.outputs.date }}/summary.json
+          if git diff --cached --quiet; then
+            echo "nothing new tonight"
+            exit 0
+          fi
+          ROWS=$(wc -l < data/queue/${{ steps.enumerate.outputs.date }}/prefiltered.jsonl | tr -d ' ')
+          git commit -m "Hits queue ${{ steps.enumerate.outputs.date }}: $ROWS rows for the judge"
+          git push

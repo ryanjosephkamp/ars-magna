@@ -3,7 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+    # A nightly queue commit changes data, not code.
+    paths-ignore:
+      - 'data/queue/**'
+      - 'data/candidates.jsonl'
   pull_request:
+    paths-ignore:
+      - 'data/queue/**'
+      - 'data/candidates.jsonl'
 
 # A newer push makes an in-flight run irrelevant.
 concurrency:

@@ -1,5 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -27,7 +31,7 @@ function precacheManifest(): Plugin {
       this.emitFile({
         type: 'asset',
         fileName: 'precache.json',
-        source: `${JSON.stringify({ files: ['/index.html', ...files] }, null, 2)}\n`,
+        source: `${JSON.stringify({ files: ['/index.html', '/hits.html', '/hits.json', ...files] }, null, 2)}\n`,
       });
     },
   };
@@ -75,6 +79,13 @@ export default defineConfig({
     // The dictionary artifacts in public/dict are content-hashed and served
     // pre-compressed; never inline them.
     assetsInlineLimit: 0,
+    // Two pages: the search and the Greatest Hits gallery.
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        hits: resolve(__dirname, 'hits.html'),
+      },
+    },
   },
   server: {
     port: 5173,

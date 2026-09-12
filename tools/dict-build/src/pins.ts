@@ -13,6 +13,21 @@ export type FilePin = {
   readonly sha256: string;
 };
 
+/**
+ * Where the pinned OpenList files live now that the Hub cannot serve them.
+ *
+ * The dataset's history was rewritten in August 2026 and revision `368bf0e4`
+ * stopped resolving on 11 September 2026 (HTTP 404). The two files that
+ * revision contained were kept, verified byte for byte against the sha256
+ * pins below, and attached to a GitHub release on this repository. `fetch.ts`
+ * tries the Hub first and falls back here on a 404 or any other failure; the
+ * hash check applies to both, so a tampered copy is refused either way.
+ */
+export const SOURCES_RELEASE = {
+  repo: 'ryanjosephkamp/ars-magna',
+  tag: 'openlist-368bf0e4',
+} as const;
+
 export const OPENLIST = {
   repo: 'ryanjosephkamp/english-openlist',
   rev: '368bf0e4460461c985fca8bde49e4062d56c1516',
@@ -59,10 +74,14 @@ export const WORDNET = {
   bytes: 16_358_468,
   sha256: '3f7d8be8ef6ecc7167d39b10d66954ec734280b5bdcd57f7d9eafe429d11c22a',
   /**
-   * Files pulled out of the archive; the rest is verb framesets and tag counts.
-   * The `.exc` files hold irregular inflections (`men` -> `man`, `bought` ->
-   * `buy`) and are what let a definition be found for the many OpenList entries
-   * that WordNet only stores in base form.
+   * Files pulled out of the archive; the rest is verb framesets. The `.exc`
+   * files hold irregular inflections (`men` -> `man`, `bought` -> `buy`) and
+   * are what let a definition be found for the many OpenList entries that
+   * WordNet only stores in base form. `index.sense` carries the corpus tag
+   * counts that rank a word's senses by how it is actually used; it was
+   * missing from this list for a month, during which a fresh clone could not
+   * build the dictionary at all — every build ran from a cache that already
+   * had it.
    */
   members: [
     'dict/data.noun',
@@ -73,6 +92,7 @@ export const WORDNET = {
     'dict/index.verb',
     'dict/index.adj',
     'dict/index.adv',
+    'dict/index.sense',
     'dict/noun.exc',
     'dict/verb.exc',
     'dict/adj.exc',
@@ -82,6 +102,12 @@ export const WORDNET = {
 
 export function openlistUrl(file: FilePin): string {
   return `https://huggingface.co/datasets/${OPENLIST.repo}/resolve/${OPENLIST.rev}/${file.path}`;
+}
+
+/** The durable copy of a pinned OpenList file, by its basename. */
+export function sourcesReleaseUrl(file: FilePin): string {
+  const name = file.path.split('/').pop() ?? file.path;
+  return `https://github.com/${SOURCES_RELEASE.repo}/releases/download/${SOURCES_RELEASE.tag}/${name}`;
 }
 
 export function frequencyUrl(): string {

@@ -18,6 +18,7 @@ import {
   WORDNET,
   frequencyUrl,
   openlistUrl,
+  sourcesReleaseUrl,
   type FilePin,
 } from './pins.ts';
 import {
@@ -51,11 +52,37 @@ async function alreadyGood(path: string, expectBytes: number, expectSha?: string
   }
 }
 
+/**
+ * Open `url`, or the first of `fallbacks` that answers when it does not.
+ *
+ * The pinned OpenList revision vanished from the Hub when the dataset's
+ * history was rewritten, so a primary that 404s is a real case, not a
+ * hypothetical. Every source is held to the same size and sha256 check
+ * afterwards, so a fallback cannot smuggle in different bytes.
+ */
+async function open(url: string, fallbacks: readonly string[]): Promise<Response> {
+  const failures: string[] = [];
+  for (const candidate of [url, ...fallbacks]) {
+    try {
+      const response = await fetch(candidate, { redirect: 'follow' });
+      if (response.ok && response.body) {
+        if (candidate !== url) console.log(`    primary unavailable; using ${candidate}`);
+        return response;
+      }
+      failures.push(`${candidate} -> HTTP ${response.status}`);
+    } catch (error) {
+      failures.push(`${candidate} -> ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  throw new Error(failures.join('\n  '));
+}
+
 async function download(
   url: string,
   dest: string,
   expectBytes: number,
   expectSha?: string,
+  fallbacks: readonly string[] = [],
 ): Promise<void> {
   const label = dest.split('/').pop();
 
@@ -67,10 +94,7 @@ async function download(
   console.log(`  ↓ ${label} — ${human(expectBytes)}`);
   await mkdir(dirname(dest), { recursive: true });
 
-  const response = await fetch(url, { redirect: 'follow' });
-  if (!response.ok || !response.body) {
-    throw new Error(`${url} -> HTTP ${response.status}`);
-  }
+  const response = await open(url, fallbacks);
 
   const hash = createHash('sha256');
   const partial = `${dest}.part`;
@@ -116,7 +140,7 @@ export async function fetchAll(): Promise<void> {
     [OPENLIST.files.meta, META_PATH],
   ];
   for (const [pin, dest] of files) {
-    await download(openlistUrl(pin), dest, pin.bytes, pin.sha256);
+    await download(openlistUrl(pin), dest, pin.bytes, pin.sha256, [sourcesReleaseUrl(pin)]);
   }
 
   await download(frequencyUrl(), FREQ_PATH, FREQUENCY.bytes);

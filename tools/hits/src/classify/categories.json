@@ -1,0 +1,61 @@
+{
+  "_comment": "Wikidata root classes per category. An item belongs to a category when its P31 (instance of) reaches one of these through P279* (subclass of). Kept deliberately narrow: Q43229 (organization) put political parties in companies and Q2996394 swept events into products, so neither is here. Grow the table from the unclassified tally the fetch prints.",
+  "precedence": [
+    "people",
+    "titles",
+    "places",
+    "companies",
+    "products"
+  ],
+  "roots": {
+    "people": {
+      "Q5": "human",
+      "Q215380": "musical group"
+    },
+    "companies": {
+      "Q4830453": "business",
+      "Q783794": "company",
+      "Q891723": "public company",
+      "Q6881511": "enterprise",
+      "Q476028": "association football club",
+      "Q15921555": "sports team"
+    },
+    "products": {
+      "Q2424752": "product",
+      "Q7397": "software",
+      "Q3231690": "automobile model",
+      "Q431289": "brand",
+      "Q1183543": "device",
+      "Q35127": "website"
+    },
+    "titles": {
+      "Q11424": "film",
+      "Q5398426": "television series",
+      "Q482994": "album",
+      "Q7889": "video game",
+      "Q571": "book",
+      "Q7725634": "literary work",
+      "Q15416": "television program",
+      "Q2431196": "audiovisual work",
+      "Q1667921": "novel series",
+      "Q18011172": "film project",
+      "Q1366112": "television season"
+    },
+    "places": {
+      "Q515": "city",
+      "Q6256": "country",
+      "Q3957": "town",
+      "Q1549591": "big city",
+      "Q486972": "human settlement",
+      "Q4989906": "monument",
+      "Q56061": "administrative territorial entity",
+      "Q82794": "geographic region",
+      "Q23442": "island"
+    }
+  },
+  "exclude": {
+    "Q1656682": "event",
+    "Q1190554": "occurrence",
+    "Q7278": "political party"
+  }
+}

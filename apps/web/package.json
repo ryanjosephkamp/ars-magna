@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "dev": "pnpm run hits && vite",
+    "build": "pnpm run hits && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "hits": "node --experimental-strip-types scripts/build-hits.ts"
   },
   "dependencies": {
     "@ars-magna/engine": "workspace:*",

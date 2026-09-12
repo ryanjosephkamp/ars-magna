@@ -53,6 +53,14 @@
 /defs/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 
+# The gallery's data and the per-hit pages are rebuilt on every deploy and
+# are not content-hashed; keep them fresh.
+/hits.json
+  Cache-Control: public, max-age=300, must-revalidate
+
+/hits/*
+  Cache-Control: public, max-age=300, must-revalidate
+
 # The service worker must be re-fetched, or a bad one can never be replaced.
 /sw.js
   Cache-Control: no-cache

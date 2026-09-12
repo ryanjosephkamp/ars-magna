@@ -19,6 +19,20 @@ const DICTIONARY_LINKS: Link[] = [
   },
 ];
 
+const HITS_LINKS: Link[] = [
+  { label: 'Greatest Hits', href: '/hits.html', note: 'the ones worth keeping' },
+  {
+    label: 'Dataset',
+    href: 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits',
+    note: 'on Hugging Face',
+  },
+  {
+    label: 'Submit',
+    href: 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=submit-anagram.yml',
+    note: 'found a good one?',
+  },
+];
+
 const AUTHOR_LINKS: Link[] = [
   { label: 'Website', href: 'https://ryanjosephkamp.github.io', note: 'ryanjosephkamp.github.io' },
   { label: 'GitHub', href: 'https://github.com/ryanjosephkamp/', note: 'other projects' },
@@ -31,11 +45,12 @@ const AUTHOR_LINKS: Link[] = [
  * strip of chrome bolted underneath it.
  */
 function LinkButton({ link }: { link: Link }) {
+  const external = /^https?:/.test(link.href);
   return (
     <a
       href={link.href}
-      target="_blank"
-      rel="noopener noreferrer"
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
       className="group flex items-baseline gap-2 rounded-[3px] border border-rule bg-surface px-3
                  py-1.5 text-sm text-ink-soft transition-colors duration-150 hover:border-accent
                  hover:bg-accent-wash hover:text-accent"
@@ -74,6 +89,7 @@ export function SiteFooter({
   return (
     <footer className="mt-20 border-t border-rule-strong pt-8">
       <div className="flex flex-col gap-7">
+        <Group title="Greatest Hits" links={HITS_LINKS} />
         <Group title="English OpenList" links={DICTIONARY_LINKS} />
         <Group title="Ryan Kamp" links={AUTHOR_LINKS} />
       </div>

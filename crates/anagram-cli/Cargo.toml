@@ -7,6 +7,10 @@ description = "Native driver for the Ars Magna engine: solving, counting, golden
 
 [dependencies]
 anagram-core.workspace = true
+# For `batch` and `check`, which read and write JSONL. The core crate stays
+# dependency-free; only the driver takes these on.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [[bin]]
 name = "anagram"

@@ -20,6 +20,12 @@
  */
 const CACHE = 'ars-magna-v1';
 const SHELL = '/index.html';
+const HITS_SHELL = '/hits.html';
+
+/** Which page a navigation belongs to: the gallery and its per-hit pages, or the search. */
+function shellFor(pathname) {
+  return pathname === HITS_SHELL || pathname.startsWith('/hits/') ? HITS_SHELL : SHELL;
+}
 
 self.addEventListener('install', () => {
   // Take over immediately; there is no in-flight state worth preserving.
@@ -53,16 +59,20 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     // Network-first for the page itself, so a deploy is picked up on the next
-    // load rather than being pinned until the cache is cleared.
+    // load rather than being pinned until the cache is cleared. Offline, a
+    // per-hit page falls back to the gallery shell, which reads the hash.
+    const shell = shellFor(url.pathname);
     event.respondWith(
       (async () => {
         try {
           const fresh = await fetch(request);
-          const cache = await caches.open(CACHE);
-          void cache.put(SHELL, fresh.clone());
+          if (url.pathname === shell) {
+            const cache = await caches.open(CACHE);
+            void cache.put(shell, fresh.clone());
+          }
           return fresh;
         } catch {
-          const cached = await caches.match(SHELL);
+          const cached = await caches.match(shell);
           return cached ?? Response.error();
         }
       })(),

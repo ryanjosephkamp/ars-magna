@@ -1,0 +1,58 @@
+name: Submit an anagram
+description: Found a great one? Send it in for the Greatest Hits.
+title: "Anagram: "
+labels: ["submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. A check runs automatically: the phrase has to use exactly the input's letters, and every word has to be in the dictionary tier you pick. A person then decides whether it goes in.
+  - type: input
+    id: input
+    attributes:
+      label: Input
+      description: The name, title, place or phrase, as a person would write it.
+      placeholder: Dormitory
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - people
+        - companies
+        - products
+        - titles
+        - places
+        - phrases
+    validations:
+      required: true
+  - type: input
+    id: anagram
+    attributes:
+      label: Anagram
+      description: The words, separated by spaces, in the order that reads best.
+      placeholder: dirty room
+    validations:
+      required: true
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Dictionary tier
+      description: Common is everyday words; Standard is every attested word; Full includes machine-derived forms.
+      options:
+        - common
+        - standard
+        - full
+      default: 1
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is good
+      description: One or two lines on what the anagram says about the input.
+  - type: input
+    id: credit
+    attributes:
+      label: Credit
+      description: How you would like to be named in the dataset, if at all.

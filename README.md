@@ -97,6 +97,8 @@ into view and then focuses it.
 ```bash
 pnpm install
 pnpm dict:fetch     # download pinned sources into .cache/ (~330 MB, once)
+                    # the pinned OpenList revision is gone from the Hub; this
+                    # falls back to the copy on this repo's openlist-368bf0e4 release
 pnpm dict:build     # emit apps/web/public/dict/ artifacts
 pnpm dict:shards    # emit apps/web/public/defs/ definitions (~18 MB, committed)
 pnpm wasm:build     # compile the Rust engine to WASM
