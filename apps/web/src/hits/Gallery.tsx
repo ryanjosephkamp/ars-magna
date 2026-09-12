@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCopy } from '../lib/useCopy.ts';
+import { ShareActions } from '../components/ShareActions.tsx';
 import { CATEGORIES, CATEGORY_LABEL, pickOfTheDay, type Category, type PublicHit } from './build.ts';
 
 type Loaded = { state: 'loading' } | { state: 'ready'; hits: PublicHit[] } | { state: 'failed' };
@@ -17,6 +18,8 @@ export function Gallery() {
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState<string | null>(() => window.location.hash.slice(1) || null);
+  // Which hit's share actions are open: one at a time, by id.
+  const [sharing, setSharing] = useState<string | null>(null);
   const { copied, copy } = useCopy();
 
   useEffect(() => {
@@ -56,6 +59,8 @@ export function Gallery() {
   }, [hits]);
 
   const shareUrl = (hit: PublicHit) => `${window.location.origin}/hits/${hit.slug}/`;
+  const shareable = (hit: PublicHit) => ({ input: hit.input, phrase: hit.display, url: shareUrl(hit), total: null });
+  const toggleShare = (id: string) => setSharing((open) => (open === id ? null : id));
 
   return (
     <div className="min-h-dvh">
@@ -94,6 +99,10 @@ export function Gallery() {
                   {today.display}
                 </p>
                 {today.rationale && <p className="mt-2 max-w-prose text-sm text-ink-soft">{today.rationale}</p>}
+                <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px]">
+                  <RowAction label="Share" active={sharing === 'today'} onClick={() => toggleShare('today')} always />
+                  {sharing === 'today' && <ShareActions item={shareable(today)} id="today" copied={copied} onCopy={copy} />}
+                </div>
               </section>
             )}
 
@@ -161,14 +170,18 @@ export function Gallery() {
                       </p>
                       <span className="flex shrink-0 items-baseline gap-3 font-mono text-[11px]">
                         <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
-                        <RowAction label={copied === hit.id ? 'Copied' : 'Copy'} active={copied === hit.id} onClick={() => copy(hit.id, `${hit.input} → ${hit.display}`)} />
-                        <RowAction label={copied === `${hit.id}:link` ? 'Link copied' : 'Link'} active={copied === `${hit.id}:link`} onClick={() => copy(`${hit.id}:link`, shareUrl(hit))} />
+                        <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
                         <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
                           Every anagram
                         </a>
                       </span>
                     </div>
                     {hit.rationale && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.rationale}</p>}
+                    {sharing === hit.id && (
+                      <div className="mt-2">
+                        <ShareActions item={shareable(hit)} id={hit.id} copied={copied} onCopy={copy} />
+                      </div>
+                    )}
                     {(hit.submitter || hit.featured) && (
                       <p className="mt-1 font-mono text-[11px] text-ink-faint">
                         {hit.featured && 'featured'}
@@ -202,13 +215,24 @@ export function Gallery() {
   );
 }
 
-function RowAction({ label, active, onClick }: { label: string; active: boolean; onClick(): void }) {
+function RowAction({
+  label,
+  active,
+  onClick,
+  always = false,
+}: {
+  label: string;
+  active: boolean;
+  onClick(): void;
+  /** Visible without hover: for the one action outside a hoverable row. */
+  always?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={`transition-opacity duration-150 hover:text-accent focus-visible:opacity-100 ${
-        active ? 'text-accent opacity-100' : 'text-ink-faint md:opacity-0 md:group-hover:opacity-100'
+        active ? 'text-accent opacity-100' : always ? 'text-ink-soft' : 'text-ink-faint md:opacity-0 md:group-hover:opacity-100'
       }`}
     >
       {label}

@@ -126,3 +126,22 @@ export function orderings(
 
   return out;
 }
+
+/**
+ * The ordering after `current` in the ranked list, wrapping at the end, so one
+ * control can walk every arrangement the panel would show. When `current` is
+ * not in the list (a link carried an order the cap cut off) the walk starts
+ * from the front.
+ */
+export function nextOrdering(
+  words: readonly string[],
+  current: readonly string[],
+  limit: number,
+  masks?: readonly number[],
+): string[] {
+  const list = orderings(words, limit, masks);
+  if (list.length === 0) return [...current];
+  const phrase = current.join(' ');
+  const index = list.findIndex((row) => row.join(' ') === phrase);
+  return [...list[(index + 1) % list.length]!];
+}

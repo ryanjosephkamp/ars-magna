@@ -25,6 +25,8 @@ const KEY = {
   minWordLen: 'm',
   maxWords: 'w',
   mustInclude: 'i',
+  /** Phrases kept at the top: a shared anagram in the order the sharer chose. */
+  kept: 'p',
 } as const;
 
 function clampInt(raw: string | null, min: number, max: number, fallback: number): number {
@@ -107,5 +109,58 @@ export function syncUrl(query: Query): void {
 /** The full URL for the current query, for copying and sharing. */
 export function shareUrl(query: Query): string {
   const encoded = encodeQuery(query);
+  return `${window.location.origin}${window.location.pathname}${encoded ? `#${encoded}` : ''}`;
+}
+
+/**
+ * A phrase as the kept list holds it: each word folded the way the engine
+ * folds the query, single spaces between. `Dirty  Room` and `dirty room` are
+ * the same kept phrase.
+ */
+export function cleanPhrase(phrase: string): string {
+  return phrase
+    .split(/\s+/)
+    .map(normalizeLetters)
+    .filter((word) => word.length > 0)
+    .join(' ');
+}
+
+/** The query plus phrases to keep, for a link to one anagram. */
+export function encodeShared(query: Query, kept: readonly string[]): string {
+  const base = encodeQuery(query);
+  const phrases = kept.map(cleanPhrase).filter((phrase) => phrase.length > 0);
+  if (phrases.length === 0) return base;
+  const params = new URLSearchParams([[KEY.kept, phrases.join(',')]]);
+  const encoded = params.toString().replace(/\+/g, '%20');
+  return base ? `${base}&${encoded}` : encoded;
+}
+
+function sortedLetters(letters: string): string {
+  return [...letters].sort().join('');
+}
+
+/**
+ * The kept phrases in a hash that really are anagrams of `input`, in the
+ * order given and without repeats. Anything else is dropped: a link cannot
+ * make the page show a phrase the letters do not spell.
+ */
+export function keptPhrases(hash: string, input: string): string[] {
+  const raw = new URLSearchParams(hash.replace(/^#/, '')).get(KEY.kept);
+  if (!raw) return [];
+  const target = sortedLetters(normalizeLetters(input));
+  if (target.length === 0) return [];
+  const out: string[] = [];
+  for (const item of raw.split(',')) {
+    const phrase = cleanPhrase(item);
+    if (phrase.length === 0 || out.includes(phrase)) continue;
+    if (sortedLetters(phrase.replace(/ /g, '')) !== target) continue;
+    out.push(phrase);
+  }
+  return out;
+}
+
+/** The full URL for one anagram of the current query, kept at the top in this order. */
+export function shareRowUrl(query: Query, phrase: string): string {
+  const encoded = encodeShared(query, [phrase]);
   return `${window.location.origin}${window.location.pathname}${encoded ? `#${encoded}` : ''}`;
 }

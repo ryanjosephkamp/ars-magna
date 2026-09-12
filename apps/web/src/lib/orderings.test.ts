@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countOrderings, orderings } from './orderings.ts';
+import { countOrderings, nextOrdering, orderings } from './orderings.ts';
 
 const phrases = (rows: string[][]) => rows.map((row) => row.join(' '));
 
@@ -94,5 +94,44 @@ describe('orderings', () => {
     expect(orderings([], 10)).toEqual([]);
     expect(orderings(['solo'], 10)).toEqual([['solo']]);
     expect(orderings(['a', 'b'], 0)).toEqual([]);
+  });
+});
+
+describe('nextOrdering', () => {
+  it('walks every ordering once and wraps back to the first', () => {
+    const words = ['moon', 'star', 'er'];
+    const seen: string[] = [];
+    let current: readonly string[] = words;
+    for (let i = 0; i < countOrderings(words); i++) {
+      current = nextOrdering(words, current, 48);
+      seen.push(current.join(' '));
+    }
+    expect(new Set(seen).size).toBe(6);
+    expect(seen.at(-1)).toBe(words.join(' '));
+    expect(seen.sort()).toEqual(phrases(orderings(words, 48)).sort());
+  });
+
+  it('starts from the front when the current order is not in the list', () => {
+    const words = ['f', 'e', 'd', 'c', 'b', 'a'];
+    const list = orderings(words, 3);
+    // `b a c d e f` is a real arrangement but not among the first three.
+    expect(phrases(list)).not.toContain('b a c d e f');
+    expect(nextOrdering(words, ['b', 'a', 'c', 'd', 'e', 'f'], 3)).toEqual(list[0]);
+  });
+
+  it('follows the ranked order when masks are given, and skips nothing', () => {
+    const words = ['dirty', 'room'];
+    const masks = [1 << 4, 1 << 6];
+    const first = nextOrdering(words, words, 48, masks);
+    const second = nextOrdering(words, first, 48, masks);
+    expect(first).toEqual(['room', 'dirty']);
+    expect(second).toEqual(['dirty', 'room']);
+  });
+
+  it('is a copy, never the row itself', () => {
+    const words = ['solo'];
+    const next = nextOrdering(words, words, 48);
+    expect(next).toEqual(['solo']);
+    expect(next).not.toBe(words);
   });
 });
