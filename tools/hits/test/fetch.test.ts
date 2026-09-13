@@ -10,7 +10,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cleanTitle, isJunk } from '../src/classify/junk.ts';
-import { buildQuery, categoryTable, classifyTitles, interpret } from '../src/classify/wikidata.ts';
+import { MAX_SUBJECTS, buildQuery, categoryTable, classifyTitles, interpret, subjectSlug } from '../src/classify/wikidata.ts';
 import { reclassify, runFetch, titleOf, toCandidates } from '../src/fetch.ts';
 import { previousDay, wikipediaTop } from '../src/sources/wikipedia-top.ts';
 import { USER_AGENT } from '../src/sources/source.ts';
@@ -107,6 +107,41 @@ describe('wikidata', () => {
     expect(interpret(['y'], [b('y', 'Q7397', 'Q7397'), b('y', 'Q1656682', 'Q1656682')], table)[0]!.category).toBeNull();
     expect(buildQuery(['a "quoted" title'], table)).toContain('"a \\"quoted\\" title"@en');
   });
+
+  it('reads subjects from a recorded answer: occupation for a person, industry for a company, genre for a novel', async () => {
+    const table = await categoryTable();
+    const recorded = JSON.parse(await fixture('sparql-subjects-2026-09-13.json')) as { results: { bindings: Parameters<typeof interpret>[1] } };
+    const titles = ['Ben Shelton', 'Boeing', 'Dune (novel)'];
+    const by = new Map(interpret(titles, recorded.results.bindings, table).map((c) => [c.title, c]));
+    expect(by.get('Ben Shelton')).toMatchObject({ category: 'people', subjects: ['tennis-player'] });
+    expect(by.get('Boeing')).toMatchObject({
+      category: 'companies',
+      subjects: ['aerospace-industry', 'aircraft-construction', 'aircraft-industry', 'space-based-economy', 'space-industry', 'weapons-industry'],
+    });
+    expect(by.get('Dune (novel)')!.subjects).toEqual(['adventure-fiction', 'planetary-romance', 'science-fiction', 'social-science-fiction', 'soft-science-fiction']);
+  });
+
+  it('reads occupation, industry and genre labels as subject slugs', async () => {
+    const table = await categoryTable();
+    const b = (label?: string) => ({
+      title: { value: 'x' },
+      item: { value: 'http://www.wikidata.org/entity/Q1' },
+      class: { value: 'http://www.wikidata.org/entity/Q5' },
+      ...(label ? { subjectLabel: { value: label } } : {}),
+    });
+    const [c] = interpret(['x'], [b('tennis player'), b('Science fiction film'), b('tennis player'), b(), b('Café owner'), b('3D animation')], table);
+    expect(c!.subjects).toEqual(['cafe-owner', 'science-fiction-film', 'tennis-player']);
+    expect(interpret(['y'], [], table)[0]!.subjects).toEqual([]);
+    const many = interpret(['x'], 'abcdefghijkl'.split('').map((l) => b(`${l} job`)), table)[0]!;
+    expect(many.subjects).toHaveLength(MAX_SUBJECTS);
+    expect(subjectSlug('  --Aérospace   industry!  ')).toBe('aerospace-industry');
+    expect(buildQuery(['x'], table)).toContain('wdt:P106|wdt:P452|wdt:P136');
+
+    // A classified title carries its subjects onto the candidate.
+    const [candidate] = toCandidates([{ title: 'x', source: 's', weight: 1 }], new Map([['x', { ...c!, category: 'people' as const }]]), new Map(), '2026-09-13');
+    expect(candidate!.subjects).toEqual(['cafe-owner', 'science-fiction-film', 'tennis-player']);
+    expect((await candidateSchema())(candidate)).toBe(true);
+  });
 });
 
 describe('fetch', () => {
@@ -150,14 +185,15 @@ describe('reclassify', () => {
     expect(titleOf(candidates[1]!)).toBe('Sabah FK (Azerbaijan)');
     expect(titleOf(candidates[0]!)).toBe('YouTube');
     const classified = new Map([
-      ['YouTube', { title: 'YouTube', qid: 'Q866', classes: ['Q35127'], category: 'products' as const }],
-      ['Sabah FK (Azerbaijan)', { title: 'Sabah FK (Azerbaijan)', qid: 'Q43082535', classes: ['Q476028'], category: 'companies' as const }],
-      ['Houthis', { title: 'Houthis', qid: 'Q3042087', classes: ['Q2738074'], category: null }],
+      ['YouTube', { title: 'YouTube', qid: 'Q866', classes: ['Q35127'], category: 'products' as const, subjects: ['online-video-platform'] }],
+      ['Sabah FK (Azerbaijan)', { title: 'Sabah FK (Azerbaijan)', qid: 'Q43082535', classes: ['Q476028'], category: 'companies' as const, subjects: [] }],
+      ['Houthis', { title: 'Houthis', qid: 'Q3042087', classes: ['Q2738074'], category: null, subjects: [] }],
     ]);
     const { candidates: out, moved } = reclassify(candidates, classified);
     expect(moved.map((m) => m.id)).toEqual(['youtube:products', 'sabahfk:companies']);
     expect(out.map((m) => m.id)).toEqual(['youtube:products', 'sabahfk:companies', 'houthis:phrases', 'dolly:people']);
-    expect(out[0]).toMatchObject({ category: 'products', status: 'new', wikidata_qid: 'Q866', source: 'trending' });
+    expect(out[0]).toMatchObject({ category: 'products', status: 'new', wikidata_qid: 'Q866', source: 'trending', subjects: ['online-video-platform'] });
+    expect(out[1]!.subjects).toBeUndefined();
     expect(out.filter((m) => m.id === 'sabahfk:companies')).toHaveLength(1);
   });
 });

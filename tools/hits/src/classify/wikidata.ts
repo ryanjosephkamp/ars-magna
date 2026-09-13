@@ -42,13 +42,39 @@ export type Classification = {
   /** P31 classes seen, for the unclassified tally. */
   classes: string[];
   category: Category | null;
+  /** Occupation, industry and genre labels as slugs, sorted: actor, airline, science-fiction-film. */
+  subjects: string[];
 };
 
-type Binding = { title: { value: string }; item: { value: string }; class: { value: string }; root?: { value: string } };
+type Binding = {
+  title: { value: string };
+  item: { value: string };
+  class: { value: string };
+  root?: { value: string };
+  subjectLabel?: { value: string };
+};
 type SparqlResult = { results: { bindings: Binding[] } };
+
+/** Most subjects kept for one title; a prolific person can list dozens of occupations. */
+export const MAX_SUBJECTS = 8;
 
 function qid(uri: string): string {
   return uri.slice(uri.lastIndexOf('/') + 1);
+}
+
+/**
+ * A Wikidata label as a subject slug: "science fiction film" becomes
+ * "science-fiction-film". A label that does not start with a letter, such
+ * as "3D animation", gives none.
+ */
+export function subjectSlug(label: string): string | null {
+  const slug = label
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return /^[a-z]/.test(slug) ? slug : null;
 }
 
 export function buildQuery(titles: readonly string[], table: CategoryTable): string {
@@ -56,11 +82,13 @@ export function buildQuery(titles: readonly string[], table: CategoryTable): str
   const roots = [...Object.values(table.roots).flatMap((r) => Object.keys(r)), ...Object.keys(table.exclude)]
     .map((q) => `wd:${q}`)
     .join(' ');
-  return `SELECT ?title ?item ?class ?root WHERE {
+  // P106 occupation (people), P452 industry (companies), P136 genre (titles).
+  return `SELECT ?title ?item ?class ?root ?subjectLabel WHERE {
   VALUES ?title { ${values} }
   ?sitelink schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> ; schema:name ?title .
   ?item wdt:P31 ?class .
   OPTIONAL { VALUES ?root { ${roots} } ?class wdt:P279* ?root . }
+  OPTIONAL { ?item wdt:P106|wdt:P452|wdt:P136 ?subject . ?subject rdfs:label ?subjectLabel . FILTER(LANG(?subjectLabel) = "en") }
 }`;
 }
 
@@ -73,23 +101,33 @@ export function interpret(titles: readonly string[], bindings: readonly Binding[
   }
   for (const q of Object.keys(table.exclude)) rootCategory.set(q, 'exclude');
 
-  const byTitle = new Map<string, { qid: string; classes: Set<string>; matched: Set<Category>; excluded: boolean }>();
+  type Entry = { qid: string; classes: Set<string>; matched: Set<Category>; excluded: boolean; subjects: Set<string> };
+  const byTitle = new Map<string, Entry>();
   for (const b of bindings) {
-    const entry = byTitle.get(b.title.value) ?? { qid: qid(b.item.value), classes: new Set(), matched: new Set(), excluded: false };
+    const entry: Entry = byTitle.get(b.title.value) ?? {
+      qid: qid(b.item.value),
+      classes: new Set(),
+      matched: new Set(),
+      excluded: false,
+      subjects: new Set(),
+    };
     entry.classes.add(qid(b.class.value));
     if (b.root) {
       const hit = rootCategory.get(qid(b.root.value));
       if (hit === 'exclude') entry.excluded = true;
       else if (hit) entry.matched.add(hit);
     }
+    const slug = b.subjectLabel ? subjectSlug(b.subjectLabel.value) : null;
+    if (slug) entry.subjects.add(slug);
     byTitle.set(b.title.value, entry);
   }
 
   return titles.map((title) => {
     const entry = byTitle.get(title);
-    if (!entry) return { title, qid: null, classes: [], category: null };
+    if (!entry) return { title, qid: null, classes: [], category: null, subjects: [] };
     const category = entry.excluded ? null : (table.precedence.find((c) => entry.matched.has(c)) ?? null);
-    return { title, qid: entry.qid, classes: [...entry.classes], category };
+    const subjects = [...entry.subjects].sort().slice(0, MAX_SUBJECTS);
+    return { title, qid: entry.qid, classes: [...entry.classes], category, subjects };
   });
 }
 

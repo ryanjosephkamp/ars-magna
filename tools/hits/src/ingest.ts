@@ -32,7 +32,7 @@ import { alphagram, candidateId, hitId } from './ids.ts';
 import { parseIssueForm } from './submission.ts';
 import { isV2Verdict, rubric, type Verdict, type VerdictV1, type VerdictV2 } from './judge.ts';
 import type { Prefiltered } from './prefilter.ts';
-import { INGEST_REPORT, JUDGE_OUTPUT, PREFILTERED, flag, has, pickQueue } from './queue.ts';
+import { INGEST_REPORT, JUDGE_OUTPUT, flag, has, pickQueue, readJudgedRows } from './queue.ts';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
@@ -52,7 +52,7 @@ import {
   type JudgementV2,
   type Tone,
 } from './schema.ts';
-import { SETTINGS_VERSION, addRun, queueName } from './settings.ts';
+import { addRun, queueName, queueSettings } from './settings.ts';
 import { assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
 
 async function fromIssue(number: string): Promise<void> {
@@ -205,6 +205,8 @@ export type IngestOptions = {
    * them: they are not placed again, and they do not use a second slot.
    */
   existing?: ReadonlySet<string>;
+  /** Each candidate's subject slugs (from Wikidata or by hand), added to its hits as subject: tags. */
+  subjects?: ReadonlyMap<string, readonly string[]>;
 };
 
 /** Where a written hit came from: a v2 shelf, an alternate, or the v1 threshold. */
@@ -240,12 +242,12 @@ export function hitFromRow(
   return hit;
 }
 
-function tagsFor(best: JudgementV2, alternate: boolean): string[] {
+function tagsFor(best: JudgementV2, alternate: boolean, candidateSubjects: readonly string[] = []): string[] {
   return [
     ...(best.relation === 5 ? ['greatest-candidate'] : []),
     ...(alternate ? ['alternate'] : []),
     ...best.tone.map((t) => `tone:${t}`),
-    ...best.subjects.map((s) => `subject:${s}`),
+    ...[...new Set([...best.subjects, ...candidateSubjects])].map((s) => `subject:${s}`),
   ];
 }
 
@@ -295,12 +297,13 @@ export function assessBatch(
 
   for (const [candidate, entries] of byCandidate) {
     const shelved = shelve(entries, (e) => e.scores, (e) => e.row.id, options.taken?.get(candidate) ?? 0);
+    const subjects = options.subjects?.get(candidate);
     for (const e of shelved.accepted) {
       const placement = assess(e.scores) as 'interesting' | 'stretch';
-      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'accepted', tagsFor(e.best, false), e.best.justification), placement });
+      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'accepted', tagsFor(e.best, false, subjects), e.best.justification), placement });
     }
     for (const e of shelved.alternates) {
-      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'proposed', tagsFor(e.best, true), e.best.justification), placement: 'alternate' });
+      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'proposed', tagsFor(e.best, true, subjects), e.best.justification), placement: 'alternate' });
     }
     for (const e of shelved.near) {
       near.push({ id: e.row.id, input: e.row.input, display: e.row.display, ...e.scores, rationale: e.best.rationale });
@@ -444,13 +447,8 @@ async function main(): Promise<void> {
   const threshold = Number(flag(argv, 'threshold') ?? DEFAULT_THRESHOLD);
   const date = today();
 
-  const batch = new Map<string, Prefiltered>();
-  for (const line of (await readFile(resolve(dir, PREFILTERED), 'utf8')).split('\n')) {
-    if (line.trim()) {
-      const row = JSON.parse(line) as Prefiltered;
-      batch.set(row.id, row);
-    }
-  }
+  // The rows the judge saw: screened.jsonl for a screened queue, else prefiltered.jsonl.
+  const batch = new Map<string, Prefiltered>((await readJudgedRows(dir)).map((row) => [row.id, row]));
   // An empty queue may have no answer file at all; that is the same as an
   // empty one. A missing answer to a real queue is still an error.
   let raw = '';
@@ -482,6 +480,8 @@ async function main(): Promise<void> {
     else rejected.push({ id: v.id, reason: `not an anagram: ${verdict.reason}` });
   }
 
+  const cv = await candidateSchema();
+  const candidates = await readJsonl(CANDIDATES_PATH, cv);
   const hitValidator = await hitSchema();
   const known = await readJsonl(HITS_PATH, hitValidator);
   const assessed = assessBatch(batch, verified, {
@@ -492,6 +492,7 @@ async function main(): Promise<void> {
     dictionary: await dictionaryPin(),
     taken: takenCounts(known),
     existing: new Set(known.map((h) => h.id)),
+    subjects: new Map(candidates.flatMap((c) => (c.subjects?.length ? [[c.id, c.subjects] as const] : []))),
   });
   const added = await appendJsonl(HITS_PATH, assessed.hits.map((p) => p.hit), hitValidator);
 
@@ -499,9 +500,7 @@ async function main(): Promise<void> {
   // the queue and the versions they went through.
   const rubricKind = verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2';
   const judgedCandidates = new Set([...batch.values()].map((r) => r.candidate_id));
-  const cv = await candidateSchema();
-  const candidates = await readJsonl(CANDIDATES_PATH, cv);
-  const run = { queue: queueName(dir), settings: SETTINGS_VERSION, rubric: rubricKind, date };
+  const run = { queue: queueName(dir), settings: await queueSettings(dir), rubric: rubricKind, date };
   let moved = 0;
   for (const c of candidates) {
     if (!judgedCandidates.has(c.id)) continue;

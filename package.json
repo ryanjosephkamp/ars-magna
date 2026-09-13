@@ -22,6 +22,7 @@
     "hits:fetch": "pnpm --filter @ars-magna/hits run fetch",
     "hits:enumerate": "pnpm --filter @ars-magna/hits run enumerate",
     "hits:prefilter": "pnpm --filter @ars-magna/hits run prefilter",
+    "hits:screen": "pnpm --filter @ars-magna/hits run screen",
     "hits:judge": "pnpm --filter @ars-magna/hits run judge",
     "hits:ingest": "pnpm --filter @ars-magna/hits run ingest",
     "hits:publish": "pnpm --filter @ars-magna/hits run publish",

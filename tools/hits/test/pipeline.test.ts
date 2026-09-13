@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TAG_BIT as B } from '@ars-magna/engine';
 
-import { prefilterRow, reject, score, select, settleEmpty, type RawRow } from '../src/prefilter.ts';
+import { perInputFlag, prefilterRow, reject, score, screenOrder, select, settleEmpty, type RawRow } from '../src/prefilter.ts';
 import { batches, parseVerdicts, renderBatch, rubric, type Verdict } from '../src/judge.ts';
 import { assessBatch, buildHits, renderReport, takenCounts, validateVerdicts } from '../src/ingest.ts';
 import type { VerdictV2 } from '../src/judge.ts';
@@ -32,9 +32,12 @@ const raw = (over: Partial<RawRow> = {}): RawRow => ({
 
 describe('prefilter', () => {
   it('names the rule that drops a row', () => {
+    const common = (n: number) => ({ zipf: Array(n).fill(1), tiers: Array(n).fill('common'), pos: Array(n).fill(0) });
     expect(reject(raw())).toBeNull();
-    expect(reject(raw({ words: ['a', 'b', 'c', 'd', 'e'], zipf: [1, 1, 1, 1, 1], tiers: ['common', 'common', 'common', 'common', 'common'], pos: [0, 0, 0, 0, 0] }))).toBe('word count');
-    expect(reject(raw({ words: ['dirty', 'ro', 'om'], zipf: [1, 1, 1], tiers: ['common', 'common', 'common'], pos: [0, 0, 0] }))).toBe('short word');
+    expect(reject(raw({ words: ['aaa', 'bbb', 'ccc', 'ddd', 'eee', 'fff'], ...common(6) }))).toBe('word count');
+    expect(reject(raw({ input: 'abcdeabcdeabcde', words: ['bca', 'edc', 'bae', 'dcb', 'aed'], ...common(5) }))).toBeNull();
+    expect(reject(raw({ input: 'abcdeabcdeabcde', words: ['cde', 'abc', 'eab', 'dea', 'bcd'], ...common(5) }))).toBe('identity');
+    expect(reject(raw({ words: ['dirty', 'ro', 'om'], ...common(3) }))).toBe('short word');
     expect(reject(raw({ words: ['papa', 'papa'], zipf: [1, 1], tiers: ['common', 'common'], pos: [0, 0] }))).toBe('repeated word');
     expect(reject(raw({ tiers: ['common', 'full'] }))).toBe('rare word');
     expect(reject(raw({ tiers: ['common', 'standard'] }))).toBe('rare word');
@@ -43,6 +46,14 @@ describe('prefilter', () => {
     expect(reject(raw({ input: 'Star Wars', words: ['wars', 'star'], pos: [0, 0] }))).toBe('identity');
     expect(reject(raw({ input: 'Star Wars', words: ['stars', 'war'], pos: [0, 0] }))).toBeNull();
     expect(reject(raw({ input: 'The Godfather', words: ['father', 'the', 'god'], zipf: [1, 1, 1], tiers: ['common', 'common', 'common'], pos: [0, 0, 0] }))).toBe('identity');
+  });
+
+  it('lets a short word through only when the allowlist names it', () => {
+    const row = raw({ id: 'ashoplifter:phrases', input: 'A shoplifter', words: ['has', 'to', 'pilfer'], zipf: [150, 170, 60], tiers: ['common', 'common', 'common'], pos: [0, 0, 0] });
+    expect(reject(row)).toBe('short word');
+    expect(reject(row, new Set(['to']))).toBeNull();
+    expect(reject(raw({ ...row, words: ['has', 'ot', 'pilfer'] }), new Set(['to']))).toBe('short word');
+    expect(prefilterRow(row, new Set(['to']))!.id).toBe('ashoplifter:phrases:has-pilfer-to');
   });
 
   it('orders the words the way the site would and keys the hit by the multiset', () => {
@@ -68,17 +79,47 @@ describe('prefilter', () => {
     expect(kept.map((r) => r.id).sort()).toEqual(['dormitory:phrases:dirty-room', 'listen:phrases:silent']);
   });
 
-  it('caps the whole queue while keeping every candidate its best row', () => {
+  it('keeps every row that passed, by input in arrival order and best-reading first, unless --per-input bounds it', () => {
     const rows = [
-      prefilterRow(raw())!,
-      prefilterRow(raw({ words: ['moody', 'trir'], zipf: [100, 10] }))!,
       prefilterRow(raw({ words: ['dirt', 'yroom'], zipf: [90, 5] }))!,
       prefilterRow(raw({ id: 'listen:phrases', input: 'listen', words: ['silent'], zipf: [1], tiers: ['common'], pos: [B.adj] }))!,
+      prefilterRow(raw())!,
+      prefilterRow(raw({ words: ['moody', 'trir'], zipf: [100, 10] }))!,
     ];
-    const capped = select(rows, 25, 2);
-    expect(capped.map((r) => r.candidate_id).sort()).toEqual(['dormitory:phrases', 'listen:phrases']);
-    expect(capped[0]!.id).toBe('dormitory:phrases:dirty-room');
-    expect(select(rows, 25, 3)).toHaveLength(3);
+    const all = select(rows);
+    expect(all).toHaveLength(4);
+    expect(all.map((r) => r.candidate_id)).toEqual(['dormitory:phrases', 'dormitory:phrases', 'dormitory:phrases', 'listen:phrases']);
+    expect(all[0]!.id).toBe('dormitory:phrases:dirty-room');
+    expect(select(rows, 2).map((r) => r.candidate_id)).toEqual(['dormitory:phrases', 'dormitory:phrases', 'listen:phrases']);
+  });
+
+  it('sends anchored phrases first, then takes turns by word count, best-reading first within each', () => {
+    const row = (display: string, score: number, anchor?: string): Prefiltered => ({
+      ...pre(display.replace(/ /g, '-'), 'x:phrases', display),
+      prefilter_score: score,
+      ...(anchor ? { anchor } : {}),
+    });
+    const ordered = screenOrder([
+      row('aa bb', 9),
+      row('cc dd', 8),
+      row('ee ff gg', 3),
+      row('hh ii jj kk', 5),
+      row('ll mm nn', 4),
+      row('city oo pp', 1, 'city'),
+      row('city qq rr ss', 2, 'city'),
+    ]);
+    expect(ordered.map((r) => r.display)).toEqual(['city qq rr ss', 'city oo pp', 'aa bb', 'll mm nn', 'hh ii jj kk', 'cc dd', 'ee ff gg']);
+    expect(select(ordered, 3).map((r) => r.display)).toEqual(['city qq rr ss', 'city oo pp', 'aa bb']);
+    expect(prefilterRow(raw({ anchor: 'room' }))!.anchor).toBe('room');
+    expect('anchor' in prefilterRow(raw())!).toBe(false);
+  });
+
+  it('reads --per-input as a whole number or all', () => {
+    expect(perInputFlag(undefined)).toBe(1000);
+    expect(perInputFlag('all')).toBe(Infinity);
+    expect(perInputFlag('40')).toBe(40);
+    expect(() => perInputFlag('0')).toThrow(/positive whole number/);
+    expect(() => perInputFlag('many')).toThrow(/positive whole number/);
   });
 
   it('settles a candidate that ran and left nothing keepable, and only that one', () => {

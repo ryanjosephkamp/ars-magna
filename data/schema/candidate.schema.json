@@ -23,6 +23,20 @@
     },
     "wikidata_qid": { "type": "string", "pattern": "^Q[0-9]+$" },
     "notes": { "type": "string" },
+    "anchors": {
+      "type": "array",
+      "description": "Words related to the input to search around when it has more results than the enumeration limit: every result of an anchor search contains that word. Lowercase letters, each a subset of the input's letters.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z]+$" }
+    },
+    "subjects": {
+      "type": "array",
+      "description": "Subject slugs for the input, such as actor, airline or science-fiction-film: from Wikidata's occupation, industry and genre for trending inputs, or given by hand. Ingest copies them onto the input's hits as subject: tags.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
     "runs": {
       "type": "array",
       "description": "Each queue this candidate went through, with the enumeration settings and the rubric it was processed under, oldest first. A candidate with no runs was processed before they were recorded, under settings s1 and rubric v1.",

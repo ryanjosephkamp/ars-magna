@@ -1,18 +1,41 @@
 /**
  * Queue folders: one per run under data/queue/<date>, holding the raw
- * enumeration (not committed), the prefiltered rows, the judge's input and
- * output, and the ingest report.
+ * enumeration and the prefiltered rows (neither committed since settings s2),
+ * the screen's input and output, the judge's input and output, and the
+ * ingest report.
  */
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import type { Prefiltered } from './prefilter.ts';
 import { QUEUE_DIR, today } from './schema.ts';
 
 export const RAW = 'raw.jsonl';
 export const SUMMARY = 'summary.json';
 export const PREFILTERED = 'prefiltered.jsonl';
+export const SCREEN_SCORES = 'screen-scores.txt';
+export const SCREEN_OUTPUT = 'screen-output.jsonl';
+/** The rows the screen kept, rebuilt by `pnpm hits:judge`: what the judge saw. */
+export const SCREENED = 'screened.jsonl';
 export const JUDGE_OUTPUT = 'judge-output.jsonl';
 export const INGEST_REPORT = 'ingest-report.md';
+
+/**
+ * The rows a queue's judge was shown: `screened.jsonl` for a screened queue,
+ * `prefiltered.jsonl` for an older one, none when the folder has neither.
+ */
+export async function readJudgedRows(dir: string): Promise<Prefiltered[]> {
+  for (const name of [SCREENED, PREFILTERED]) {
+    let text: string;
+    try {
+      text = await readFile(resolve(dir, name), 'utf8');
+    } catch {
+      continue;
+    }
+    return text.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as Prefiltered);
+  }
+  return [];
+}
 
 export function queueDir(date: string = today()): string {
   return resolve(QUEUE_DIR, date);

@@ -36,6 +36,10 @@ export type Candidate = {
   status: CandidateStatus;
   wikidata_qid?: string;
   notes?: string;
+  /** Words to search around when the input has more results than the enumeration limit. */
+  anchors?: string[];
+  /** Subject slugs (actor, airline…), copied onto the input's hits as subject: tags. */
+  subjects?: string[];
   /** Each queue this candidate went through, oldest first. None means settings s1 and rubric v1. */
   runs?: CandidateRun[];
 };
