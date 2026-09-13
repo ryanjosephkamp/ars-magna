@@ -15,7 +15,8 @@ Code) adds only what is specific to that harness and never restates a rule from 
 - Nothing enters the published dataset without a person's merge. A hit is published when a person
   merges the pull request that makes it `accepted`, whether the judge routine shelved it or
   `pnpm hits:set` set it. Greatest Hits (`featured`) changes only when the operator promotes a hit by
-  name. An agent runs `hits:set` only on the ids and status the operator named.
+  name. An agent runs `hits:set`, `hits:justify` and `hits:tag` only on the ids, statuses, sentences and
+  tags the operator named, whether in a message or in a prompt the review desk filled.
 - The commit author email is the GitHub no-reply address
   `192532973+ryanjosephkamp@users.noreply.github.com`; GitHub rejects a push authored by any other. An
   agent's commits end with a `Co-Authored-By:` trailer naming the agent and its model.
@@ -37,6 +38,7 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts` |
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
 | `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |
+| `tools/hits/src/desk`, `tools/hits/templates/desk.html` | the review desk: `pnpm hits:desk` builds it into `.cache/desk/index.html` |
 | `data/` | `candidates.jsonl`, `hits.jsonl`, `schema/`, `queue/<date>/` |
 | `automation/` | `judge-routine.md` (the judge's instructions) and `RUNBOOK.md` (the pipeline) |
 | `docs/OPERATOR.md` | the operator manual: one section per workflow, each with its prompt |
@@ -56,6 +58,9 @@ pnpm dev                             # the site at http://localhost:5173
 pnpm hits:fetch | enumerate | prefilter | screen | judge | ingest --model=… | publish
 pnpm hits:fetch --reclassify         # ask Wikidata again about the unclassified candidates
 pnpm hits:set --status=accepted|featured|proposed|retired id…
+pnpm hits:justify id "One plain sentence."   # set a hit's justification
+pnpm hits:tag id +tone:pun -subject:actor     # add and remove a hit's tags
+pnpm hits:desk                                # build the review desk into .cache/desk/index.html
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
 ```
@@ -77,7 +82,8 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
 
 - Push to `main`, merge a pull request, or rewrite a branch someone else pushed.
 - Edit `data/hits.jsonl` by hand, or change an existing line of `data/candidates.jsonl`. The tools
-  write them: `hits:ingest`, `hits:set`, `hits:fetch`, and the MCP tool `propose_hit`. Appending new
+  write them: `hits:ingest`, `hits:set`, `hits:justify`, `hits:tag`, `hits:fetch`, and the MCP tool
+  `propose_hit`. Appending new
   `manual` candidates by hand is allowed.
 - Create, change, pause or delete a schedule (the Actions crons, the judge routine, a scheduled task)
   unless the task asks for exactly that.
@@ -86,7 +92,7 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
 
 ## Where to read more
 
-- `docs/OPERATOR.md`: adding or reviewing hits, judging by hand, a thin night, a release, the judge
+- `docs/OPERATOR.md`: adding or reviewing hits, the review desk, judging by hand, a thin night, a release, the judge
   routine, a secret.
 - `automation/RUNBOOK.md`: the Greatest Hits pipeline, its Actions, and the category table.
 - `automation/judge-routine.md`: judging a queue.

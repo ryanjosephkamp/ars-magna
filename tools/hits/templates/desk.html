@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ars Magna Review Desk</title>
+<style>
+  /* The site's own tokens (apps/web/src/styles.css): ink on true white, one accent. */
+  :root {
+    color-scheme: light;
+    --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+    --ground: oklch(0.985 0 0);
+    --surface: oklch(1 0 0);
+    --sunken: oklch(0.962 0 0);
+    --ink: oklch(0.19 0 0);
+    --ink-soft: oklch(0.4 0 0);
+    --ink-faint: oklch(0.52 0 0);
+    --rule: oklch(0.915 0 0);
+    --rule-strong: oklch(0.82 0 0);
+    --accent: oklch(0.52 0.19 27);
+    --accent-hover: oklch(0.45 0.19 27);
+    --accent-wash: oklch(0.965 0.018 27);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font: 15px/1.5 var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  ::selection { background: var(--accent-wash); }
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  header { padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 0; }
+  h1 { font: 400 1.75rem/1.15 var(--font-display); margin: 0; }
+  .meta { color: var(--ink-soft); margin: 0.3rem 0 0; font-size: 0.875rem; }
+
+  nav[role='tablist'] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 1rem clamp(1rem, 3vw, 2.5rem) 0;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  nav button {
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0.4rem 0.6rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  nav button:hover { color: var(--ink); }
+  nav button[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--accent); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24rem;
+    gap: 2rem;
+    align-items: start;
+    padding: 1.25rem clamp(1rem, 3vw, 2.5rem) 4rem;
+  }
+  aside {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--rule);
+  }
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    aside { position: static; max-height: none; padding: 1.25rem 0 0; border-left: 0; border-top: 1px solid var(--rule-strong); }
+  }
+
+  h2 { font: 400 1.3rem/1.25 var(--font-display); margin: 0 0 0.6rem; text-wrap: balance; }
+  h3 { font: 600 0.9375rem/1.3 var(--font-sans); margin: 1.75rem 0 0.4rem; }
+  .label, h3 .category {
+    font: 600 0.6875rem/1 var(--font-sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  h3 .category { margin-left: 0.4rem; }
+  .label { display: block; margin: 0.75rem 0 0.3rem; }
+  .small { font-size: 0.8125rem; color: var(--ink-soft); }
+  .empty { color: var(--ink-soft); }
+  .problem { color: var(--accent-hover); font-size: 0.8125rem; margin: 0.25rem 0; }
+  p { max-width: 65ch; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 0 1.25rem; align-items: end; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--rule); }
+  th { font-size: 0.75rem; font-weight: 600; color: var(--ink-soft); border-bottom-color: var(--rule-strong); white-space: nowrap; }
+  td.phrase { font: 1.0625rem/1.35 var(--font-display); white-space: nowrap; }
+  td.scores, td.where { white-space: nowrap; }
+  td.scores { color: var(--ink-soft); }
+  .where-near { color: var(--ink-faint); }
+  .where-greatest { color: var(--accent); font-weight: 600; }
+  tr.pending td { background: var(--accent-wash); }
+
+  select, input[type='text'], textarea {
+    background: var(--surface);
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    padding: 0.3rem 0.45rem;
+    max-width: 100%;
+  }
+  textarea { width: 100%; min-height: 4.5rem; resize: vertical; }
+  td textarea { min-width: 17rem; min-height: 3.6rem; font-size: 0.8125rem; }
+  td input[type='text'] { min-width: 13rem; font-size: 0.8125rem; }
+  .control { display: grid; gap: 0.35rem; }
+  fieldset { border: 0; padding: 0; margin: 0 0 0.75rem; }
+  .check { display: flex; gap: 0.5rem; align-items: center; margin: 0.4rem 0; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.6rem 0; }
+  button.act {
+    border: 1px solid var(--rule-strong);
+    background: var(--surface);
+    border-radius: 3px;
+    padding: 0.3rem 0.8rem;
+    cursor: pointer;
+  }
+  button.act:hover:not([disabled]) { border-color: var(--accent); color: var(--accent-hover); }
+  button.act.primary { border-color: var(--accent); color: var(--accent); }
+  button.act[disabled] { color: var(--ink-faint); cursor: default; }
+  button.link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    font-size: 0.8125rem;
+  }
+
+  ul.decisions { list-style: none; margin: 0 0 0.5rem; padding: 0; }
+  ul.decisions li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    margin: 0.3rem 0 0.5rem;
+    max-height: 20rem;
+    overflow: auto;
+    padding: 0.6rem 0.75rem;
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font: 0.75rem/1.55 var(--font-mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ars Magna review desk</h1>
+  <p class="meta" id="meta"></p>
+</header>
+<nav role="tablist" aria-label="Desk sections" id="tabs"></nav>
+<div class="layout">
+  <main id="main"></main>
+  <aside id="aside" aria-label="Decisions"></aside>
+</div>
+<script type="application/json" id="desk-data">/*DESK_DATA*/</script>
+<script>
+/*DESK_COMPOSE*/
+</script>
+<script>
+(function () {
+  'use strict';
+
+  var DATA = JSON.parse(document.getElementById('desk-data').textContent);
+  var STORE = 'ars-magna-desk';
+  var TAG = new RegExp(DATA.tagPattern);
+  var STATUSES = ['featured', 'accepted', 'proposed', 'retired'];
+  var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'accepted', proposed: 'proposed', retired: 'retired' };
+  var TABS = [
+    ['review', 'Review'],
+    ['collection', 'Collection'],
+    ['near', 'Near misses'],
+    ['seed', 'Seed'],
+    ['deep', 'Deep run'],
+    ['add', 'Add a hit'],
+  ];
+  var hitsById = new Map(DATA.hits.map(function (x) { return [x.id, x]; }));
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ tab: state.tab, queue: state.queue, decisions: state.decisions, notes: state.notes, branch: state.branch }));
+    } catch (e) { /* storage may be blocked; the page still works for this visit */ }
+  }
+
+  var saved = load();
+  var state = {
+    tab: TABS.some(function (t) { return t[0] === saved.tab; }) ? saved.tab : 'review',
+    queue: DATA.queues.some(function (q) { return q.name === saved.queue; }) ? saved.queue : (DATA.queues[0] ? DATA.queues[0].name : ''),
+    filter: '',
+    status: 'all',
+    decisions: Array.isArray(saved.decisions) ? saved.decisions : [],
+    notes: typeof saved.notes === 'string' ? saved.notes : '',
+    branch: typeof saved.branch === 'string' ? saved.branch : '',
+  };
+
+  /* An element with properties and children; text is always set as text. */
+  function h(tag, props) {
+    var el = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (key) {
+      var value = props[key];
+      if (value === false || value === null || value === undefined) return;
+      if (key === 'class') el.className = value;
+      else if (key.slice(0, 2) === 'on') el.addEventListener(key.slice(2), value);
+      else if (value === true) el.setAttribute(key, '');
+      else el.setAttribute(key, value);
+    });
+    Array.prototype.slice.call(arguments, 2).flat(Infinity).forEach(function (child) {
+      if (child === null || child === undefined || child === false) return;
+      el.append(child instanceof Node ? child : String(child));
+    });
+    return el;
+  }
+  function field(text, control) {
+    return h('label', {}, h('span', { class: 'label' }, text), control);
+  }
+
+  function keyOf(d) {
+    switch (d.kind) {
+      case 'status': case 'justify': case 'tag': return d.kind + ':' + d.id;
+      case 'promote': return 'promote:' + d.id;
+      case 'seed': return 'seed:' + candidateIdOf(d.input, d.category);
+      case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/));
+      default: return d.kind;
+    }
+  }
+  function find(key) {
+    return state.decisions.find(function (d) { return keyOf(d) === key; });
+  }
+  function upsert(d) {
+    var key = keyOf(d);
+    state.decisions = state.decisions.filter(function (x) { return keyOf(x) !== key; }).concat([d]);
+    save();
+    renderAside();
+  }
+  function drop(key) {
+    state.decisions = state.decisions.filter(function (x) { return keyOf(x) !== key; });
+    save();
+    renderAside();
+  }
+  function pendingFor(id) {
+    return state.decisions.some(function (d) { return d.id === id; });
+  }
+
+  function describe(d) {
+    switch (d.kind) {
+      case 'status': return d.id + ' to ' + STATUS_LABEL[d.status];
+      case 'justify': return d.id + ': new justification';
+      case 'tag': return d.id + ': ' + d.add.map(function (t) { return '+' + t; }).concat(d.remove.map(function (t) { return '-' + t; })).join(' ');
+      case 'promote': return d.id + ' from ' + d.queue + ', ' + d.status;
+      case 'requeue': return 'Send back to new: ' + [
+        d.settingsBefore && 'settings before ' + d.settingsBefore,
+        d.rubricBefore && 'rubric before ' + d.rubricBefore,
+        d.category, d.source,
+        d.ids.length && d.ids.length + (d.ids.length === 1 ? ' id' : ' ids'),
+      ].filter(Boolean).join(', ');
+      case 'deep': return 'Deep run into data/queue/' + d.date;
+      case 'seed': return 'Seed ' + d.input + ' (' + d.category + (d.anchors.length ? '; anchors ' + d.anchors.join(' ') : '') + ')';
+      case 'add': return 'Add ' + d.input + ': ' + d.phrase;
+      default: return d.kind;
+    }
+  }
+
+  /* Where a hit sits: [label, class]. */
+  function whereOf(place) {
+    if (!place) return ['near miss', 'where-near'];
+    if (place.status === 'featured') return ['Greatest Hits', 'where-greatest'];
+    if (place.status === 'accepted') return [place.shelf === 'interesting' ? 'Interesting' : 'A stretch', ''];
+    if (place.status === 'retired') return ['retired', 'where-near'];
+    return [place.alternate ? 'alternate' : 'held back', ''];
+  }
+
+  function markRow(control, id) {
+    var row = control.closest('tr');
+    if (row) row.classList.toggle('pending', pendingFor(id));
+  }
+
+  function hitControls(hit) {
+    var status = h('select', { 'aria-label': 'Status of ' + hit.display },
+      h('option', { value: '' }, 'Keep: ' + STATUS_LABEL[hit.status]),
+      STATUSES.filter(function (s) { return s !== hit.status; }).map(function (s) {
+        return h('option', { value: s }, s === 'featured' ? 'Promote to Greatest Hits' : s === 'accepted' ? 'Accept' : s === 'proposed' ? 'Hold back as proposed' : 'Retire');
+      }));
+    var pendingStatus = find('status:' + hit.id);
+    if (pendingStatus) status.value = pendingStatus.status;
+    status.addEventListener('change', function () {
+      if (!status.value) drop('status:' + hit.id);
+      else upsert({ kind: 'status', id: hit.id, status: status.value });
+      markRow(status, hit.id);
+    });
+
+    var text = h('textarea', { 'aria-label': 'Justification of ' + hit.display, placeholder: 'One plain sentence for a reader' });
+    var pendingText = find('justify:' + hit.id);
+    text.value = pendingText ? pendingText.text : hit.justification;
+    text.addEventListener('change', function () {
+      var value = text.value.trim();
+      if (!value || value === hit.justification) drop('justify:' + hit.id);
+      else upsert({ kind: 'justify', id: hit.id, text: value });
+      markRow(text, hit.id);
+    });
+
+    var problem = h('p', { class: 'problem', role: 'status' });
+    var tags = h('input', { type: 'text', placeholder: '+tone:pun -subject:actor', 'aria-label': 'Tag changes for ' + hit.display });
+    var pendingTags = find('tag:' + hit.id);
+    if (pendingTags) {
+      tags.value = pendingTags.add.map(function (t) { return '+' + t; }).concat(pendingTags.remove.map(function (t) { return '-' + t; })).join(' ');
+    }
+    tags.addEventListener('change', function () {
+      var tokens = tags.value.split(/\s+/).filter(Boolean);
+      var bad = tokens.filter(function (t) { return !/^[+-]./.test(t) || (t[0] === '+' && !TAG.test(t.slice(1))); });
+      problem.textContent = bad.length ? 'Not a tag change the schema allows: ' + bad.join(' ') : '';
+      if (bad.length || !tokens.length) drop('tag:' + hit.id);
+      else upsert({
+        kind: 'tag',
+        id: hit.id,
+        add: tokens.filter(function (t) { return t[0] === '+'; }).map(function (t) { return t.slice(1); }),
+        remove: tokens.filter(function (t) { return t[0] === '-'; }).map(function (t) { return t.slice(1); }),
+      });
+      markRow(tags, hit.id);
+    });
+    return h('div', { class: 'control' }, status, text, tags, problem);
+  }
+
+  function nearControls(row, queue) {
+    var key = 'promote:' + row.id;
+    var pending = find(key);
+    var choice = h('select', { 'aria-label': 'Decision for ' + row.display },
+      h('option', { value: '' }, 'Leave it'),
+      h('option', { value: 'accepted' }, 'Accept'),
+      h('option', { value: 'proposed' }, 'Add as proposed'));
+    if (pending) choice.value = pending.status;
+    var text = h('textarea', { 'aria-label': 'Justification of ' + row.display, placeholder: 'One plain sentence for a reader' });
+    text.value = pending ? pending.justification : row.justification;
+    function sync() {
+      if (!choice.value) drop(key);
+      else upsert({ kind: 'promote', queue: queue.name, model: queue.model, id: row.id, status: choice.value, justification: text.value.trim(), judged: row.justification });
+      markRow(choice, row.id);
+    }
+    choice.addEventListener('change', sync);
+    text.addEventListener('change', function () { if (choice.value) sync(); });
+    return h('div', { class: 'control' }, choice, text);
+  }
+
+  function rowTable(rows, withQueue) {
+    return h('div', { class: 'table-wrap' }, h('table', {},
+      h('thead', {}, h('tr', {},
+        withQueue ? [h('th', {}, 'Queue'), h('th', {}, 'Input')] : null,
+        h('th', {}, 'Anagram'), h('th', {}, 'Scores'), h('th', {}, 'Where'), h('th', {}, 'Judge'), h('th', {}, 'Decision'))),
+      h('tbody', {}, rows.map(function (r) {
+        var queue = DATA.queues.find(function (q) { return q.name === r.queue; });
+        var hit = r.hit ? hitsById.get(r.id) : null;
+        var where = whereOf(r.hit);
+        return h('tr', { class: pendingFor(r.id) ? 'pending' : '' },
+          withQueue ? [h('td', { class: 'scores' }, r.queue), h('td', {}, r.input)] : null,
+          h('td', { class: 'phrase' }, r.display),
+          h('td', { class: 'scores' }, 'relation ' + r.relation, h('br'), 'reads ' + r.reads),
+          h('td', { class: 'where ' + where[1] }, where[0],
+            r.tone.length ? h('div', { class: 'small' }, r.tone.map(function (t) { return 'tone:' + t; }).join(' ')) : null),
+          h('td', { class: 'small' }, r.rationale),
+          h('td', {}, hit ? hitControls(hit) : nearControls(r, queue)));
+      }))));
+  }
+
+  function withQueueName(rows, name) {
+    return rows.map(function (r) { return Object.assign({ queue: name }, r); });
+  }
+
+  function renderReview(main) {
+    if (!DATA.queues.length) {
+      main.append(h('h2', {}, 'Review'), h('p', { class: 'empty' }, 'No judged queue under data/queue/ yet.'));
+      return;
+    }
+    var queue = DATA.queues.find(function (q) { return q.name === state.queue; }) || DATA.queues[0];
+    var select = h('select', { 'aria-label': 'Queue' }, DATA.queues.map(function (q) {
+      return h('option', { value: q.name }, q.name + ', judged by ' + q.model);
+    }));
+    select.value = queue.name;
+    select.addEventListener('change', function () { state.queue = select.value; save(); render(); });
+    var inFile = queue.rows.filter(function (r) { return r.hit; }).length;
+    main.append(
+      h('h2', {}, 'Queue ' + queue.name),
+      h('div', { class: 'toolbar' }, field('Queue', select)),
+      h('p', { class: 'small' }, queue.judged + ' verdicts. ' + inFile + ' of these rows are in data/hits.jsonl and ' + (queue.rows.length - inFile) +
+        ' are near misses. Rows the judge found no link in are not shown.'));
+    var groups = new Map();
+    queue.rows.forEach(function (r) {
+      if (!groups.has(r.candidate_id)) groups.set(r.candidate_id, []);
+      groups.get(r.candidate_id).push(r);
+    });
+    if (!groups.size) main.append(h('p', { class: 'empty' }, 'Nothing in this queue has any link to its input.'));
+    groups.forEach(function (rows) {
+      main.append(h('h3', {}, rows[0].input, h('span', { class: 'category' }, rows[0].category)), rowTable(withQueueName(rows, queue.name), false));
+    });
+  }
+
+  function renderCollection(main) {
+    var counts = {};
+    DATA.hits.forEach(function (x) { counts[x.status] = (counts[x.status] || 0) + 1; });
+    var filter = h('input', { type: 'text', placeholder: 'Input, anagram or tag', 'aria-label': 'Filter the collection' });
+    filter.value = state.filter;
+    var status = h('select', { 'aria-label': 'Status' },
+      h('option', { value: 'all' }, 'Every status (' + DATA.hits.length + ')'),
+      STATUSES.map(function (s) { return h('option', { value: s }, STATUS_LABEL[s] + ' (' + (counts[s] || 0) + ')'); }));
+    status.value = state.status;
+    var list = h('div');
+    function draw() {
+      var q = state.filter.trim().toLowerCase();
+      var hits = DATA.hits.filter(function (x) {
+        return (state.status === 'all' || x.status === state.status) &&
+          (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
+      });
+      list.replaceChildren(
+        h('p', { class: 'small', role: 'status' }, hits.length + ' of ' + DATA.hits.length + ' hits'),
+        h('div', { class: 'table-wrap' }, h('table', {},
+          h('thead', {}, h('tr', {}, h('th', {}, 'Input'), h('th', {}, 'Anagram'), h('th', {}, 'Where'), h('th', {}, 'Tags'), h('th', {}, 'Decision'))),
+          h('tbody', {}, hits.map(function (x) {
+            var where = whereOf(x);
+            return h('tr', { class: pendingFor(x.id) ? 'pending' : '' },
+              h('td', {}, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
+              h('td', { class: 'phrase' }, x.display),
+              h('td', { class: 'where ' + where[1] }, where[0],
+                x.relation !== null ? h('div', { class: 'small' }, 'relation ' + x.relation + ', reads ' + x.reads) : null),
+              h('td', { class: 'small' }, x.tags.join(' ')),
+              h('td', {}, hitControls(x)));
+          })))));
+    }
+    filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
+    status.addEventListener('change', function () { state.status = status.value; draw(); });
+    main.append(h('h2', {}, 'Collection'), h('div', { class: 'toolbar' }, field('Filter', filter), field('Status', status)), list);
+    draw();
+  }
+
+  function renderNear(main) {
+    var rows = [];
+    DATA.queues.forEach(function (q) {
+      rows = rows.concat(withQueueName(q.rows.filter(function (r) { return !r.hit; }), q.name));
+    });
+    rows.sort(function (a, b) { return b.relation - a.relation || b.reads - a.reads || b.queue.localeCompare(a.queue); });
+    main.append(
+      h('h2', {}, 'Near misses'),
+      h('p', { class: 'small' }, rows.length + ' rows from ' + DATA.queues.length + ' queues are not in data/hits.jsonl. ' +
+        'Accepting one adds it from its queue\'s verdicts; one without a justification goes in as proposed until it has one.'));
+    if (!rows.length) { main.append(h('p', { class: 'empty' }, 'None.')); return; }
+    main.append(rowTable(rows, true));
+  }
+
+  function renderSeed(main) {
+    var text = h('textarea', { rows: '8', 'aria-label': 'Inputs to seed', placeholder: 'The countryside | phrases | city dust\nSagrada Família | places' });
+    var out = h('div');
+    function check() {
+      out.replaceChildren();
+      var parsed = parseSeeds(text.value, DATA.candidates.map(function (c) { return c.id; }));
+      if (parsed.problems.length) out.append(h('div', {}, parsed.problems.map(function (p) { return h('p', { class: 'problem' }, p); })));
+      if (!parsed.seeds.length) {
+        if (!parsed.problems.length) out.append(h('p', { class: 'empty' }, 'Nothing to seed.'));
+        return;
+      }
+      var note = h('p', { class: 'small', role: 'status' });
+      out.append(
+        h('div', { class: 'table-wrap' }, h('table', {},
+          h('thead', {}, h('tr', {}, h('th', {}, 'Id'), h('th', {}, 'Input'), h('th', {}, 'Category'), h('th', {}, 'Anchors'))),
+          h('tbody', {}, parsed.seeds.map(function (s) {
+            return h('tr', {}, h('td', { class: 'small' }, candidateIdOf(s.input, s.category)), h('td', {}, s.input), h('td', {}, s.category), h('td', {}, s.anchors.join(' ')));
+          })))),
+        h('div', { class: 'actions' }, h('button', { class: 'act primary', type: 'button', onclick: function () {
+          parsed.seeds.forEach(upsert);
+          note.textContent = parsed.seeds.length + (parsed.seeds.length === 1 ? ' seed' : ' seeds') + ' added to the decisions.';
+        } }, 'Add to the decisions')),
+        note);
+    }
+    main.append(
+      h('h2', {}, 'Seed candidates'),
+      h('p', { class: 'small' }, 'One input per line: input | category | anchor words. The category defaults to phrases, and anchors are optional. ' +
+        'Each id is checked against the ' + DATA.candidates.length + ' candidates already in the pool.'),
+      text,
+      h('div', { class: 'actions' }, h('button', { class: 'act', type: 'button', onclick: check }, 'Check')),
+      out);
+  }
+
+  function renderDeep(main) {
+    var older = DATA.candidates.filter(function (c) { return c.status === 'enumerated' && c.settings !== 's2'; }).length;
+    var settings = h('input', { type: 'checkbox', checked: true });
+    var rubric = h('input', { type: 'checkbox' });
+    var category = h('select', { 'aria-label': 'Category' }, h('option', { value: '' }, 'Any category'), DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
+    var source = h('select', { 'aria-label': 'Source' }, h('option', { value: '' }, 'Any source'), ['manual', 'trending', 'submission'].map(function (s) { return h('option', { value: s }, s); }));
+    var ids = h('textarea', { 'aria-label': 'Candidate ids', placeholder: 'Candidate ids, one per line (optional)' });
+    var date = h('input', { type: 'text', value: DATA.today, 'aria-label': 'Queue folder' });
+    var problem = h('p', { class: 'problem', role: 'alert' });
+    var note = h('p', { class: 'small', role: 'status' });
+    main.append(
+      h('h2', {}, 'Deep run'),
+      h('p', { class: 'small' }, 'Sends candidates back to new, enumerates them with the deep preset into one queue folder with no per-input bound, and writes its screen input. ' +
+        older + ' enumerated candidates last ran under settings older than s2.'),
+      h('fieldset', {},
+        h('label', { class: 'check' }, settings, 'Processed under settings older than s2'),
+        h('label', { class: 'check' }, rubric, 'Judged under a rubric older than v2'),
+        h('div', { class: 'toolbar' }, field('Category', category), field('Source', source), field('Queue folder', date)),
+        field('Ids', ids)),
+      problem,
+      h('div', { class: 'actions' }, h('button', { class: 'act primary', type: 'button', onclick: function () {
+        var list = ids.value.split(/\s+/).filter(Boolean);
+        if (!/^\d{4}-\d{2}-\d{2}[a-z]?$/.test(date.value)) { problem.textContent = 'Name the queue folder as a date, such as ' + DATA.today + 'b.'; return; }
+        if (!settings.checked && !rubric.checked && !category.value && !source.value && !list.length) { problem.textContent = 'Choose which candidates to send back.'; return; }
+        problem.textContent = '';
+        upsert({ kind: 'requeue', ids: list, settingsBefore: settings.checked ? 's2' : '', rubricBefore: rubric.checked ? 'v2' : '', category: category.value, source: source.value });
+        upsert({ kind: 'deep', date: date.value });
+        note.textContent = 'Added to the decisions.';
+      } }, 'Add to the decisions')),
+      note);
+  }
+
+  function renderAdd(main) {
+    var input = h('input', { type: 'text', 'aria-label': 'Input' });
+    var category = h('select', { 'aria-label': 'Category' }, DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
+    category.value = 'phrases';
+    var phrase = h('input', { type: 'text', 'aria-label': 'Anagram' });
+    var tier = h('select', { 'aria-label': 'Tier' }, ['common', 'standard', 'full'].map(function (t) { return h('option', { value: t }, t); }));
+    var why = h('textarea', { 'aria-label': 'Justification', placeholder: 'One plain sentence for a reader' });
+    var preview = h('p', { class: 'small', role: 'status' });
+    var problem = h('p', { class: 'problem', role: 'alert' });
+    function update() {
+      if (!input.value.trim() || !phrase.value.trim()) { preview.textContent = 'The id appears here once the input and the anagram are filled in.'; return; }
+      preview.textContent = 'Id ' + hitIdOf(input.value, category.value, phrase.value.split(/\s+/)) +
+        (phraseFits(input.value, phrase.value) ? '' : '. The letters differ from the input\'s.');
+    }
+    input.addEventListener('input', update);
+    phrase.addEventListener('input', update);
+    category.addEventListener('change', update);
+    main.append(
+      h('h2', {}, 'Add a hit'),
+      h('p', { class: 'small' }, 'For an anagram you already know. The commands check it with the engine, record it with propose_hit, and accept it.'),
+      h('fieldset', {},
+        h('div', { class: 'toolbar' }, field('Input', input), field('Category', category)),
+        h('div', { class: 'toolbar' }, field('Anagram, words in reading order', phrase), field('Tier', tier)),
+        field('Justification', why)),
+      preview,
+      problem,
+      h('div', { class: 'actions' }, h('button', { class: 'act primary', type: 'button', onclick: function () {
+        if (!input.value.trim() || !phrase.value.trim() || !why.value.trim()) { problem.textContent = 'Fill in the input, the anagram and a justification.'; return; }
+        if (!phraseFits(input.value, phrase.value)) { problem.textContent = 'The anagram does not use exactly the input\'s letters.'; return; }
+        problem.textContent = '';
+        upsert({ kind: 'add', input: input.value.trim(), category: category.value, phrase: phrase.value.trim(), tier: tier.value, justification: why.value.trim() });
+        preview.textContent = 'Added to the decisions.';
+      } }, 'Add to the decisions')));
+    update();
+  }
+
+  async function copy(text, live) {
+    try {
+      await navigator.clipboard.writeText(text);
+      live.textContent = 'Copied.';
+    } catch (e) {
+      var area = h('textarea', {});
+      area.value = text;
+      document.body.append(area);
+      area.select();
+      try { document.execCommand('copy'); live.textContent = 'Copied.'; } catch (err) { live.textContent = 'Select the text below and copy it.'; }
+      area.remove();
+    }
+  }
+
+  function renderAside() {
+    var aside = document.getElementById('aside');
+    aside.replaceChildren();
+    var count = state.decisions.length;
+    aside.append(h('h2', {}, 'Decisions'));
+    if (!count) {
+      aside.append(h('p', { class: 'empty' }, 'Nothing decided yet. Change a status, edit a justification or promote a near miss, and its command appears here.'));
+    } else {
+      aside.append(
+        h('ul', { class: 'decisions' }, state.decisions.map(function (d) {
+          return h('li', {}, h('span', {}, describe(d)), h('button', { class: 'link', type: 'button', onclick: function () { drop(keyOf(d)); render(); } }, 'Remove'));
+        })),
+        h('button', { class: 'link', type: 'button', onclick: function () { state.decisions = []; save(); render(); } }, 'Clear all'));
+    }
+
+    var branch = h('select', { 'aria-label': 'Branch' },
+      h('option', { value: '' }, 'A new branch off main'),
+      DATA.queues.map(function (q) { return h('option', { value: 'hits/' + q.name }, 'The routine\'s branch hits/' + q.name); }));
+    branch.value = state.branch;
+    branch.addEventListener('change', function () { state.branch = branch.value; save(); renderAside(); });
+    var notes = h('textarea', { 'aria-label': 'Notes for the agent', placeholder: 'Anything the agent should know' });
+    notes.value = state.notes;
+    notes.addEventListener('change', function () { state.notes = notes.value; save(); renderAside(); });
+
+    var composed = composeCommands(state.decisions, DATA.today);
+    var commands = composed.commands.join('\n');
+    var branchText = state.branch
+      ? 'the routine\'s branch ' + state.branch + ': check it out with gh pr checkout, or git switch ' + state.branch
+      : 'a new branch off an up-to-date main named desk-' + DATA.today;
+    var prompt = fillPrompt(DATA.applyDesk, composed.commands, [state.notes.trim()].concat(composed.notes).filter(Boolean).join('\n'), branchText);
+    var live = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
+    aside.append(
+      field('Work on', branch),
+      field('Notes', notes),
+      h('span', { class: 'label' }, 'Commands'),
+      h('pre', {}, commands || '# nothing decided yet'),
+      h('div', { class: 'actions' },
+        h('button', { class: 'act', type: 'button', disabled: !count, onclick: function () { copy(commands, live); } }, 'Copy commands'),
+        h('button', { class: 'act primary', type: 'button', disabled: !count, onclick: function () { copy(prompt, live); } }, 'Copy prompt')),
+      live,
+      h('span', { class: 'label' }, 'Prompt'),
+      h('pre', {}, prompt));
+  }
+
+  function render() {
+    document.getElementById('tabs').replaceChildren.apply(document.getElementById('tabs'), TABS.map(function (t) {
+      return h('button', { role: 'tab', type: 'button', 'aria-selected': String(state.tab === t[0]), onclick: function () { state.tab = t[0]; save(); render(); } }, t[1]);
+    }));
+    var main = document.getElementById('main');
+    main.replaceChildren();
+    ({ review: renderReview, collection: renderCollection, near: renderNear, seed: renderSeed, deep: renderDeep, add: renderAdd })[state.tab](main);
+    renderAside();
+  }
+
+  var byStatus = STATUSES.map(function (s) {
+    var n = DATA.hits.filter(function (x) { return x.status === s; }).length;
+    return n + ' ' + STATUS_LABEL[s];
+  }).join(', ');
+  document.getElementById('meta').textContent = 'Built ' + DATA.generated.slice(0, 16).replace('T', ' ') + ' UTC from the repository. ' +
+    DATA.hits.length + ' hits (' + byStatus + '), ' + DATA.queues.length + ' judged queues. Decisions are kept in this browser until you clear them.';
+  render();
+})();
+</script>
+</body>
+</html>

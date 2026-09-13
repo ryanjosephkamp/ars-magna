@@ -29,6 +29,9 @@
     "hits:set": "pnpm --filter @ars-magna/hits run set",
     "hits:requeue": "pnpm --filter @ars-magna/hits run requeue",
     "hits:backfill": "pnpm --filter @ars-magna/hits run backfill",
+    "hits:desk": "pnpm --filter @ars-magna/hits run desk",
+    "hits:justify": "pnpm --filter @ars-magna/hits run justify",
+    "hits:tag": "pnpm --filter @ars-magna/hits run tag",
     "wasm:build": "bash scripts/build-wasm.sh",
     "rust:test": "cargo test --workspace"
   },

@@ -43,7 +43,8 @@ When you know an anagram that belongs in the dataset.
 4. Run the four suites (`pnpm test` validates every line of both data files), commit, push, and open a
    pull request. Merge when CI is green; Publish hits and Deploy take it from there.
 
-Prompt: `docs/prompts/add-hit.md` (hit_input, hit_phrase, hit_category).
+Prompt: `docs/prompts/add-hit.md` (hit_input, hit_phrase, hit_category). The review desk's "Add a hit"
+tab writes the same steps as commands.
 
 ## Review a routine pull request
 
@@ -91,7 +92,60 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
 | `retired` | buried for good; the id stays in the file, so ingest never proposes it again |
 
 Prompt: `docs/prompts/review-hits-pr.md` (pr_number). The agent lists and recommends first, then waits
-for your ids and statuses.
+for your ids and statuses. To decide in a page instead, with the near misses and justifications in
+front of you, use the review desk.
+
+## Review in the desk
+
+When a routine pull request holds more than you want to read in its body, or you want to promote a near
+miss, edit justifications or tags across the collection, seed a batch, or set up a deep run.
+
+1. Build the desk and open it:
+
+   ```bash
+   pnpm hits:desk
+   open .cache/desk/index.html
+   ```
+
+   It reads `data/hits.jsonl`, `data/candidates.jsonl` and the three newest judged queues (`--queues=N`
+   for more), and writes one self-contained page. It never writes to the repository. Built on a routine
+   pull request's branch (`gh pr checkout <number>` first), it shows that queue's hits as the pull
+   request adds them. To use it on a phone, ask a Claude Code session to publish
+   `.cache/desk/index.html` as a private artifact.
+2. Decide in its tabs:
+   - **Review:** one queue by input, each row with its relation, reads, where it stands and the judge's
+     rationale. For a hit, change its status, edit its justification, or add and remove tags
+     (`+tone:pun -subject:actor`). For a near miss, accept it or add it as proposed, with a justification.
+   - **Collection:** every hit, filtered by text or status, with the same controls.
+   - **Near misses:** every near miss in those queues, strongest first.
+   - **Seed:** inputs pasted one per line as `input | category | anchors`, each id checked against the
+     pool.
+   - **Deep run:** which candidates to send back to `new`, and the queue folder to enumerate them into
+     with the deep preset.
+   - **Add a hit:** an anagram you already know, with its justification.
+
+   Decisions collect in the panel beside the tabs (below them on a narrow screen) and stay in that browser
+   until you remove them.
+3. Choose where the work goes, a new branch off `main` or a routine pull request's branch, add any notes,
+   and press **Copy prompt**. Paste it into an agent session opened in the repository: it runs the
+   commands in order on that branch, runs the four suites, and opens or updates the pull request.
+   **Copy commands** gives the commands alone, to run yourself.
+4. Review and merge that pull request as usual. Nothing decided in the desk is published before then.
+
+| Decision | Command it becomes |
+|---|---|
+| status | `pnpm hits:set --status=featured id…` |
+| justification | `pnpm hits:justify id "One plain sentence."` |
+| tags | `pnpm hits:tag id +tone:pun -subject:actor` |
+| accept a near miss | `pnpm hits:ingest --date=<queue> --model=<judge> --only=id,… --status=accepted`; a row with no justification goes in as `proposed`, then `hits:justify` and `hits:set` |
+| seed | appends the lines to `data/candidates.jsonl` |
+| deep run | `pnpm hits:requeue …`, then `hits:enumerate --preset=deep`, `hits:prefilter --per-input=all` and `hits:screen` |
+
+`hits:justify` and `hits:tag` refuse an unknown id, an empty or over-long sentence, and a tag the schema
+does not allow, and write nothing then. `hits:ingest --only` refuses a row that is not in the queue, is
+already a hit, or has no valid verdict. An agent runs these only on what the operator named.
+
+Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes). The desk fills it.
 
 ## Judge a queue by hand
 
