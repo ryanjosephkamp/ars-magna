@@ -7,6 +7,21 @@
 
 export type Category = 'people' | 'companies' | 'products' | 'titles' | 'places' | 'phrases';
 
+/** Greatest Hits (featured), Interesting, or A stretch. */
+export type Shelf = 'greatest' | 'interesting' | 'stretch';
+
+/** One judge's score in either rubric: v1 carries aptness, grammar and a total; v2 carries relation and reads. */
+export type JudgeRecord = {
+  model: string;
+  rationale: string;
+  total?: number;
+  aptness?: number;
+  grammar?: number;
+  relation?: number;
+  reads?: number;
+  justification?: string;
+};
+
 /** A line of data/hits.jsonl, the fields the site needs. */
 export type HitRecord = {
   id: string;
@@ -15,11 +30,12 @@ export type HitRecord = {
   words: string[];
   display: string;
   letters: string;
-  judge: { total: number; rationale: string; model: string }[];
+  judge: JudgeRecord[];
   submitter?: string;
   added: string;
   tags: string[];
   status: 'proposed' | 'accepted' | 'featured' | 'retired';
+  justification?: string;
 };
 
 /** What ships in /hits.json: one compact row per published hit. */
@@ -31,7 +47,8 @@ export type PublicHit = {
   display: string;
   words: string[];
   letters: string;
-  rationale: string;
+  justification: string;
+  shelf: Shelf;
   score: number | null;
   featured: boolean;
   submitter: string | null;
@@ -59,8 +76,24 @@ export function publishable(hits: readonly HitRecord[]): HitRecord[] {
   return hits.filter((h) => h.status === 'accepted' || h.status === 'featured');
 }
 
+/**
+ * The shelf a published hit shows on. This repeats `shelfOf` in
+ * tools/hits/src/shelf.ts, which is the rule's source; the site does not
+ * import the pipeline package, and a test there checks that the two agree.
+ * Only the best relation matters: rubric v1's aptness counts as relation.
+ */
+export function shelfOf(hit: Pick<HitRecord, 'status' | 'judge'>): Shelf {
+  if (hit.status === 'featured') return 'greatest';
+  if (hit.judge.length === 0) return 'interesting';
+  const relation = Math.max(...hit.judge.map((j) => j.relation ?? j.aptness ?? 1));
+  return relation >= 4 ? 'interesting' : 'stretch';
+}
+
 export function toPublic(hit: HitRecord): PublicHit {
-  const best = [...hit.judge].sort((a, b) => b.total - a.total)[0];
+  const v1 = hit.judge.filter((j) => j.total !== undefined).sort((a, b) => b.total! - a.total!)[0];
+  const v2 = hit.judge
+    .filter((j) => j.relation !== undefined && j.justification)
+    .sort((a, b) => b.relation! - a.relation! || (b.reads ?? 0) - (a.reads ?? 0))[0];
   const note = hit.tags.find((t) => t.startsWith('note:'))?.slice(5);
   return {
     id: hit.id,
@@ -70,8 +103,10 @@ export function toPublic(hit: HitRecord): PublicHit {
     display: hit.display,
     words: hit.words,
     letters: hit.letters,
-    rationale: best?.rationale ?? note ?? '',
-    score: best?.total ?? null,
+    // The operator's own sentence first, then the v2 judge's, then the v1 rationale, then a submitter's note.
+    justification: hit.justification ?? v2?.justification ?? v1?.rationale ?? note ?? '',
+    shelf: shelfOf(hit),
+    score: v1?.total ?? null,
     featured: hit.status === 'featured',
     submitter: hit.submitter && hit.submitter !== 'seed' ? hit.submitter : null,
     added: hit.added,
@@ -112,7 +147,7 @@ function escapeHtml(text: string): string {
  */
 export function hitPage(hit: PublicHit, origin: string): string {
   const title = `${hit.input} → ${hit.display}`;
-  const description = hit.rationale || `An anagram of ${hit.input}: ${hit.display}. From the Ars Magna Greatest Hits.`;
+  const description = hit.justification || `An anagram of ${hit.input}: ${hit.display}. From the Ars Magna Greatest Hits.`;
   const url = `${origin}/hits/${hit.slug}/`;
   const target = `/hits.html#${hit.slug}`;
   return `<!doctype html>

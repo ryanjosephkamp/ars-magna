@@ -6,14 +6,19 @@
  * issue, checks the phrase with the engine, and records a candidate and a
  * proposed hit credited to the submitter. A person still promotes it.
  *
- * Turn the judge's answers into proposed hits. Nothing is trusted: every
- * verdict must name a candidate from the batch, score inside the rubric,
- * carry a rationale, and describe a phrase that really is an anagram of its
- * input at its tier — re-checked here with the engine, because the judge
- * never sees letters and a copy-paste can garble a line.
+ * Turn the judge's answers into hits. Nothing is trusted: every verdict must
+ * name a candidate from the batch, score inside the rubric, carry a
+ * rationale, and describe a phrase that really is an anagram of its input at
+ * its tier — re-checked here with the engine, because the judge never sees
+ * letters and a copy-paste can garble a line.
  *
- * Hits land in data/hits.jsonl as `proposed`; a person promotes them. The
- * candidates that were judged move to `enumerated` so the next run skips them.
+ * Rubric v2 answers are shelved (`shelf.ts`). Up to three rows per input are
+ * written `accepted`, counting the hits that input already has on a shelf.
+ * Further qualifying rows are `proposed` alternates. Near misses stay in the
+ * queue's `judge-output.jsonl`. The operator's merge of the pull request is
+ * the approval. Rubric v1 answers, from older queues, keep the v1 rule: a
+ * total of 11 or more is `proposed`. The candidates that were judged move to
+ * `enumerated` so the next run skips them.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -25,23 +30,29 @@ import { execFileSync } from 'node:child_process';
 import { checkAnagram, sameLetters } from './check.ts';
 import { alphagram, candidateId, hitId } from './ids.ts';
 import { parseIssueForm } from './submission.ts';
-import { rubric, type Verdict } from './judge.ts';
+import { isV2Verdict, rubric, type Verdict, type VerdictV1, type VerdictV2 } from './judge.ts';
 import type { Prefiltered } from './prefilter.ts';
 import { INGEST_REPORT, JUDGE_OUTPUT, PREFILTERED, flag, has, pickQueue } from './queue.ts';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
+  TONES,
   appendJsonl,
   candidateSchema,
   dictionaryPin,
   hitSchema,
+  isV2,
   readJsonl,
   today,
   writeJsonl,
   type Candidate,
   type Hit,
   type Judgement,
+  type JudgementV1,
+  type JudgementV2,
+  type Tone,
 } from './schema.ts';
+import { assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
 
 async function fromIssue(number: string): Promise<void> {
   const raw = execFileSync('gh', ['issue', 'view', number, '--json', 'body,author,url'], { encoding: 'utf8' });
@@ -87,7 +98,36 @@ async function fromIssue(number: string): Promise<void> {
 
 export const DEFAULT_THRESHOLD = 11;
 
+/** A subject label: lowercase words joined with hyphens. */
+const SUBJECT = /^[a-z][a-z0-9-]*$/;
+const JUSTIFICATION_MAX = 300;
+
 export type Rejection = { id: string; reason: string };
+
+const between = (n: unknown, lo: number, hi: number) => Number.isInteger(n) && (n as number) >= lo && (n as number) <= hi;
+const hasText = (s: unknown): s is string => typeof s === 'string' && s.trim().length > 0;
+
+function problemV1(v: VerdictV1): string | null {
+  if (!between(v.aptness, 1, 5) || !between(v.grammar, 1, 5) || !between(v.memorability, 1, 5)) return 'score outside 1-5';
+  if (!hasText(v.rationale)) return 'no rationale';
+  return null;
+}
+
+function problemV2(v: VerdictV2): string | null {
+  if (!between(v.relation, 1, 5)) return 'relation outside 1-5';
+  if (!between(v.reads, 1, 3)) return 'reads outside 1-3';
+  if (!hasText(v.rationale)) return 'no rationale';
+  const tones = TONES as readonly string[];
+  if (v.tone !== undefined && (!Array.isArray(v.tone) || v.tone.some((t) => !tones.includes(t)))) return 'unknown tone';
+  if (v.subjects !== undefined && (!Array.isArray(v.subjects) || v.subjects.some((s) => typeof s !== 'string' || !SUBJECT.test(s)))) {
+    return 'bad subject';
+  }
+  if (v.relation >= 3 && !hasText(v.justification)) return 'no justification';
+  if (hasText(v.justification) && v.justification.trim().length > JUSTIFICATION_MAX) {
+    return `justification over ${JUSTIFICATION_MAX} characters`;
+  }
+  return null;
+}
 
 /**
  * Validate verdicts against the batch they answer. Pure: the anagram check
@@ -100,18 +140,14 @@ export function validateVerdicts(
   const ok: Verdict[] = [];
   const rejected: Rejection[] = [];
   const seen = new Set<string>();
-  const inRange = (n: unknown) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 5;
   for (const v of verdicts) {
     if (typeof v.id !== 'string' || !batch.has(v.id)) {
       rejected.push({ id: String(v.id), reason: 'not in this batch' });
       continue;
     }
-    if (!inRange(v.aptness) || !inRange(v.grammar) || !inRange(v.memorability)) {
-      rejected.push({ id: v.id, reason: 'score outside 1-5' });
-      continue;
-    }
-    if (typeof v.rationale !== 'string' || v.rationale.trim().length === 0) {
-      rejected.push({ id: v.id, reason: 'no rationale' });
+    const problem = isV2Verdict(v) ? problemV2(v) : problemV1(v);
+    if (problem) {
+      rejected.push({ id: v.id, reason: problem });
       continue;
     }
     // Only a verdict that passed counts as seen, so a garbled line followed
@@ -128,9 +164,24 @@ export function validateVerdicts(
 }
 
 export function toJudgement(v: Verdict, model: string, version: string, date: string): Judgement {
+  if (isV2Verdict(v)) {
+    const judgement: JudgementV2 = {
+      model: v.model ?? model,
+      rubric_version: v.rubric_version ?? version,
+      relation: v.relation,
+      reads: v.reads,
+      tone: [...new Set(v.tone ?? [])] as Tone[],
+      subjects: [...new Set(v.subjects ?? [])],
+      rationale: v.rationale.trim(),
+      judged_at: date,
+    };
+    if (hasText(v.justification)) judgement.justification = v.justification.trim();
+    return judgement;
+  }
   return {
     model: v.model ?? model,
-    rubric_version: v.rubric_version ?? version,
+    // A v1-shaped line is a v1 score, whatever the rubric file says today.
+    rubric_version: v.rubric_version ?? 'v1',
     aptness: v.aptness,
     grammar: v.grammar,
     memorability: v.memorability,
@@ -140,41 +191,235 @@ export function toJudgement(v: Verdict, model: string, version: string, date: st
   };
 }
 
-/** Build the hits that clear the threshold, one per prefiltered row, with every judge's column. */
-export function buildHits(
+export type IngestOptions = {
+  model: string;
+  version: string;
+  date: string;
+  threshold: number;
+  dictionary: { repo: string; rev: string };
+  /** Hits each candidate already has on a shelf (accepted or featured), by candidate id. */
+  taken?: ReadonlyMap<string, number>;
+};
+
+/** Where a written hit came from: a v2 shelf, an alternate, or the v1 threshold. */
+export type Placement = 'interesting' | 'stretch' | 'alternate' | 'v1';
+export type Placed = { hit: Hit; placement: Placement };
+export type NearMiss = { id: string; input: string; display: string; relation: number; reads: number; rationale: string };
+
+function makeHit(
+  row: Prefiltered,
+  judge: Judgement[],
+  options: IngestOptions,
+  status: Hit['status'],
+  tags: string[],
+  justification?: string,
+): Hit {
+  const hit: Hit = {
+    id: row.id,
+    input: row.input,
+    category: row.category,
+    words: row.words,
+    display: row.display,
+    letters: row.letters,
+    prefilter_score: row.prefilter_score,
+    judge,
+    added: options.date,
+    dictionary: options.dictionary,
+    tier: row.tier,
+    tags,
+    status,
+  };
+  if (justification) hit.justification = justification;
+  return hit;
+}
+
+function tagsFor(best: JudgementV2, alternate: boolean): string[] {
+  return [
+    ...(best.relation === 5 ? ['greatest-candidate'] : []),
+    ...(alternate ? ['alternate'] : []),
+    ...best.tone.map((t) => `tone:${t}`),
+    ...best.subjects.map((s) => `subject:${s}`),
+  ];
+}
+
+/** Shelved hits sort before alternates, and within a group by score, then id. */
+function weight(placed: Placed): number {
+  const best = bestJudgement(placed.hit.judge);
+  if (!best) return 0;
+  return isV2(best) ? best.relation * 10 + best.reads : best.total;
+}
+
+/**
+ * Decide what each verdict becomes: shelved hits, alternates and near misses
+ * under rubric v2; proposed hits at or above the threshold under rubric v1.
+ * Every judge column on a row is kept; the best one decides.
+ */
+export function assessBatch(
   batch: ReadonlyMap<string, Prefiltered>,
   verdicts: readonly Verdict[],
-  options: { model: string; version: string; date: string; threshold: number; dictionary: { repo: string; rev: string } },
-): Hit[] {
+  options: IngestOptions,
+): { hits: Placed[]; near: NearMiss[] } {
   const byId = new Map<string, Judgement[]>();
   for (const v of verdicts) {
     const list = byId.get(v.id) ?? [];
     list.push(toJudgement(v, options.model, options.version, options.date));
     byId.set(v.id, list);
   }
-  const hits: Hit[] = [];
+
+  type Entry = { row: Prefiltered; judge: Judgement[]; best: JudgementV2; scores: Scores };
+  const placed: Placed[] = [];
+  const near: NearMiss[] = [];
+  const byCandidate = new Map<string, Entry[]>();
   for (const [id, judge] of byId) {
     const row = batch.get(id)!;
-    // The primary judge decides; a second column is recorded, not averaged.
-    const best = Math.max(...judge.map((j) => j.total));
-    if (best < options.threshold) continue;
-    hits.push({
-      id,
-      input: row.input,
-      category: row.category,
-      words: row.words,
-      display: row.display,
-      letters: row.letters,
-      prefilter_score: row.prefilter_score,
-      judge,
-      added: options.date,
-      dictionary: options.dictionary,
-      tier: row.tier,
-      tags: [],
-      status: 'proposed',
-    });
+    const v2 = judge.filter(isV2);
+    if (v2.length === 0) {
+      // Rubric v1: the primary judge decides; a second column is recorded, not averaged.
+      const best = Math.max(...judge.map((j) => (j as JudgementV1).total));
+      if (best >= options.threshold) placed.push({ hit: makeHit(row, judge, options, 'proposed', []), placement: 'v1' });
+      continue;
+    }
+    const best = bestJudgement(v2) as JudgementV2;
+    const list = byCandidate.get(row.candidate_id) ?? [];
+    list.push({ row, judge, best, scores: scoresOf(best) });
+    byCandidate.set(row.candidate_id, list);
   }
-  return hits.sort((a, b) => b.judge[0]!.total - a.judge[0]!.total || a.id.localeCompare(b.id));
+
+  for (const [candidate, entries] of byCandidate) {
+    const shelved = shelve(entries, (e) => e.scores, (e) => e.row.id, options.taken?.get(candidate) ?? 0);
+    for (const e of shelved.accepted) {
+      const placement = assess(e.scores) as 'interesting' | 'stretch';
+      placed.push({ hit: makeHit(e.row, e.judge, options, 'accepted', tagsFor(e.best, false), e.best.justification), placement });
+    }
+    for (const e of shelved.alternates) {
+      placed.push({ hit: makeHit(e.row, e.judge, options, 'proposed', tagsFor(e.best, true), e.best.justification), placement: 'alternate' });
+    }
+    for (const e of shelved.near) {
+      near.push({ id: e.row.id, input: e.row.input, display: e.row.display, ...e.scores, rationale: e.best.rationale });
+    }
+  }
+
+  const rank: Record<Placement, number> = { interesting: 0, stretch: 1, alternate: 2, v1: 3 };
+  placed.sort((a, b) => rank[a.placement] - rank[b.placement] || weight(b) - weight(a) || a.hit.id.localeCompare(b.hit.id));
+  near.sort((a, b) => b.relation - a.relation || b.reads - a.reads || a.id.localeCompare(b.id));
+  return { hits: placed, near };
+}
+
+/** The hits `assessBatch` would write, in order. */
+export function buildHits(
+  batch: ReadonlyMap<string, Prefiltered>,
+  verdicts: readonly Verdict[],
+  options: IngestOptions,
+): Hit[] {
+  return assessBatch(batch, verdicts, options).hits.map((p) => p.hit);
+}
+
+/** How many hits each candidate already has on a shelf. */
+export function takenCounts(hits: readonly Hit[]): Map<string, number> {
+  const taken = new Map<string, number>();
+  for (const hit of hits) {
+    if (hit.status !== 'accepted' && hit.status !== 'featured') continue;
+    const candidate = hit.id.split(':').slice(0, 2).join(':');
+    taken.set(candidate, (taken.get(candidate) ?? 0) + 1);
+  }
+  return taken;
+}
+
+const NEAR_SHOWN = 30;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const cell = (text: string) => text.replace(/\|/g, '/').replace(/\s*\n\s*/g, ' ');
+
+/** The report ingest writes next to the queue; the routine's pull request body. Pure. */
+export function renderReport(r: {
+  date: string;
+  dir: string;
+  empty: boolean;
+  read: number;
+  valid: number;
+  rejected: readonly Rejection[];
+  rubric: 'v1' | 'v2';
+  placed: readonly Placed[];
+  addedIds: ReadonlySet<string>;
+  near: readonly NearMiss[];
+  moved: number;
+  threshold: number;
+}): string {
+  const head = [
+    `# Ingest ${r.date}`,
+    '',
+    `Queue: ${r.dir}`,
+    ...(r.empty ? ['Nothing to judge: the queue was empty.'] : []),
+    `Verdicts: ${r.read} read · ${r.valid} valid · ${r.rejected.length} rejected`,
+  ];
+  const rejected = r.rejected.length ? ['## Rejected', '', ...r.rejected.map((x) => `- ${x.id}: ${x.reason}`), ''] : [];
+  const added = r.placed.filter((p) => r.addedIds.has(p.hit.id));
+
+  if (r.rubric === 'v1') {
+    return [
+      ...head,
+      `Hits: ${r.placed.length} at or above ${r.threshold} of 15 · ${added.length} new in data/hits.jsonl`,
+      `Candidates moved to enumerated: ${r.moved}`,
+      '',
+      '| total | input | anagram | rationale |',
+      '|---|---|---|---|',
+      ...added.map((p) => {
+        const j = p.hit.judge[0] as JudgementV1;
+        return `| ${j.total} | ${p.hit.input} | ${p.hit.display} | ${cell(j.rationale)} |`;
+      }),
+      '',
+      ...rejected,
+    ].join('\n');
+  }
+
+  const of = (placement: Placement) => added.filter((p) => p.placement === placement);
+  const accepted = added.filter((p) => p.placement === 'interesting' || p.placement === 'stretch').length;
+  const table = (rows: readonly Placed[], byId: boolean) => [
+    `| relation | reads | ${byId ? 'id' : 'input'} | anagram | justification |`,
+    '|---|---|---|---|---|',
+    ...rows.map((p) => {
+      const s = scoresOf(bestJudgement(p.hit.judge)!);
+      const relation = s.relation === 5 ? '5, flagged for Greatest Hits' : String(s.relation);
+      const who = byId ? p.hit.id : cell(p.hit.input);
+      return `| ${relation} | ${s.reads} | ${who} | ${cell(p.hit.display)} | ${cell(p.hit.justification ?? '')} |`;
+    }),
+  ];
+  const section = (title: string, intro: string | null, rows: readonly Placed[], byId = false) =>
+    rows.length ? [`## ${title}`, '', ...(intro ? [intro, ''] : []), ...table(rows, byId), ''] : [];
+  const shown = r.near.slice(0, NEAR_SHOWN);
+  const nearIntro =
+    r.near.length > NEAR_SHOWN
+      ? `Not added; kept in \`judge-output.jsonl\`. The first ${NEAR_SHOWN} of ${r.near.length}, by relation and reads:`
+      : 'Not added; kept in `judge-output.jsonl`.';
+
+  return [
+    ...head,
+    `Hits: ${added.length} new in data/hits.jsonl (${accepted} accepted, ${plural(of('alternate').length, 'alternate', 'alternates')} proposed) · ${plural(r.near.length, 'near miss', 'near misses')} kept in judge-output.jsonl`,
+    `Candidates moved to enumerated: ${r.moved}`,
+    '',
+    'Merging this pull request accepts every hit under Interesting and A stretch. Greatest Hits changes only when the operator promotes a hit by name.',
+    '',
+    ...section('Interesting', null, of('interesting')),
+    ...section('A stretch', null, of('stretch')),
+    ...section(
+      'Alternates',
+      'These qualify, but their input already has three hits on a shelf. They are proposed; accept one with `pnpm hits:set --status=accepted <id>`.',
+      of('alternate'),
+      true,
+    ),
+    ...(r.near.length
+      ? [
+          '## Near misses',
+          '',
+          nearIntro,
+          '',
+          '| relation | reads | input | anagram | rationale |',
+          '|---|---|---|---|---|',
+          ...shown.map((n) => `| ${n.relation} | ${n.reads} | ${cell(n.input)} | ${cell(n.display)} | ${cell(n.rationale)} |`),
+          '',
+        ]
+      : []),
+    ...rejected,
+  ].join('\n');
 }
 
 async function main(): Promise<void> {
@@ -224,8 +469,17 @@ async function main(): Promise<void> {
     else rejected.push({ id: v.id, reason: `not an anagram: ${verdict.reason}` });
   }
 
-  const hits = buildHits(batch, verified, { model, version, date, threshold, dictionary: await dictionaryPin() });
-  const added = await appendJsonl(HITS_PATH, hits, await hitSchema());
+  const hitValidator = await hitSchema();
+  const existing = await readJsonl(HITS_PATH, hitValidator);
+  const assessed = assessBatch(batch, verified, {
+    model,
+    version,
+    date,
+    threshold,
+    dictionary: await dictionaryPin(),
+    taken: takenCounts(existing),
+  });
+  const added = await appendJsonl(HITS_PATH, assessed.hits.map((p) => p.hit), hitValidator);
 
   // Candidates that were judged are done for now.
   const judgedCandidates = new Set([...batch.values()].map((r) => r.candidate_id));
@@ -240,21 +494,20 @@ async function main(): Promise<void> {
   }
   await writeJsonl(CANDIDATES_PATH, candidates, cv);
 
-  const report = [
-    `# Ingest ${date}`,
-    '',
-    `Queue: ${dir}`,
-    ...(batch.size === 0 ? ['Nothing to judge: the queue was empty.'] : []),
-    `Verdicts: ${verdicts.length} read · ${verified.length} valid · ${rejected.length} rejected`,
-    `Hits: ${hits.length} at or above ${threshold} of 15 · ${added.length} new in data/hits.jsonl`,
-    `Candidates moved to enumerated: ${moved}`,
-    '',
-    '| total | input | anagram | rationale |',
-    '|---|---|---|---|',
-    ...added.map((h) => `| ${h.judge[0]!.total} | ${h.input} | ${h.display} | ${h.judge[0]!.rationale.replace(/\|/g, '/')} |`),
-    '',
-    ...(rejected.length ? ['## Rejected', '', ...rejected.map((r) => `- ${r.id}: ${r.reason}`), ''] : []),
-  ].join('\n');
+  const report = renderReport({
+    date,
+    dir,
+    empty: batch.size === 0,
+    read: verdicts.length,
+    valid: verified.length,
+    rejected,
+    rubric: verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2',
+    placed: assessed.hits,
+    addedIds: new Set(added.map((h) => h.id)),
+    near: assessed.near,
+    moved,
+    threshold,
+  });
   await writeFile(resolve(dir, INGEST_REPORT), report);
   console.log(report);
 }

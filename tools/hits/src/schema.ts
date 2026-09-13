@@ -38,7 +38,12 @@ export type Candidate = {
   notes?: string;
 };
 
-export type Judgement = {
+/** Labels a v2 judge may put on a phrase. They never change a score. */
+export const TONES = ['literal', 'ironic', 'pun', 'self-referential', 'uncanny', 'rude'] as const;
+export type Tone = (typeof TONES)[number];
+
+/** A rubric v1 score: three axes and their total. Older queues keep these. */
+export type JudgementV1 = {
   model: string;
   rubric_version: string;
   aptness: number;
@@ -48,6 +53,29 @@ export type Judgement = {
   rationale: string;
   judged_at: string;
 };
+
+/**
+ * A rubric v2 score. Relation to the input decides the shelf; reads, tone and
+ * subjects label; the justification explains the link to a reader, and is
+ * present from relation 3 up.
+ */
+export type JudgementV2 = {
+  model: string;
+  rubric_version: string;
+  relation: number;
+  reads: number;
+  tone: Tone[];
+  subjects: string[];
+  justification?: string;
+  rationale: string;
+  judged_at: string;
+};
+
+export type Judgement = JudgementV1 | JudgementV2;
+
+export function isV2(judgement: Judgement): judgement is JudgementV2 {
+  return 'relation' in judgement;
+}
 
 export type Tier = 'common' | 'standard' | 'full';
 export const HIT_STATUSES = ['proposed', 'accepted', 'featured', 'retired'] as const;
@@ -68,6 +96,8 @@ export type Hit = {
   tier: Tier;
   tags: string[];
   status: HitStatus;
+  /** One plain sentence for a reader; the operator can edit it. */
+  justification?: string;
 };
 
 let candidateValidator: ValidateFunction<Candidate> | null = null;

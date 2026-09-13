@@ -1,22 +1,38 @@
-<!-- rubric_version: v1 -->
+<!-- rubric_version: v2 -->
 # Judging anagrams for the Ars Magna Greatest Hits
 
-You are scoring candidate anagrams. Each candidate is an **input** (a person, company, product, title, place or phrase), its **category**, and an **anagram**: a rearrangement of exactly the input's letters into real English words. The letters are already verified; do not re-check them. Your job is to say how *good* the anagram is as an anagram of that particular input.
+You are judging candidate anagrams. Each candidate has three parts:
 
-Score three things, each from 1 to 5:
+- an **input**: a person, company, product, title, place or phrase;
+- its **category**;
+- an **anagram**: a rearrangement of exactly the input's letters into real English words.
 
-- **aptness** — how much the anagram says something about the input. 5: it is a comment, a joke or an uncanny description of the thing itself ("dormitory" → "dirty room", "astronomer" → "moon starer"). 3: loosely evocative or amusingly ironic. 1: no relationship at all; it is just words that happen to use the letters. This is the score that matters most, and it is about the **relationship to the input**, never about the phrase on its own.
-- **grammar** — how much the phrase reads as English someone could say. 5: a natural phrase or sentence. 3: a plausible headline or list of words with a loose connection. 1: word salad.
-- **memorability** — would a person repeat it? 5: quotable. 3: mildly pleasing. 1: forgettable.
+The letters are already verified; do not re-check them. Your job is to say whether the anagram has anything to do with the input, and how much.
 
-Then write **one line of rationale** (under 25 words) explaining the aptness score in particular.
+For each candidate give:
+
+- **relation**, 1 to 5: how the anagram relates to the input itself. This is the score that decides.
+  - 5: it names or describes the input: a fact, a known reference, a joke about it. Examples: "dormitory" → "dirty room"; "Doctor Who" → "torch wood", since Torchwood is the show's own spin-off.
+  - 4: a clear, specific link a reader gets once it is pointed out. Example: "Funeral" → "real fun", an ironic reversal.
+  - 3: a loose link you can argue in one sentence. Examples: "Old England" → "golden land"; "Boeing" → "big one".
+  - 2: a link only through one word, or a strained reading. Example: "Google Maps" → "goo maps leg".
+  - 1: no link; words that happen to use the letters.
+- **reads**, 1 to 3: how the anagram reads as English.
+  - 3: a phrase someone would say.
+  - 2: a headline or list that still parses.
+  - 1: word salad.
+- **tone**: zero or more of `literal`, `ironic`, `pun`, `self-referential`, `uncanny`, `rude`.
+- **subjects**: zero or more short labels for what the input is. Use lowercase, with hyphens for spaces. Examples: `actor`, `scientist`, `band`, `film`, `novel`, `city`, `airline`, `tech-company`.
+- **justification**: required for relation 3 and above; leave it out below 3. One plain sentence, under 30 words, that explains the link to a reader who does not know the reference.
+- **rationale**: one line, under 25 words, on why you gave that relation score.
 
 Rules:
-- Score every candidate you are given, once, by its `id`. Do not invent candidates and do not skip any.
-- Be strict. Most candidates are word salad and should score low on aptness; a 4 or 5 on aptness should be rare and defensible.
-- Ignore rude or offensive phrases: score them honestly on the three axes, but add the word `sensitive` at the start of the rationale so a person can decide.
+
+- Judge every candidate you are given, once, by its `id`. Do not invent candidates, and do not skip any.
+- Judge the relation, not the polish. A loose but real link is a 3, even when the phrase is awkward. Most candidates have no link to their input and get a 1.
+- Judge rude, vulgar or offensive anagrams exactly like any other. Never lower a score for them; add the `rude` tone instead. Do not seek them out.
 - Output **JSONL only**: one line per candidate, no prose before or after, in exactly this shape:
 
 ```
-{"id": "<id>", "aptness": 1-5, "grammar": 1-5, "memorability": 1-5, "rationale": "<one line>"}
+{"id": "<id>", "relation": 1-5, "reads": 1-3, "tone": [], "subjects": [], "justification": "<one sentence; relation 3 and above only>", "rationale": "<one line>"}
 ```

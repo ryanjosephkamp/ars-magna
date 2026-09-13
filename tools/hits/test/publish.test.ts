@@ -38,7 +38,18 @@ describe('publish', () => {
   it('fills a mined row\'s submitter with null and keeps a submitted one', () => {
     expect(publishRow(hit({})).submitter).toBeNull();
     expect(publishRow(hit({ submitter: 'seed' })).submitter).toBe('seed');
-    expect(Object.keys(publishRow(hit({})))).toEqual(Object.keys(publishRow(hit({ submitter: 'seed' }))));
+    expect(Object.keys(publishRow(hit({})))).toEqual(Object.keys(publishRow(hit({ submitter: 'seed', justification: 'why' }))));
+  });
+
+  it('publishes the shelf and the justification, falling back to the best v2 judge', () => {
+    const judge = (relation: number, justification?: string) => ({
+      model: 'claude-sonnet-5', rubric_version: 'v2', relation, reads: 3, tone: [], subjects: [], rationale: 'r', judged_at: '2026-09-13',
+      ...(justification ? { justification } : {}),
+    });
+    expect(publishRow(hit({ status: 'featured' }))).toMatchObject({ shelf: 'greatest', justification: null });
+    expect(publishRow(hit({ judge: [judge(3, 'loose'), judge(4, 'clear')] }))).toMatchObject({ shelf: 'interesting', justification: 'clear' });
+    expect(publishRow(hit({ judge: [judge(4, 'clear')], justification: 'mine' })).justification).toBe('mine');
+    expect(publishRow(hit({ judge: [judge(3, 'loose')] })).shelf).toBe('stretch');
   });
 
   it('builds one config per category plus all, each holding only its own rows', () => {
@@ -68,9 +79,12 @@ describe('publish', () => {
     // Every published row carries every field: a dataset reader infers one
     // schema for the file and chokes on a key some rows lack.
     for (const row of all) {
-      expect(Object.keys(row)).toContain('submitter');
-      const { submitter, ...rest } = row;
-      expect(validate(submitter === null ? rest : row)).toBe(true);
+      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'shelf']));
+      const { submitter, justification, shelf, ...rest } = row;
+      expect(['greatest', 'interesting', 'stretch']).toContain(shelf);
+      // The published extras aside, the row is still a valid hit.
+      const back = { ...rest, ...(submitter === null ? {} : { submitter }), ...(justification === null ? {} : { justification }) };
+      expect(validate(back)).toBe(true);
     }
     expect(all.map((r) => r['submitter'])).toEqual([null, null]);
     expect(await readFile(join(out, 'products.jsonl'), 'utf8')).toBe('');

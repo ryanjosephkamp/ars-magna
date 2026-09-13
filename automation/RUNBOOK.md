@@ -10,11 +10,11 @@ How the dataset grows, what runs where, and what to do by hand.
 | enumerate | `pnpm hits:enumerate` | `anagram batch` over the `new` candidates into `data/queue/<date>/raw.jsonl`. | nightly Action · laptop |
 | prefilter | `pnpm hits:prefilter` | Everyday words only, one to four of them, best reading order, scored; the best 300 into `prefiltered.jsonl`. No model. A candidate that leaves nothing keepable moves to `enumerated` with a note, so it is not run again. | nightly Action · laptop |
 | judge | `pnpm hits:judge` | Writes `judge-input-N.md` for a Claude session to answer into `judge-output.jsonl`. `--via=api` calls the Claude API instead. An empty queue gets an empty answer, not an error. | Claude routine · laptop |
-| ingest | `pnpm hits:ingest --model=…` | Validates the verdicts, re-checks the letters, writes proposed hits, moves candidates to `enumerated`, writes `ingest-report.md`. | Claude routine · laptop |
+| ingest | `pnpm hits:ingest --model=…` | Validates the verdicts and re-checks the letters. Shelves rubric v2 verdicts: up to three `accepted` hits per input, further qualifying rows as `proposed` alternates, and near misses left in the verdicts. Rubric v1 verdicts from older queues become `proposed` at a total of 11. Moves candidates to `enumerated` and writes `ingest-report.md`. | Claude routine · laptop |
 | set | `pnpm hits:set --status=accepted id…` | Changes the status of hits by id (`accepted`, `featured`, `proposed`, `retired`). Refuses an unknown id or status and writes nothing; otherwise rewrites `data/hits.jsonl` through the schema and prints each change. | a person · laptop |
 | publish | `pnpm hits:publish` | Builds `dataset/` and pushes accepted and featured hits to Hugging Face. | publish Action · laptop |
 
-Nothing enters the published dataset without a person setting a hit to `accepted` or `featured` with `pnpm hits:set` and merging that to `main`.
+Nothing enters the published dataset without a person's merge. A hit is published when a person merges the pull request that makes it `accepted`: the routine's shelves, or `pnpm hits:set`. Greatest Hits (`featured`) changes only when the operator promotes a hit by name.
 
 ## Automation
 
@@ -28,20 +28,21 @@ The CI and deploy workflows ignore `data/queue/**` and `data/candidates.jsonl`, 
 
 ## Reviewing a pull request from the routine
 
-1. Read the ingest report in the body. Each proposed hit shows its total, the input, the phrase and the judge's one-line rationale.
+1. Read the ingest report in the body. It lists the hits by shelf (Interesting, A stretch), each with its relation, reads, input, phrase and justification, then the alternates and the near misses. Merging accepts every shelved hit.
 2. Check out the branch: `gh pr checkout <number>`.
-3. Set the ones worth keeping, by id, and leave the rest `proposed`:
+3. Change only what you disagree with, by id:
 
    ```bash
-   pnpm hits:set --status=accepted <id> <id>
-   pnpm hits:set --status=featured <id>    # accepted, and shown first
+   pnpm hits:set --status=featured <id>    # Greatest Hits
+   pnpm hits:set --status=accepted <id>    # accept an alternate
+   pnpm hits:set --status=proposed <id>    # hold back a shelved hit
    pnpm hits:set --status=retired <id>     # bury one for good
    ```
 
    The id is `input letters:category:words sorted and joined with -`, as in `data/hits.jsonl`. Each command prints what it changed.
-4. Commit `data/hits.jsonl` on the branch, push, and merge once CI is green. The publish Action pushes the new rows to Hugging Face and the deploy rebuilds the gallery.
+4. Commit `data/hits.jsonl` on the branch if you changed it, push, and merge once CI is green. The publish Action pushes the new rows to Hugging Face and the deploy rebuilds the gallery.
 
-A rationale that starts with `sensitive` means the judge saw something rude or aimed at a real person; look before accepting. The full review, with the prompt that does it, is in `docs/OPERATOR.md`.
+Rude or offensive phrases are never scored down; they carry the tag `tone:rude`. The full review, with the prompt that does it, is in `docs/OPERATOR.md`.
 
 ## Doing it all by hand
 

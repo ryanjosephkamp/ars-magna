@@ -31,8 +31,8 @@ When you know an anagram that belongs in the dataset.
    hit's tier. If the letters differ, it is not an anagram.
 2. On a branch off `main`, record it as a proposed hit. In a session with the MCP server (Claude Code in
    this repository, or Codex set up as `docs/BOOTSTRAP.md` describes), call `propose_hit` with the input,
-   the category, the words in reading order, and the tier; it checks again, then adds the candidate and
-   the hit. Without the MCP server, open a "Submit an anagram" issue on GitHub; when the validator labels
+   the category, the words in reading order, the tier, and a `justification`: one plain sentence
+   explaining the link for a reader. It checks again, then adds the candidate and the hit. Without the MCP server, open a "Submit an anagram" issue on GitHub; when the validator labels
    it `submission:valid`, run `pnpm hits:ingest --from-issue=<issue number>`.
 3. Accept it by id. The id is the input's letters, the category, and the words sorted and joined with `-`:
 
@@ -50,30 +50,45 @@ Prompt: `docs/prompts/add-hit.md` (hit_input, hit_phrase, hit_category).
 When a pull request titled `Greatest Hits: N new for <date>` appears. The routine opens one after it
 judges a non-empty queue, even when N is zero.
 
-1. Read the ingest report in the body: for each proposed hit, its total out of 15, the input, the phrase,
-   and the judge's one-line rationale. A rationale that starts with `sensitive` means the judge saw
-   something rude or aimed at a real person; look before accepting it.
-2. Decide each hit:
+The judge scores each anagram's **relation** to its input from 1 to 5, and how it **reads** from 1 to
+3. Ingest turns that into a shelf:
 
-   | Status | Means |
-   |---|---|
-   | `accepted` | in the dataset and the gallery |
-   | `featured` | accepted, listed first in the gallery, and the pool the anagram of the day draws from |
-   | `proposed` | left as it is; in neither |
-   | `retired` | buried for good; the id stays in the file, so ingest never proposes it again |
+| Scores | Shelf | In the pull request as |
+|---|---|---|
+| relation 5 | Interesting, flagged for Greatest Hits | `accepted`, tag `greatest-candidate` |
+| relation 4 | Interesting | `accepted` |
+| relation 3 that reads 2 or 3 | A stretch | `accepted` |
+| a fourth or later qualifying phrase for one input | alternate | `proposed`, tag `alternate` |
+| relation 3 that reads 1, or relation 2 | near miss | not added; listed in the report |
 
-3. Check out the branch and set the hits, one command per status:
+**Merging accepts every hit under Interesting and A stretch.** Greatest Hits (`featured`) changes only
+when you promote a hit by name. Rude or offensive phrases are never scored down; they carry the tag
+`tone:rude`.
+
+1. Read the ingest report in the body. For each hit it lists the relation, reads, input, phrase and
+   justification, then the alternates, then the near misses.
+2. Check out the branch and change only what you disagree with, one command per status:
 
    ```bash
    gh pr checkout <number>
-   pnpm hits:set --status=accepted <id> <id>
-   pnpm hits:set --status=featured <id>
+   pnpm hits:set --status=featured <id>     # promote to Greatest Hits
+   pnpm hits:set --status=accepted <id>     # accept an alternate
+   pnpm hits:set --status=proposed <id>     # hold back a shelved hit
+   pnpm hits:set --status=retired <id>      # bury one for good
    ```
 
-   Each command prints what it changed. An unknown id or status is refused and nothing is written.
-4. Commit `data/hits.jsonl` on the branch, push, and merge when CI is green. A pull request with N of zero
-   has nothing to set; merge it so the judged queue stays in the record.
-5. Verify the release: the gallery and the dataset show the new hits.
+   Each command prints what it changed. An unknown id or status is refused and nothing is written. A
+   near miss is not in `data/hits.jsonl`; to add one, use "Add a hit by hand".
+3. If you changed anything, commit `data/hits.jsonl` on the branch and push. Merge when CI is green. A
+   pull request with N of zero has nothing to accept; merge it so the judged queue stays in the record.
+4. Verify the release: the gallery and the dataset show the new hits.
+
+| Status | Means |
+|---|---|
+| `featured` | Greatest Hits: listed first in the gallery, and the pool the anagram of the day draws from |
+| `accepted` | in the dataset and the gallery, on Interesting or A stretch |
+| `proposed` | not published: an alternate, or held back |
+| `retired` | buried for good; the id stays in the file, so ingest never proposes it again |
 
 Prompt: `docs/prompts/review-hits-pr.md` (pr_number). The agent lists and recommends first, then waits
 for your ids and statuses.
@@ -97,7 +112,7 @@ on a laptop, with the engine check turned back on.
    `ANTHROPIC_API_KEY` set in your shell, `pnpm hits:judge --date=<folder> --via=api` writes the answers
    through the API instead.
 4. `pnpm hits:ingest --date=<folder> --model=<the model that judged>` re-checks every phrase with the
-   engine, writes the proposed hits, and writes `ingest-report.md`.
+   engine, writes the shelved hits and the alternates, and writes `ingest-report.md`.
 5. Commit on a branch named `hits/<folder>` exactly as step 5 of `automation/judge-routine.md` lists, open
    the pull request, and review it as above.
 

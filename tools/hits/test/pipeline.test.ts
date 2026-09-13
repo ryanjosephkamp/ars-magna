@@ -9,7 +9,9 @@ import { TAG_BIT as B } from '@ars-magna/engine';
 
 import { prefilterRow, reject, score, select, settleEmpty, type RawRow } from '../src/prefilter.ts';
 import { batches, parseVerdicts, renderBatch, rubric, type Verdict } from '../src/judge.ts';
-import { buildHits, validateVerdicts } from '../src/ingest.ts';
+import { assessBatch, buildHits, renderReport, takenCounts, validateVerdicts } from '../src/ingest.ts';
+import type { VerdictV2 } from '../src/judge.ts';
+import type { Hit } from '../src/schema.ts';
 import { hitSchema, type Candidate } from '../src/schema.ts';
 import type { Prefiltered } from '../src/prefilter.ts';
 
@@ -113,7 +115,7 @@ describe('judge', () => {
   it('carries a version in the rubric', async () => {
     const { version, text } = await rubric();
     expect(version).toMatch(/^v\d+$/);
-    expect(text).toContain('aptness');
+    expect(text).toContain('relation');
   });
 
   it('batches without splitting a candidate and renders every row', () => {
@@ -185,7 +187,100 @@ describe('ingest', () => {
     expect(hits).toHaveLength(1);
     const hit = hits[0]!;
     expect(hit.status).toBe('proposed');
-    expect(hit.judge.map((j) => [j.model, j.total])).toEqual([['claude-sonnet-5', 15], ['grok-4', 12]]);
+    expect(hit.judge.map((j) => [j.model, 'total' in j ? j.total : null])).toEqual([['claude-sonnet-5', 15], ['grok-4', 12]]);
     expect((await hitSchema())(hit)).toBe(true);
+  });
+});
+
+describe('ingest under rubric v2', () => {
+  const rows = ['b-c', 'd-e', 'f-g', 'h-i', 'j-k', 'l-m', 'n-o'].map((id) => pre(id, 'x:phrases', id.replace('-', ' ')));
+  const batch = new Map(rows.map((r) => [r.id, r]));
+  const v = (id: string, relation: number, reads: number, over: Partial<VerdictV2> = {}): VerdictV2 => ({
+    id: `x:phrases:${id}`,
+    relation,
+    reads,
+    tone: [],
+    subjects: [],
+    ...(relation >= 3 ? { justification: `about ${id}` } : {}),
+    rationale: 'why',
+    ...over,
+  });
+  const verdicts = [
+    v('b-c', 5, 3, { tone: ['self-referential'], subjects: ['film'] }),
+    v('d-e', 4, 2),
+    v('f-g', 3, 3),
+    v('h-i', 3, 2),
+    v('j-k', 3, 1),
+    v('l-m', 2, 3),
+    v('n-o', 1, 1),
+  ];
+  const options = { model: 'claude-sonnet-5', version: 'v2', date: '2026-09-13', threshold: 11, dictionary: { repo: 'r', rev: 'a'.repeat(40) } };
+
+  it('rejects what rubric v2 does not allow', () => {
+    const { ok, rejected } = validateVerdicts(
+      [
+        verdicts[0]!,
+        { ...verdicts[1]!, relation: 6 },
+        { ...verdicts[2]!, reads: 4 },
+        { ...verdicts[3]!, justification: ' ' },
+        { ...verdicts[4]!, tone: ['smug'] },
+        { ...verdicts[5]!, subjects: ['Film Star'] },
+        { ...verdicts[6]!, rationale: '' },
+      ],
+      batch,
+    );
+    expect(ok.map((x) => x.id)).toEqual(['x:phrases:b-c']);
+    expect(rejected.map((r) => r.reason)).toEqual(['relation outside 1-5', 'reads outside 1-3', 'no justification', 'unknown tone', 'bad subject', 'no rationale']);
+    expect(validateVerdicts([{ ...verdicts[0]!, justification: 'x'.repeat(301) }], batch).rejected[0]!.reason).toBe('justification over 300 characters');
+  });
+
+  it('shelves three per input, proposes the rest as alternates, and keeps near misses out of the file', async () => {
+    const { hits, near } = assessBatch(batch, verdicts, options);
+    expect(hits.map((p) => [p.hit.id, p.hit.status, p.placement])).toEqual([
+      ['x:phrases:b-c', 'accepted', 'interesting'],
+      ['x:phrases:d-e', 'accepted', 'interesting'],
+      ['x:phrases:f-g', 'accepted', 'stretch'],
+      ['x:phrases:h-i', 'proposed', 'alternate'],
+    ]);
+    expect(hits[0]!.hit).toMatchObject({ justification: 'about b-c', tags: ['greatest-candidate', 'tone:self-referential', 'subject:film'] });
+    expect(hits[3]!.hit.tags).toEqual(['alternate']);
+    expect(near.map((n) => [n.id, n.relation, n.reads])).toEqual([['x:phrases:j-k', 3, 1], ['x:phrases:l-m', 2, 3]]);
+    const validate = await hitSchema();
+    for (const p of hits) expect(validate(p.hit), JSON.stringify(validate.errors)).toBe(true);
+
+    // An input that already has two hits on a shelf has one slot left.
+    const later = assessBatch(batch, verdicts, { ...options, taken: new Map([['x:phrases', 2]]) });
+    expect(later.hits.filter((p) => p.hit.status === 'accepted').map((p) => p.hit.id)).toEqual(['x:phrases:b-c']);
+    expect(later.hits.filter((p) => p.placement === 'alternate')).toHaveLength(3);
+  });
+
+  it('counts the hits each input already has on a shelf', () => {
+    const hit = (id: string, status: Hit['status']) => ({ id, status }) as Hit;
+    const taken = takenCounts([hit('x:phrases:a', 'accepted'), hit('x:phrases:b', 'featured'), hit('x:phrases:c', 'proposed'), hit('y:titles:d', 'retired')]);
+    expect([...taken]).toEqual([['x:phrases', 2]]);
+  });
+
+  it('reports by shelf and says what a merge accepts', () => {
+    const assessed = assessBatch(batch, verdicts, options);
+    const text = renderReport({
+      date: '2026-09-13',
+      dir: 'data/queue/2026-09-13',
+      empty: false,
+      read: 7,
+      valid: 7,
+      rejected: [],
+      rubric: 'v2',
+      placed: assessed.hits,
+      addedIds: new Set(assessed.hits.map((p) => p.hit.id)),
+      near: assessed.near,
+      moved: 1,
+      threshold: 11,
+    });
+    expect(text).toContain('Hits: 4 new in data/hits.jsonl (3 accepted, 1 alternate proposed) · 2 near misses kept in judge-output.jsonl');
+    expect(text).toContain('Merging this pull request accepts every hit under Interesting and A stretch.');
+    for (const heading of ['## Interesting', '## A stretch', '## Alternates', '## Near misses']) expect(text).toContain(heading);
+    expect(text).toContain('| 5, flagged for Greatest Hits | 3 | x | b c | about b-c |');
+    expect(text).toContain('| 3 | 2 | x:phrases:h-i | h i | about h-i |');
+    expect(text).toContain('| 2 | 3 | x | l m | why |');
   });
 });

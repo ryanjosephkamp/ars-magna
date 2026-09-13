@@ -98,7 +98,7 @@ export function Gallery() {
                   <span className="mx-3 text-rule-strong">→</span>
                   {today.display}
                 </p>
-                {today.rationale && <p className="mt-2 max-w-prose text-sm text-ink-soft">{today.rationale}</p>}
+                {today.justification && <p className="mt-2 max-w-prose text-sm text-ink-soft">{today.justification}</p>}
                 <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px]">
                   <RowAction label="Share" active={sharing === 'today'} onClick={() => toggleShare('today')} always />
                   {sharing === 'today' && <ShareActions item={shareable(today)} id="today" copied={copied} onCopy={copy} />}
@@ -176,7 +176,7 @@ export function Gallery() {
                         </a>
                       </span>
                     </div>
-                    {hit.rationale && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.rationale}</p>}
+                    {hit.justification && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.justification}</p>}
                     {sharing === hit.id && (
                       <div className="mt-2">
                         <ShareActions item={shareable(hit)} id={hit.id} copied={copied} onCopy={copy} />

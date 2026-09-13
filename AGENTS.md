@@ -12,9 +12,10 @@ Code) adds only what is specific to that harness and never restates a rule from 
 - **Never modify the English OpenList (EOL) or CEOL repositories, datasets, or directories anywhere on
   this machine.** Dictionary inputs change only through `tools/dict-build/src/pins.ts` and `tiers.ts`,
   and a rebuilt dictionary is committed with `[dict]` in the message so CI verifies it.
-- Nothing enters the published dataset without a person. A hit stays `proposed` until a pull request
-  sets it `accepted` or `featured` with `pnpm hits:set` and a person merges it. An agent runs
-  `hits:set` only on the ids and status the operator named.
+- Nothing enters the published dataset without a person's merge. A hit is published when a person
+  merges the pull request that makes it `accepted`, whether the judge routine shelved it or
+  `pnpm hits:set` set it. Greatest Hits (`featured`) changes only when the operator promotes a hit by
+  name. An agent runs `hits:set` only on the ids and status the operator named.
 - The commit author email is the GitHub no-reply address
   `192532973+ryanjosephkamp@users.noreply.github.com`; GitHub rejects a push authored by any other. An
   agent's commits end with a `Co-Authored-By:` trailer naming the agent and its model.

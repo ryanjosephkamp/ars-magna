@@ -133,13 +133,14 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     {
       title: 'Propose a hit',
       description:
-        'Check that `words` are a real anagram of `input` at `tier`, then record the input as a candidate and the phrase as a proposed hit for a person to review. Nothing is published by this tool.',
+        'Check that `words` are a real anagram of `input` at `tier`, then record the input as a candidate and the phrase as a proposed hit for a person to review. `justification` is one plain sentence explaining the link for a reader. Nothing is published by this tool.',
       inputSchema: {
         input: z.string().min(1),
         category: z.enum(CATEGORIES),
         words: z.array(z.string().min(1)).min(1).max(8),
         tier,
         rationale: z.string().default(''),
+        justification: z.string().trim().min(1).max(300).optional(),
         submitter: z.string().default('mcp'),
       },
     },
@@ -173,6 +174,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         tier: args.tier as Tier,
         tags: args.rationale ? [`note:${args.rationale.slice(0, 80)}`] : [],
         status: 'proposed',
+        ...(args.justification ? { justification: args.justification } : {}),
       };
       const addedCandidates = await appendJsonl(paths.candidates, [candidate], await candidateSchema());
       const addedHits = await appendJsonl(paths.hits, [hit], await hitSchema());

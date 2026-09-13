@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hitPage, ordered, pickOfTheDay, publishable, slugOf, toPublic, type HitRecord } from './build.ts';
+import { hitPage, ordered, pickOfTheDay, publishable, shelfOf, slugOf, toPublic, type HitRecord } from './build.ts';
 
 const record = (over: Partial<HitRecord>): HitRecord => ({
   id: 'dormitory:phrases:dirty-room',
@@ -19,7 +19,7 @@ const record = (over: Partial<HitRecord>): HitRecord => ({
 
 const hits: HitRecord[] = [
   record({}),
-  record({ id: 'starwars:titles:stars-war', input: 'Star Wars', category: 'titles', words: ['stars', 'war'], display: 'stars war', letters: 'aarrsstw', status: 'featured', judge: [{ total: 12, rationale: 'The title as a sentence.', model: 'm' }], tags: [] }),
+  record({ id: 'starwars:titles:stars-war', input: 'Star Wars', category: 'titles', words: ['stars', 'war'], display: 'stars war', letters: 'aarrsstw', status: 'featured', judge: [{ total: 12, aptness: 4, grammar: 4, rationale: 'The title as a sentence.', model: 'm' }], tags: [] }),
   record({ id: 'kindle:products:linked', input: 'Kindle', category: 'products', words: ['linked'], display: 'linked', letters: 'deikln', status: 'proposed' }),
   record({ id: 'listen:phrases:silent', input: 'listen', words: ['silent'], display: 'silent', letters: 'eilnst', status: 'retired' }),
 ];
@@ -28,16 +28,35 @@ describe('gallery build', () => {
   it('publishes accepted and featured hits only, featured first', () => {
     const rows = ordered(publishable(hits).map(toPublic));
     expect(rows.map((r) => r.id)).toEqual(['starwars:titles:stars-war', 'dormitory:phrases:dirty-room']);
-    expect(rows[0]).toMatchObject({ featured: true, score: 12, rationale: 'The title as a sentence.', submitter: null });
-    expect(rows[1]).toMatchObject({ featured: false, score: null, rationale: '', tags: ['classic'] });
+    expect(rows[0]).toMatchObject({ featured: true, shelf: 'greatest', score: 12, justification: 'The title as a sentence.', submitter: null });
+    expect(rows[1]).toMatchObject({ featured: false, shelf: 'interesting', score: null, justification: '', tags: ['classic'] });
   });
 
-  it('makes a slug that reads back and a note tag into the rationale', () => {
+  it('makes a slug that reads back and a note tag into the justification', () => {
     expect(slugOf('dormitory:phrases:dirty-room')).toBe('dormitory-phrases-dirty-room');
     const withNote = toPublic(record({ tags: ['submitted', 'note:the one everyone knows'], submitter: 'someone' }));
-    expect(withNote.rationale).toBe('the one everyone knows');
+    expect(withNote.justification).toBe('the one everyone knows');
     expect(withNote.tags).toEqual(['submitted']);
     expect(withNote.submitter).toBe('someone');
+  });
+
+  it('prefers the operator sentence, then the v2 judge, then the v1 rationale, then a note', () => {
+    const v1 = { model: 'm', total: 11, aptness: 3, grammar: 4, rationale: 'v1 rationale' };
+    const v2 = { model: 'm', relation: 4, reads: 3, rationale: 'v2 rationale', justification: 'v2 justification' };
+    const { justification: _none, ...v2WithoutJustification } = v2;
+    const tags = ['note:a note'];
+    expect(toPublic(record({ judge: [v1, v2], tags, justification: 'mine' })).justification).toBe('mine');
+    expect(toPublic(record({ judge: [v1, v2], tags })).justification).toBe('v2 justification');
+    expect(toPublic(record({ judge: [v1, v2WithoutJustification], tags })).justification).toBe('v1 rationale');
+    expect(toPublic(record({ judge: [], tags })).justification).toBe('a note');
+  });
+
+  it('shelves by the best relation, with v1 aptness as relation', () => {
+    expect(shelfOf(record({ status: 'featured', judge: [] }))).toBe('greatest');
+    expect(shelfOf(record({ judge: [] }))).toBe('interesting');
+    expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', relation: 4, reads: 1 }] }))).toBe('interesting');
+    expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', relation: 3, reads: 3 }] }))).toBe('stretch');
+    expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', total: 12, aptness: 3, grammar: 5 }] }))).toBe('stretch');
   });
 
   it('picks the same anagram of the day for everyone and changes by date', () => {
