@@ -57,6 +57,7 @@ import {
   type JudgementV2,
   type Tone,
 } from './schema.ts';
+import { screenedCandidateIds } from './screen.ts';
 import { addRun, queueName, queueSettings } from './settings.ts';
 import { assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
 
@@ -572,7 +573,9 @@ async function main(): Promise<void> {
   // Candidates that were judged are done for now, and the ledger records
   // the queue and the versions they went through.
   const rubricKind = verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2';
-  const judgedCandidates = new Set([...batch.values()].map((r) => r.candidate_id));
+  // Every input the queue covered is done for now: the ones with rows the
+  // judge saw and, for a screened queue, the ones the screen kept nothing of.
+  const judgedCandidates = new Set([...[...batch.values()].map((r) => r.candidate_id), ...(await screenedCandidateIds(dir))]);
   const run = { queue: queueName(dir), settings: await queueSettings(dir), rubric: rubricKind, date };
   let moved = 0;
   for (const c of candidates) {

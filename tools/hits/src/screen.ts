@@ -240,6 +240,13 @@ export async function screenInputFiles(dir: string): Promise<string[]> {
     .map((n) => resolve(dir, n));
 }
 
+/** The inputs a screened queue covers: every section heading in its screen input, whatever the screen kept. */
+export async function screenedCandidateIds(dir: string): Promise<string[]> {
+  const files = await screenInputFiles(dir);
+  if (files.length === 0) return [];
+  return [...parseScreenInputs(await Promise.all(files.map((f) => readFile(f, 'utf8')))).keys()];
+}
+
 /**
  * Read a screened queue's answers, check them, and write the kept rows to
  * `screened.jsonl`. Throws, naming every problem, when the answers are
