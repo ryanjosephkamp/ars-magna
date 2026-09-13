@@ -3,17 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "The Greatest Hits pipeline: find inputs, enumerate, prefilter, judge, ingest, publish.",
+  "description": "The Greatest Hits pipeline: find inputs, enumerate, prefilter, screen, judge, ingest, publish.",
   "scripts": {
     "fetch": "node --experimental-strip-types src/fetch.ts",
     "enumerate": "node --experimental-strip-types src/enumerate.ts",
     "prefilter": "node --experimental-strip-types src/prefilter.ts",
+    "screen": "node --experimental-strip-types src/screen.ts",
     "judge": "node --experimental-strip-types src/judge.ts",
     "ingest": "node --experimental-strip-types src/ingest.ts",
     "publish": "node --experimental-strip-types src/publish.ts",
     "set": "node --experimental-strip-types src/set.ts",
     "requeue": "node --experimental-strip-types src/requeue.ts",
-    "backfill": "node --experimental-strip-types src/backfill.ts"
+    "backfill": "node --experimental-strip-types src/backfill.ts",
+    "desk": "node --experimental-strip-types src/desk.ts",
+    "justify": "node --experimental-strip-types src/justify.ts",
+    "tag": "node --experimental-strip-types src/tag.ts"
   },
   "dependencies": {
     "@ars-magna/engine": "workspace:*",

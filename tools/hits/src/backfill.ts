@@ -26,7 +26,7 @@ import { dirname, resolve } from 'node:path';
 import { hitFromRow, renderReport, takenCounts, toJudgement, validateVerdicts, type NearMiss, type Placed, type Rejection } from './ingest.ts';
 import { parseVerdicts, type Verdict } from './judge.ts';
 import type { Prefiltered } from './prefilter.ts';
-import { JUDGE_OUTPUT, PREFILTERED, SUMMARY, flag, has, queueDates, queueDir } from './queue.ts';
+import { JUDGE_OUTPUT, SUMMARY, flag, has, queueDates, queueDir, readJudgedRows } from './queue.ts';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
@@ -232,7 +232,7 @@ async function readQueues(): Promise<QueueRecord[]> {
     const answers = await read(JUDGE_OUTPUT);
     out.push({
       name,
-      rows: (await read(PREFILTERED) ?? '').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as Prefiltered),
+      rows: await readJudgedRows(dir),
       verdicts: parseVerdicts(answers ?? ''),
       ran: summary ? (JSON.parse(summary) as { candidates: { id: string }[] }).candidates.map((c) => c.id) : [],
       judged: answers !== null,

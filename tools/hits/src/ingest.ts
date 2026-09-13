@@ -1,6 +1,7 @@
 /**
  * `pnpm hits:ingest [--date=YYYY-MM-DD] [--model=NAME] [--threshold=11] [--no-engine-check]`
  * `pnpm hits:ingest --from-issue=N`
+ * `pnpm hits:ingest --date=YYYY-MM-DD --model=NAME --only=id,… [--status=accepted|proposed]`
  *
  * The second form takes a submission from the GitHub issue form: it reads the
  * issue, checks the phrase with the engine, and records a candidate and a
@@ -19,6 +20,10 @@
  * the approval. Rubric v1 answers, from older queues, keep the v1 rule: a
  * total of 11 or more is `proposed`. The candidates that were judged move to
  * `enumerated` so the next run skips them.
+ *
+ * The third form is the operator's promotion of named rows from a judged
+ * queue's verdicts, usually near misses: it writes exactly those rows, past
+ * the shelves, and changes neither the candidates nor the ingest report.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -32,7 +37,7 @@ import { alphagram, candidateId, hitId } from './ids.ts';
 import { parseIssueForm } from './submission.ts';
 import { isV2Verdict, rubric, type Verdict, type VerdictV1, type VerdictV2 } from './judge.ts';
 import type { Prefiltered } from './prefilter.ts';
-import { INGEST_REPORT, JUDGE_OUTPUT, PREFILTERED, flag, has, pickQueue } from './queue.ts';
+import { INGEST_REPORT, JUDGE_OUTPUT, flag, has, pickQueue, readJudgedRows } from './queue.ts';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
@@ -52,7 +57,8 @@ import {
   type JudgementV2,
   type Tone,
 } from './schema.ts';
-import { SETTINGS_VERSION, addRun, queueName } from './settings.ts';
+import { screenedCandidateIds } from './screen.ts';
+import { addRun, queueName, queueSettings } from './settings.ts';
 import { assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
 
 async function fromIssue(number: string): Promise<void> {
@@ -205,6 +211,8 @@ export type IngestOptions = {
    * them: they are not placed again, and they do not use a second slot.
    */
   existing?: ReadonlySet<string>;
+  /** Each candidate's subject slugs (from Wikidata or by hand), added to its hits as subject: tags. */
+  subjects?: ReadonlyMap<string, readonly string[]>;
 };
 
 /** Where a written hit came from: a v2 shelf, an alternate, or the v1 threshold. */
@@ -240,12 +248,12 @@ export function hitFromRow(
   return hit;
 }
 
-function tagsFor(best: JudgementV2, alternate: boolean): string[] {
+function tagsFor(best: JudgementV2, alternate: boolean, candidateSubjects: readonly string[] = []): string[] {
   return [
     ...(best.relation === 5 ? ['greatest-candidate'] : []),
     ...(alternate ? ['alternate'] : []),
     ...best.tone.map((t) => `tone:${t}`),
-    ...best.subjects.map((s) => `subject:${s}`),
+    ...[...new Set([...best.subjects, ...candidateSubjects])].map((s) => `subject:${s}`),
   ];
 }
 
@@ -295,12 +303,13 @@ export function assessBatch(
 
   for (const [candidate, entries] of byCandidate) {
     const shelved = shelve(entries, (e) => e.scores, (e) => e.row.id, options.taken?.get(candidate) ?? 0);
+    const subjects = options.subjects?.get(candidate);
     for (const e of shelved.accepted) {
       const placement = assess(e.scores) as 'interesting' | 'stretch';
-      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'accepted', tagsFor(e.best, false), e.best.justification), placement });
+      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'accepted', tagsFor(e.best, false, subjects), e.best.justification), placement });
     }
     for (const e of shelved.alternates) {
-      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'proposed', tagsFor(e.best, true), e.best.justification), placement: 'alternate' });
+      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'proposed', tagsFor(e.best, true, subjects), e.best.justification), placement: 'alternate' });
     }
     for (const e of shelved.near) {
       near.push({ id: e.row.id, input: e.row.input, display: e.row.display, ...e.scores, rationale: e.best.rationale });
@@ -320,6 +329,49 @@ export function buildHits(
   options: IngestOptions,
 ): Hit[] {
   return assessBatch(batch, verdicts, options).hits.map((p) => p.hit);
+}
+
+/**
+ * `--only`: the named rows as hits, whatever shelf their scores would give
+ * them. Refuses, naming each, a row not in the queue, one already in the file,
+ * one without a valid verdict, and one to be accepted without a
+ * justification to publish with.
+ */
+export function promoteOnly(
+  batch: ReadonlyMap<string, Prefiltered>,
+  verdicts: readonly Verdict[],
+  only: readonly string[],
+  status: 'accepted' | 'proposed',
+  options: IngestOptions,
+): { hits: Hit[]; refused: Rejection[] } {
+  const hits: Hit[] = [];
+  const refused: Rejection[] = [];
+  for (const id of only) {
+    const row = batch.get(id);
+    if (!row) {
+      refused.push({ id, reason: 'not in this queue' });
+      continue;
+    }
+    if (options.existing?.has(id)) {
+      refused.push({ id, reason: 'already in data/hits.jsonl; change it with pnpm hits:set' });
+      continue;
+    }
+    const judge = verdicts.filter((v) => v.id === id).map((v) => toJudgement(v, options.model, options.version, options.date));
+    const best = bestJudgement(judge);
+    if (!best) {
+      refused.push({ id, reason: 'no valid verdict in this queue' });
+      continue;
+    }
+    const v2 = isV2(best) ? best : null;
+    const justification = v2?.justification;
+    if (status === 'accepted' && !justification) {
+      refused.push({ id, reason: 'no justification to publish with; add it as proposed, then pnpm hits:justify and pnpm hits:set' });
+      continue;
+    }
+    const tags = v2 ? tagsFor(v2, false, options.subjects?.get(row.candidate_id)) : [];
+    hits.push(hitFromRow(row, judge, options, status, tags, justification));
+  }
+  return { hits, refused };
 }
 
 /** How many hits each candidate already has on a shelf. */
@@ -443,14 +495,17 @@ async function main(): Promise<void> {
   const model = flag(argv, 'model') ?? 'claude-code-session';
   const threshold = Number(flag(argv, 'threshold') ?? DEFAULT_THRESHOLD);
   const date = today();
-
-  const batch = new Map<string, Prefiltered>();
-  for (const line of (await readFile(resolve(dir, PREFILTERED), 'utf8')).split('\n')) {
-    if (line.trim()) {
-      const row = JSON.parse(line) as Prefiltered;
-      batch.set(row.id, row);
-    }
+  const only = flag(argv, 'only');
+  const onlyStatus = flag(argv, 'status');
+  if (onlyStatus !== undefined && only === undefined) throw new Error('--status goes with --only');
+  if (onlyStatus !== undefined && onlyStatus !== 'accepted' && onlyStatus !== 'proposed') {
+    throw new Error(`--status must be accepted or proposed, not ${onlyStatus}`);
   }
+  const onlyIds = only === undefined ? null : [...new Set(only.split(',').map((s) => s.trim()).filter((s) => s.length > 0))];
+  if (onlyIds && onlyIds.length === 0) throw new Error('--only needs at least one hit id');
+
+  // The rows the judge saw: screened.jsonl for a screened queue, else prefiltered.jsonl.
+  const batch = new Map<string, Prefiltered>((await readJudgedRows(dir)).map((row) => [row.id, row]));
   // An empty queue may have no answer file at all; that is the same as an
   // empty one. A missing answer to a real queue is still an error.
   let raw = '';
@@ -482,9 +537,11 @@ async function main(): Promise<void> {
     else rejected.push({ id: v.id, reason: `not an anagram: ${verdict.reason}` });
   }
 
+  const cv = await candidateSchema();
+  const candidates = await readJsonl(CANDIDATES_PATH, cv);
   const hitValidator = await hitSchema();
   const known = await readJsonl(HITS_PATH, hitValidator);
-  const assessed = assessBatch(batch, verified, {
+  const options: IngestOptions = {
     model,
     version,
     date,
@@ -492,16 +549,34 @@ async function main(): Promise<void> {
     dictionary: await dictionaryPin(),
     taken: takenCounts(known),
     existing: new Set(known.map((h) => h.id)),
-  });
+    subjects: new Map(candidates.flatMap((c) => (c.subjects?.length ? [[c.id, c.subjects] as const] : []))),
+  };
+
+  if (onlyIds) {
+    const status = onlyStatus === 'proposed' ? 'proposed' : 'accepted';
+    const { hits, refused } = promoteOnly(batch, verified, onlyIds, status, options);
+    if (refused.length > 0) {
+      for (const r of refused) console.error(`${r.id}: ${r.reason}`);
+      console.error('nothing written');
+      process.exitCode = 1;
+      return;
+    }
+    const written = await appendJsonl(HITS_PATH, hits, hitValidator);
+    for (const h of written) console.log(`${h.id}  ${h.status}`);
+    console.log(`${written.length} added to data/hits.jsonl from ${queueName(dir)}; the candidates and the ingest report are unchanged`);
+    return;
+  }
+
+  const assessed = assessBatch(batch, verified, options);
   const added = await appendJsonl(HITS_PATH, assessed.hits.map((p) => p.hit), hitValidator);
 
   // Candidates that were judged are done for now, and the ledger records
   // the queue and the versions they went through.
   const rubricKind = verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2';
-  const judgedCandidates = new Set([...batch.values()].map((r) => r.candidate_id));
-  const cv = await candidateSchema();
-  const candidates = await readJsonl(CANDIDATES_PATH, cv);
-  const run = { queue: queueName(dir), settings: SETTINGS_VERSION, rubric: rubricKind, date };
+  // Every input the queue covered is done for now: the ones with rows the
+  // judge saw and, for a screened queue, the ones the screen kept nothing of.
+  const judgedCandidates = new Set([...[...batch.values()].map((r) => r.candidate_id), ...(await screenedCandidateIds(dir))]);
+  const run = { queue: queueName(dir), settings: await queueSettings(dir), rubric: rubricKind, date };
   let moved = 0;
   for (const c of candidates) {
     if (!judgedCandidates.has(c.id)) continue;

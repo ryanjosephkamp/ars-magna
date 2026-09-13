@@ -1,0 +1,37 @@
+# Words under three letters that the Greatest Hits search may use.
+#
+# The engine skips words shorter than three letters, because the common tier
+# also holds tournament words such as "qi" and "za". The words here are the
+# exceptions: everyday one- and two-letter words that classic anagrams need,
+# as in "A shoplifter -> has to pilfer" and "Desperation -> a rope ends it".
+# One word per line. A change here is a settings change: raise
+# SETTINGS_VERSION in settings.ts so pnpm hits:requeue can find the
+# candidates processed under the old list.
+a
+i
+an
+as
+at
+be
+by
+do
+go
+he
+hi
+if
+in
+is
+it
+me
+my
+no
+of
+oh
+ok
+on
+or
+so
+to
+up
+us
+we

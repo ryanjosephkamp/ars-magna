@@ -1,15 +1,19 @@
 /**
- * `pnpm hits:prefilter [--date=YYYY-MM-DD] [--per-candidate=25] [--max-rows=300]`
+ * `pnpm hits:prefilter [--date=YYYY-MM-DD] [--per-input=500|all]`
  *
  * From everything the engine enumerated, keep what could possibly be a hit,
  * put each phrase in the order that reads best, and score it — with no model.
- * Millions of rows go in; a few hundred come out for the judge.
+ * Hundreds of thousands of rows go in; what comes out goes to the screen
+ * (`pnpm hits:screen`), where a model keeps the phrases with any link to
+ * their input.
  *
- * The rules are deliberately blunt. A hit built from a Full-only word or a
- * two-letter filler is never going to be memorable, and a five-word phrase is
- * a list, not a comment. The ordering score is the one the site itself uses
- * to display a result (`bestOrder`), so the judge sees the phrase the way a
- * reader would.
+ * The rules are deliberately blunt: everyday words only, a word under three
+ * letters only when `short-words.txt` lists it, at most five words, no word
+ * twice, and never the input re-spaced. They judge form, not meaning, so
+ * nothing apt is cut for reading awkwardly. `--per-input` bounds how many
+ * phrases of one input go to the screen, in `screenOrder`. Each phrase's word
+ * order is the one the site itself uses to display a result (`bestOrder`), so
+ * the screen sees the phrase the way a reader would.
  */
 import { createReadStream } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -23,7 +27,7 @@ import { hitId, alphagram, isCategory, type Category } from './ids.ts';
 import { PREFILTERED, RAW, SUMMARY, flag, pickQueue } from './queue.ts';
 import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate, type CandidateRun } from './schema.ts';
 import { rubric } from './judge.ts';
-import { SETTINGS_VERSION, addRun, queueName } from './settings.ts';
+import { PRESETS, addRun, queueName, queueSettings, readShortWords } from './settings.ts';
 
 /** One line of raw.jsonl, as `anagram batch` writes it. */
 export type RawRow = {
@@ -34,13 +38,19 @@ export type RawRow = {
   count_is_floor: boolean;
   index: string;
   sampled: boolean;
+  /** The anchor word the row's search required, when it came from one. */
+  anchor?: string;
   words: string[];
   zipf: number[];
   tiers: ('common' | 'standard' | 'full')[];
   pos: number[];
 };
 
-/** One line of prefiltered.jsonl: a candidate hit, ordered and scored. */
+/**
+ * One line of prefiltered.jsonl: a candidate hit, ordered and scored. A row
+ * rebuilt from the screen (`screened.jsonl`) has no `count`, `index` or
+ * `sampled`: the compact screen input does not carry them.
+ */
 export type Prefiltered = {
   /** The hit id: candidate id plus the words as a multiset. */
   id: string;
@@ -52,13 +62,16 @@ export type Prefiltered = {
   letters: string;
   prefilter_score: number;
   tier: 'common' | 'standard' | 'full';
-  count: string;
-  index: string;
-  sampled: boolean;
+  count?: string;
+  index?: string;
+  sampled?: boolean;
+  /** The anchor word of the search that found it, when one did. */
+  anchor?: string;
 };
 
 export const RULES = {
-  maxWords: 4,
+  maxWords: 5,
+  /** Shorter words pass only when the short-word allowlist names them. */
   minWordLength: 3,
   /** Every word must be in this tier. */
   tier: 'common' as const,
@@ -66,11 +79,11 @@ export const RULES = {
 
 /**
  * Why a row was dropped, or `null` to keep it. Exposed so the tests can
- * name the rule that fired.
+ * name the rule that fired. `allow` is the short-word allowlist.
  */
-export function reject(row: RawRow): string | null {
+export function reject(row: RawRow, allow: ReadonlySet<string> = new Set()): string | null {
   if (row.words.length === 0 || row.words.length > RULES.maxWords) return 'word count';
-  if (row.words.some((w) => w.length < RULES.minWordLength)) return 'short word';
+  if (row.words.some((w) => w.length < RULES.minWordLength && !allow.has(w))) return 'short word';
   if (new Set(row.words).size !== row.words.length) return 'repeated word';
   if (row.tiers.some((t) => t !== RULES.tier)) return 'rare word';
   if (!isCategory(row.category)) return 'category';
@@ -81,7 +94,7 @@ export function reject(row: RawRow): string | null {
   return null;
 }
 
-/** Can the words be arranged to spell `letters` exactly? At most 4 words, so at most 24 orders. */
+/** Can the words be arranged to spell `letters` exactly? At most 5 words, so at most 120 orders. */
 export function isRespacing(words: readonly string[], letters: string): boolean {
   if (words.join('').length !== letters.length) return false;
   const walk = (remaining: string, used: boolean[]): boolean => {
@@ -111,8 +124,8 @@ export function score(words: readonly string[], masks: readonly number[], zipf: 
   return Math.round((order + 2 * meanZipf - lengthPenalty) * 100) / 100;
 }
 
-export function prefilterRow(row: RawRow): Prefiltered | null {
-  if (reject(row) !== null || !isCategory(row.category)) return null;
+export function prefilterRow(row: RawRow, allow: ReadonlySet<string> = new Set()): Prefiltered | null {
+  if (reject(row, allow) !== null || !isCategory(row.category)) return null;
   const ordered = bestOrder(row.words, row.pos);
   const masks = ordered.map((w) => row.pos[row.words.indexOf(w)] ?? 0);
   return {
@@ -128,17 +141,45 @@ export function prefilterRow(row: RawRow): Prefiltered | null {
     count: row.count,
     index: row.index,
     sampled: row.sampled,
+    ...(row.anchor ? { anchor: row.anchor } : {}),
   };
 }
 
+const byScore = (a: Prefiltered, b: Prefiltered) => b.prefilter_score - a.prefilter_score || a.id.localeCompare(b.id);
+
 /**
- * Keep the best `perCandidate` rows per candidate, deduplicated by hit id
- * (the head and the sample can overlap only by accident, but two orderings
- * of one multiset never survive as two rows), then the best `maxRows`
- * overall — a night's trending feed brings a hundred and more candidates,
- * and the judge's batch has to stay the size one session can answer.
+ * The order one input's phrases go to the screen in, and so which of them
+ * survive `--per-input`. Phrases from an anchor search come first, since each
+ * anchor was chosen for its link to the input. The rest take turns by word
+ * count, best-reading first within each count. The score favors fewer, more
+ * common words, so ranking by score alone pushes apt longer phrases far down:
+ * in the s2 gate run, "no untidy clothes" was 4,096th of 17,892 by score and
+ * 93rd taking turns, and 10 of 12 traced classics sat in the first 500
+ * taking turns against 5 by score.
  */
-export function select(rows: readonly Prefiltered[], perCandidate: number, maxRows = Infinity): Prefiltered[] {
+export function screenOrder(rows: readonly Prefiltered[]): Prefiltered[] {
+  const anchored = rows.filter((r) => r.anchor).sort(byScore);
+  const byLength = new Map<number, Prefiltered[]>();
+  for (const row of rows) {
+    if (row.anchor) continue;
+    byLength.set(row.words.length, [...(byLength.get(row.words.length) ?? []), row]);
+  }
+  const lists = [...byLength.entries()].sort((a, b) => a[0] - b[0]).map(([, list]) => list.sort(byScore));
+  const out = [...anchored];
+  const longest = Math.max(0, ...lists.map((l) => l.length));
+  for (let i = 0; i < longest; i++) {
+    for (const list of lists) if (i < list.length) out.push(list[i]!);
+  }
+  return out;
+}
+
+/**
+ * Every row that passed, deduplicated by hit id (two spellings of one word
+ * are two hits, but two orderings of one multiset are one), grouped by
+ * candidate in the order they arrived, each group in `screenOrder`. At most
+ * `perInput` per candidate go on to the screen.
+ */
+export function select(rows: readonly Prefiltered[], perInput = Infinity): Prefiltered[] {
   const byCandidate = new Map<string, Map<string, Prefiltered>>();
   for (const row of rows) {
     const group = byCandidate.get(row.candidate_id) ?? new Map<string, Prefiltered>();
@@ -147,27 +188,17 @@ export function select(rows: readonly Prefiltered[], perCandidate: number, maxRo
     byCandidate.set(row.candidate_id, group);
   }
   const out: Prefiltered[] = [];
-  for (const group of byCandidate.values()) {
-    const best = [...group.values()]
-      .sort((a, b) => b.prefilter_score - a.prefilter_score || a.id.localeCompare(b.id))
-      .slice(0, perCandidate);
-    out.push(...best);
-  }
-  if (out.length <= maxRows) return out;
-  // Every candidate keeps at least its single best row, so a night's queue
-  // never drops an input entirely; the rest of the budget goes by score.
-  const firsts = new Set<string>();
-  const guaranteed: Prefiltered[] = [];
-  const rest: Prefiltered[] = [];
-  for (const row of [...out].sort((a, b) => b.prefilter_score - a.prefilter_score || a.id.localeCompare(b.id))) {
-    if (!firsts.has(row.candidate_id)) {
-      firsts.add(row.candidate_id);
-      guaranteed.push(row);
-    } else {
-      rest.push(row);
-    }
-  }
-  return [...guaranteed, ...rest].slice(0, Math.max(maxRows, guaranteed.length));
+  for (const group of byCandidate.values()) out.push(...screenOrder([...group.values()]).slice(0, perInput));
+  return out;
+}
+
+/** `--per-input=N`, or `all` for no bound. */
+export function perInputFlag(value: string | undefined): number {
+  if (value === undefined) return PRESETS.routine.perInput ?? Infinity;
+  if (value === 'all') return Infinity;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`--per-input must be a positive whole number or all, not ${value}`);
+  return n;
 }
 
 /**
@@ -200,8 +231,8 @@ export function settleEmpty(
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const dir = await pickQueue(argv);
-  const perCandidate = Number(flag(argv, 'per-candidate') ?? 25);
-  const maxRows = Number(flag(argv, 'max-rows') ?? 300);
+  const perInput = perInputFlag(flag(argv, 'per-input'));
+  const allow = await readShortWords();
 
   const kept: Prefiltered[] = [];
   const dropped = new Map<string, number>();
@@ -212,21 +243,26 @@ async function main(): Promise<void> {
     if (line.trim().length === 0) continue;
     seen++;
     const row = JSON.parse(line) as RawRow;
-    const why = reject(row);
+    const why = reject(row, allow);
     if (why !== null) {
       dropped.set(why, (dropped.get(why) ?? 0) + 1);
       continue;
     }
-    const pre = prefilterRow(row);
+    const pre = prefilterRow(row, allow);
     if (pre) kept.push(pre);
   }
 
-  const selected = select(kept, perCandidate, maxRows);
+  const selected = select(kept, perInput);
   const out = resolve(dir, PREFILTERED);
   await writeFile(out, selected.map((r) => JSON.stringify(r)).join('\n') + (selected.length ? '\n' : ''));
 
   const candidates = new Set(selected.map((r) => r.candidate_id)).size;
-  console.log(`${seen.toLocaleString()} rows in · ${kept.length.toLocaleString()} pass the rules · ${selected.length} kept for the judge across ${candidates} candidates`);
+  const unique = new Set(kept.map((r) => r.id)).size;
+  console.log(
+    `${seen.toLocaleString()} rows in · ${kept.length.toLocaleString()} pass the rules (${unique.toLocaleString()} distinct) · ` +
+      `${selected.length.toLocaleString()} kept for the screen across ${candidates} candidates` +
+      (Number.isFinite(perInput) ? ` (at most ${perInput} per input)` : ''),
+  );
   for (const [why, n] of [...dropped.entries()].sort((a, b) => b[1] - a[1])) {
     console.log(`  dropped ${n.toLocaleString().padStart(10)}  ${why}`);
   }
@@ -240,7 +276,7 @@ async function main(): Promise<void> {
   const all = await readJsonl(CANDIDATES_PATH, validate);
   const date = today();
   const { version } = await rubric();
-  const settled = settleEmpty(all, ran, keptIds, date, { queue: queueName(dir), settings: SETTINGS_VERSION, rubric: version, date });
+  const settled = settleEmpty(all, ran, keptIds, date, { queue: queueName(dir), settings: await queueSettings(dir), rubric: version, date });
   if (settled.length > 0) {
     await writeJsonl(CANDIDATES_PATH, all, validate);
     console.log(`${settled.length} candidates produced nothing keepable and moved to enumerated: ${settled.map((c) => c.input).join(', ')}`);

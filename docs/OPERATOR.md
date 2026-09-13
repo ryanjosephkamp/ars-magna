@@ -10,7 +10,7 @@ explains the pipeline these jobs sit on.
 
 | When (UTC) | What | Leaves behind |
 |---|---|---|
-| 06:00 daily | Hits nightly Action | a commit to `main` with `data/queue/<date>/` and `data/candidates.jsonl` |
+| 06:00 daily | Hits nightly Action | a commit to `main` with `data/queue/<date>/` (the summary and the screen input) and `data/candidates.jsonl` |
 | 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request, or nothing after a thin night |
 | every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev |
 | a merge that changes `data/hits.jsonl` | Publish hits Action | the dataset at https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits |
@@ -43,7 +43,8 @@ When you know an anagram that belongs in the dataset.
 4. Run the four suites (`pnpm test` validates every line of both data files), commit, push, and open a
    pull request. Merge when CI is green; Publish hits and Deploy take it from there.
 
-Prompt: `docs/prompts/add-hit.md` (hit_input, hit_phrase, hit_category).
+Prompt: `docs/prompts/add-hit.md` (hit_input, hit_phrase, hit_category). The review desk's "Add a hit"
+tab writes the same steps as commands.
 
 ## Review a routine pull request
 
@@ -91,45 +92,102 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
 | `retired` | buried for good; the id stays in the file, so ingest never proposes it again |
 
 Prompt: `docs/prompts/review-hits-pr.md` (pr_number). The agent lists and recommends first, then waits
-for your ids and statuses.
+for your ids and statuses. To decide in a page instead, with the near misses and justifications in
+front of you, use the review desk.
+
+## Review in the desk
+
+When a routine pull request holds more than you want to read in its body, or you want to promote a near
+miss, edit justifications or tags across the collection, seed a batch, or set up a deep run.
+
+1. Build the desk and open it:
+
+   ```bash
+   pnpm hits:desk
+   open .cache/desk/index.html
+   ```
+
+   It reads `data/hits.jsonl`, `data/candidates.jsonl` and the three newest judged queues (`--queues=N`
+   for more), and writes one self-contained page. It never writes to the repository. Built on a routine
+   pull request's branch (`gh pr checkout <number>` first), it shows that queue's hits as the pull
+   request adds them. To use it on a phone, ask a Claude Code session to publish
+   `.cache/desk/index.html` as a private artifact.
+2. Decide in its tabs:
+   - **Review:** one queue by input, each row with its relation, reads, where it stands and the judge's
+     rationale. For a hit, change its status, edit its justification, or add and remove tags
+     (`+tone:pun -subject:actor`). For a near miss, accept it or add it as proposed, with a justification.
+   - **Collection:** every hit, filtered by text or status, with the same controls.
+   - **Near misses:** every near miss in those queues, strongest first.
+   - **Seed:** inputs pasted one per line as `input | category | anchors`, each id checked against the
+     pool.
+   - **Deep run:** which candidates to send back to `new`, and the queue folder to enumerate them into
+     with the deep preset.
+   - **Add a hit:** an anagram you already know, with its justification.
+
+   Decisions collect in the panel beside the tabs (below them on a narrow screen) and stay in that browser
+   until you remove them.
+3. Choose where the work goes, a new branch off `main` or a routine pull request's branch, add any notes,
+   and press **Copy prompt**. Paste it into an agent session opened in the repository: it runs the
+   commands in order on that branch, runs the four suites, and opens or updates the pull request.
+   **Copy commands** gives the commands alone, to run yourself.
+4. Review and merge that pull request as usual. Nothing decided in the desk is published before then.
+
+| Decision | Command it becomes |
+|---|---|
+| status | `pnpm hits:set --status=featured id…` |
+| justification | `pnpm hits:justify id "One plain sentence."` |
+| tags | `pnpm hits:tag id +tone:pun -subject:actor` |
+| accept a near miss | `pnpm hits:ingest --date=<queue> --model=<judge> --only=id,… --status=accepted`; a row with no justification goes in as `proposed`, then `hits:justify` and `hits:set` |
+| seed | appends the lines to `data/candidates.jsonl` |
+| deep run | `pnpm hits:requeue …`, then `hits:enumerate --preset=deep`, `hits:prefilter --per-input=all` and `hits:screen` |
+
+`hits:justify` and `hits:tag` refuse an unknown id, an empty or over-long sentence, and a tag the schema
+does not allow, and write nothing then. `hits:ingest --only` refuses a row that is not in the queue, is
+already a hit, or has no valid verdict. An agent runs these only on what the operator named.
+
+Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes). The desk fills it.
 
 ## Judge a queue by hand
 
 When the routine is paused, a run failed, or you want a queue judged now. The routine's instructions work
 on a laptop, with the engine check turned back on.
 
-1. Find the newest queue that has rows and no answers yet:
+1. Find the newest queue that has a screen input (or, before settings s2, rows) and no answers yet:
 
    ```bash
-   wc -l data/queue/*/prefiltered.jsonl
+   ls data/queue/*/screen-input-*.md
    ls data/queue/*/judge-output.jsonl
    ```
 
-2. `pnpm hits:judge --date=<folder>` writes `judge-input-N.md` files into the folder: the rubric, then the
-   candidates.
-3. Have a Claude session answer every file into `judge-output.jsonl`, one JSON line per candidate, forming
-   each verdict itself rather than giving groups of rows a default score by script. With
-   `ANTHROPIC_API_KEY` set in your shell, `pnpm hits:judge --date=<folder> --via=api` writes the answers
-   through the API instead.
-4. `pnpm hits:ingest --date=<folder> --model=<the model that judged>` re-checks every phrase with the
+2. Have a Claude session answer every `screen-input-N.md` into `screen-output.jsonl`: one JSON line per
+   input, listing the numbers of the phrases with any link to it, read phrase by phrase rather than kept
+   or dropped by script. An older queue without screen files skips this step.
+3. `pnpm hits:judge --date=<folder>` checks the screen answers, writes the kept phrases to
+   `screened.jsonl`, and writes `judge-input-N.md` files into the folder: the rubric, then the candidates.
+4. Have a Claude session answer every judge file into `judge-output.jsonl`, one JSON line per candidate,
+   forming each verdict itself rather than giving groups of rows a default score by script. With
+   `ANTHROPIC_API_KEY` set in your shell, `pnpm hits:judge --date=<folder> --via=api` writes the judge's
+   answers through the API instead; the screen is always answered in a session.
+5. `pnpm hits:ingest --date=<folder> --model=<the model that judged>` re-checks every phrase with the
    engine, writes the shelved hits and the alternates, and writes `ingest-report.md`.
-5. Commit on a branch named `hits/<folder>` exactly as step 5 of `automation/judge-routine.md` lists, open
+6. Commit on a branch named `hits/<folder>` exactly as step 7 of `automation/judge-routine.md` lists, open
    the pull request, and review it as above.
 
 Prompt: `docs/prompts/judge-queue.md`.
 
 ## A thin night
 
-A thin night is a nightly run that commits an empty queue: its `prefiltered.jsonl` has no lines. It is a
-record, not a failure. The routine skips an empty folder and opens no pull request, so a morning with no
-pull request is what a thin night looks like.
+A thin night is a nightly run that commits a queue with no screen input: the folder holds only
+`summary.json` (before settings s2, an empty `prefiltered.jsonl`). It is a record, not a failure. The
+routine skips such a folder and opens no pull request, so a morning with no pull request is what a thin
+night looks like.
 
 The nightly's log says which of two cases it was:
 
 | Case | Fetch line | What it means |
 |---|---|---|
 | Nothing new | `0 new candidates` | every title the fetch considered is already in `data/candidates.jsonl` |
-| Nothing keepable | some new candidates, then `0 kept for the judge` | the new inputs made only word salad; the prefilter moved them to `enumerated` with a note |
+| Nothing keepable | some new candidates, then `0 kept for the screen` | every phrase of the new inputs failed the prefilter's rules (a rare word, an unlisted short word, more than five words); the prefilter moved them to `enumerated` with a note |
 
 **2026-09-12 was the first case.** The 06:15 run considered 150 titles (87 junk skipped) and found
 0 new candidates, so it committed the empty folder `2026-09-12b`. The routine skipped that folder at 07:05
@@ -140,7 +198,7 @@ To see it for yourself:
 
 ```bash
 gh run list --workflow=hits-nightly.yml --limit 3
-gh run view <run id> --log | grep -E 'titles considered|kept for the judge'
+gh run view <run id> --log | grep -E 'titles considered|kept for the'
 node -e 'const c={};for(const l of require("fs").readFileSync("data/candidates.jsonl","utf8").split("\n").filter(Boolean)){const s=JSON.parse(l).status;c[s]=(c[s]||0)+1}console.log(c)'
 ```
 
@@ -149,15 +207,16 @@ What to do:
 - **One thin night:** nothing. Leave the folder; it is that night's record.
 - **Nothing keepable:** nothing. The candidates are already marked, so they are not run again.
 - **Nothing new, night after night:** the candidate pool is dry, and every night will be thin until new
-  inputs arrive. Three remedies exist today:
+  inputs arrive. Four remedies exist today:
   - Seed a batch by hand, the chosen supply for now: append about forty lines to
     `data/candidates.jsonl` in a pull request, weighted toward phrases, titles, products and places.
-    After it merges, and before the next 06:00 UTC run, run Hits nightly by hand from the Actions tab
-    with `max_rows` set to 800, so each candidate gets about twenty rows, as the 2026-09-11 batch did.
-    Left to the scheduled run, forty candidates share 300 rows. The seeds stay `new` until the pull
-    request for their judged queue merges, and every nightly enumerates the `new` candidates again, so
-    merge that pull request before the following 06:00 UTC run, or disable Hits nightly until it is
-    merged; otherwise the routine judges the smaller repeat queue instead.
+    After it merges, the next nightly enumerates them, or run Hits nightly by hand from the Actions tab.
+    Every input gets its own screen allowance (`per_input`), so a batch of forty needs no special
+    setting. A seed may list `anchors`, words related to the input that the search reaches past its
+    limit with, as in the second example below. The seeds stay `new` until the pull request for their
+    judged queue merges, and every nightly enumerates the `new` candidates again, so merge that pull
+    request before the following 06:00 UTC run, or disable Hits nightly until it is merged; otherwise
+    the routine screens the repeat queue instead.
   - Grow the category table and run `pnpm hits:fetch --reclassify`, which moves unclassified candidates
     that now fit to `new` ("Growing the category table" in `automation/RUNBOOK.md`).
   - Requeue candidates processed under older enumeration settings or an older rubric ("Requeue
@@ -170,10 +229,13 @@ A seeded candidate is one line:
 
 ```json
 {"id":"sagradafamilia:places","input":"Sagrada Família","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
+{"id":"thecountryside:phrases","input":"The countryside","category":"phrases","source":"manual","first_seen":"2026-09-13","status":"new","anchors":["city","dust"]}
 ```
 
 The id is the input's letters (lowercase, accents folded, nothing else), a colon, and the category.
-`pnpm test` fails on an id that does not match.
+`pnpm test` fails on an id that does not match. Anchors are lowercase words made from the input's
+letters; one that does not fit is reported in the queue's `summary.json` and skipped. They matter only
+for an input with more results than the preset's limit.
 
 Prompt: `docs/prompts/thin-night.md`. It diagnoses and recommends; it changes nothing.
 
@@ -199,6 +261,46 @@ counts as `s1` and `v1`.
 
 A requeued candidate's earlier hits stay in `data/hits.jsonl`, and ingest leaves any phrase already
 there alone.
+
+## Run a deep run
+
+When a batch of inputs deserves more than the nightly gives it: every candidate again after the settings
+changed, a large seed batch, or one category in depth. A deep run happens in a Claude Code session on a
+laptop, apart from the daily routine, and opens one pull request per category.
+
+Size it before starting. These figures come from the s2 gate: 50 long inputs, screened by
+`claude-sonnet-5` at about 6.3 minutes per 1,000 phrases. Short trending names give far fewer phrases, and
+the judge then scores only the tenth or so the screen keeps.
+
+| Bound per input | Phrases to screen per 50 inputs | Screening per 50 inputs | Traced classics kept (of 14) |
+|---|---|---|---|
+| 100 | 4,256 | about 27 minutes | 10 |
+| 300, the deep preset | 10,768 | about 1 hour 10 minutes | 12 |
+| 500, the routine | 16,632 | about 1 hour 45 minutes | 12 |
+| no bound | 328,656 | about 35 hours | 12 |
+
+1. In the review desk's Deep run tab, choose the candidates (settings older than s2, a category, a source,
+   or ids), the first queue folder and the bound per input; seeds added in the Seed tab join the scope.
+   Press **Copy deep-run prompt**. Without the desk, fill `docs/prompts/deep-run.md` by hand.
+2. Paste it into a Claude Code session opened in the repository. For each category, on its own branch, the
+   session:
+   - requeues and seeds;
+   - proposes anchor words for inputs with more than 50,000 results;
+   - enumerates with the deep preset, prefilters, and writes the screen input;
+   - screens with `claude-sonnet-5` subagents, one per screen file;
+   - judges what the screen kept with `claude-opus-5` subagents, one per judge file;
+   - ingests with the engine check on, and opens a pull request titled
+     `Greatest Hits deep run: <category>, <N> new`.
+3. Review each pull request in the desk (`gh pr checkout <number>`, then `pnpm hits:desk`) and merge them
+   one at a time. Each adds lines to the same data files, so the session rebuilds a later branch from
+   `main` rather than resolving a data file by hand.
+
+Anchors live in the run's scratch list and in the queue's `summary.json`; the candidate lines in the
+repository are not edited. The raw rows are deleted once the screen input is written, because a deep
+enumeration can run to gigabytes. In Claude Code, a workflow can fan out the screening and judging when you
+ask for one; another harness works through the files one at a time.
+
+Prompt: `docs/prompts/deep-run.md` (deep_run_scope, deep_run_size). The desk fills it.
 
 ## Ship a feature
 

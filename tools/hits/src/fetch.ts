@@ -58,6 +58,7 @@ export function toCandidates(
       status: category ? 'new' : 'unclassified',
     };
     if (c?.qid) candidate.wikidata_qid = c.qid;
+    if (c?.subjects.length) candidate.subjects = c.subjects;
     if (input !== item.title) candidate.notes = `Wikipedia: ${item.title}`;
     out.push(candidate);
   }
@@ -92,6 +93,8 @@ export function reclassify(
     const placed: Candidate = { ...c, id, category, status: 'new' };
     const qid = classified.get(titleOf(c))?.qid;
     if (qid) placed.wikidata_qid = qid;
+    const subjects = classified.get(titleOf(c))?.subjects;
+    if (subjects?.length) placed.subjects = subjects;
     moved.push(placed);
     // Already a candidate under that category (a later fetch placed it): the
     // unclassified line just goes away.
