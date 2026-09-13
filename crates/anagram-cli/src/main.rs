@@ -14,6 +14,7 @@
 
 use anagram_core::{Counts, Cursor, Dict, Flow, Memo, Search, SolveOptions, Tier, UNLIMITED_WORDS};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -74,6 +75,18 @@ fn tier_name(tier: Tier) -> &'static str {
     }
 }
 
+/// The short words a search admits below its minimum length: one per line,
+/// `#` starts a comment.
+fn read_short_words(path: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let text = fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    Ok(text
+        .lines()
+        .map(|line| line.split('#').next().unwrap_or("").trim())
+        .filter(|word| !word.is_empty())
+        .map(anagram_core::normalize)
+        .collect())
+}
+
 /// `--flag=value` pairs and bare positionals, in order.
 struct Argv {
     flags: Vec<(String, String)>,
@@ -109,24 +122,27 @@ struct Args {
     tier: Tier,
     min_word_len: u8,
     max_words: u8,
+    short_words: Option<Vec<String>>,
     limit: usize,
 }
 
-fn parse(args: &[String]) -> Args {
+fn parse(args: &[String]) -> Result<Args, Box<dyn std::error::Error>> {
     let argv = Argv::parse(args);
-    Args {
+    Ok(Args {
         text: argv.positional.join(" "),
         tier: tier_from(argv.get("tier").unwrap_or("standard")),
         min_word_len: argv.num("min-len", 3),
         max_words: argv.num("max-words", UNLIMITED_WORDS),
+        short_words: argv.get("short-words").map(read_short_words).transpose()?,
         limit: argv.num("limit", 50),
-    }
+    })
 }
 
 fn options(args: &Args, limit: usize) -> SolveOptions {
     SolveOptions {
         tier: args.tier,
         min_word_len: args.min_word_len,
+        short_words: args.short_words.clone(),
         max_words: args.max_words,
         must_include: Vec::new(),
         limit,
@@ -142,17 +158,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     match command {
-        "solve" => solve(parse(rest)),
-        "count" => count(parse(rest)),
+        "solve" => solve(parse(rest)?),
+        "count" => count(parse(rest)?),
         "bench" => bench(),
         "batch" => batch(&Argv::parse(rest)),
         "check" => check(&Argv::parse(rest)),
         _ => {
             eprintln!(
-                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--max-words=] [--limit=]\n  \
+                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=]\n  \
                  anagram bench\n  \
-                 anagram batch --in=candidates.jsonl --out=DIR [--tier=] [--min-len=] [--max-words=] \
-                 [--first=] [--sample=] [--seed=] [--status=new|all] [--max-nodes=]\n  \
+                 anagram batch --in=candidates.jsonl --out=DIR [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] \
+                 [--spellings=first|all] [--expand-cap=] [--limit=] [--sample=] [--seed=] [--status=new|all] [--max-nodes=] \
+                 [--settings=]\n  \
                  anagram check \"input\" \"anagram phrase\" [--tier=]"
             );
             Ok(())
@@ -239,6 +256,7 @@ fn bench() -> Result<(), Box<dyn std::error::Error>> {
         let base = SolveOptions {
             tier: Tier::Standard,
             min_word_len: 3,
+            short_words: None,
             max_words: UNLIMITED_WORDS,
             must_include: Vec::new(),
             limit: 0,
@@ -279,10 +297,15 @@ struct Candidate {
     category: String,
     #[serde(default)]
     status: String,
+    /// Words to search around when the input has more results than `--limit`.
+    #[serde(default)]
+    anchors: Vec<String>,
 }
 
 /// One result, as the prefilter consumes it. `count` and `index` are decimal
 /// strings because both routinely exceed what a JSON number can hold exactly.
+/// With `--spellings=all` one result becomes a row per spelling, all with the
+/// same `index`.
 #[derive(Serialize)]
 struct Row<'a> {
     id: &'a str,
@@ -292,10 +315,24 @@ struct Row<'a> {
     count_is_floor: bool,
     index: String,
     sampled: bool,
+    /// The anchor word this row's search required; absent for the main search.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    anchor: Option<&'a str>,
     words: Vec<String>,
     zipf: Vec<u8>,
     tiers: Vec<&'static str>,
     pos: Vec<u16>,
+}
+
+#[derive(Serialize)]
+struct AnchorSummary {
+    word: String,
+    count: String,
+    count_is_floor: bool,
+    head: usize,
+    sampled: usize,
+    rows: usize,
+    error: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -308,16 +345,28 @@ struct CandidateSummary {
     head: usize,
     head_truncated: bool,
     sampled: usize,
+    /// Rows written for this candidate: every spelling, every anchor search.
+    rows: usize,
+    /// Results with more spellings than `--expand-cap`, cut at the cap.
+    capped: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    anchors: Vec<AnchorSummary>,
     error: Option<String>,
     ms: u128,
 }
 
 #[derive(Serialize)]
 struct Summary {
+    /// The pipeline's settings version (`s2`…), when the caller names one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    settings: Option<String>,
     tier: &'static str,
     min_word_len: u8,
+    short_words: usize,
     max_words: u8,
-    first: usize,
+    spellings: &'static str,
+    expand_cap: usize,
+    limit: usize,
     sample: usize,
     seed: u64,
     max_nodes: u64,
@@ -366,38 +415,247 @@ fn fnv1a(text: &str) -> u64 {
     hash
 }
 
-/// The per-word metadata a result carries into the prefilter.
-fn describe(dict: &Dict, classes: &[u32], tier: Tier) -> (Vec<String>, Vec<u8>, Vec<&'static str>, Vec<u16>) {
-    let mut words = Vec::with_capacity(classes.len());
-    let mut zipf = Vec::with_capacity(classes.len());
-    let mut tiers = Vec::with_capacity(classes.len());
-    let mut pos = Vec::with_capacity(classes.len());
-    for &class in classes {
-        let Some(w) = dict.class_words(class as usize, tier).next() else { continue };
-        words.push(dict.word(w).to_owned());
-        zipf.push(dict.zipf[w as usize]);
-        pos.push(dict.pos[w as usize]);
-        tiers.push(if dict.in_tier(w, Tier::Common) {
-            "common"
-        } else if dict.in_tier(w, Tier::Standard) {
-            "standard"
-        } else {
-            "full"
-        });
+/// What every search in a batch shares.
+struct BatchConfig {
+    tier: Tier,
+    min_word_len: u8,
+    short_words: Vec<String>,
+    allow: HashSet<String>,
+    max_words: u8,
+    all_spellings: bool,
+    expand_cap: usize,
+    limit: usize,
+    sample: usize,
+    seed: u64,
+    max_nodes: u64,
+}
+
+impl BatchConfig {
+    fn options(&self, must_include: Vec<String>) -> SolveOptions {
+        SolveOptions {
+            tier: self.tier,
+            min_word_len: self.min_word_len,
+            short_words: (!self.short_words.is_empty()).then(|| self.short_words.clone()),
+            max_words: self.max_words,
+            must_include,
+            limit: 0,
+            max_nodes: self.max_nodes,
+        }
     }
-    (words, zipf, tiers, pos)
+}
+
+/// The spellings a result can be written with, one list per class, commonest
+/// first. A word under the minimum length counts only when the allowlist names
+/// it, and a forced slot keeps the word the search was asked for. Without
+/// `--spellings=all`, each list keeps its first entry, as the batch always did.
+fn spellings(dict: &Dict, classes: &[u32], forced: &[String], config: &BatchConfig) -> Vec<Vec<u32>> {
+    classes
+        .iter()
+        .enumerate()
+        .map(|(slot, &class)| {
+            let words = dict.class_words(class as usize, config.tier);
+            let mut list: Vec<u32> = match forced.get(slot) {
+                Some(word) => words.filter(|&w| dict.word(w) == word).collect(),
+                None => words
+                    .filter(|&w| {
+                        let word = dict.word(w);
+                        word.len() >= config.min_word_len as usize || config.allow.contains(word)
+                    })
+                    .collect(),
+            };
+            if list.is_empty() {
+                list.extend(dict.class_words(class as usize, config.tier).next());
+            }
+            if !config.all_spellings {
+                list.truncate(1);
+            }
+            list
+        })
+        .collect()
+}
+
+/// Every combination of one spelling per slot, the last slot varying fastest,
+/// stopping at `cap`. The flag says whether the cap cut it short.
+fn expand(slots: &[Vec<u32>], cap: usize) -> (Vec<Vec<u32>>, bool) {
+    let total = slots.iter().try_fold(1usize, |n, s| n.checked_mul(s.len())).unwrap_or(usize::MAX);
+    if total == 0 {
+        return (Vec::new(), false);
+    }
+    let mut out = Vec::new();
+    let mut at = vec![0usize; slots.len()];
+    loop {
+        out.push(at.iter().zip(slots).map(|(&i, s)| s[i]).collect());
+        if out.len() >= cap {
+            return (out, total > cap);
+        }
+        let mut slot = slots.len();
+        loop {
+            if slot == 0 {
+                return (out, false);
+            }
+            slot -= 1;
+            at[slot] += 1;
+            if at[slot] < slots[slot].len() {
+                break;
+            }
+            at[slot] = 0;
+        }
+    }
+}
+
+/// What one search wrote.
+#[derive(Default)]
+struct Pass {
+    count: u128,
+    count_is_floor: bool,
+    head: usize,
+    head_truncated: bool,
+    sampled: usize,
+    rows: usize,
+    capped: usize,
+}
+
+/// Write one result as rows, one per spelling. Returns the rows written and
+/// whether the spellings were capped. A result already written for this
+/// candidate (the same classes, found by another search) writes nothing.
+#[allow(clippy::too_many_arguments)]
+fn write_result(
+    raw: &mut impl Write,
+    dict: &Dict,
+    candidate: &Candidate,
+    anchor: Option<&str>,
+    forced: &[String],
+    classes: &[u32],
+    count: u128,
+    count_is_floor: bool,
+    index: u128,
+    sampled: bool,
+    seen: &mut HashSet<Vec<u32>>,
+    config: &BatchConfig,
+) -> Result<(usize, bool), Box<dyn std::error::Error>> {
+    let mut key = classes.to_vec();
+    key.sort_unstable();
+    if !seen.insert(key) {
+        return Ok((0, false));
+    }
+    let slots = spellings(dict, classes, forced, config);
+    let (combinations, capped) = expand(&slots, if config.all_spellings { config.expand_cap.max(1) } else { 1 });
+    for words in &combinations {
+        let row = Row {
+            id: &candidate.id,
+            input: &candidate.input,
+            category: &candidate.category,
+            count: count.to_string(),
+            count_is_floor,
+            index: index.to_string(),
+            sampled,
+            anchor,
+            words: words.iter().map(|&w| dict.word(w).to_owned()).collect(),
+            zipf: words.iter().map(|&w| dict.zipf[w as usize]).collect(),
+            tiers: words
+                .iter()
+                .map(|&w| {
+                    if dict.in_tier(w, Tier::Common) {
+                        "common"
+                    } else if dict.in_tier(w, Tier::Standard) {
+                        "standard"
+                    } else {
+                        "full"
+                    }
+                })
+                .collect(),
+            pos: words.iter().map(|&w| dict.pos[w as usize]).collect(),
+        };
+        serde_json::to_writer(&mut *raw, &row)?;
+        raw.write_all(b"\n")?;
+    }
+    Ok((combinations.len(), capped))
+}
+
+/// One search over a candidate: the head, the first `limit` results in
+/// canonical order, then a uniform sample of what the head did not cover.
+#[allow(clippy::too_many_arguments)]
+fn run_pass(
+    raw: &mut impl Write,
+    dict: &Dict,
+    search: &Search,
+    candidate: &Candidate,
+    anchor: Option<&str>,
+    forced: &[String],
+    seen: &mut HashSet<Vec<u32>>,
+    config: &BatchConfig,
+) -> Result<Pass, Box<dyn std::error::Error>> {
+    let mut memo = Memo::new();
+    let (total, saturated, count_stats) = search.count(&mut memo, config.max_nodes);
+    let count_is_floor = saturated || count_stats.truncated;
+    let mut pass = Pass { count: total, count_is_floor, ..Pass::default() };
+
+    let mut cursor: Cursor = search.cursor();
+    let mut index: u128 = 0;
+    while pass.head < config.limit {
+        let Some(classes) = cursor.next(search) else { break };
+        let (rows, capped) =
+            write_result(raw, dict, candidate, anchor, forced, classes, total, count_is_floor, index, false, seen, config)?;
+        pass.rows += rows;
+        pass.capped += capped as usize;
+        pass.head += 1;
+        index += 1;
+    }
+    pass.head_truncated = cursor.truncated();
+
+    // Skipped when the count is only a floor, since positions past it are
+    // undefined.
+    if !count_is_floor && total > config.limit as u128 && config.sample > 0 {
+        let key = match anchor {
+            Some(word) => format!("{}+{word}", candidate.id),
+            None => candidate.id.clone(),
+        };
+        let mut rng = SplitMix64(config.seed ^ fnv1a(&key));
+        let want = config.sample.min((total - config.limit as u128).min(usize::MAX as u128) as usize);
+        let mut picks: Vec<u128> = Vec::with_capacity(want);
+        let mut tries = 0usize;
+        while picks.len() < want && tries < want * 20 {
+            tries += 1;
+            let pick = rng.below(config.limit as u128, total);
+            if !picks.contains(&pick) {
+                picks.push(pick);
+            }
+        }
+        picks.sort_unstable();
+        for pick in picks {
+            let Some(classes) = search.nth(&mut memo, pick) else { continue };
+            let (rows, capped) =
+                write_result(raw, dict, candidate, anchor, forced, &classes, total, count_is_floor, pick, true, seen, config)?;
+            pass.rows += rows;
+            pass.capped += capped as usize;
+            pass.sampled += 1;
+        }
+    }
+    Ok(pass)
 }
 
 fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
     let input_path = argv.get("in").ok_or("batch needs --in=candidates.jsonl")?;
     let out_dir = PathBuf::from(argv.get("out").ok_or("batch needs --out=DIR")?);
-    let tier = tier_from(argv.get("tier").unwrap_or("standard"));
-    let min_word_len: u8 = argv.num("min-len", 3);
-    let max_words: u8 = argv.num("max-words", 4);
-    let first: usize = argv.num("first", 2_000);
-    let sample: usize = argv.num("sample", 500);
-    let seed: u64 = argv.num("seed", 1);
-    let max_nodes: u64 = argv.num("max-nodes", 50_000_000);
+    let short_words = argv.get("short-words").map(read_short_words).transpose()?.unwrap_or_default();
+    let config = BatchConfig {
+        tier: tier_from(argv.get("tier").unwrap_or("standard")),
+        min_word_len: argv.num("min-len", 3),
+        allow: short_words.iter().cloned().collect(),
+        short_words,
+        max_words: argv.num("max-words", 4),
+        all_spellings: match argv.get("spellings").unwrap_or("first") {
+            "first" => false,
+            "all" => true,
+            other => return Err(format!("--spellings must be first or all, not {other}").into()),
+        },
+        expand_cap: argv.num("expand-cap", 64),
+        // `--first` is the older name for `--limit`.
+        limit: argv.get("limit").or(argv.get("first")).and_then(|v| v.parse().ok()).unwrap_or(2_000),
+        sample: argv.num("sample", 500),
+        seed: argv.num("seed", 1),
+        max_nodes: argv.num("max-nodes", 50_000_000),
+    };
     let only_status = argv.get("status").unwrap_or("new");
 
     let dict = load_dict()?;
@@ -421,15 +679,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
         let started = Instant::now();
         eprint!("  {:<40}", candidate.input);
 
-        let options = SolveOptions {
-            tier,
-            min_word_len,
-            max_words,
-            must_include: Vec::new(),
-            limit: 0,
-            max_nodes,
-        };
-        let search = match Search::prepare(&dict, &candidate.input, options) {
+        let search = match Search::prepare(&dict, &candidate.input, config.options(Vec::new())) {
             Ok(search) => search,
             Err(error) => {
                 eprintln!(" error: {error}");
@@ -442,6 +692,9 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
                     head: 0,
                     head_truncated: false,
                     sampled: 0,
+                    rows: 0,
+                    capped: 0,
+                    anchors: Vec::new(),
                     error: Some(error.to_string()),
                     ms: started.elapsed().as_millis(),
                 });
@@ -449,92 +702,72 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
             }
         };
 
-        let mut memo = Memo::new();
-        let (total, saturated, count_stats) = search.count(&mut memo, max_nodes);
-        let count_is_floor = saturated || count_stats.truncated;
+        let mut seen: HashSet<Vec<u32>> = HashSet::new();
+        let main = run_pass(&mut raw, &dict, &search, &candidate, None, &[], &mut seen, &config)?;
+        let mut rows = main.rows;
+        let mut capped = main.capped;
 
-        // The head: the first `first` results in canonical order.
-        let mut cursor: Cursor = search.cursor();
-        let mut head = 0usize;
-        let mut index: u128 = 0;
-        while head < first {
-            let Some(classes) = cursor.next(&search) else { break };
-            let (words, zipf, tiers, pos) = describe(&dict, classes, tier);
-            let row = Row {
-                id: &candidate.id,
-                input: &candidate.input,
-                category: &candidate.category,
-                count: total.to_string(),
-                count_is_floor,
-                index: index.to_string(),
-                sampled: false,
-                words,
-                zipf,
-                tiers,
-                pos,
-            };
-            serde_json::to_writer(&mut raw, &row)?;
-            raw.write_all(b"\n")?;
-            head += 1;
-            index += 1;
-        }
-        let head_truncated = cursor.truncated();
-
-        // The sample: uniform over what the head did not cover. Skipped when
-        // the count is only a floor, since positions past it are undefined.
-        let mut sampled = 0usize;
-        if !count_is_floor && total > first as u128 && sample > 0 {
-            let mut rng = SplitMix64(seed ^ fnv1a(&candidate.id));
-            let want = sample.min((total - first as u128).min(usize::MAX as u128) as usize);
-            let mut picks: Vec<u128> = Vec::with_capacity(want);
-            let mut tries = 0usize;
-            while picks.len() < want && tries < want * 20 {
-                tries += 1;
-                let pick = rng.below(first as u128, total);
-                if !picks.contains(&pick) {
-                    picks.push(pick);
-                }
-            }
-            picks.sort_unstable();
-            for pick in picks {
-                let Some(classes) = search.nth(&mut memo, pick) else { continue };
-                let (words, zipf, tiers, pos) = describe(&dict, &classes, tier);
-                let row = Row {
-                    id: &candidate.id,
-                    input: &candidate.input,
-                    category: &candidate.category,
-                    count: total.to_string(),
-                    count_is_floor,
-                    index: pick.to_string(),
-                    sampled: true,
-                    words,
-                    zipf,
-                    tiers,
-                    pos,
+        // Anchor searches reach past the head and the sample of a big input.
+        // When the main search already wrote every result, they add nothing.
+        let complete = !main.count_is_floor && !main.head_truncated && main.count <= config.limit as u128;
+        let mut anchors = Vec::new();
+        if !complete {
+            for anchor in &candidate.anchors {
+                let word = anagram_core::normalize(anchor);
+                let forced = vec![word.clone()];
+                let summary = match Search::prepare(&dict, &candidate.input, config.options(forced.clone())) {
+                    Ok(anchored) => {
+                        let pass = run_pass(&mut raw, &dict, &anchored, &candidate, Some(&word), &forced, &mut seen, &config)?;
+                        rows += pass.rows;
+                        capped += pass.capped;
+                        AnchorSummary {
+                            word,
+                            count: pass.count.to_string(),
+                            count_is_floor: pass.count_is_floor,
+                            head: pass.head,
+                            sampled: pass.sampled,
+                            rows: pass.rows,
+                            error: None,
+                        }
+                    }
+                    Err(error) => AnchorSummary {
+                        word,
+                        count: "0".to_owned(),
+                        count_is_floor: false,
+                        head: 0,
+                        sampled: 0,
+                        rows: 0,
+                        error: Some(error.to_string()),
+                    },
                 };
-                serde_json::to_writer(&mut raw, &row)?;
-                raw.write_all(b"\n")?;
-                sampled += 1;
+                anchors.push(summary);
             }
         }
 
-        rows_written += head + sampled;
+        rows_written += rows;
         eprintln!(
-            " {}{} results · head {head}{} · sample {sampled} · {:.1?}",
-            if count_is_floor { ">" } else { "" },
-            total,
-            if head_truncated { " (truncated)" } else { "" },
+            " {}{} results · head {}{} · sample {} · {} rows{} · {:.1?}",
+            if main.count_is_floor { ">" } else { "" },
+            main.count,
+            main.head,
+            if main.head_truncated { " (truncated)" } else { "" },
+            main.sampled,
+            rows,
+            if anchors.is_empty() { String::new() } else { format!(" · {} anchors", anchors.len()) },
             started.elapsed()
         );
         summaries.push(CandidateSummary {
             id: candidate.id,
             input: candidate.input,
             candidates: search.candidate_count(),
-            count: total.to_string(),
-            count_is_floor,
-            head,
-            head_truncated,
-            sampled,
+            count: main.count.to_string(),
+            count_is_floor: main.count_is_floor,
+            head: main.head,
+            head_truncated: main.head_truncated,
+            sampled: main.sampled,
+            rows,
+            capped,
+            anchors,
             error: None,
             ms: started.elapsed().as_millis(),
         });
@@ -542,13 +775,17 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
 
     raw.flush()?;
     let summary = Summary {
-        tier: tier_name(tier),
-        min_word_len,
-        max_words,
-        first,
-        sample,
-        seed,
-        max_nodes,
+        settings: argv.get("settings").map(str::to_owned),
+        tier: tier_name(config.tier),
+        min_word_len: config.min_word_len,
+        short_words: config.short_words.len(),
+        max_words: config.max_words,
+        spellings: if config.all_spellings { "all" } else { "first" },
+        expand_cap: config.expand_cap,
+        limit: config.limit,
+        sample: config.sample,
+        seed: config.seed,
+        max_nodes: config.max_nodes,
         candidates: summaries,
         rows: rows_written,
     };

@@ -47,7 +47,7 @@
 
 use crate::counts::Counts;
 use crate::dict::{Dict, Tier};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// `max_words` at or above this is treated as unbounded, which lets the
 /// counting memo key on the letter state alone.
@@ -58,6 +58,10 @@ pub struct SolveOptions {
     pub tier: Tier,
     /// Words shorter than this are excluded from the vocabulary entirely.
     pub min_word_len: u8,
+    /// Words shorter than `min_word_len` that are admitted anyway, such as
+    /// "a", "to" and "no". `None` leaves the vocabulary exactly as
+    /// `min_word_len` alone defines it.
+    pub short_words: Option<Vec<String>>,
     /// Cap on how many words a solution may use.
     pub max_words: u8,
     /// Words that must appear in every result.
@@ -73,6 +77,7 @@ impl Default for SolveOptions {
         SolveOptions {
             tier: Tier::Standard,
             min_word_len: 2,
+            short_words: None,
             max_words: UNLIMITED_WORDS,
             must_include: Vec::new(),
             limit: 10_000,
@@ -158,13 +163,27 @@ impl Candidates {
     /// first, then most common). That order is the canonicalization key for the
     /// run rule, and it also means the first results streamed to the UI are
     /// built from big, recognizable words rather than piles of two-letter ones.
+    ///
+    /// A class below `min_word_len` survives only when `short_words` names one
+    /// of its spellings, and that spelling is in the query's tier. The list is
+    /// resolved to class indices up front: `find_class` is a hash probe, and
+    /// the sweep visits every class in the dictionary.
     pub fn build(dict: &Dict, target: Counts, options: &SolveOptions) -> Candidates {
         let mut counts = Vec::new();
         let mut len = Vec::new();
         let mut class = Vec::new();
 
+        let admitted: HashSet<u32> = options
+            .short_words
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|word| dict.find_class(&crate::counts::normalize(word), options.tier))
+            .map(|index| index as u32)
+            .collect();
+
         for (index, sig) in dict.classes.iter().enumerate() {
-            if sig.len < options.min_word_len {
+            if sig.len < options.min_word_len && !admitted.contains(&(index as u32)) {
                 continue;
             }
             if !sig.counts.fits_in(target) {
@@ -1164,5 +1183,195 @@ impl Counter<'_> {
             index -= subtree;
         }
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dict::{TierBits, WordList};
+
+    /// `min_word_len` 3 at Full, with or without an allowlist.
+    fn options(short_words: Option<&[&str]>) -> SolveOptions {
+        SolveOptions {
+            tier: Tier::Full,
+            min_word_len: 3,
+            short_words: short_words.map(|words| words.iter().map(|w| w.to_string()).collect()),
+            limit: 0,
+            ..Default::default()
+        }
+    }
+
+    /// Every result as class indices, in emission order.
+    fn classes(dict: &Dict, input: &str, options: SolveOptions) -> Vec<Vec<u32>> {
+        let search = Search::prepare(dict, input, options).unwrap();
+        let mut out = Vec::new();
+        search.enumerate(|classes| {
+            out.push(classes.to_vec());
+            Flow::Continue
+        });
+        out
+    }
+
+    /// Every result as sorted words, sorted, so two runs compare as sets.
+    fn spelled(dict: &Dict, input: &str, options: SolveOptions) -> Vec<Vec<String>> {
+        let mut out = crate::solve(dict, input, options).unwrap();
+        for words in &mut out {
+            words.sort();
+        }
+        out.sort();
+        out
+    }
+
+    fn rows(words: &[&[&str]]) -> Vec<Vec<String>> {
+        let mut out: Vec<Vec<String>> = words
+            .iter()
+            .map(|row| {
+                let mut row: Vec<String> = row.iter().map(|w| w.to_string()).collect();
+                row.sort();
+                row
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    fn small_dict() -> Dict {
+        Dict::from_words(["a", "to", "no", "on", "ad", "qi", "dot", "toad", "not"]).unwrap()
+    }
+
+    #[test]
+    fn listed_short_words_are_admitted_and_unlisted_ones_are_not() {
+        let dict = small_dict();
+
+        // "toad" is "a" + "dot" or "to" + "ad": the first needs a listed word,
+        // the second needs "ad", which is in the dictionary but not the list.
+        assert_eq!(
+            spelled(&dict, "toad", options(Some(&["a", "to", "no"]))),
+            rows(&[&["toad"], &["a", "dot"]])
+        );
+        assert_eq!(spelled(&dict, "toad", options(None)), rows(&[&["toad"]]));
+
+        // "qi" + "dot" is the only partition of these letters. Unlisted, "qi"
+        // never appears, even though a lower minimum would admit it.
+        assert_eq!(spelled(&dict, "qidot", options(Some(&["a", "to", "no"]))), rows(&[]));
+        assert_eq!(
+            spelled(&dict, "qidot", SolveOptions { min_word_len: 1, ..options(None) }),
+            rows(&[&["dot", "qi"]])
+        );
+    }
+
+    #[test]
+    fn a_listed_word_the_dictionary_lacks_is_ignored() {
+        let dict = small_dict();
+        // Absent words, an empty entry, and unnormalized spellings of present
+        // ones: nothing fails, and the present ones still count.
+        let list: &[&str] = &["zz", "xyzzy", "", "A", " to ", "N-o"];
+        assert_eq!(
+            spelled(&dict, "toad", options(Some(list))),
+            rows(&[&["toad"], &["a", "dot"]])
+        );
+        assert_eq!(
+            spelled(&dict, "onto", options(Some(list))),
+            rows(&[&["no", "to"]])
+        );
+    }
+
+    #[test]
+    fn none_and_an_empty_list_are_the_vocabulary_min_word_len_defines() {
+        let dict = small_dict();
+        for input in ["toad", "onto", "qidot", "notto", "dotnot"] {
+            let plain = classes(&dict, input, options(None));
+            let empty = classes(&dict, input, options(Some(&[])));
+            assert_eq!(plain, empty, "{input:?}: None and Some(vec![]) differ");
+
+            // And both are what `min_word_len` alone admits: no class under 3.
+            let search = Search::prepare(&dict, input, options(None)).unwrap();
+            let expected = dict
+                .classes
+                .iter()
+                .filter(|c| c.len >= 3 && c.counts.fits_in(search.remaining()))
+                .count();
+            assert_eq!(search.candidate_count(), expected, "{input:?}: candidate set");
+            let search = Search::prepare(&dict, input, options(Some(&[]))).unwrap();
+            assert_eq!(search.candidate_count(), expected, "{input:?}: candidate set");
+        }
+    }
+
+    #[test]
+    fn a_listed_word_admits_its_whole_class() {
+        let dict = small_dict();
+        // "no" and "on" are one class. Listing "no" alone admits the class,
+        // because the search works in classes, not spellings.
+        let class = dict.find_class("no", Tier::Full).unwrap();
+        assert_eq!(dict.find_class("on", Tier::Full), Some(class));
+
+        let found = classes(&dict, "onto", options(Some(&["no", "to"])));
+        assert_eq!(found.len(), 1, "onto = no + to, once: {found:?}");
+        assert!(found[0].contains(&(class as u32)), "{found:?} lacks the no/on class");
+
+        // Listing the other spelling admits the same class, and `spell` shows
+        // the class's representative either way.
+        assert_eq!(classes(&dict, "onto", options(Some(&["on", "to"]))), found);
+    }
+
+    /// A dictionary with tiers, from `(word, in_common, in_standard)` rows.
+    /// `TierBits` only decodes, so the bitset artifact is assembled by hand.
+    fn tiered(rows: &[(&str, bool, bool)]) -> Dict {
+        let mut rows = rows.to_vec();
+        rows.sort_by_key(|&(word, _, _)| word);
+        let words: Vec<String> = rows.iter().map(|&(word, _, _)| word.to_owned()).collect();
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"ARSMBITS");
+        buf.extend_from_slice(&1u16.to_le_bytes()); // format version
+        buf.extend_from_slice(&2u16.to_le_bytes()); // Common, Standard
+        buf.extend_from_slice(&(words.len() as u32).to_le_bytes());
+        for set in 0..2 {
+            let mut bits = vec![0u8; words.len().div_ceil(8)];
+            for (i, &(_, common, standard)) in rows.iter().enumerate() {
+                if [common, standard][set] {
+                    bits[i >> 3] |= 1 << (i & 7);
+                }
+            }
+            buf.extend_from_slice(&bits);
+        }
+        let tiers = TierBits::decode(&buf).unwrap();
+
+        let n = words.len();
+        Dict::new(WordList { words, zipf: vec![0; n], pos: vec![0; n] }, Some(tiers)).unwrap()
+    }
+
+    #[test]
+    fn a_listed_word_outside_the_query_tier_does_not_admit_its_class() {
+        let dict = tiered(&[
+            ("toad", true, true),
+            ("dot", true, true),
+            ("to", true, true),
+            ("a", false, true),  // Standard only
+            ("on", true, true),
+            ("no", false, false), // Full only
+        ]);
+        let at = |tier: Tier, short: &[&str]| SolveOptions { tier, ..options(Some(short)) };
+
+        // "a" is not in Common, so at Common the list cannot reach "a dot".
+        assert_eq!(spelled(&dict, "toad", at(Tier::Common, &["a"])), rows(&[&["toad"]]));
+        assert_eq!(
+            spelled(&dict, "toad", at(Tier::Standard, &["a"])),
+            rows(&[&["toad"], &["a", "dot"]])
+        );
+
+        // The listed spelling itself must be in the tier: "on" is Common but
+        // the list says "no", which is only Full. Listing "on" admits the
+        // class at Common, and at Full either spelling does.
+        assert_eq!(spelled(&dict, "onto", at(Tier::Common, &["no", "to"])), rows(&[]));
+        assert_eq!(
+            spelled(&dict, "onto", at(Tier::Common, &["on", "to"])),
+            rows(&[&["on", "to"]])
+        );
+        assert_eq!(
+            spelled(&dict, "onto", at(Tier::Full, &["no", "to"])),
+            rows(&[&["no", "to"]])
+        );
     }
 }

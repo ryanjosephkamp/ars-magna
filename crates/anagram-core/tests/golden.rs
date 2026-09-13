@@ -573,6 +573,72 @@ fn a_memo_cap_yields_a_floor_rather_than_unbounded_growth() {
 }
 
 #[test]
+fn short_words_reach_the_classics_that_need_an_everyday_word() {
+    let dict = dict_or_skip!();
+
+    // The Greatest Hits pipeline runs at minWordLen 3, which puts "has to
+    // pilfer" and "a rope ends it" out of reach: each needs a one- or
+    // two-letter word. The allowlist admits those few words without opening
+    // the door to every two-letter Scrabble play.
+    let options = SolveOptions {
+        tier: Tier::Common,
+        min_word_len: 3,
+        short_words: Some(
+            ["a", "i", "it", "to", "has", "of"].iter().map(|w| w.to_string()).collect(),
+        ),
+        max_words: 5,
+        limit: 0,
+        ..Default::default()
+    };
+    assert_contains(&dict, "a shoplifter", &["has", "to", "pilfer"], options.clone());
+    assert_contains(&dict, "desperation", &["a", "rope", "ends", "it"], options.clone());
+
+    // Without the list, the same options cannot reach either.
+    let without = SolveOptions { short_words: None, ..options };
+    for (input, words) in [
+        ("a shoplifter", &["has", "to", "pilfer"][..]),
+        ("desperation", &["a", "rope", "ends", "it"][..]),
+    ] {
+        let found = solutions(&dict, input, without.clone());
+        assert!(
+            !found.contains(&signature_of(words)),
+            "{input:?} reached {words:?} with no allowlist"
+        );
+        assert!(found.iter().all(|sig| sig.iter().all(|c| c.total() >= 3)));
+    }
+}
+
+#[test]
+fn a_short_word_outside_the_query_tier_does_not_admit_its_class() {
+    let dict = dict_or_skip!();
+
+    // A two-letter word that exists only above Common: listed, it admits its
+    // class at Full and not at Common, because the list is read in the
+    // query's tier like everything else.
+    let Some(rare) = dict
+        .words
+        .iter()
+        .enumerate()
+        .find(|(i, w)| w.len() == 2 && !dict.in_tier(*i as u32, Tier::Common))
+        .map(|(_, w)| w.as_str())
+    else {
+        eprintln!("skipping: every two-letter word is Common in this dictionary");
+        return;
+    };
+    let options = |tier: Tier| SolveOptions {
+        tier,
+        short_words: Some(vec![rare.to_owned()]),
+        ..opts(3, 1)
+    };
+
+    assert!(
+        solutions(&dict, rare, options(Tier::Common)).is_empty(),
+        "{rare:?} is not Common, so listing it must admit nothing at Common"
+    );
+    assert_eq!(solutions(&dict, rare, options(Tier::Full)), vec![signature_of(&[rare])]);
+}
+
+#[test]
 fn round_trip_recall() {
     let dict = dict_or_skip!();
 
