@@ -21,7 +21,9 @@ import { normalizeLetters } from '@ars-magna/engine/fold';
 
 import { hitId, alphagram, isCategory, type Category } from './ids.ts';
 import { PREFILTERED, RAW, SUMMARY, flag, pickQueue } from './queue.ts';
-import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate } from './schema.ts';
+import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate, type CandidateRun } from './schema.ts';
+import { rubric } from './judge.ts';
+import { SETTINGS_VERSION, addRun, queueName } from './settings.ts';
 
 /** One line of raw.jsonl, as `anagram batch` writes it. */
 export type RawRow = {
@@ -181,6 +183,7 @@ export function settleEmpty(
   ran: ReadonlySet<string>,
   kept: ReadonlySet<string>,
   date: string,
+  run?: CandidateRun,
 ): Candidate[] {
   const settled: Candidate[] = [];
   for (const c of candidates) {
@@ -188,6 +191,7 @@ export function settleEmpty(
     c.status = 'enumerated';
     const note = `nothing keepable ${date}`;
     c.notes = c.notes ? `${c.notes}; ${note}` : note;
+    if (run) addRun(c, run);
     settled.push(c);
   }
   return settled;
@@ -234,7 +238,9 @@ async function main(): Promise<void> {
   const keptIds = new Set(kept.map((r) => r.candidate_id));
   const validate = await candidateSchema();
   const all = await readJsonl(CANDIDATES_PATH, validate);
-  const settled = settleEmpty(all, ran, keptIds, today());
+  const date = today();
+  const { version } = await rubric();
+  const settled = settleEmpty(all, ran, keptIds, date, { queue: queueName(dir), settings: SETTINGS_VERSION, rubric: version, date });
   if (settled.length > 0) {
     await writeJsonl(CANDIDATES_PATH, all, validate);
     console.log(`${settled.length} candidates produced nothing keepable and moved to enumerated: ${settled.map((c) => c.input).join(', ')}`);

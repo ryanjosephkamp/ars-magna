@@ -36,6 +36,16 @@ export type Candidate = {
   status: CandidateStatus;
   wikidata_qid?: string;
   notes?: string;
+  /** Each queue this candidate went through, oldest first. None means settings s1 and rubric v1. */
+  runs?: CandidateRun[];
+};
+
+/** One pass of a candidate through a queue, with the versions it was processed under. */
+export type CandidateRun = {
+  queue: string;
+  settings: string;
+  rubric: string;
+  date: string;
 };
 
 /** Labels a v2 judge may put on a phrase. They never change a score. */
