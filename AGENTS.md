@@ -56,6 +56,7 @@ pnpm dev                             # the site at http://localhost:5173
 pnpm hits:fetch | enumerate | prefilter | judge | ingest --model=… | publish
 pnpm hits:fetch --reclassify         # ask Wikidata again about the unclassified candidates
 pnpm hits:set --status=accepted|featured|proposed|retired id…
+pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
 ```
 

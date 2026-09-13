@@ -94,6 +94,13 @@ describe('prefilter', () => {
     // A second pass changes nothing.
     expect(settleEmpty(candidates, new Set(['empty:phrases']), new Set(), '2026-09-13')).toEqual([]);
   });
+
+  it('records the run on a candidate it settles', () => {
+    const c: Candidate = { id: 'empty:phrases', input: 'empty', category: 'phrases', source: 'manual', first_seen: '2026-09-11', status: 'new' };
+    const run = { queue: '2026-09-13', settings: 's1', rubric: 'v2', date: '2026-09-13' };
+    settleEmpty([c], new Set([c.id]), new Set(), '2026-09-13', run);
+    expect(c.runs).toEqual([run]);
+  });
 });
 
 const pre = (id: string, candidate: string, display: string): Prefiltered => ({

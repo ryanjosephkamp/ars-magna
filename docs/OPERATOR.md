@@ -160,6 +160,8 @@ What to do:
     merged; otherwise the routine judges the smaller repeat queue instead.
   - Grow the category table and run `pnpm hits:fetch --reclassify`, which moves unclassified candidates
     that now fit to `new` ("Growing the category table" in `automation/RUNBOOK.md`).
+  - Requeue candidates processed under older enumeration settings or an older rubric ("Requeue
+    candidates" below).
   - Run Hits nightly by hand from the Actions tab with a larger `limit`. `limit` is how many of the day's
     top titles are considered (150 by default, of about 1,000 in the feed) before they are checked
     against the pool.
@@ -174,6 +176,29 @@ The id is the input's letters (lowercase, accents folded, nothing else), a colon
 `pnpm test` fails on an id that does not match.
 
 Prompt: `docs/prompts/thin-night.md`. It diagnoses and recommends; it changes nothing.
+
+## Requeue candidates
+
+When the enumeration settings or the rubric change, and candidates processed under the old versions
+should run again.
+
+Every candidate records the queues it went through (`runs`), each with the settings (`s1`, `s2`…) and
+the rubric (`v1`, `v2`…) it was processed under. A candidate processed before that record existed
+counts as `s1` and `v1`.
+
+1. See what would move, without writing anything:
+
+   ```bash
+   pnpm hits:requeue --settings-before=s2 --dry-run
+   ```
+
+   Narrow it with `--rubric-before=v2`, `--category=titles`, `--source=manual`, or ids. Every selector
+   given must match. An id that is not an enumerated candidate is refused, and then nothing is written.
+2. Run it without `--dry-run` on a branch, commit `data/candidates.jsonl`, and open a pull request. After
+   it merges, the next nightly enumerates those candidates again, or you can run Hits nightly by hand.
+
+A requeued candidate's earlier hits stay in `data/hits.jsonl`, and ingest leaves any phrase already
+there alone.
 
 ## Ship a feature
 

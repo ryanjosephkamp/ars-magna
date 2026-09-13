@@ -52,6 +52,7 @@ import {
   type JudgementV2,
   type Tone,
 } from './schema.ts';
+import { SETTINGS_VERSION, addRun, queueName } from './settings.ts';
 import { assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
 
 async function fromIssue(number: string): Promise<void> {
@@ -211,10 +212,11 @@ export type Placement = 'interesting' | 'stretch' | 'alternate' | 'v1';
 export type Placed = { hit: Hit; placement: Placement };
 export type NearMiss = { id: string; input: string; display: string; relation: number; reads: number; rationale: string };
 
-function makeHit(
+/** A hit from a prefiltered row and its judges. */
+export function hitFromRow(
   row: Prefiltered,
   judge: Judgement[],
-  options: IngestOptions,
+  options: Pick<IngestOptions, 'date' | 'dictionary'>,
   status: Hit['status'],
   tags: string[],
   justification?: string,
@@ -282,7 +284,7 @@ export function assessBatch(
     if (v2.length === 0) {
       // Rubric v1: the primary judge decides; a second column is recorded, not averaged.
       const best = Math.max(...judge.map((j) => (j as JudgementV1).total));
-      if (best >= options.threshold) placed.push({ hit: makeHit(row, judge, options, 'proposed', []), placement: 'v1' });
+      if (best >= options.threshold) placed.push({ hit: hitFromRow(row, judge, options, 'proposed', []), placement: 'v1' });
       continue;
     }
     const best = bestJudgement(v2) as JudgementV2;
@@ -295,10 +297,10 @@ export function assessBatch(
     const shelved = shelve(entries, (e) => e.scores, (e) => e.row.id, options.taken?.get(candidate) ?? 0);
     for (const e of shelved.accepted) {
       const placement = assess(e.scores) as 'interesting' | 'stretch';
-      placed.push({ hit: makeHit(e.row, e.judge, options, 'accepted', tagsFor(e.best, false), e.best.justification), placement });
+      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'accepted', tagsFor(e.best, false), e.best.justification), placement });
     }
     for (const e of shelved.alternates) {
-      placed.push({ hit: makeHit(e.row, e.judge, options, 'proposed', tagsFor(e.best, true), e.best.justification), placement: 'alternate' });
+      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'proposed', tagsFor(e.best, true), e.best.justification), placement: 'alternate' });
     }
     for (const e of shelved.near) {
       near.push({ id: e.row.id, input: e.row.input, display: e.row.display, ...e.scores, rationale: e.best.rationale });
@@ -349,14 +351,19 @@ export function renderReport(r: {
   near: readonly NearMiss[];
   moved: number;
   threshold: number;
+  /** Defaults to `Ingest <date>`. */
+  heading?: string;
+  /** Defaults to the count of candidates moved to enumerated. */
+  ledger?: string;
 }): string {
   const head = [
-    `# Ingest ${r.date}`,
+    `# ${r.heading ?? `Ingest ${r.date}`}`,
     '',
     `Queue: ${r.dir}`,
     ...(r.empty ? ['Nothing to judge: the queue was empty.'] : []),
     `Verdicts: ${r.read} read · ${r.valid} valid · ${r.rejected.length} rejected`,
   ];
+  const ledger = r.ledger ?? `Candidates moved to enumerated: ${r.moved}`;
   const rejected = r.rejected.length ? ['## Rejected', '', ...r.rejected.map((x) => `- ${x.id}: ${x.reason}`), ''] : [];
   const added = r.placed.filter((p) => r.addedIds.has(p.hit.id));
 
@@ -364,7 +371,7 @@ export function renderReport(r: {
     return [
       ...head,
       `Hits: ${r.placed.length} at or above ${r.threshold} of 15 · ${added.length} new in data/hits.jsonl`,
-      `Candidates moved to enumerated: ${r.moved}`,
+      ledger,
       '',
       '| total | input | anagram | rationale |',
       '|---|---|---|---|',
@@ -400,7 +407,7 @@ export function renderReport(r: {
   return [
     ...head,
     `Hits: ${added.length} new in data/hits.jsonl (${accepted} accepted, ${plural(of('alternate').length, 'alternate', 'alternates')} proposed) · ${plural(r.near.length, 'near miss', 'near misses')} kept in judge-output.jsonl`,
-    `Candidates moved to enumerated: ${r.moved}`,
+    ledger,
     '',
     'Merging this pull request accepts every hit under Interesting and A stretch. Greatest Hits changes only when the operator promotes a hit by name.',
     '',
@@ -488,13 +495,18 @@ async function main(): Promise<void> {
   });
   const added = await appendJsonl(HITS_PATH, assessed.hits.map((p) => p.hit), hitValidator);
 
-  // Candidates that were judged are done for now.
+  // Candidates that were judged are done for now, and the ledger records
+  // the queue and the versions they went through.
+  const rubricKind = verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2';
   const judgedCandidates = new Set([...batch.values()].map((r) => r.candidate_id));
   const cv = await candidateSchema();
   const candidates = await readJsonl(CANDIDATES_PATH, cv);
+  const run = { queue: queueName(dir), settings: SETTINGS_VERSION, rubric: rubricKind, date };
   let moved = 0;
   for (const c of candidates) {
-    if (judgedCandidates.has(c.id) && c.status === 'new') {
+    if (!judgedCandidates.has(c.id)) continue;
+    addRun(c, run);
+    if (c.status === 'new') {
       c.status = 'enumerated';
       moved++;
     }
@@ -508,7 +520,7 @@ async function main(): Promise<void> {
     read: verdicts.length,
     valid: verified.length,
     rejected,
-    rubric: verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2',
+    rubric: rubricKind,
     placed: assessed.hits,
     addedIds: new Set(added.map((h) => h.id)),
     near: assessed.near,
