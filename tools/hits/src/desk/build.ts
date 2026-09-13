@@ -55,6 +55,10 @@ export type DeskData = {
   tagPattern: string;
   /** docs/prompts/apply-desk.md as it is on disk. */
   applyDesk: string;
+  /** docs/prompts/deep-run.md as it is on disk. */
+  deepRun: string;
+  /** The deep preset's bound per input, the Deep run tab's default; null for none. */
+  deepPerInput: number | null;
 };
 
 /** A judged queue as the desk reads it. */
@@ -121,6 +125,8 @@ export function deskData(input: {
   today: string;
   tagPattern: string;
   applyDesk: string;
+  deepRun: string;
+  deepPerInput: number | null;
 }): DeskData {
   return {
     generated: input.generated,
@@ -145,6 +151,8 @@ export function deskData(input: {
     queues: input.queues.map((q) => deskQueue(q, input.hits, input.today)),
     tagPattern: input.tagPattern,
     applyDesk: input.applyDesk,
+    deepRun: input.deepRun,
+    deepPerInput: input.deepPerInput,
   };
 }
 

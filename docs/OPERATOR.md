@@ -262,6 +262,46 @@ counts as `s1` and `v1`.
 A requeued candidate's earlier hits stay in `data/hits.jsonl`, and ingest leaves any phrase already
 there alone.
 
+## Run a deep run
+
+When a batch of inputs deserves more than the nightly gives it: every candidate again after the settings
+changed, a large seed batch, or one category in depth. A deep run happens in a Claude Code session on a
+laptop, apart from the daily routine, and opens one pull request per category.
+
+Size it before starting. These figures come from the s2 gate: 50 long inputs, screened by
+`claude-sonnet-5` at about 6.3 minutes per 1,000 phrases. Short trending names give far fewer phrases, and
+the judge then scores only the tenth or so the screen keeps.
+
+| Bound per input | Phrases to screen per 50 inputs | Screening per 50 inputs | Traced classics kept (of 14) |
+|---|---|---|---|
+| 100 | 4,256 | about 27 minutes | 10 |
+| 300, the deep preset | 10,768 | about 1 hour 10 minutes | 12 |
+| 500, the routine | 16,632 | about 1 hour 45 minutes | 12 |
+| no bound | 328,656 | about 35 hours | 12 |
+
+1. In the review desk's Deep run tab, choose the candidates (settings older than s2, a category, a source,
+   or ids), the first queue folder and the bound per input; seeds added in the Seed tab join the scope.
+   Press **Copy deep-run prompt**. Without the desk, fill `docs/prompts/deep-run.md` by hand.
+2. Paste it into a Claude Code session opened in the repository. For each category, on its own branch, the
+   session:
+   - requeues and seeds;
+   - proposes anchor words for inputs with more than 50,000 results;
+   - enumerates with the deep preset, prefilters, and writes the screen input;
+   - screens with `claude-sonnet-5` subagents, one per screen file;
+   - judges what the screen kept with `claude-opus-5` subagents, one per judge file;
+   - ingests with the engine check on, and opens a pull request titled
+     `Greatest Hits deep run: <category>, <N> new`.
+3. Review each pull request in the desk (`gh pr checkout <number>`, then `pnpm hits:desk`) and merge them
+   one at a time. Each adds lines to the same data files, so the session rebuilds a later branch from
+   `main` rather than resolving a data file by hand.
+
+Anchors live in the run's scratch list and in the queue's `summary.json`; the candidate lines in the
+repository are not edited. The raw rows are deleted once the screen input is written, because a deep
+enumeration can run to gigabytes. In Claude Code, a workflow can fan out the screening and judging when you
+ask for one; another harness works through the files one at a time.
+
+Prompt: `docs/prompts/deep-run.md` (deep_run_scope, deep_run_size). The desk fills it.
+
 ## Ship a feature
 
 When you want the site or its tooling to do something new.

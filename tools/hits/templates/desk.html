@@ -509,28 +509,61 @@
     var source = h('select', { 'aria-label': 'Source' }, h('option', { value: '' }, 'Any source'), ['manual', 'trending', 'submission'].map(function (s) { return h('option', { value: s }, s); }));
     var ids = h('textarea', { 'aria-label': 'Candidate ids', placeholder: 'Candidate ids, one per line (optional)' });
     var date = h('input', { type: 'text', value: DATA.today, 'aria-label': 'Queue folder' });
+    var perInput = h('input', { type: 'text', value: DATA.deepPerInput === null ? 'all' : String(DATA.deepPerInput), 'aria-label': 'Phrases per input' });
     var problem = h('p', { class: 'problem', role: 'alert' });
     var note = h('p', { class: 'small', role: 'status' });
+    var prompt = h('pre', {});
+    var live = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
+
+    function scope() {
+      var list = ids.value.split(/\s+/).filter(Boolean);
+      var when = [settings.checked ? 'processed under settings older than s2' : '', rubric.checked ? 'judged under a rubric older than v2' : ''].filter(Boolean).join(' and ');
+      var who = list.length
+        ? 'the candidates ' + list.join(', ')
+        : 'candidates in ' + (category.value ? 'the ' + category.value + ' category' : 'every category, one category at a time') +
+          (source.value ? ' from source ' + source.value : '') + (when ? ', ' + when : '');
+      var seeds = state.decisions.filter(function (d) { return d.kind === 'seed'; });
+      return who + (seeds.length ? '; plus these seeds from the review desk: ' + seeds.map(function (s) {
+        return s.input + ' | ' + s.category + (s.anchors.length ? ' | ' + s.anchors.join(' ') : '');
+      }).join('; ') : '') + '. Name queue folders from ' + date.value + ' on.';
+    }
+    function size() {
+      return perInput.value === 'all' ? 'no bound per input, with the deep preset' : perInput.value + ' phrases per input, with the deep preset';
+    }
+    function draw() { prompt.textContent = fillDeepRunPrompt(DATA.deepRun, scope(), size()); }
+    [settings, rubric, category, source, ids, date, perInput].forEach(function (el) {
+      el.addEventListener('input', draw);
+      el.addEventListener('change', draw);
+    });
+
     main.append(
       h('h2', {}, 'Deep run'),
-      h('p', { class: 'small' }, 'Sends candidates back to new, enumerates them with the deep preset into one queue folder with no per-input bound, and writes its screen input. ' +
-        older + ' enumerated candidates last ran under settings older than s2.'),
+      h('p', { class: 'small' }, 'A deep run sends candidates back to new, enumerates them with the deep preset one category at a time, screens and judges them with subagents, and opens a pull request per category. ' +
+        older + ' enumerated candidates last ran under settings older than s2. At 300 phrases per input, expect about 11,000 phrases and an hour of screening for every 50 long inputs.'),
       h('fieldset', {},
         h('label', { class: 'check' }, settings, 'Processed under settings older than s2'),
         h('label', { class: 'check' }, rubric, 'Judged under a rubric older than v2'),
-        h('div', { class: 'toolbar' }, field('Category', category), field('Source', source), field('Queue folder', date)),
+        h('div', { class: 'toolbar' }, field('Category', category), field('Source', source), field('First queue folder', date), field('Phrases per input', perInput)),
         field('Ids', ids)),
       problem,
-      h('div', { class: 'actions' }, h('button', { class: 'act primary', type: 'button', onclick: function () {
-        var list = ids.value.split(/\s+/).filter(Boolean);
-        if (!/^\d{4}-\d{2}-\d{2}[a-z]?$/.test(date.value)) { problem.textContent = 'Name the queue folder as a date, such as ' + DATA.today + 'b.'; return; }
-        if (!settings.checked && !rubric.checked && !category.value && !source.value && !list.length) { problem.textContent = 'Choose which candidates to send back.'; return; }
-        problem.textContent = '';
-        upsert({ kind: 'requeue', ids: list, settingsBefore: settings.checked ? 's2' : '', rubricBefore: rubric.checked ? 'v2' : '', category: category.value, source: source.value });
-        upsert({ kind: 'deep', date: date.value });
-        note.textContent = 'Added to the decisions.';
-      } }, 'Add to the decisions')),
-      note);
+      h('div', { class: 'actions' },
+        h('button', { class: 'act primary', type: 'button', onclick: function () { copy(prompt.textContent, live); } }, 'Copy deep-run prompt'),
+        h('button', { class: 'act', type: 'button', onclick: function () {
+          var list = ids.value.split(/\s+/).filter(Boolean);
+          if (!/^\d{4}-\d{2}-\d{2}[a-z]?$/.test(date.value)) { problem.textContent = 'Name the queue folder as a date, such as ' + DATA.today + 'b.'; return; }
+          if (!/^(\d+|all)$/.test(perInput.value)) { problem.textContent = 'Phrases per input is a whole number, or all.'; return; }
+          if (!settings.checked && !rubric.checked && !category.value && !source.value && !list.length) { problem.textContent = 'Choose which candidates to send back.'; return; }
+          problem.textContent = '';
+          upsert({ kind: 'requeue', ids: list, settingsBefore: settings.checked ? 's2' : '', rubricBefore: rubric.checked ? 'v2' : '', category: category.value, source: source.value });
+          upsert({ kind: 'deep', date: date.value, perInput: perInput.value });
+          note.textContent = 'Added to the decisions.';
+          draw();
+        } }, 'Add to the decisions')),
+      live,
+      note,
+      h('span', { class: 'label' }, 'Deep-run prompt'),
+      prompt);
+    draw();
   }
 
   function renderAdd(main) {

@@ -49,12 +49,14 @@ export type Preset = {
 
 /**
  * `routine` is what the nightly runs and the judge routine screens; `deep` is
- * for a deep run in a local session. The numbers come from the gate run
- * recorded in the pull request that introduced s2.
+ * for a deep run in a local session. The numbers come from the s2 gate run
+ * (pull request #16): taking turns by word count, every traced classic that
+ * reached the screen ranked 214th or better in its input, so 300 per input
+ * keeps them all, and screening runs about 6.3 minutes per 1,000 phrases.
  */
 export const PRESETS: Record<'routine' | 'deep', Preset> = {
   routine: { tier: 'common', minLength: 3, maxWords: 5, spellings: 'all', expandCap: 64, limit: 5_000, sample: 1_000, perInput: 500 },
-  deep: { tier: 'common', minLength: 3, maxWords: 5, spellings: 'all', expandCap: 64, limit: 50_000, sample: 5_000, perInput: null },
+  deep: { tier: 'common', minLength: 3, maxWords: 5, spellings: 'all', expandCap: 64, limit: 50_000, sample: 5_000, perInput: 300 },
 };
 
 export function presetFlag(value: string | undefined): Preset {

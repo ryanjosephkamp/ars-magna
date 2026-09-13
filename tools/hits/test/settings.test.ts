@@ -38,7 +38,7 @@ describe('presets', () => {
     expect(args).toContain(`--limit=${PRESETS.deep.limit}`);
     expect(args).toContain('--sample=7');
     expect(args).toContain('--status=all');
-    expect(PRESETS.deep.perInput).toBeNull();
+    expect(PRESETS.deep.perInput).toBe(300);
     expect(() => presetFlag('huge')).toThrow(/routine or deep/);
   });
 });

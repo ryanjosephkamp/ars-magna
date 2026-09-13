@@ -92,7 +92,7 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
 
 ## Where to read more
 
-- `docs/OPERATOR.md`: adding or reviewing hits, the review desk, judging by hand, a thin night, a release, the judge
+- `docs/OPERATOR.md`: adding or reviewing hits, the review desk, judging by hand, a thin night, a deep run, a release, the judge
   routine, a secret.
 - `automation/RUNBOOK.md`: the Greatest Hits pipeline, its Actions, and the category table.
 - `automation/judge-routine.md`: judging a queue.

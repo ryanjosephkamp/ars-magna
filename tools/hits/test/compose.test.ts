@@ -10,6 +10,7 @@ import { normalizeLetters } from '@ars-magna/engine/fold';
 import {
   candidateIdOf,
   composeCommands,
+  fillDeepRunPrompt,
   fillPrompt,
   foldLetters,
   hitIdOf,
@@ -19,7 +20,7 @@ import {
   shellQuote,
   type Decision,
 } from '../src/desk/compose.ts';
-import { APPLY_DESK_PROMPT } from '../src/desk.ts';
+import { APPLY_DESK_PROMPT, DEEP_RUN_PROMPT } from '../src/desk.ts';
 import { candidateId, hitId } from '../src/ids.ts';
 
 describe('ids in the page', () => {
@@ -63,7 +64,7 @@ describe('commands', () => {
       { kind: 'promote', queue: '2026-09-13', model: 'claude-sonnet-5', id: 'a:phrases:b', status: 'accepted', justification: '', judged: '' },
       { kind: 'promote', queue: '2026-09-12c', model: 'claude-sonnet-5', id: 'c:phrases:d', status: 'proposed', justification: '', judged: '' },
       { kind: 'requeue', ids: [], settingsBefore: 's2', rubricBefore: '', category: 'titles', source: '' },
-      { kind: 'deep', date: '2026-09-14b' },
+      { kind: 'deep', date: '2026-09-14b', perInput: '300' },
       { kind: 'seed', input: 'The countryside', category: 'phrases', anchors: ['city', 'dust'] },
       { kind: 'seed', input: 'Sagrada Família', category: 'places', anchors: [] },
       { kind: 'add', input: 'Dormitory', category: 'phrases', phrase: 'dirty room', tier: 'common', justification: 'A dormitory is a dirty room.' },
@@ -78,9 +79,7 @@ describe('commands', () => {
       ].join('\n'),
       'pnpm hits:requeue --settings-before=s2 --category=titles --dry-run',
       'pnpm hits:requeue --settings-before=s2 --category=titles',
-      'pnpm hits:enumerate --date=2026-09-14b --preset=deep',
-      'pnpm hits:prefilter --date=2026-09-14b --per-input=all',
-      'pnpm hits:screen --date=2026-09-14b',
+      '# then carry out the deep run from data/queue/2026-09-14b on, at 300 phrases per input, as docs/prompts/deep-run.md describes',
       'pnpm hits:ingest --date=2026-09-13 --model=claude-sonnet-5 --only=supergirl:titles:girls-pure --status=accepted',
       'pnpm hits:ingest --date=2026-09-13 --model=claude-sonnet-5 --only=arthurashe:people:ash-her-tau,a:phrases:b --status=proposed',
       'pnpm hits:ingest --date=2026-09-12c --model=claude-sonnet-5 --only=c:phrases:d --status=proposed',
@@ -93,10 +92,7 @@ describe('commands', () => {
       '# then call the MCP tool propose_hit with input "Dormitory", category phrases, words ["dirty","room"], tier common and justification "A dormitory is a dirty room."',
       'pnpm hits:set --status=accepted dormitory:phrases:dirty-room',
     ]);
-    expect(notes).toEqual([
-      'Then screen and judge data/queue/2026-09-14b as automation/judge-routine.md describes from step 3, and ingest it with the engine check on.',
-      'a:phrases:b has no justification yet, so it goes in as proposed. Give it one with pnpm hits:justify before accepting it.',
-    ]);
+    expect(notes).toEqual(['a:phrases:b has no justification yet, so it goes in as proposed. Give it one with pnpm hits:justify before accepting it.']);
   });
 
   it('let a later decision about the same thing replace an earlier one', () => {
@@ -153,5 +149,14 @@ describe('prompt', () => {
     expect(filled).toContain('Notes from the operator: none');
     expect(filled).not.toMatch(/desk_(branch|commands|notes)/);
     expect(fillPrompt(template, [], 'Leave Boeing alone.', 'x')).toContain('Notes from the operator: Leave Boeing alone.');
+  });
+
+  it('fills deep-run.md with the scope and the size', async () => {
+    const template = await readFile(DEEP_RUN_PROMPT, 'utf8');
+    const filled = fillDeepRunPrompt(template, 'candidates in the titles category, processed under settings older than s2', '300 phrases per input');
+    expect(filled.startsWith('Run a Greatest Hits deep run.')).toBe(true);
+    expect(filled).toContain('Scope: candidates in the titles category, processed under settings older than s2');
+    expect(filled).toContain('Size: 300 phrases per input');
+    expect(filled).not.toMatch(/deep_run_(scope|size)/);
   });
 });

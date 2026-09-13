@@ -20,12 +20,14 @@ import { deskData, renderDesk, type QueueInput } from './desk/build.ts';
 import { parseVerdicts } from './judge.ts';
 import { JUDGE_OUTPUT, flag, queueDates, queueDir, readJudgedRows } from './queue.ts';
 import { CANDIDATES_PATH, HITS_PATH, REPO_ROOT, candidateSchema, hitSchema, readJsonl, today } from './schema.ts';
+import { PRESETS } from './settings.ts';
 import { tagPattern } from './tag.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DESK_TEMPLATE = resolve(here, '../templates/desk.html');
 export const COMPOSE_SOURCE = resolve(here, 'desk/compose.ts');
 export const APPLY_DESK_PROMPT = resolve(REPO_ROOT, 'docs/prompts/apply-desk.md');
+export const DEEP_RUN_PROMPT = resolve(REPO_ROOT, 'docs/prompts/deep-run.md');
 export const DESK_OUT = resolve(REPO_ROOT, '.cache/desk/index.html');
 
 /** The newest `count` queues that have verdicts, newest first. */
@@ -53,6 +55,8 @@ export async function buildDesk(options: { queues: number; out: string; generate
     today: today(),
     tagPattern: (await tagPattern()).source,
     applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
+    deepRun: await readFile(DEEP_RUN_PROMPT, 'utf8'),
+    deepPerInput: PRESETS.deep.perInput,
   });
   const html = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), data, await readFile(COMPOSE_SOURCE, 'utf8'));
   await mkdir(dirname(options.out), { recursive: true });
