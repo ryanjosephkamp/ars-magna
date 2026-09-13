@@ -45,9 +45,16 @@ jobs:
 
       # A prebuilt release binary; `cargo install wasm-pack` compiles it from
       # source and costs minutes on every cold cache.
+      #
+      # Pinned, never `latest`. The action looks `latest` up through the GitHub
+      # API without a token, and when that call is rate limited it silently
+      # installs v0.9.1, which rejects `--no-pack` in scripts/build-wasm.sh. That
+      # broke the deploy of 51fea65 on 2026-09-13. Keep this in step with
+      # ci.yml and with `wasm-pack --version` on the machine the build was
+      # verified on.
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
-          version: latest
+          version: v0.15.0
 
       - name: Build
         run: pnpm build

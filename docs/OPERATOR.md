@@ -328,6 +328,12 @@ After any merge to `main`. Every check reads; none changes anything.
    gh run list --branch main --limit 6
    ```
 
+   A red Deploy leaves the site on the previous build until the next green one; each deploy builds all of
+   `main`, so a later green deploy carries the earlier merge's changes too. CI and Deploy install
+   `wasm-pack` at a pinned version (`version:` under `jetli/wasm-pack-action` in both workflows). If a
+   build fails on a `wasm-pack` argument, or after upgrading `wasm-pack` locally, set both workflows to the
+   version `wasm-pack --version` prints on the machine the build was verified on, in one pull request.
+
 2. The site serves the new build. `generated` is later than the merge, and the count equals the accepted
    and featured lines in `data/hits.jsonl`:
 
