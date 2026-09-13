@@ -1,6 +1,7 @@
 /**
  * `pnpm hits:ingest [--date=YYYY-MM-DD] [--model=NAME] [--threshold=11] [--no-engine-check]`
  * `pnpm hits:ingest --from-issue=N`
+ * `pnpm hits:ingest --date=YYYY-MM-DD --model=NAME --only=id,… [--status=accepted|proposed]`
  *
  * The second form takes a submission from the GitHub issue form: it reads the
  * issue, checks the phrase with the engine, and records a candidate and a
@@ -19,6 +20,10 @@
  * the approval. Rubric v1 answers, from older queues, keep the v1 rule: a
  * total of 11 or more is `proposed`. The candidates that were judged move to
  * `enumerated` so the next run skips them.
+ *
+ * The third form is the operator's promotion of named rows from a judged
+ * queue's verdicts, usually near misses: it writes exactly those rows, past
+ * the shelves, and changes neither the candidates nor the ingest report.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -325,6 +330,49 @@ export function buildHits(
   return assessBatch(batch, verdicts, options).hits.map((p) => p.hit);
 }
 
+/**
+ * `--only`: the named rows as hits, whatever shelf their scores would give
+ * them. Refuses, naming each, a row not in the queue, one already in the file,
+ * one without a valid verdict, and one to be accepted without a
+ * justification to publish with.
+ */
+export function promoteOnly(
+  batch: ReadonlyMap<string, Prefiltered>,
+  verdicts: readonly Verdict[],
+  only: readonly string[],
+  status: 'accepted' | 'proposed',
+  options: IngestOptions,
+): { hits: Hit[]; refused: Rejection[] } {
+  const hits: Hit[] = [];
+  const refused: Rejection[] = [];
+  for (const id of only) {
+    const row = batch.get(id);
+    if (!row) {
+      refused.push({ id, reason: 'not in this queue' });
+      continue;
+    }
+    if (options.existing?.has(id)) {
+      refused.push({ id, reason: 'already in data/hits.jsonl; change it with pnpm hits:set' });
+      continue;
+    }
+    const judge = verdicts.filter((v) => v.id === id).map((v) => toJudgement(v, options.model, options.version, options.date));
+    const best = bestJudgement(judge);
+    if (!best) {
+      refused.push({ id, reason: 'no valid verdict in this queue' });
+      continue;
+    }
+    const v2 = isV2(best) ? best : null;
+    const justification = v2?.justification;
+    if (status === 'accepted' && !justification) {
+      refused.push({ id, reason: 'no justification to publish with; add it as proposed, then pnpm hits:justify and pnpm hits:set' });
+      continue;
+    }
+    const tags = v2 ? tagsFor(v2, false, options.subjects?.get(row.candidate_id)) : [];
+    hits.push(hitFromRow(row, judge, options, status, tags, justification));
+  }
+  return { hits, refused };
+}
+
 /** How many hits each candidate already has on a shelf. */
 export function takenCounts(hits: readonly Hit[]): Map<string, number> {
   const taken = new Map<string, number>();
@@ -446,6 +494,14 @@ async function main(): Promise<void> {
   const model = flag(argv, 'model') ?? 'claude-code-session';
   const threshold = Number(flag(argv, 'threshold') ?? DEFAULT_THRESHOLD);
   const date = today();
+  const only = flag(argv, 'only');
+  const onlyStatus = flag(argv, 'status');
+  if (onlyStatus !== undefined && only === undefined) throw new Error('--status goes with --only');
+  if (onlyStatus !== undefined && onlyStatus !== 'accepted' && onlyStatus !== 'proposed') {
+    throw new Error(`--status must be accepted or proposed, not ${onlyStatus}`);
+  }
+  const onlyIds = only === undefined ? null : [...new Set(only.split(',').map((s) => s.trim()).filter((s) => s.length > 0))];
+  if (onlyIds && onlyIds.length === 0) throw new Error('--only needs at least one hit id');
 
   // The rows the judge saw: screened.jsonl for a screened queue, else prefiltered.jsonl.
   const batch = new Map<string, Prefiltered>((await readJudgedRows(dir)).map((row) => [row.id, row]));
@@ -484,7 +540,7 @@ async function main(): Promise<void> {
   const candidates = await readJsonl(CANDIDATES_PATH, cv);
   const hitValidator = await hitSchema();
   const known = await readJsonl(HITS_PATH, hitValidator);
-  const assessed = assessBatch(batch, verified, {
+  const options: IngestOptions = {
     model,
     version,
     date,
@@ -493,7 +549,24 @@ async function main(): Promise<void> {
     taken: takenCounts(known),
     existing: new Set(known.map((h) => h.id)),
     subjects: new Map(candidates.flatMap((c) => (c.subjects?.length ? [[c.id, c.subjects] as const] : []))),
-  });
+  };
+
+  if (onlyIds) {
+    const status = onlyStatus === 'proposed' ? 'proposed' : 'accepted';
+    const { hits, refused } = promoteOnly(batch, verified, onlyIds, status, options);
+    if (refused.length > 0) {
+      for (const r of refused) console.error(`${r.id}: ${r.reason}`);
+      console.error('nothing written');
+      process.exitCode = 1;
+      return;
+    }
+    const written = await appendJsonl(HITS_PATH, hits, hitValidator);
+    for (const h of written) console.log(`${h.id}  ${h.status}`);
+    console.log(`${written.length} added to data/hits.jsonl from ${queueName(dir)}; the candidates and the ingest report are unchanged`);
+    return;
+  }
+
+  const assessed = assessBatch(batch, verified, options);
   const added = await appendJsonl(HITS_PATH, assessed.hits.map((p) => p.hit), hitValidator);
 
   // Candidates that were judged are done for now, and the ledger records
