@@ -18,7 +18,7 @@ on:
         default: '150'
       per_input:
         description: 'Most phrases per input sent to the screen'
-        default: '1000'
+        default: '500'
 
 concurrency:
   group: hits-nightly
@@ -68,7 +68,7 @@ jobs:
           pnpm hits:enumerate --date=$DATE --preset=routine
 
       - name: Prefilter
-        run: pnpm hits:prefilter --date=${{ steps.enumerate.outputs.date }} --per-input=${{ github.event.inputs.per_input || '1000' }}
+        run: pnpm hits:prefilter --date=${{ steps.enumerate.outputs.date }} --per-input=${{ github.event.inputs.per_input || '500' }}
 
       - name: Write the screen input
         run: pnpm hits:screen --date=${{ steps.enumerate.outputs.date }}

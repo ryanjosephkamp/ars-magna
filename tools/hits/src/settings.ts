@@ -53,7 +53,7 @@ export type Preset = {
  * recorded in the pull request that introduced s2.
  */
 export const PRESETS: Record<'routine' | 'deep', Preset> = {
-  routine: { tier: 'common', minLength: 3, maxWords: 5, spellings: 'all', expandCap: 64, limit: 5_000, sample: 1_000, perInput: 1_000 },
+  routine: { tier: 'common', minLength: 3, maxWords: 5, spellings: 'all', expandCap: 64, limit: 5_000, sample: 1_000, perInput: 500 },
   deep: { tier: 'common', minLength: 3, maxWords: 5, spellings: 'all', expandCap: 64, limit: 50_000, sample: 5_000, perInput: null },
 };
 

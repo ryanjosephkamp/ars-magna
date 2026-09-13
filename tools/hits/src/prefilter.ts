@@ -1,5 +1,5 @@
 /**
- * `pnpm hits:prefilter [--date=YYYY-MM-DD] [--per-input=1000|all]`
+ * `pnpm hits:prefilter [--date=YYYY-MM-DD] [--per-input=500|all]`
  *
  * From everything the engine enumerated, keep what could possibly be a hit,
  * put each phrase in the order that reads best, and score it — with no model.

@@ -115,7 +115,7 @@ describe('prefilter', () => {
   });
 
   it('reads --per-input as a whole number or all', () => {
-    expect(perInputFlag(undefined)).toBe(1000);
+    expect(perInputFlag(undefined)).toBe(500);
     expect(perInputFlag('all')).toBe(Infinity);
     expect(perInputFlag('40')).toBe(40);
     expect(() => perInputFlag('0')).toThrow(/positive whole number/);
