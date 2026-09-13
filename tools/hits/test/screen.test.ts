@@ -20,6 +20,7 @@ import {
   rebuildRows,
   renderScores,
   renderScreen,
+  screenedCandidateIds,
   validateScreen,
   type ScreenGroup,
 } from '../src/screen.ts';
@@ -165,6 +166,9 @@ describe('a screened queue on disk', () => {
     );
     const rows = await applyScreen(dir);
     expect(rows.map((r) => r.display)).toEqual(['no city dust here', 'enlist', 'has to pilfer']);
+    // Ingest closes out every input the screen covered, including one it kept nothing of.
+    expect(await screenedCandidateIds(dir)).toEqual(['thecountryside:phrases', 'listen:phrases', 'ashoplifter:phrases']);
+    expect(await screenedCandidateIds(join(dir, 'nowhere'))).toEqual([]);
     expect((await readJudgedRows(dir)).map((r) => r.display)).toEqual(['no city dust here', 'enlist', 'has to pilfer']);
     expect(batches(rows, 150)).toHaveLength(1);
   });

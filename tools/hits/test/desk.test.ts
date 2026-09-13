@@ -9,7 +9,7 @@ import { Script } from 'node:vm';
 
 import { composeCommands, type Decision } from '../src/desk/compose.ts';
 import { deskData, deskQueue, embedJson, inlineCompose, renderDesk, type QueueInput } from '../src/desk/build.ts';
-import { APPLY_DESK_PROMPT, COMPOSE_SOURCE, DESK_TEMPLATE, judgedQueues } from '../src/desk.ts';
+import { APPLY_DESK_PROMPT, COMPOSE_SOURCE, DEEP_RUN_PROMPT, DESK_TEMPLATE, judgedQueues } from '../src/desk.ts';
 import type { VerdictV2 } from '../src/judge.ts';
 import type { Prefiltered } from '../src/prefilter.ts';
 import { CANDIDATES_PATH, HITS_PATH, candidateSchema, hitSchema, readJsonl, type Hit } from '../src/schema.ts';
@@ -94,6 +94,8 @@ describe('the page', () => {
       today: '2026-09-14',
       tagPattern: (await tagPattern()).source,
       applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
+      deepRun: await readFile(DEEP_RUN_PROMPT, 'utf8'),
+      deepPerInput: 300,
     });
     const html = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), data, await readFile(COMPOSE_SOURCE, 'utf8'));
     expect(html).toContain('<title>Ars Magna Review Desk</title>');

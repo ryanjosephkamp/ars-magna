@@ -29,7 +29,8 @@ export type PromoteDecision = {
   judged: string;
 };
 export type RequeueDecision = { kind: 'requeue'; ids: string[]; settingsBefore: string; rubricBefore: string; category: string; source: string };
-export type DeepDecision = { kind: 'deep'; date: string };
+/** A deep run into one queue folder, bounded per input; the deep-run prompt carries it out. */
+export type DeepDecision = { kind: 'deep'; date: string; perInput: string };
 export type SeedDecision = { kind: 'seed'; input: string; category: CategoryName; anchors: string[] };
 export type AddDecision = { kind: 'add'; input: string; category: CategoryName; phrase: string; tier: TierName; justification: string };
 export type Decision =
@@ -179,12 +180,8 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   }
 
   for (const d of lastBy<DeepDecision>(decisions, 'deep', () => 'deep')) {
-    commands.push(
-      `pnpm hits:enumerate --date=${d.date} --preset=deep`,
-      `pnpm hits:prefilter --date=${d.date} --per-input=all`,
-      `pnpm hits:screen --date=${d.date}`,
-    );
-    notes.push(`Then screen and judge data/queue/${d.date} as automation/judge-routine.md describes from step 3, and ingest it with the engine check on.`);
+    const size = d.perInput && d.perInput !== 'all' ? `${d.perInput} phrases per input` : 'no bound per input';
+    commands.push(`# then carry out the deep run from data/queue/${d.date} on, at ${size}, as docs/prompts/deep-run.md describes`);
   }
 
   const justifications = new Map(lastBy<JustifyDecision>(decisions, 'justify', (d) => d.id).map((d) => [d.id, d.text]));
@@ -245,6 +242,15 @@ export function promptBody(template: string): string {
   const lines = template.split('\n');
   const at = lines.findIndex((l) => l.trim() === '---');
   return (at >= 0 ? lines.slice(at + 1) : lines).join('\n').trim();
+}
+
+/** `docs/prompts/deep-run.md` with deep_run_scope and deep_run_size filled. */
+export function fillDeepRunPrompt(template: string, scope: string, size: string): string {
+  return promptBody(template)
+    .split('deep_run_size')
+    .join(size.trim() || 'the deep preset')
+    .split('deep_run_scope')
+    .join(scope.trim() || 'as I describe below');
 }
 
 /** `docs/prompts/apply-desk.md` with desk_branch, desk_notes and desk_commands filled. */
