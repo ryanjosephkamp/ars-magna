@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "The Greatest Hits pipeline: find inputs, enumerate, prefilter, judge, ingest, publish.",
+  "description": "The Greatest Hits pipeline: find inputs, enumerate, prefilter, screen, judge, ingest, publish.",
   "scripts": {
     "fetch": "node --experimental-strip-types src/fetch.ts",
     "enumerate": "node --experimental-strip-types src/enumerate.ts",
     "prefilter": "node --experimental-strip-types src/prefilter.ts",
+    "screen": "node --experimental-strip-types src/screen.ts",
     "judge": "node --experimental-strip-types src/judge.ts",
     "ingest": "node --experimental-strip-types src/ingest.ts",
     "publish": "node --experimental-strip-types src/publish.ts",

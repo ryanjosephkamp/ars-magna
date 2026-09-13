@@ -19,7 +19,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Prefiltered } from './prefilter.ts';
-import { JUDGE_OUTPUT, PREFILTERED, flag, pickQueue } from './queue.ts';
+import { JUDGE_OUTPUT, SCREENED, flag, pickQueue, readJudgedRows } from './queue.ts';
+import { applyScreen, screenInputFiles } from './screen.ts';
 import { today } from './schema.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -164,17 +165,18 @@ async function main(): Promise<void> {
   const via = flag(argv, 'via') ?? 'file';
   const size = Number(flag(argv, 'batch') ?? 150);
 
-  const text = await readFile(resolve(dir, PREFILTERED), 'utf8');
-  const rows = text
-    .split('\n')
-    .filter((l) => l.trim().length > 0)
-    .map((l) => JSON.parse(l) as Prefiltered);
-  // A thin night: the prefilter kept nothing. Not an error. Leave an empty
-  // answer so ingest can close the queue out and the routine moves on.
+  // A screened queue (settings s2) is judged on the phrases the screen kept,
+  // rebuilt into screened.jsonl; an older queue on its prefiltered.jsonl.
+  const screened = (await screenInputFiles(dir)).length > 0;
+  const rows = screened ? await applyScreen(dir) : await readJudgedRows(dir);
+  if (screened) console.log(`the screen kept ${rows.length} phrases -> ${resolve(dir, SCREENED)}`);
+  // Nothing to judge: a thin night, or a screen that kept nothing. Not an
+  // error. Leave an empty answer so ingest can close the queue out and the
+  // routine moves on.
   if (rows.length === 0) {
     const out = resolve(dir, JUDGE_OUTPUT);
     if (!existsSync(out)) await writeFile(out, '');
-    console.log(`nothing to judge: ${resolve(dir, PREFILTERED)} is empty; wrote an empty ${out}`);
+    console.log(`nothing to judge in ${dir}; wrote an empty ${out}`);
     return;
   }
 

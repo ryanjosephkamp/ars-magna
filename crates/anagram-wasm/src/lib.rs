@@ -140,6 +140,7 @@ impl Engine {
         let options = SolveOptions {
             tier,
             min_word_len: min_word_len.max(1),
+            short_words: None,
             max_words: max_words.max(1),
             must_include,
             limit: 0,

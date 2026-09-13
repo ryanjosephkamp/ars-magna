@@ -36,7 +36,7 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `apps/web` | the site; `hits.html` is the Greatest Hits gallery, built from `data/hits.jsonl` |
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts` |
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
-| `tools/hits` | fetch → enumerate → prefilter → judge → ingest → set → publish |
+| `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |
 | `data/` | `candidates.jsonl`, `hits.jsonl`, `schema/`, `queue/<date>/` |
 | `automation/` | `judge-routine.md` (the judge's instructions) and `RUNBOOK.md` (the pipeline) |
 | `docs/OPERATOR.md` | the operator manual: one section per workflow, each with its prompt |
@@ -53,7 +53,7 @@ pnpm typecheck                       # TypeScript, all packages
 pnpm test                            # vitest, all packages
 pnpm build                           # both pages; runs apps/web/scripts/build-hits.ts first
 pnpm dev                             # the site at http://localhost:5173
-pnpm hits:fetch | enumerate | prefilter | judge | ingest --model=… | publish
+pnpm hits:fetch | enumerate | prefilter | screen | judge | ingest --model=… | publish
 pnpm hits:fetch --reclassify         # ask Wikidata again about the unclassified candidates
 pnpm hits:set --status=accepted|featured|proposed|retired id…
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new

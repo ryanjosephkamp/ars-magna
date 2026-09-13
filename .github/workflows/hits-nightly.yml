@@ -1,11 +1,12 @@
 name: Hits nightly
 
 # The model-free half of the Greatest Hits pipeline, every night: find the
-# day's trending inputs, enumerate their anagrams with the Rust engine, keep
-# the few hundred worth judging, and commit that queue. The judging itself is
-# a Claude Code routine (see automation/judge-routine.md), which reads what
-# this job leaves behind and opens a pull request; nothing lands in the
-# dataset without a person merging it.
+# day's trending inputs, enumerate their anagrams with the Rust engine under
+# the routine preset (tools/hits/src/settings.ts), keep what passes the
+# prefilter's rules, and commit the compact screen input. Screening and
+# judging are a Claude Code routine (see automation/judge-routine.md), which
+# reads what this job leaves behind and opens a pull request; nothing lands in
+# the dataset without a person merging it.
 
 on:
   schedule:
@@ -15,9 +16,9 @@ on:
       limit:
         description: 'Number of top trending titles to consider'
         default: '150'
-      max_rows:
-        description: 'Rows to keep for the judge'
-        default: '300'
+      per_input:
+        description: 'Most phrases per input sent to the screen'
+        default: '500'
 
 concurrency:
   group: hits-nightly
@@ -56,37 +57,48 @@ jobs:
           DATE=$(date -u +%Y-%m-%d)
           # A second run on the same UTC day (a manual run after the scheduled
           # one, or the reverse) gets its own folder, as the pilots did by hand:
-          # the judge answers a folder once, and a folder that already holds a
-          # queue must not be overwritten.
-          if [ -e "data/queue/$DATE/prefiltered.jsonl" ]; then
+          # the routine answers a folder once, and a folder that already holds a
+          # queue must not be overwritten. Every queue commits its summary.
+          if [ -e "data/queue/$DATE/summary.json" ]; then
             for s in b c d e f g h; do
-              if [ ! -e "data/queue/$DATE$s/prefiltered.jsonl" ]; then DATE="$DATE$s"; break; fi
+              if [ ! -e "data/queue/$DATE$s/summary.json" ]; then DATE="$DATE$s"; break; fi
             done
           fi
           echo "date=$DATE" >> "$GITHUB_OUTPUT"
-          pnpm hits:enumerate --date=$DATE
+          pnpm hits:enumerate --date=$DATE --preset=routine
 
       - name: Prefilter
-        run: pnpm hits:prefilter --date=${{ steps.enumerate.outputs.date }} --max-rows=${{ github.event.inputs.max_rows || '300' }}
+        run: pnpm hits:prefilter --date=${{ steps.enumerate.outputs.date }} --per-input=${{ github.event.inputs.per_input || '500' }}
 
-      # The raw enumeration is millions of rows; it is kept for ninety days
-      # as an artifact rather than in git.
+      - name: Write the screen input
+        run: pnpm hits:screen --date=${{ steps.enumerate.outputs.date }}
+
+      # The raw enumeration and the prefiltered rows are too big for git; they
+      # are kept for ninety days as an artifact. The screen input carries the
+      # phrases and their scores, which is all the routine needs.
       - uses: actions/upload-artifact@v4
         with:
           name: raw-${{ steps.enumerate.outputs.date }}
-          path: data/queue/${{ steps.enumerate.outputs.date }}/raw.jsonl
+          path: |
+            data/queue/${{ steps.enumerate.outputs.date }}/raw.jsonl
+            data/queue/${{ steps.enumerate.outputs.date }}/prefiltered.jsonl
           retention-days: 90
           if-no-files-found: ignore
 
       - name: Commit the queue
         run: |
+          QUEUE=data/queue/${{ steps.enumerate.outputs.date }}
           git config user.name "hits-nightly"
           git config user.email "hits-nightly@users.noreply.github.com"
-          git add data/candidates.jsonl data/queue/${{ steps.enumerate.outputs.date }}/prefiltered.jsonl data/queue/${{ steps.enumerate.outputs.date }}/summary.json
+          git add data/candidates.jsonl "$QUEUE/summary.json"
+          # A thin night writes no screen input; its summary is the record.
+          if ls "$QUEUE"/screen-input-*.md > /dev/null 2>&1; then
+            git add "$QUEUE"/screen-input-*.md "$QUEUE/screen-scores.txt"
+          fi
           if git diff --cached --quiet; then
             echo "nothing new tonight"
             exit 0
           fi
-          ROWS=$(wc -l < data/queue/${{ steps.enumerate.outputs.date }}/prefiltered.jsonl | tr -d ' ')
-          git commit -m "Hits queue ${{ steps.enumerate.outputs.date }}: $ROWS rows for the judge"
+          PHRASES=$(wc -l < "$QUEUE/prefiltered.jsonl" | tr -d ' ')
+          git commit -m "Hits queue ${{ steps.enumerate.outputs.date }}: $PHRASES phrases to screen"
           git push

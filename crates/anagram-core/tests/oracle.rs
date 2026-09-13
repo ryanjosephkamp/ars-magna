@@ -19,7 +19,16 @@ use std::collections::HashSet;
 
 /// A deliberately unclever enumerator: no pivots, no canonical order, no runs.
 /// Every subset that fits is tried, and duplicates are removed at the end.
-fn naive(dict: &Dict, input: &str, min_word_len: u8) -> HashSet<Vec<String>> {
+///
+/// `short_words` admits a class under `min_word_len` when any of its spellings
+/// is listed — checked by scanning the class's words, not by the engine's
+/// `find_class`, so the two vocabularies are computed independently.
+fn naive(
+    dict: &Dict,
+    input: &str,
+    min_word_len: u8,
+    short_words: &[&str],
+) -> HashSet<Vec<String>> {
     let normalized = anagram_core::normalize(input);
     // Matches the engine's contract: an input with no letters is not a query,
     // so it yields nothing rather than one empty solution.
@@ -32,7 +41,11 @@ fn naive(dict: &Dict, input: &str, min_word_len: u8) -> HashSet<Vec<String>> {
         .classes
         .iter()
         .enumerate()
-        .filter(|(_, c)| c.len >= min_word_len && c.counts.fits_in(target))
+        .filter(|(_, c)| {
+            let long_enough = c.len >= min_word_len;
+            let listed = c.words.iter().any(|&w| short_words.contains(&dict.word(w)));
+            (long_enough || listed) && c.counts.fits_in(target)
+        })
         .map(|(i, c)| (i, c.counts))
         .collect();
 
@@ -69,10 +82,16 @@ fn naive(dict: &Dict, input: &str, min_word_len: u8) -> HashSet<Vec<String>> {
     out
 }
 
-fn fast(dict: &Dict, input: &str, min_word_len: u8) -> HashSet<Vec<String>> {
+fn fast(
+    dict: &Dict,
+    input: &str,
+    min_word_len: u8,
+    short_words: Option<&[&str]>,
+) -> HashSet<Vec<String>> {
     let options = SolveOptions {
         tier: Tier::Full,
         min_word_len,
+        short_words: short_words.map(|words| words.iter().map(|w| w.to_string()).collect()),
         limit: 0,
         ..Default::default()
     };
@@ -142,8 +161,8 @@ fn matches_naive_enumerator() {
 
     for input in inputs {
         for min_word_len in [1u8, 2, 3] {
-            let expected = naive(&dict, input, min_word_len);
-            let actual = fast(&dict, input, min_word_len);
+            let expected = naive(&dict, input, min_word_len, &[]);
+            let actual = fast(&dict, input, min_word_len, None);
 
             let missing: Vec<_> = expected.difference(&actual).collect();
             let extra: Vec<_> = actual.difference(&expected).collect();
@@ -153,6 +172,78 @@ fn matches_naive_enumerator() {
                 "input {input:?} minLen={min_word_len}\n  missing {missing:?}\n  extra   {extra:?}"
             );
         }
+    }
+}
+
+/// The allowlist changes only the vocabulary, so the search must still agree
+/// with the naive enumerator on it — and, since the candidate set is fixed per
+/// query, counting, unranking and the cursor must all agree with enumeration
+/// over that vocabulary too.
+#[test]
+fn short_words_match_naive_enumeration_count_and_unranking() {
+    let dict = small_dict();
+
+    // "no" is listed but "on" is not, so the naive filter's "any spelling"
+    // rule and the engine's class resolution must agree; "zz" is in no
+    // dictionary and must be ignored by both.
+    let short: &[&str] = &["a", "no", "to", "at", "zz"];
+    let inputs = ["dormitory", "moondirt", "tomcat", "antdear", "candied", "moonstar", "stone", "onto"];
+
+    for input in inputs {
+        let expected = naive(&dict, input, 3, short);
+        let actual = fast(&dict, input, 3, Some(short));
+        let missing: Vec<_> = expected.difference(&actual).collect();
+        let extra: Vec<_> = actual.difference(&expected).collect();
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "input {input:?} short={short:?}\n  missing {missing:?}\n  extra   {extra:?}"
+        );
+
+        // The list is load-bearing: at least one input needs a short word.
+        let without = fast(&dict, input, 3, None);
+        assert!(without.is_subset(&actual), "{input:?}: the allowlist removed a result");
+    }
+    assert!(
+        fast(&dict, "onto", 3, Some(short)).len() > fast(&dict, "onto", 3, None).len(),
+        "\"onto\" needs a short word, so the allowlist must add a result"
+    );
+
+    for input in inputs {
+        let options = SolveOptions {
+            tier: Tier::Full,
+            min_word_len: 3,
+            short_words: Some(short.iter().map(|w| w.to_string()).collect()),
+            limit: 0,
+            ..Default::default()
+        };
+        let search = Search::prepare(&dict, input, options).unwrap();
+
+        let mut streamed: Vec<Vec<u32>> = Vec::new();
+        search.enumerate(|classes| {
+            streamed.push(classes.to_vec());
+            Flow::Continue
+        });
+
+        let mut memo = Memo::new();
+        let (counted, saturated, _) = search.count(&mut memo, u64::MAX);
+        assert!(!saturated);
+        assert_eq!(counted, streamed.len() as u128, "{input:?}: count != enumerated");
+
+        for (i, expected) in streamed.iter().enumerate() {
+            assert_eq!(
+                search.nth(&mut memo, i as u128).as_ref(),
+                Some(expected),
+                "input {input:?}: nth({i}) diverged from the stream"
+            );
+        }
+        assert_eq!(search.nth(&mut memo, streamed.len() as u128), None);
+
+        let mut cursor = search.cursor();
+        let mut walked: Vec<Vec<u32>> = Vec::new();
+        while let Some(classes) = cursor.next(&search) {
+            walked.push(classes.to_vec());
+        }
+        assert_eq!(walked, streamed, "{input:?}: cursor stream");
     }
 }
 
