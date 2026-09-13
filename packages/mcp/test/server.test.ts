@@ -62,11 +62,11 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     expect(bad['ok']).toBe(false);
     expect(String(bad['reason'])).toMatch(/letters differ/);
 
-    const good = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Dormitory', category: 'phrases', words: ['Room', 'dirty'], rationale: 'the classic' } }));
+    const good = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Dormitory', category: 'phrases', words: ['Room', 'dirty'], rationale: 'the classic', justification: 'A dormitory is a room, and students keep it dirty.' } }));
     expect(good).toMatchObject({ ok: true, hit: 'dormitory:phrases:dirty-room', newCandidate: true, newHit: true });
     const hits = (await readFile(join(scratch, 'h.jsonl'), 'utf8')).trim().split('\n');
     expect(hits).toHaveLength(1);
-    expect(JSON.parse(hits[0]!)).toMatchObject({ status: 'proposed', submitter: 'mcp', display: 'room dirty' });
+    expect(JSON.parse(hits[0]!)).toMatchObject({ status: 'proposed', submitter: 'mcp', display: 'room dirty', justification: 'A dormitory is a room, and students keep it dirty.' });
 
     // Again is not new.
     const again = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'dormitory', category: 'phrases', words: ['dirty', 'room'] } }));

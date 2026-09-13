@@ -45,17 +45,26 @@ from datasets import load_dataset
 | `display` | The words joined with spaces. |
 | `letters` | The sorted letters the input and the anagram share. |
 | `prefilter_score` | The model-free score that put it in front of a judge (ordering, word frequency, length). |
-| `judge` | One entry per judge: model, rubric version, aptness, grammar and memorability (1–5 each), total, rationale, date. |
+| `judge` | One entry per judge, with its model, rubric version, rationale and date. Rubric v2 scores `relation` to the input (1–5, the score that decides) and `reads` (1–3), with `tone` and `subjects` labels and a `justification`. Rubric v1 scored aptness, grammar and memorability (1–5 each) and a total. |
+| `justification` | One plain sentence explaining why the anagram fits its input, for a reader who does not know the reference; `null` when there is none yet. |
+| `shelf` | `greatest` (Greatest Hits, chosen by hand), `interesting` (a clear link), or `stretch` (a loose one). |
 | `submitter` | Who found it, when it was submitted rather than mined; `null` for a mined hit. |
 | `added` | The date it entered the list. |
 | `dictionary` | The English OpenList revision it was verified against. |
 | `tier` | The smallest dictionary tier that contains every word: `common`, `standard` or `full`. |
-| `tags` | Free-form labels; `classic` marks the ones everyone knows. |
+| `tags` | Labels: `classic` for the ones everyone knows, `tone:…` and `subject:…` from the judge, `greatest-candidate` where the judge scored relation 5. |
 | `status` | `accepted` or `featured`. Proposed and retired rows are not published. |
 
 ## How rows get here
 
-Inputs are gathered without a model (hand-picked, or from the day's most-viewed Wikipedia articles classified through Wikidata). The Ars Magna engine enumerates every anagram; a deterministic prefilter keeps phrases made of everyday words in their best reading order; a language model scores each against a fixed rubric ({{RUBRIC}}); a person accepts what is worth keeping. The pipeline, the schemas and the rubric are in the [repository](https://github.com/ryanjosephkamp/ars-magna).
+1. Inputs are gathered without a model: hand-picked, or taken from the day's most-viewed Wikipedia articles and classified through Wikidata.
+2. The Ars Magna engine enumerates every anagram.
+3. A deterministic prefilter keeps phrases made of everyday words, in their best reading order.
+4. A language model scores each phrase's relation to its input against a fixed rubric ({{RUBRIC}}).
+5. The pipeline places each phrase on a shelf by that score.
+6. A person approves by merging. Greatest Hits are chosen by hand.
+
+The pipeline, the schemas and the rubric are in the [repository](https://github.com/ryanjosephkamp/ars-magna).
 
 ## Changelog
 

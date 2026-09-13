@@ -91,6 +91,33 @@ describe('schemas', () => {
     expect(hv({ ...hit(), extra: 1 } as unknown as Hit)).toBe(false);
   });
 
+  it('accept a rubric v2 judgement, a justification and namespaced tags, and hold v2 to its rules', async () => {
+    const hv = await hitSchema();
+    const v2 = {
+      model: 'claude-sonnet-5',
+      rubric_version: 'v2',
+      relation: 5,
+      reads: 3,
+      tone: ['self-referential'],
+      subjects: ['tv-series'],
+      justification: 'Torchwood is the name of the show\'s own spin-off.',
+      rationale: 'The letters spell its spin-off.',
+      judged_at: '2026-09-13',
+    };
+    const ok = hit({ judge: [v2 as never], justification: 'Torchwood is the Doctor Who spin-off.', tags: ['greatest-candidate', 'tone:self-referential', 'subject:tv-series'] });
+    expect(hv(ok), JSON.stringify(hv.errors)).toBe(true);
+    const { justification: _dropped, ...bare } = v2;
+    expect(hv(hit({ judge: [bare as never] }))).toBe(false);
+    expect(hv(hit({ judge: [{ ...bare, relation: 2 } as never] }))).toBe(true);
+    expect(hv(hit({ judge: [{ ...v2, tone: ['smug'] } as never] }))).toBe(false);
+    expect(hv(hit({ judge: [{ ...v2, aptness: 5 } as never] }))).toBe(false);
+    expect(hv(hit({ judge: [{ ...v2, reads: 4 } as never] }))).toBe(false);
+    expect(hv(hit({ tags: ['Tone:rude'] }))).toBe(false);
+    expect(hv(hit({ tags: ['tone:smug'] }))).toBe(false);
+    expect(hv(hit({ tags: ['classic', 'submitted', 'alternate', 'note:the one everyone knows', 'subject:airline', 'tone:rude'] }))).toBe(true);
+    expect(hv(hit({ justification: 'x'.repeat(301) }))).toBe(false);
+  });
+
   it('validate every committed line of both data files', async () => {
     const candidates = await readJsonl(CANDIDATES_PATH, await candidateSchema());
     const hits = await readJsonl(HITS_PATH, await hitSchema());

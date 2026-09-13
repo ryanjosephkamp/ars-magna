@@ -21,8 +21,9 @@ import { fileURLToPath } from 'node:url';
 
 import { CATEGORIES, type Category } from './ids.ts';
 import { flag, has } from './queue.ts';
-import { HITS_PATH, REPO_ROOT, dictionaryPin, hitSchema, readJsonl, today, toJsonl, type Hit } from './schema.ts';
+import { HITS_PATH, REPO_ROOT, dictionaryPin, hitSchema, isV2, readJsonl, today, toJsonl, type Hit } from './schema.ts';
 import { rubric } from './judge.ts';
+import { shelfOf, type Shelf } from './shelf.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(here, '../templates/dataset-card.md');
@@ -37,13 +38,28 @@ export type Config = { name: string; file: string; rows: Hit[] };
  * mined hit, but a dataset reader infers one schema for the whole file and
  * the JSON loader in the `datasets` library fails outright on a key that
  * some rows have and others lack. So every published row carries every
- * field, with `null` where the file has nothing.
+ * field, with `null` where the file has nothing. `shelf` is derived from the
+ * status and the judges; `justification` is the hit's own sentence, or the
+ * best v2 judge's when the hit has none.
  */
-export type PublishedRow = Omit<Hit, 'submitter'> & { submitter: string | null };
+export type PublishedRow = Omit<Hit, 'submitter' | 'justification'> & {
+  submitter: string | null;
+  justification: string | null;
+  shelf: Shelf;
+};
 
 export function publishRow(hit: Hit): PublishedRow {
-  const { submitter, ...rest } = hit;
-  return { ...rest, submitter: submitter ?? null };
+  const { submitter, justification, ...rest } = hit;
+  const judged = hit.judge
+    .filter(isV2)
+    .filter((j) => j.justification)
+    .sort((a, b) => b.relation - a.relation || b.reads - a.reads)[0];
+  return {
+    ...rest,
+    submitter: submitter ?? null,
+    justification: justification ?? judged?.justification ?? null,
+    shelf: shelfOf(hit),
+  };
 }
 
 /** The rows that are published: accepted and featured, nothing else. */

@@ -25,8 +25,8 @@ import { today } from './schema.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 export const RUBRIC_PATH = resolve(here, '../prompts/judge.md');
 
-/** A judge's answer for one candidate, as written to judge-output.jsonl. */
-export type Verdict = {
+/** A judge's answer for one candidate under rubric v1, as older queues hold it. */
+export type VerdictV1 = {
   id: string;
   aptness: number;
   grammar: number;
@@ -36,6 +36,25 @@ export type Verdict = {
   model?: string;
   rubric_version?: string;
 };
+
+/** A judge's answer for one candidate under rubric v2, as written to judge-output.jsonl. */
+export type VerdictV2 = {
+  id: string;
+  relation: number;
+  reads: number;
+  tone?: string[];
+  subjects?: string[];
+  justification?: string;
+  rationale: string;
+  model?: string;
+  rubric_version?: string;
+};
+
+export type Verdict = VerdictV1 | VerdictV2;
+
+export function isV2Verdict(verdict: Verdict): verdict is VerdictV2 {
+  return 'relation' in verdict;
+}
 
 export async function rubric(): Promise<{ text: string; version: string }> {
   const text = await readFile(RUBRIC_PATH, 'utf8');
