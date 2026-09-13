@@ -326,43 +326,43 @@
 {"id":"stanleypraimnath:people","input":"Stanley Praimnath","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q2331775"}
 {"id":"priyankachopra:people","input":"Priyanka Chopra","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q158957"}
 {"id":"conorbenn:people","input":"Conor Benn","category":"people","source":"trending","first_seen":"2026-09-12","status":"enumerated","wikidata_qid":"Q26837896"}
-{"id":"thedetectives:phrases","input":"The detectives","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"funeral:phrases","input":"Funeral","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"thecountryside:phrases","input":"The countryside","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"themeaningoflife:phrases","input":"The meaning of life","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"theearthquakes:phrases","input":"The earthquakes","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"evangelist:phrases","input":"Evangelist","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"thecockroach:phrases","input":"The cockroach","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"fourthofjuly:phrases","input":"Fourth of July","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"softheartedness:phrases","input":"Softheartedness","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"admirer:phrases","input":"Admirer","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"thenudistcolony:phrases","input":"The nudist colony","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"thesoundofmusic:titles","input":"The Sound of Music","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"harrypotter:titles","input":"Harry Potter","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"seinfeld:titles","input":"Seinfeld","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"wutheringheights:titles","input":"Wuthering Heights","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"hotelcalifornia:titles","input":"Hotel California","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"gonewiththewind:titles","input":"Gone with the Wind","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"thelordoftherings:titles","input":"The Lord of the Rings","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"doctorwho:titles","input":"Doctor Who","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"animalfarm:titles","input":"Animal Farm","category":"titles","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"happymeal:products","input":"Happy Meal","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"polaroid:products","input":"Polaroid","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"velcro:products","input":"Velcro","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"playdoh:products","input":"Play-Doh","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"etchasketch:products","input":"Etch A Sketch","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"vaseline:products","input":"Vaseline","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"googlemaps:products","input":"Google Maps","category":"products","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"washington:places","input":"Washington","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"oldengland:places","input":"Old England","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"florida:places","input":"Florida","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"broadway:places","input":"Broadway","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"saharadesert:places","input":"Sahara Desert","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"nottingham:places","input":"Nottingham","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"edinburgh:places","input":"Edinburgh","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"iceland:places","input":"Iceland","category":"places","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"harleydavidson:companies","input":"Harley-Davidson","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"britishairways:companies","input":"British Airways","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"boeing:companies","input":"Boeing","category":"companies","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"alecguinness:people","input":"Alec Guinness","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
-{"id":"margaretthatcher:people","input":"Margaret Thatcher","category":"people","source":"manual","first_seen":"2026-09-12","status":"new"}
+{"id":"thedetectives:phrases","input":"The detectives","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"funeral:phrases","input":"Funeral","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"thecountryside:phrases","input":"The countryside","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"themeaningoflife:phrases","input":"The meaning of life","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"theearthquakes:phrases","input":"The earthquakes","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"evangelist:phrases","input":"Evangelist","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"thecockroach:phrases","input":"The cockroach","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"fourthofjuly:phrases","input":"Fourth of July","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"softheartedness:phrases","input":"Softheartedness","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"admirer:phrases","input":"Admirer","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"thenudistcolony:phrases","input":"The nudist colony","category":"phrases","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"thesoundofmusic:titles","input":"The Sound of Music","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"harrypotter:titles","input":"Harry Potter","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"seinfeld:titles","input":"Seinfeld","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"wutheringheights:titles","input":"Wuthering Heights","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"hotelcalifornia:titles","input":"Hotel California","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"gonewiththewind:titles","input":"Gone with the Wind","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"thelordoftherings:titles","input":"The Lord of the Rings","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"doctorwho:titles","input":"Doctor Who","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"animalfarm:titles","input":"Animal Farm","category":"titles","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"happymeal:products","input":"Happy Meal","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"polaroid:products","input":"Polaroid","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"velcro:products","input":"Velcro","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"playdoh:products","input":"Play-Doh","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"etchasketch:products","input":"Etch A Sketch","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"vaseline:products","input":"Vaseline","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"googlemaps:products","input":"Google Maps","category":"products","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"washington:places","input":"Washington","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"oldengland:places","input":"Old England","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"florida:places","input":"Florida","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"broadway:places","input":"Broadway","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"saharadesert:places","input":"Sahara Desert","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"nottingham:places","input":"Nottingham","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"edinburgh:places","input":"Edinburgh","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"iceland:places","input":"Iceland","category":"places","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"harleydavidson:companies","input":"Harley-Davidson","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"britishairways:companies","input":"British Airways","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"boeing:companies","input":"Boeing","category":"companies","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"alecguinness:people","input":"Alec Guinness","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
+{"id":"margaretthatcher:people","input":"Margaret Thatcher","category":"people","source":"manual","first_seen":"2026-09-12","status":"enumerated"}
