@@ -199,6 +199,11 @@ export type IngestOptions = {
   dictionary: { repo: string; rev: string };
   /** Hits each candidate already has on a shelf (accepted or featured), by candidate id. */
   taken?: ReadonlyMap<string, number>;
+  /**
+   * Ids already in data/hits.jsonl. Those rows keep the status the file gives
+   * them: they are not placed again, and they do not use a second slot.
+   */
+  existing?: ReadonlySet<string>;
 };
 
 /** Where a written hit came from: a v2 shelf, an alternate, or the v1 threshold. */
@@ -271,6 +276,7 @@ export function assessBatch(
   const near: NearMiss[] = [];
   const byCandidate = new Map<string, Entry[]>();
   for (const [id, judge] of byId) {
+    if (options.existing?.has(id)) continue;
     const row = batch.get(id)!;
     const v2 = judge.filter(isV2);
     if (v2.length === 0) {
@@ -470,14 +476,15 @@ async function main(): Promise<void> {
   }
 
   const hitValidator = await hitSchema();
-  const existing = await readJsonl(HITS_PATH, hitValidator);
+  const known = await readJsonl(HITS_PATH, hitValidator);
   const assessed = assessBatch(batch, verified, {
     model,
     version,
     date,
     threshold,
     dictionary: await dictionaryPin(),
-    taken: takenCounts(existing),
+    taken: takenCounts(known),
+    existing: new Set(known.map((h) => h.id)),
   });
   const added = await appendJsonl(HITS_PATH, assessed.hits.map((p) => p.hit), hitValidator);
 

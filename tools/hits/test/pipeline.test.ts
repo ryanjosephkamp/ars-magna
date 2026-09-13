@@ -254,6 +254,16 @@ describe('ingest under rubric v2', () => {
     expect(later.hits.filter((p) => p.placement === 'alternate')).toHaveLength(3);
   });
 
+  it('leaves a phrase already in the file alone, without spending a slot on it', () => {
+    // The input already has b-c on a shelf; judging b-c again must not place it twice.
+    const again = assessBatch(batch, verdicts, { ...options, taken: new Map([['x:phrases', 1]]), existing: new Set(['x:phrases:b-c']) });
+    expect(again.hits.map((p) => [p.hit.id, p.hit.status])).toEqual([
+      ['x:phrases:d-e', 'accepted'],
+      ['x:phrases:f-g', 'accepted'],
+      ['x:phrases:h-i', 'proposed'],
+    ]);
+  });
+
   it('counts the hits each input already has on a shelf', () => {
     const hit = (id: string, status: Hit['status']) => ({ id, status }) as Hit;
     const taken = takenCounts([hit('x:phrases:a', 'accepted'), hit('x:phrases:b', 'featured'), hit('x:phrases:c', 'proposed'), hit('y:titles:d', 'retired')]);
