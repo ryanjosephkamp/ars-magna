@@ -1,6 +1,6 @@
 # Apply decisions from the review desk
 
-`pnpm hits:desk` fills desk_branch, desk_notes and desk_commands when you press Copy prompt. To use this file by hand, replace them, then paste everything below the line into an agent session opened in the repository.
+`pnpm hits:desk` fills desk_branch, desk_notes, desk_row_notes and desk_commands when you press Copy prompt. To use this file by hand, replace them, then paste everything below the line into an agent session opened in the repository, in any harness.
 
 ---
 
@@ -12,4 +12,10 @@ desk_commands
 
 Notes from the operator: desk_notes
 
-Change nothing the commands do not change. Then run the four suites, commit what the commands changed with a message that lists the decisions, and push. On a new branch, open a pull request against main whose body lists each command and what it printed; on a routine branch, add that list as a comment on its pull request. Report CI and stop. I merge.
+My notes on single hits, each with its id and its words in the order I chose:
+
+desk_row_notes
+
+A note on a hit is about that hit alone. Where one asks for a change the commands do not make, such as a justification written from my reasons for promoting it, make it with pnpm hits:justify, hits:order, hits:tag or hits:set on that id, and write any justification as one plain sentence for a reader who does not know the reference. Where a note is unclear, or asks for more than those commands can do, ask me before changing anything for it.
+
+Change nothing else. Then run the four suites, commit what changed with a message that lists the decisions, and push. On a new branch, open a pull request against main whose body lists each command and what it printed, and each change a note asked for with any sentence you wrote; on a routine branch, add that list as a comment on its pull request. Report CI and stop. I merge.

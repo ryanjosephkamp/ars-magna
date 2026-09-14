@@ -116,6 +116,11 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
      gave, when there are several), each row with its relation, reads, where it stands, the model that
      judged it and its rationale. For a hit, change its status, edit its justification, or add and remove tags
      (`+tone:pun -subject:actor`). For a near miss, accept it or add it as proposed, with a justification.
+     On any row of more than one word, **Reorder words** lets you tap the words in the order they should
+     read; a near miss takes that order once it is promoted. **Add a note** on any row tells the agent
+     something about that hit alone: why it deserves promoting, what its justification should say, or what
+     else to change. A near miss accepted with no justification but with a note goes in as proposed, and
+     the agent writes a justification from the note, then accepts it, all in the pull request you merge.
    - **Collection:** every hit, filtered by text or status, with the same controls.
    - **Near misses:** every near miss in those queues, strongest first.
    - **Seed:** inputs pasted one per line as `input | category | anchors`, each id checked against the
@@ -155,14 +160,18 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 | justification | `pnpm hits:justify id "One plain sentence."` |
 | tags | `pnpm hits:tag id +tone:pun -subject:actor` |
 | accept a near miss | `pnpm hits:ingest --date=<queue> --model=<judge> --only=id,… --status=accepted`; a row with no justification goes in as `proposed`, then `hits:justify` and `hits:set` |
+| word order | `pnpm hits:order id room dirty`, after the ingest that writes a promoted near miss |
+| note on a row | no command: the prompt lists it under the row's id and chosen order, and the agent acts on it with the commands above |
 | seed | appends the lines to `data/candidates.jsonl` |
 | deep run | `pnpm hits:requeue …`, then `hits:enumerate --preset=deep`, `hits:prefilter --per-input=all` and `hits:screen` |
 
-`hits:justify` and `hits:tag` refuse an unknown id, an empty or over-long sentence, and a tag the schema
-does not allow, and write nothing then. `hits:ingest --only` refuses a row that is not in the queue, is
-already a hit, or has no valid verdict. An agent runs these only on what the operator named.
+`hits:justify`, `hits:tag` and `hits:order` refuse an unknown id, an empty or over-long sentence, a tag the
+schema does not allow, and words that are not the hit's own, and write nothing then. `hits:order` changes
+only how the words read: the id, and so the hit's page address, stays the same. `hits:ingest --only` refuses
+a row that is not in the queue, is already a hit, or has no valid verdict. An agent runs these only on what
+the operator named, and writes a justification only when a note asks for one.
 
-Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes). The desk fills it.
+Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes, desk_row_notes). The desk fills it.
 To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
 
 ## Judge a queue by hand
