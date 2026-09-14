@@ -32,6 +32,7 @@
     "hits:desk": "pnpm --filter @ars-magna/hits run desk",
     "hits:justify": "pnpm --filter @ars-magna/hits run justify",
     "hits:tag": "pnpm --filter @ars-magna/hits run tag",
+    "hits:order": "pnpm --filter @ars-magna/hits run order",
     "wasm:build": "bash scripts/build-wasm.sh",
     "rust:test": "cargo test --workspace"
   },

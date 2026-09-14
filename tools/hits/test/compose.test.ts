@@ -106,7 +106,56 @@ describe('commands', () => {
       today,
     );
     expect(commands).toEqual(['pnpm hits:justify x:phrases:a Second.', 'pnpm hits:set --status=proposed x:phrases:a']);
-    expect(composeCommands([], today)).toEqual({ commands: [], notes: [] });
+    expect(composeCommands([], today)).toEqual({ commands: [], notes: [], rowNotes: [] });
+  });
+
+  it('set a word order after ingest writes the row, and never for a near miss left in its queue', () => {
+    const { commands } = composeCommands(
+      [
+        { kind: 'order', id: 'funeral:phrases:fun-real', words: ['fun', 'real'], hit: true },
+        { kind: 'order', id: 'funeral:phrases:fun-real', words: ['real', 'fun'], hit: true },
+        { kind: 'order', id: 'listen:phrases:in-lets', words: ['lets', 'in'], hit: false },
+        { kind: 'order', id: 'astronomer:phrases:moon-starer', words: ['moon', 'starer'], hit: false },
+        { kind: 'promote', queue: '2026-09-13', model: 'claude-opus-5', id: 'listen:phrases:in-lets', status: 'accepted', justification: 'Lets in.', judged: 'Lets in.' },
+        { kind: 'justify', id: 'funeral:phrases:fun-real', text: 'Real fun.' },
+      ],
+      today,
+    );
+    expect(commands).toEqual([
+      'pnpm hits:ingest --date=2026-09-13 --model=claude-opus-5 --only=listen:phrases:in-lets --status=accepted',
+      'pnpm hits:order funeral:phrases:fun-real real fun',
+      'pnpm hits:order listen:phrases:in-lets lets in',
+      "pnpm hits:justify funeral:phrases:fun-real 'Real fun.'",
+    ]);
+  });
+
+  it('list each note on a row with its id, its chosen order and where it stands', () => {
+    const { commands, notes, rowNotes } = composeCommands(
+      [
+        { kind: 'note', id: 'funeral:phrases:fun-real', display: 'fun real', text: 'First thought.', hit: true },
+        { kind: 'order', id: 'funeral:phrases:fun-real', words: ['real', 'fun'], hit: true },
+        { kind: 'note', id: 'funeral:phrases:fun-real', display: 'fun real', text: 'A funeral is anything but.\nKeep it short.', hit: true },
+        { kind: 'promote', queue: '2026-09-13', model: 'claude-opus-5', id: 'astronomer:phrases:moon-starer', status: 'accepted', justification: '', judged: '' },
+        { kind: 'note', id: 'astronomer:phrases:moon-starer', display: 'starer moon', text: 'An astronomer stares at the moon; say that.', hit: false },
+        { kind: 'note', id: 'listen:phrases:in-lets', display: 'lets in', text: 'Look again after the next deep run.', hit: false },
+        { kind: 'note', id: 'x:phrases:blank', display: 'blank', text: '   ', hit: true },
+      ],
+      today,
+    );
+    expect(commands).toEqual([
+      'pnpm hits:ingest --date=2026-09-13 --model=claude-opus-5 --only=astronomer:phrases:moon-starer --status=proposed',
+      'pnpm hits:order funeral:phrases:fun-real real fun',
+    ]);
+    expect(rowNotes).toEqual([
+      '- funeral:phrases:fun-real, reading "real fun": A funeral is anything but.\n  Keep it short.',
+      '- astronomer:phrases:moon-starer, reading "starer moon", promoted from 2026-09-13 as accepted: An astronomer stares at the moon; say that.',
+      '- listen:phrases:in-lets, reading "lets in", a near miss left in its queue: Look again after the next deep run.',
+    ]);
+    // Accepted with no justification, but with a note: the agent writes one from the note, then accepts it.
+    expect(notes).toEqual([
+      'astronomer:phrases:moon-starer has no justification yet, so it goes in as proposed. Write one plain sentence for it from my note on it below, ' +
+        'set it with pnpm hits:justify, then accept it with pnpm hits:set --status=accepted astronomer:phrases:moon-starer.',
+    ]);
   });
 });
 
@@ -147,8 +196,12 @@ describe('prompt', () => {
     expect(filled).toContain("Work on the routine's branch hits/2026-09-13.");
     expect(filled).toContain('```bash\npnpm hits:set --status=featured a:phrases:b\n```');
     expect(filled).toContain('Notes from the operator: none');
-    expect(filled).not.toMatch(/desk_(branch|commands|notes)/);
+    expect(filled).toContain('in the order I chose:\n\nnone\n');
+    expect(filled).not.toMatch(/desk_(branch|commands|notes|row_notes)/);
     expect(fillPrompt(template, [], 'Leave Boeing alone.', 'x')).toContain('Notes from the operator: Leave Boeing alone.');
+    const noted = fillPrompt(template, [], '', 'x', ['- a:phrases:b-c, reading "c b": Say why.', '- d:phrases:e, reading "e": Keep it.']);
+    expect(noted).toContain('in the order I chose:\n\n- a:phrases:b-c, reading "c b": Say why.\n- d:phrases:e, reading "e": Keep it.\n');
+    expect(noted).toContain('Notes from the operator: none');
   });
 
   it('fills deep-run.md with the scope and the size', async () => {

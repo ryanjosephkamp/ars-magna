@@ -28,6 +28,14 @@ export type PromoteDecision = {
   justification: string;
   judged: string;
 };
+/**
+ * The order a hit's words read in. `hit` is whether the id was in
+ * data/hits.jsonl when the order was chosen; a near miss takes its order only
+ * once it is promoted.
+ */
+export type OrderDecision = { kind: 'order'; id: string; words: string[]; hit: boolean };
+/** The operator's note on one row, for the agent. `display` is how the row read before any reordering. */
+export type NoteDecision = { kind: 'note'; id: string; display: string; text: string; hit: boolean };
 export type RequeueDecision = { kind: 'requeue'; ids: string[]; settingsBefore: string; rubricBefore: string; category: string; source: string };
 /** A deep run into one queue folder, bounded per input; the deep-run prompt carries it out. */
 export type DeepDecision = { kind: 'deep'; date: string; perInput: string };
@@ -38,12 +46,15 @@ export type Decision =
   | JustifyDecision
   | TagDecision
   | PromoteDecision
+  | OrderDecision
+  | NoteDecision
   | RequeueDecision
   | DeepDecision
   | SeedDecision
   | AddDecision;
 
-export type Composed = { commands: string[]; notes: string[] };
+/** `notes` are the desk's own notes on the commands; `rowNotes` are the operator's notes on single rows, one list item each. */
+export type Composed = { commands: string[]; notes: string[]; rowNotes: string[] };
 
 export const DESK_CATEGORIES: CategoryName[] = ['people', 'companies', 'products', 'titles', 'places', 'phrases'];
 const STATUS_ORDER: StatusName[] = ['featured', 'accepted', 'proposed', 'retired'];
@@ -144,13 +155,20 @@ function lastBy<T extends Decision>(decisions: readonly Decision[], kind: T['kin
 
 /**
  * The commands for a set of decisions, grouped so each runs after what it
- * needs: seeds and requeues, a deep run, rows promoted from a queue, then
- * justifications, tags and statuses, then hits added by hand. A later
- * decision about the same thing replaces an earlier one.
+ * needs: seeds and requeues, a deep run, rows promoted from a queue, word
+ * orders, then justifications, tags and statuses, then hits added by hand. A
+ * later decision about the same thing replaces an earlier one. The notes on
+ * rows come out as a list for the prompt, each with the row's chosen order.
  */
 export function composeCommands(decisions: readonly Decision[], today: string): Composed {
   const commands: string[] = [];
   const notes: string[] = [];
+  const rowNotes: string[] = [];
+  const noted = new Map(
+    lastBy<NoteDecision>(decisions, 'note', (d) => d.id)
+      .filter((d) => d.text.trim().length > 0)
+      .map((d) => [d.id, d]),
+  );
 
   const seeds = lastBy<SeedDecision>(decisions, 'seed', (d) => candidateIdOf(d.input, d.category));
   if (seeds.length > 0) {
@@ -187,7 +205,8 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   const justifications = new Map(lastBy<JustifyDecision>(decisions, 'justify', (d) => d.id).map((d) => [d.id, d.text]));
   const statuses = new Map(lastBy<StatusDecision>(decisions, 'status', (d) => d.id).map((d) => [d.id, d.status]));
   const promoted = new Map<string, { queue: string; model: string; status: string; ids: string[] }>();
-  for (const p of lastBy<PromoteDecision>(decisions, 'promote', (d) => d.id)) {
+  const promotes = lastBy<PromoteDecision>(decisions, 'promote', (d) => d.id);
+  for (const p of promotes) {
     const text = p.justification.trim();
     const judged = p.judged.trim();
     const edited = text.length > 0 && text !== judged;
@@ -204,6 +223,11 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
     if (p.status === 'accepted' && !direct) {
       if (edited) {
         if (!statuses.has(p.id)) statuses.set(p.id, 'accepted');
+      } else if (noted.has(p.id)) {
+        notes.push(
+          `${p.id} has no justification yet, so it goes in as proposed. Write one plain sentence for it from my note on it below, ` +
+            `set it with pnpm hits:justify, then accept it with pnpm hits:set --status=accepted ${p.id}.`,
+        );
       } else {
         notes.push(`${p.id} has no justification yet, so it goes in as proposed. Give it one with pnpm hits:justify before accepting it.`);
       }
@@ -211,6 +235,13 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   }
   for (const g of promoted.values()) {
     commands.push(`pnpm hits:ingest --date=${g.queue} --model=${shellQuote(g.model)} --only=${g.ids.join(',')} --status=${g.status}`);
+  }
+
+  // A near miss's order is set once ingest has written it; one left in its queue has no line to change.
+  const promotedBy = new Map(promotes.map((p) => [p.id, p]));
+  const orders = lastBy<OrderDecision>(decisions, 'order', (d) => d.id);
+  for (const o of orders) {
+    if (o.hit || promotedBy.has(o.id)) commands.push(`pnpm hits:order ${o.id} ${o.words.map(shellQuote).join(' ')}`);
   }
 
   for (const [id, text] of justifications) commands.push(`pnpm hits:justify ${id} ${shellQuote(text)}`);
@@ -234,7 +265,15 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
     );
   }
 
-  return { commands, notes };
+  const chosen = new Map(orders.map((o) => [o.id, o.words.join(' ')]));
+  for (const n of noted.values()) {
+    const p = promotedBy.get(n.id);
+    const where = n.hit ? '' : p ? `, promoted from ${p.queue} as ${p.status}` : ', a near miss left in its queue';
+    const text = n.text.trim().replace(/\s*\n\s*/g, '\n  ');
+    rowNotes.push(`- ${n.id}, reading "${chosen.get(n.id) ?? n.display}"${where}: ${text}`);
+  }
+
+  return { commands, notes, rowNotes };
 }
 
 /** The part of a prompt file an agent receives: everything below its `---` line. */
@@ -253,12 +292,14 @@ export function fillDeepRunPrompt(template: string, scope: string, size: string)
     .join(scope.trim() || 'as I describe below');
 }
 
-/** `docs/prompts/apply-desk.md` with desk_branch, desk_notes and desk_commands filled. */
-export function fillPrompt(template: string, commands: readonly string[], notes: string, branch: string): string {
+/** `docs/prompts/apply-desk.md` with desk_branch, desk_notes, desk_row_notes and desk_commands filled. */
+export function fillPrompt(template: string, commands: readonly string[], notes: string, branch: string, rowNotes: readonly string[] = []): string {
   const block = commands.length > 0 ? ['```bash', ...commands, '```'].join('\n') : '(no commands)';
   return promptBody(template)
     .split('desk_branch')
     .join(branch)
+    .split('desk_row_notes')
+    .join(rowNotes.length > 0 ? rowNotes.join('\n') : 'none')
     .split('desk_notes')
     .join(notes.trim() || 'none')
     .split('desk_commands')
