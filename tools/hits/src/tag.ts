@@ -44,7 +44,7 @@ export function applyTags(hits: readonly Hit[], args: TagArgs, pattern: RegExp):
   if (bad.length > 0) {
     throw new Error(
       `not a tag the schema allows: ${bad.join(', ')}. Use classic, submitted, alternate, greatest-candidate, note:<text>, ` +
-        'subject:<lowercase-slug> or tone:<literal|ironic|pun|self-referential|uncanny|rude>',
+        'shelf:<interesting|stretch>, subject:<lowercase-slug> or tone:<literal|ironic|pun|self-referential|uncanny|rude>',
     );
   }
   const hit = hits.find((h) => h.id === args.id);

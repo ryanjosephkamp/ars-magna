@@ -174,6 +174,42 @@ the operator named, and writes a justification only when a note asks for one.
 Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes, desk_row_notes). The desk fills it.
 To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
 
+## Audit the Greatest Hits page
+
+When you want to decide, across everything already published, which anagrams belong in Greatest Hits,
+Interesting or A stretch, and which should come off the page. The review desk handles what a queue adds;
+the audit handles what the page already shows.
+
+1. In a Claude Code session on the repository, ask for the Greatest Hits audit (the `greatest-hits-audit`
+   skill) or paste `docs/prompts/publish-audit.md`. It builds the audit from `main` with
+   `pnpm hits:desk --audit --artifact` and publishes `.cache/desk/audit-artifact.html` to the audit's
+   Artifact, whose URL `CLAUDE.md` records. In another harness, run `pnpm hits:desk --audit` and open
+   `.cache/desk/audit.html` in a browser.
+2. Every published anagram is listed in the section it is in now, each with its meaning: **Greatest Hits**
+   (`featured`: the best of them, picked by hand), **Interesting** (names the original, or has a clear,
+   specific link to it: relation 4 or 5) and **A stretch** (a looser link, arguable in a sentence: relation 3).
+   Within each, the anagrams the judge suggested for Greatest Hits come first, then the strongest links.
+   Filter by text or category, or show only the suggestions or what you have changed.
+3. Change a row's label to move it to another section or **Remove from the page** (`retired`), and edit its
+   justification, tags or word order, or add a note, as in the review desk. Every row starts on its current
+   label, so a prompt copied without changes changes nothing.
+4. Press **Copy prompt** and paste it into an agent session on the repository. It applies the changes on a
+   new branch named `greatest-hits-audit-<date>` and opens a pull request. The page changes when you merge it.
+
+| Label | Command it becomes |
+|---|---|
+| Greatest Hits | `pnpm hits:set --status=featured id…` |
+| Interesting or A stretch | `pnpm hits:set --status=accepted id…` for a Greatest Hit, and `pnpm hits:tag id +shelf:stretch` (or `+shelf:interesting`) when the judge's scores would put it in the other section |
+| Remove from the page | `pnpm hits:set --status=retired id…` |
+
+A `shelf:interesting` or `shelf:stretch` tag is your placement: the site, the dataset and both desks show the
+hit in that section whatever its scores. Moving a hit back to where its scores put it removes the tag.
+
+Decisions are kept in the browser that made them, apart from the review desk's. The audit fills
+`docs/prompts/apply-desk.md`, as the desk does.
+
+Prompt: `docs/prompts/publish-audit.md` (no placeholders).
+
 ## Judge a queue by hand
 
 When the routine is paused, a run failed, or you want a queue judged now. The routine's instructions work

@@ -80,10 +80,13 @@ export function publishable(hits: readonly HitRecord[]): HitRecord[] {
  * The shelf a published hit shows on. This repeats `shelfOf` in
  * tools/hits/src/shelf.ts, which is the rule's source; the site does not
  * import the pipeline package, and a test there checks that the two agree.
- * Only the best relation matters: rubric v1's aptness counts as relation.
+ * A `shelf:` tag, the operator's placement, decides before the scores. Only the
+ * best relation matters: rubric v1's aptness counts as relation.
  */
-export function shelfOf(hit: Pick<HitRecord, 'status' | 'judge'>): Shelf {
+export function shelfOf(hit: Pick<HitRecord, 'status' | 'judge'> & { tags?: readonly string[] }): Shelf {
   if (hit.status === 'featured') return 'greatest';
+  if (hit.tags?.includes('shelf:stretch')) return 'stretch';
+  if (hit.tags?.includes('shelf:interesting')) return 'interesting';
   if (hit.judge.length === 0) return 'interesting';
   const relation = Math.max(...hit.judge.map((j) => j.relation ?? j.aptness ?? 1));
   return relation >= 4 ? 'interesting' : 'stretch';
@@ -110,7 +113,8 @@ export function toPublic(hit: HitRecord): PublicHit {
     featured: hit.status === 'featured',
     submitter: hit.submitter && hit.submitter !== 'seed' ? hit.submitter : null,
     added: hit.added,
-    tags: hit.tags.filter((t) => !t.startsWith('note:')),
+    // A note becomes the justification and a shelf tag the shelf; neither is a tag a reader filters by.
+    tags: hit.tags.filter((t) => !t.startsWith('note:') && !t.startsWith('shelf:')),
   };
 }
 

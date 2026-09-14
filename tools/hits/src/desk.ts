@@ -1,5 +1,5 @@
 /**
- * `pnpm hits:desk [--queues=3] [--out=FILE] [--artifact]`
+ * `pnpm hits:desk [--queues=3] [--out=FILE] [--artifact] [--audit]`
  *
  * Build the review desk: one self-contained page from data/hits.jsonl,
  * data/candidates.jsonl and the newest judged queues, written to
@@ -7,6 +7,11 @@
  * with `--artifact`, which also writes .cache/desk/artifact.html (the same page
  * without the document tags an Artifact adds itself), and have a Claude Code
  * session publish that file as a private claude.ai Artifact.
+ *
+ * With `--audit` it builds the Greatest Hits audit instead, to
+ * .cache/desk/audit.html (and audit-artifact.html): one page listing every
+ * anagram the site's Greatest Hits page shows, each under its current label,
+ * for relabelling as Greatest Hits, Interesting or removed from the page.
  *
  * The page never writes to the repository. Every decision made in it becomes
  * a command, and the page fills docs/prompts/apply-desk.md with those
@@ -18,7 +23,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { artifactFragment, deskData, renderDesk, type QueueInput } from './desk/build.ts';
+import { artifactFragment, deskData, renderDesk, type DeskMode, type QueueInput } from './desk/build.ts';
 import { parseVerdicts } from './judge.ts';
 import { JUDGE_OUTPUT, flag, queueDates, queueDir, readJudgedRows } from './queue.ts';
 import { CANDIDATES_PATH, HITS_PATH, REPO_ROOT, candidateSchema, hitSchema, readJsonl, today } from './schema.ts';
@@ -32,6 +37,8 @@ export const APPLY_DESK_PROMPT = resolve(REPO_ROOT, 'docs/prompts/apply-desk.md'
 export const DEEP_RUN_PROMPT = resolve(REPO_ROOT, 'docs/prompts/deep-run.md');
 export const DESK_OUT = resolve(REPO_ROOT, '.cache/desk/index.html');
 export const DESK_ARTIFACT_OUT = resolve(REPO_ROOT, '.cache/desk/artifact.html');
+export const AUDIT_OUT = resolve(REPO_ROOT, '.cache/desk/audit.html');
+export const AUDIT_ARTIFACT_OUT = resolve(REPO_ROOT, '.cache/desk/audit-artifact.html');
 
 /** The newest `count` queues that have verdicts, newest first. */
 export async function judgedQueues(count: number): Promise<QueueInput[]> {
@@ -47,13 +54,21 @@ export async function judgedQueues(count: number): Promise<QueueInput[]> {
   return out;
 }
 
-export async function buildDesk(options: { queues: number; out: string; generated?: string }): Promise<{ html: string; data: ReturnType<typeof deskData> }> {
+export async function buildDesk(options: {
+  queues: number;
+  out: string;
+  generated?: string;
+  mode?: DeskMode;
+}): Promise<{ html: string; data: ReturnType<typeof deskData> }> {
+  const mode = options.mode ?? 'desk';
   const hits = await readJsonl(HITS_PATH, await hitSchema());
-  const candidates = await readJsonl(CANDIDATES_PATH, await candidateSchema());
+  // The audit shows only hits, so it carries no candidates and no queues.
+  const candidates = mode === 'audit' ? [] : await readJsonl(CANDIDATES_PATH, await candidateSchema());
   const data = deskData({
+    mode,
     hits,
     candidates,
-    queues: await judgedQueues(options.queues),
+    queues: mode === 'audit' ? [] : await judgedQueues(options.queues),
     generated: options.generated ?? new Date().toISOString(),
     today: today(),
     tagPattern: (await tagPattern()).source,
@@ -71,23 +86,32 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const queues = Number(flag(argv, 'queues') ?? 3);
   if (!Number.isInteger(queues) || queues < 1) throw new Error('--queues must be a positive whole number');
+  const mode: DeskMode = argv.includes('--audit') ? 'audit' : 'desk';
+  const cwd = process.env['INIT_CWD'] ?? process.cwd();
   const outFlag = flag(argv, 'out');
-  const out = outFlag ? resolve(process.env['INIT_CWD'] ?? process.cwd(), outFlag) : DESK_OUT;
-  const { html, data } = await buildDesk({ queues, out });
-  const near = data.queues.reduce((n, q) => n + q.rows.filter((r) => !r.hit).length, 0);
-  console.log(
-    `wrote ${relative(process.env['INIT_CWD'] ?? process.cwd(), out)} (${Math.round(Buffer.byteLength(html) / 1024)} KB): ` +
-      `${data.hits.length} hits, ${data.candidates.length} candidates, ` +
-      `${data.queues.length} queues (${data.queues.map((q) => q.name).join(', ') || 'none'}), ${near} near misses`,
-  );
+  const out = outFlag ? resolve(cwd, outFlag) : mode === 'audit' ? AUDIT_OUT : DESK_OUT;
+  const { html, data } = await buildDesk({ queues, out, mode });
+  const size = `${Math.round(Buffer.byteLength(html) / 1024)} KB`;
+  if (mode === 'audit') {
+    const published = data.hits.filter((h) => h.status === 'featured' || h.status === 'accepted');
+    const count = (shelf: string) => published.filter((h) => h.shelf === shelf).length;
+    console.log(
+      `wrote ${relative(cwd, out)} (${size}): ${published.length} published anagrams, ` +
+        `${count('greatest')} in Greatest Hits, ${count('interesting')} in Interesting and ${count('stretch')} in A stretch`,
+    );
+  } else {
+    const near = data.queues.reduce((n, q) => n + q.rows.filter((r) => !r.hit).length, 0);
+    console.log(
+      `wrote ${relative(cwd, out)} (${size}): ${data.hits.length} hits, ${data.candidates.length} candidates, ` +
+        `${data.queues.length} queues (${data.queues.map((q) => q.name).join(', ') || 'none'}), ${near} near misses`,
+    );
+  }
   if (argv.includes('--artifact')) {
     const fragment = artifactFragment(html);
-    await mkdir(dirname(DESK_ARTIFACT_OUT), { recursive: true });
-    await writeFile(DESK_ARTIFACT_OUT, fragment);
-    console.log(
-      `wrote ${relative(process.env['INIT_CWD'] ?? process.cwd(), DESK_ARTIFACT_OUT)} (${Math.round(Buffer.byteLength(fragment) / 1024)} KB) ` +
-        'to publish as a private claude.ai Artifact',
-    );
+    const artifactOut = mode === 'audit' ? AUDIT_ARTIFACT_OUT : DESK_ARTIFACT_OUT;
+    await mkdir(dirname(artifactOut), { recursive: true });
+    await writeFile(artifactOut, fragment);
+    console.log(`wrote ${relative(cwd, artifactOut)} (${Math.round(Buffer.byteLength(fragment) / 1024)} KB) to publish as a private claude.ai Artifact`);
   }
   console.log('Open it in a browser. It writes nothing to the repository; Copy prompt gives an agent the commands.');
 }

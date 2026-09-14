@@ -49,16 +49,30 @@ export function assess({ relation, reads }: Scores): Assessment {
   return 'none';
 }
 
+/** The operator's placement of an accepted hit, as a tag; the shelf follows it over the judge's scores. */
+export const SHELF_TAG = { interesting: 'shelf:interesting', stretch: 'shelf:stretch' } as const;
+
 /**
- * The shelf a published hit shows on. Featured is Greatest Hits. A hit with no
- * judge (a classic, a submission) is Interesting. An accepted hit the judge
- * scored below the shelves was the operator's call, and shows as A stretch.
+ * Where the judge's scores alone put an accepted hit. A hit with no judge (a
+ * classic, a submission) is Interesting. An accepted hit the judge scored below
+ * the shelves was the operator's call, and shows as A stretch.
  */
-export function shelfOf(hit: Pick<Hit, 'status' | 'judge'>): Shelf {
-  if (hit.status === 'featured') return 'greatest';
+export function judgedShelf(hit: Pick<Hit, 'judge'>): 'interesting' | 'stretch' {
   const best = bestJudgement(hit.judge);
   if (!best) return 'interesting';
   return scoresOf(best).relation >= 4 ? 'interesting' : 'stretch';
+}
+
+/**
+ * The shelf a published hit shows on. Featured is Greatest Hits. Otherwise a
+ * `shelf:` tag, set when the operator moved the hit, decides; without one, the
+ * judge's scores do.
+ */
+export function shelfOf(hit: Pick<Hit, 'status' | 'judge'> & { tags?: readonly string[] }): Shelf {
+  if (hit.status === 'featured') return 'greatest';
+  if (hit.tags?.includes(SHELF_TAG.stretch)) return 'stretch';
+  if (hit.tags?.includes(SHELF_TAG.interesting)) return 'interesting';
+  return judgedShelf(hit);
 }
 
 export type Shelved<T> = { accepted: T[]; alternates: T[]; near: T[]; none: T[] };

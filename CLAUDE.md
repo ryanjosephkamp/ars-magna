@@ -48,3 +48,10 @@ https://claude.ai/code/artifact/ee0c24c8-3d8f-4e95-96e2-a0add07c0485. Publish
 `.cache/desk/artifact.html` from `pnpm hits:desk --artifact` to that URL, as
 `docs/prompts/publish-desk.md` describes, and keep it private: its near misses
 include slurs and insults made from the letters.
+
+## Greatest Hits audit
+
+The audit of the site's Greatest Hits page is the private artifact "Ars Magna Greatest Hits Audit":
+https://claude.ai/code/artifact/449fac53-c4cf-4877-9273-f91d13226ca6. The `greatest-hits-audit` skill
+(`.claude/skills/`) publishes `.cache/desk/audit-artifact.html` from `pnpm hits:desk --audit --artifact`
+to that URL, as `docs/prompts/publish-audit.md` describes.

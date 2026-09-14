@@ -36,6 +36,12 @@ export type PromoteDecision = {
 export type OrderDecision = { kind: 'order'; id: string; words: string[]; hit: boolean };
 /** The operator's note on one row, for the agent. `display` is how the row read before any reordering. */
 export type NoteDecision = { kind: 'note'; id: string; display: string; text: string; hit: boolean };
+/**
+ * The shelf an accepted hit shows on: Interesting or A stretch. `judged` is
+ * where the judge's scores alone put it and `tags` its `shelf:` tags now; a
+ * tag records the placement only where it differs from the judged shelf.
+ */
+export type ShelfDecision = { kind: 'shelf'; id: string; shelf: 'interesting' | 'stretch'; judged: 'interesting' | 'stretch'; tags: string[] };
 export type RequeueDecision = { kind: 'requeue'; ids: string[]; settingsBefore: string; rubricBefore: string; category: string; source: string };
 /** A deep run into one queue folder, bounded per input; the deep-run prompt carries it out. */
 export type DeepDecision = { kind: 'deep'; date: string; perInput: string };
@@ -48,6 +54,7 @@ export type Decision =
   | PromoteDecision
   | OrderDecision
   | NoteDecision
+  | ShelfDecision
   | RequeueDecision
   | DeepDecision
   | SeedDecision
@@ -156,7 +163,7 @@ function lastBy<T extends Decision>(decisions: readonly Decision[], kind: T['kin
 /**
  * The commands for a set of decisions, grouped so each runs after what it
  * needs: seeds and requeues, a deep run, rows promoted from a queue, word
- * orders, then justifications, tags and statuses, then hits added by hand. A
+ * orders, then justifications, tags, shelves and statuses, then hits added by hand. A
  * later decision about the same thing replaces an earlier one. The notes on
  * rows come out as a list for the prompt, each with the row's chosen order.
  */
@@ -249,6 +256,12 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   for (const t of lastBy<TagDecision>(decisions, 'tag', (d) => d.id)) {
     const changes = [...t.add.map((x) => `+${x}`), ...t.remove.map((x) => `-${x}`)];
     if (changes.length > 0) commands.push(`pnpm hits:tag ${t.id} ${changes.map(shellQuote).join(' ')}`);
+  }
+
+  for (const s of lastBy<ShelfDecision>(decisions, 'shelf', (d) => d.id)) {
+    const want = s.shelf === s.judged ? [] : [`shelf:${s.shelf}`];
+    const changes = [...want.filter((t) => !s.tags.includes(t)).map((t) => `+${t}`), ...s.tags.filter((t) => !want.includes(t)).map((t) => `-${t}`)];
+    if (changes.length > 0) commands.push(`pnpm hits:tag ${s.id} ${changes.join(' ')}`);
   }
 
   for (const status of STATUS_ORDER) {
