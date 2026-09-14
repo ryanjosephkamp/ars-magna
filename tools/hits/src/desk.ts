@@ -1,10 +1,12 @@
 /**
- * `pnpm hits:desk [--queues=3] [--out=FILE]`
+ * `pnpm hits:desk [--queues=3] [--out=FILE] [--artifact]`
  *
  * Build the review desk: one self-contained page from data/hits.jsonl,
  * data/candidates.jsonl and the newest judged queues, written to
- * .cache/desk/index.html. Open it in a browser, or have a Claude Code session
- * publish it as a private artifact to use on a phone.
+ * .cache/desk/index.html. Open it in a browser. To use it on a phone, build
+ * with `--artifact`, which also writes .cache/desk/artifact.html (the same page
+ * without the document tags an Artifact adds itself), and have a Claude Code
+ * session publish that file as a private claude.ai Artifact.
  *
  * The page never writes to the repository. Every decision made in it becomes
  * a command, and the page fills docs/prompts/apply-desk.md with those
@@ -16,7 +18,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { deskData, renderDesk, type QueueInput } from './desk/build.ts';
+import { artifactFragment, deskData, renderDesk, type QueueInput } from './desk/build.ts';
 import { parseVerdicts } from './judge.ts';
 import { JUDGE_OUTPUT, flag, queueDates, queueDir, readJudgedRows } from './queue.ts';
 import { CANDIDATES_PATH, HITS_PATH, REPO_ROOT, candidateSchema, hitSchema, readJsonl, today } from './schema.ts';
@@ -29,6 +31,7 @@ export const COMPOSE_SOURCE = resolve(here, 'desk/compose.ts');
 export const APPLY_DESK_PROMPT = resolve(REPO_ROOT, 'docs/prompts/apply-desk.md');
 export const DEEP_RUN_PROMPT = resolve(REPO_ROOT, 'docs/prompts/deep-run.md');
 export const DESK_OUT = resolve(REPO_ROOT, '.cache/desk/index.html');
+export const DESK_ARTIFACT_OUT = resolve(REPO_ROOT, '.cache/desk/artifact.html');
 
 /** The newest `count` queues that have verdicts, newest first. */
 export async function judgedQueues(count: number): Promise<QueueInput[]> {
@@ -77,6 +80,15 @@ async function main(): Promise<void> {
       `${data.hits.length} hits, ${data.candidates.length} candidates, ` +
       `${data.queues.length} queues (${data.queues.map((q) => q.name).join(', ') || 'none'}), ${near} near misses`,
   );
+  if (argv.includes('--artifact')) {
+    const fragment = artifactFragment(html);
+    await mkdir(dirname(DESK_ARTIFACT_OUT), { recursive: true });
+    await writeFile(DESK_ARTIFACT_OUT, fragment);
+    console.log(
+      `wrote ${relative(process.env['INIT_CWD'] ?? process.cwd(), DESK_ARTIFACT_OUT)} (${Math.round(Buffer.byteLength(fragment) / 1024)} KB) ` +
+        'to publish as a private claude.ai Artifact',
+    );
+  }
   console.log('Open it in a browser. It writes nothing to the repository; Copy prompt gives an agent the commands.');
 }
 

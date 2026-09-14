@@ -110,8 +110,7 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
    It reads `data/hits.jsonl`, `data/candidates.jsonl` and the three newest judged queues (`--queues=N`
    for more), and writes one self-contained page. It never writes to the repository. Built on a routine
    pull request's branch (`gh pr checkout <number>` first), it shows that queue's hits as the pull
-   request adds them. To use it on a phone, ask a Claude Code session to publish
-   `.cache/desk/index.html` as a private artifact.
+   request adds them. To use it on a phone, see "On a phone" below.
 2. Decide in its tabs:
    - **Review:** one queue by input, labelled with the models that judged it (and how many verdicts each
      gave, when there are several), each row with its relation, reads, where it stands, the model that
@@ -133,6 +132,23 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
    **Copy commands** gives the commands alone, to run yourself.
 4. Review and merge that pull request as usual. Nothing decided in the desk is published before then.
 
+**On a phone.** The desk also works as a private claude.ai Artifact, opened in the Claude app or in a
+phone browser signed in to claude.ai:
+
+1. In a Claude Code session on the repository, on the desktop or reached through Remote Control, paste
+   `docs/prompts/publish-desk.md`. It builds the desk with `pnpm hits:desk --artifact` and publishes
+   `.cache/desk/artifact.html` to the desk's Artifact, whose URL `CLAUDE.md` records. Publishing again
+   keeps the URL.
+2. Open that URL on the phone. On a narrow screen each row reads top to bottom, and long lists show a
+   batch at a time with a Show more button.
+3. Decide as above, press **Copy prompt**, and paste the prompt into a Claude Code session on the
+   repository. If the Artifact cannot reach the clipboard, the prompt is left selected in a box to copy
+   from.
+4. Merge from GitHub mobile as usual.
+
+The Artifact stays private: its near misses include slurs and insults made from the letters. Decisions are
+kept in the browser that made them, so a phone and a laptop each hold their own.
+
 | Decision | Command it becomes |
 |---|---|
 | status | `pnpm hits:set --status=featured id…` |
@@ -147,6 +163,7 @@ does not allow, and write nothing then. `hits:ingest --only` refuses a row that 
 already a hit, or has no valid verdict. An agent runs these only on what the operator named.
 
 Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes). The desk fills it.
+To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
 
 ## Judge a queue by hand
 

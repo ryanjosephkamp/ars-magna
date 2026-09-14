@@ -206,6 +206,21 @@ export function embedJson(value: unknown): string {
     .replace(/\u2029/g, '\\u2029');
 }
 
+/**
+ * The page as a claude.ai Artifact takes it. An Artifact wraps what it is
+ * given in its own document, with its own charset and viewport, so the
+ * doctype, the html, head and body tags, and those two meta tags come off.
+ * The title, the style and the scripts stay, in order.
+ */
+export function artifactFragment(html: string): string {
+  const fragment = html
+    .replace(/^\s*<!doctype html>\s*/i, '')
+    .replace(/<\/?(?:html|head|body)(?:\s[^>]*)?>\s*/gi, '')
+    .replace(/<meta\s+(?:charset|name="viewport")[^>]*>\s*/gi, '');
+  if (!/<title>[^<]+<\/title>/.test(fragment.slice(0, 8192))) throw new Error('the desk page needs its <title> near the top, where an Artifact reads it');
+  return fragment;
+}
+
 export function renderDesk(template: string, data: DeskData, composeSource: string): string {
   for (const marker of ['/*DESK_DATA*/', '/*DESK_COMPOSE*/']) {
     if (template.split(marker).length !== 2) throw new Error(`the desk template needs exactly one ${marker}`);

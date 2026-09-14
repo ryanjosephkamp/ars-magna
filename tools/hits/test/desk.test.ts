@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { Script } from 'node:vm';
 
 import { composeCommands, type Decision } from '../src/desk/compose.ts';
-import { deskData, deskQueue, embedJson, inlineCompose, renderDesk, type QueueInput } from '../src/desk/build.ts';
+import { artifactFragment, deskData, deskQueue, embedJson, inlineCompose, renderDesk, type QueueInput } from '../src/desk/build.ts';
 import { APPLY_DESK_PROMPT, COMPOSE_SOURCE, DEEP_RUN_PROMPT, DESK_TEMPLATE, judgedQueues } from '../src/desk.ts';
 import type { VerdictV2 } from '../src/judge.ts';
 import type { Prefiltered } from '../src/prefilter.ts';
@@ -110,6 +110,19 @@ describe('a queue in the desk', () => {
       ['lets in', 'claude-opus-5'],
       ['tinsel', 'claude-sonnet-5'],
     ]);
+  });
+});
+
+describe('the page as an Artifact', () => {
+  it('drops the document tags an Artifact supplies itself, and keeps the title, style and scripts', async () => {
+    const template = await readFile(DESK_TEMPLATE, 'utf8');
+    const fragment = artifactFragment(template);
+    expect(fragment).not.toMatch(/<!doctype|<\/?(html|head|body)[\s>]|<meta\s/i);
+    expect(fragment.slice(0, 8192)).toContain('<title>Ars Magna Review Desk</title>');
+    expect(fragment).toContain('<style>');
+    expect(fragment.match(/<script/g)?.length).toBe(template.match(/<script/g)?.length);
+    expect(fragment).toContain('/*DESK_DATA*/');
+    expect(() => artifactFragment('<html><body><p>no title</p></body></html>')).toThrow(/title/);
   });
 });
 
