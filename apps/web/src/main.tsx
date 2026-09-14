@@ -28,7 +28,8 @@ async function warmCache(): Promise<void> {
   const { files } = (await manifest.json()) as { files?: string[] };
   if (!Array.isArray(files)) return;
 
-  const cache = await caches.open('ars-magna-v1');
+  // The same cache the service worker reads; public/sw.js names it too.
+  const cache = await caches.open('ars-magna-v2');
   const missing = (
     await Promise.all(files.map(async (path) => ((await cache.match(path)) ? null : path)))
   ).filter((path): path is string => path !== null);
