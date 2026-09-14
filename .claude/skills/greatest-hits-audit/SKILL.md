@@ -1,6 +1,6 @@
 ---
 name: greatest-hits-audit
-description: Build and publish the Ars Magna Greatest Hits audit, the private page where the operator relabels every anagram on the site's Greatest Hits page as Greatest Hits, Interesting or removed. Use when the operator asks to audit, review, relabel or curate the Greatest Hits page, or to rebuild or refresh the audit.
+description: Build and publish the Ars Magna Greatest Hits audit, the private page where the operator moves every published anagram between Greatest Hits, Interesting and A stretch, or off the page. Use when the operator asks to audit, review, relabel or curate the Greatest Hits page, or to rebuild or refresh the audit.
 ---
 
 # Greatest Hits audit

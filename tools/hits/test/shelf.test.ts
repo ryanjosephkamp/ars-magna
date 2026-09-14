@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SHELF_CAP, assess, bestJudgement, scoresOf, shelfOf, shelve, type Scores } from '../src/shelf.ts';
+import { SHELF_CAP, assess, bestJudgement, judgedShelf, scoresOf, shelfOf, shelve, type Scores } from '../src/shelf.ts';
 import type { Hit, JudgementV1, JudgementV2 } from '../src/schema.ts';
 import { shelfOf as siteShelfOf, type HitRecord } from '../../../apps/web/src/hits/build.ts';
 
@@ -64,6 +64,12 @@ describe('shelves', () => {
     expect(shelfOf(hit('accepted', [v1(3, 4, 4)]))).toBe('stretch');
     // An accepted hit the judge scored below the shelves was the operator's call.
     expect(shelfOf(hit('accepted', [v2(2, 3)]))).toBe('stretch');
+    // The operator's shelf tag decides over the scores, but not over featured.
+    expect(shelfOf({ ...hit('accepted', [v2(5, 3)]), tags: ['shelf:stretch'] })).toBe('stretch');
+    expect(shelfOf({ ...hit('accepted', [v2(3, 3)]), tags: ['tone:pun', 'shelf:interesting'] })).toBe('interesting');
+    expect(shelfOf({ ...hit('featured', [v2(3, 3)]), tags: ['shelf:stretch'] })).toBe('greatest');
+    expect(judgedShelf({ judge: [v2(5, 3)] })).toBe('interesting');
+    expect(judgedShelf({ judge: [v2(3, 3)] })).toBe('stretch');
   });
 
   it('fills three slots best first, keeps the rest as alternates, and sorts near misses out', () => {
@@ -92,7 +98,10 @@ describe('shelves', () => {
   });
 
   it('agrees with the site build, which repeats the rule', () => {
-    const cases: Pick<Hit, 'status' | 'judge'>[] = [
+    const cases: (Pick<Hit, 'status' | 'judge'> & { tags?: string[] })[] = [
+      { status: 'accepted', judge: [v2(5, 3)], tags: ['shelf:stretch'] },
+      { status: 'accepted', judge: [v2(3, 3)], tags: ['shelf:interesting'] },
+      { status: 'featured', judge: [], tags: ['shelf:stretch'] },
       { status: 'featured', judge: [] },
       { status: 'accepted', judge: [] },
       { status: 'accepted', judge: [v2(5, 1)] },

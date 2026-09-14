@@ -202,6 +202,7 @@ describe('the page', () => {
       { kind: 'seed', input: 'Sagrada Família', category: 'places', anchors: [] },
       { kind: 'order', id: hits[0]!.id, words: [...hits[0]!.words].reverse(), hit: true },
       { kind: 'note', id: hits[0]!.id, display: hits[0]!.display, text: 'Say why it is plain.\nKeep it short.', hit: true },
+      { kind: 'shelf', id: hits[1]!.id, shelf: 'stretch', judged: 'interesting', tags: [] },
     ];
     const inPage = (context['composeCommands'] as typeof composeCommands)(decisions, '2026-09-14');
     expect(JSON.stringify(inPage)).toBe(JSON.stringify(composeCommands(decisions, '2026-09-14')));

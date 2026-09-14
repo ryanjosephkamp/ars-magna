@@ -93,10 +93,11 @@ async function main(): Promise<void> {
   const { html, data } = await buildDesk({ queues, out, mode });
   const size = `${Math.round(Buffer.byteLength(html) / 1024)} KB`;
   if (mode === 'audit') {
-    const count = (status: string) => data.hits.filter((h) => h.status === status).length;
+    const published = data.hits.filter((h) => h.status === 'featured' || h.status === 'accepted');
+    const count = (shelf: string) => published.filter((h) => h.shelf === shelf).length;
     console.log(
-      `wrote ${relative(cwd, out)} (${size}): ${count('featured') + count('accepted')} anagrams on the Greatest Hits page, ` +
-        `${count('featured')} Greatest Hits and ${count('accepted')} Interesting`,
+      `wrote ${relative(cwd, out)} (${size}): ${published.length} published anagrams, ` +
+        `${count('greatest')} in Greatest Hits, ${count('interesting')} in Interesting and ${count('stretch')} in A stretch`,
     );
   } else {
     const near = data.queues.reduce((n, q) => n + q.rows.filter((r) => !r.hit).length, 0);

@@ -157,6 +157,26 @@ describe('commands', () => {
         'set it with pnpm hits:justify, then accept it with pnpm hits:set --status=accepted astronomer:phrases:moon-starer.',
     ]);
   });
+
+  it('move a hit between shelves with a shelf tag only where the judge would put it elsewhere', () => {
+    const { commands } = composeCommands(
+      [
+        { kind: 'shelf', id: 'a:phrases:b', shelf: 'stretch', judged: 'interesting', tags: [] },
+        { kind: 'shelf', id: 'c:phrases:d', shelf: 'interesting', judged: 'interesting', tags: ['shelf:stretch'] },
+        { kind: 'shelf', id: 'e:phrases:f', shelf: 'interesting', judged: 'stretch', tags: ['shelf:stretch'] },
+        // A Greatest Hit moved to the shelf its scores give it needs only its status.
+        { kind: 'status', id: 'g:phrases:h', status: 'accepted' },
+        { kind: 'shelf', id: 'g:phrases:h', shelf: 'interesting', judged: 'interesting', tags: [] },
+      ],
+      today,
+    );
+    expect(commands).toEqual([
+      'pnpm hits:tag a:phrases:b +shelf:stretch',
+      'pnpm hits:tag c:phrases:d -shelf:stretch',
+      'pnpm hits:tag e:phrases:f +shelf:interesting -shelf:stretch',
+      'pnpm hits:set --status=accepted g:phrases:h',
+    ]);
+  });
 });
 
 describe('seeds', () => {

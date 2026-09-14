@@ -9,7 +9,7 @@ import type { Verdict } from '../judge.ts';
 import type { Prefiltered } from '../prefilter.ts';
 import { isV2, type Candidate, type Hit, type HitStatus, type Judgement } from '../schema.ts';
 import { lastRun } from '../settings.ts';
-import { assess, bestJudgement, scoresOf, shelfOf, type Shelf } from '../shelf.ts';
+import { assess, bestJudgement, judgedShelf, scoresOf, shelfOf, type Shelf } from '../shelf.ts';
 
 /** Where a row of a queue stands in data/hits.jsonl; null for a near miss the file does not hold. */
 export type DeskPlace = { status: HitStatus; shelf: Shelf; alternate: boolean };
@@ -38,6 +38,8 @@ export type DeskModel = { model: string; verdicts: number };
 export type DeskQueue = { name: string; model: string; models: DeskModel[]; judged: number; rows: DeskRow[] };
 
 export type DeskHit = DeskPlace & {
+  /** Where the judge's scores alone put it, whatever its status or shelf tag. */
+  judged: 'interesting' | 'stretch';
   id: string;
   input: string;
   category: string;
@@ -174,6 +176,7 @@ export function deskData(input: {
       const scores = best ? scoresOf(best) : null;
       return {
         ...placeOf(h),
+        judged: judgedShelf(h),
         id: h.id,
         input: h.input,
         category: h.category,

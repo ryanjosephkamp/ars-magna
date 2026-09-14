@@ -115,6 +115,9 @@ describe('schemas', () => {
     expect(hv(hit({ tags: ['Tone:rude'] }))).toBe(false);
     expect(hv(hit({ tags: ['tone:smug'] }))).toBe(false);
     expect(hv(hit({ tags: ['classic', 'submitted', 'alternate', 'note:the one everyone knows', 'subject:airline', 'tone:rude'] }))).toBe(true);
+    expect(hv(hit({ tags: ['shelf:interesting'] }))).toBe(true);
+    expect(hv(hit({ tags: ['shelf:stretch'] }))).toBe(true);
+    expect(hv(hit({ tags: ['shelf:greatest'] }))).toBe(false);
     expect(hv(hit({ justification: 'x'.repeat(301) }))).toBe(false);
   });
 

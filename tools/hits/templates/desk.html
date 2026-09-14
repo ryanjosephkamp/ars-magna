@@ -232,7 +232,8 @@
   var STORE = AUDIT ? 'ars-magna-audit' : 'ars-magna-desk';
   var TAG = new RegExp(DATA.tagPattern);
   var STATUSES = ['featured', 'accepted', 'proposed', 'retired'];
-  var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'Interesting', proposed: 'proposed', retired: 'retired' };
+  var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'accepted', proposed: 'proposed', retired: 'retired' };
+  var SHELF_LABEL = { greatest: 'Greatest Hits', interesting: 'Interesting', stretch: 'A stretch' };
   var TABS = AUDIT ? [['audit', 'Greatest Hits page']] : [
     ['review', 'Review'],
     ['collection', 'Collection'],
@@ -288,7 +289,7 @@
 
   function keyOf(d) {
     switch (d.kind) {
-      case 'status': case 'justify': case 'tag': case 'order': case 'note': return d.kind + ':' + d.id;
+      case 'status': case 'justify': case 'tag': case 'order': case 'note': case 'shelf': return d.kind + ':' + d.id;
       case 'promote': return 'promote:' + d.id;
       case 'seed': return 'seed:' + candidateIdOf(d.input, d.category);
       case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/));
@@ -321,6 +322,7 @@
       case 'promote': return d.id + ' from ' + d.queue + ', ' + d.status;
       case 'order': return d.id + ' reads "' + d.words.join(' ') + '"' + (d.hit || find('promote:' + d.id) ? '' : ', once it is promoted');
       case 'note': return d.id + ': a note for the agent';
+      case 'shelf': return d.id + ' to ' + SHELF_LABEL[d.shelf];
       case 'requeue': return 'Send back to new: ' + [
         d.settingsBefore && 'settings before ' + d.settingsBefore,
         d.rubricBefore && 'rubric before ' + d.rubricBefore,
@@ -472,19 +474,32 @@
   }
 
   /*
-   * The audit's label: the hit's current one to start with, so a prompt copied
-   * without changes changes nothing. Back on the current label, the decision goes.
+   * The audit's label: the section the hit is in now, to start with, so a
+   * prompt copied without changes changes nothing. Greatest Hits and Remove
+   * from the page are statuses; Interesting and A stretch are shelves of an
+   * accepted hit, and moving between them sets a shelf tag where the judge's
+   * scores would put it elsewhere. Back on the label it had, its decisions go.
    */
   function labelSelect(hit) {
+    var now = hit.status === 'featured' ? 'featured' : hit.shelf;
     var label = h('select', { 'aria-label': 'Label of ' + hit.display },
       h('option', { value: 'featured' }, 'Greatest Hits'),
-      h('option', { value: 'accepted' }, 'Interesting'),
+      h('option', { value: 'interesting' }, 'Interesting'),
+      h('option', { value: 'stretch' }, 'A stretch'),
       h('option', { value: 'retired' }, 'Remove from the page'));
-    var pending = find('status:' + hit.id);
-    label.value = pending ? pending.status : hit.status;
+    var status = find('status:' + hit.id);
+    var shelf = find('shelf:' + hit.id);
+    label.value = status && status.status !== 'accepted' ? status.status : shelf ? shelf.shelf : now;
     label.addEventListener('change', function () {
-      if (label.value === hit.status) drop('status:' + hit.id);
-      else upsert({ kind: 'status', id: hit.id, status: label.value });
+      var value = label.value;
+      drop('status:' + hit.id);
+      drop('shelf:' + hit.id);
+      if (value === 'featured' || value === 'retired') {
+        if (value !== now) upsert({ kind: 'status', id: hit.id, status: value });
+      } else if (value !== now) {
+        if (hit.status !== 'accepted') upsert({ kind: 'status', id: hit.id, status: 'accepted' });
+        upsert({ kind: 'shelf', id: hit.id, shelf: value, judged: hit.judged, tags: hit.tags.filter(function (t) { return t.indexOf('shelf:') === 0; }) });
+      }
       markRow(label, hit.id);
     });
     return label;
@@ -759,10 +774,17 @@
     draw();
   }
 
+  /* What each section of the site's page means, as the audit and the page say it. */
+  var SECTION_NOTE = {
+    greatest: 'The best of them, picked by hand.',
+    interesting: 'Names the original, or has a clear, specific link to it.',
+    stretch: 'A looser link, arguable in a sentence.',
+  };
+
   /*
-   * The Greatest Hits audit: every published hit under the label it has now,
-   * Greatest Hits first, then Interesting. Within each, the judge's Greatest
-   * Hits suggestions come first, then the strongest link.
+   * The Greatest Hits audit: every published hit in the section it is in now,
+   * Greatest Hits, then Interesting, then A stretch. Within each, the judge's
+   * Greatest Hits suggestions come first, then the strongest link.
    */
   function renderAudit(main) {
     function suggested(x) { return x.tags.indexOf('greatest-candidate') >= 0; }
@@ -770,9 +792,13 @@
       return Number(suggested(b)) - Number(suggested(a)) || (b.relation || 0) - (a.relation || 0) ||
         (b.reads || 0) - (a.reads || 0) || b.added.localeCompare(a.added) || a.id.localeCompare(b.id);
     }
-    var greatest = DATA.hits.filter(function (x) { return x.status === 'featured'; }).sort(strength);
-    var interesting = DATA.hits.filter(function (x) { return x.status === 'accepted'; }).sort(strength);
-    var total = greatest.length + interesting.length;
+    function onShelf(shelf) {
+      return DATA.hits.filter(function (x) { return (x.status === 'featured' || x.status === 'accepted') && x.shelf === shelf; }).sort(strength);
+    }
+    var greatest = onShelf('greatest');
+    var interesting = onShelf('interesting');
+    var stretch = onShelf('stretch');
+    var total = greatest.length + interesting.length + stretch.length;
 
     var filter = h('input', { type: 'text', placeholder: 'Input, anagram or tag', 'aria-label': 'Filter the anagrams' });
     filter.value = state.filter;
@@ -796,14 +822,17 @@
           suggested(x) ? h('div', { class: 'where-greatest' }, 'Suggested for Greatest Hits') : null),
         h('td', { 'data-label': 'Label' }, hitControls(x)));
     }
-    function section(title, hits) {
+    function section(shelf, hits) {
       var q = state.filter.trim().toLowerCase();
       var shown = hits.filter(function (x) {
         return (state.category === 'all' || x.category === state.category) &&
           (state.show === 'all' || (state.show === 'suggested' ? suggested(x) : pendingFor(x.id))) &&
           (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
       });
-      var out = [h('h3', {}, title, h('span', { class: 'category' }, shown.length === hits.length ? String(hits.length) : shown.length + ' of ' + hits.length))];
+      var out = [
+        h('h3', {}, SHELF_LABEL[shelf], h('span', { class: 'category' }, shown.length === hits.length ? String(hits.length) : shown.length + ' of ' + hits.length)),
+        h('p', { class: 'small' }, SECTION_NOTE[shelf]),
+      ];
       if (!shown.length) return out.concat(h('p', { class: 'empty' }, 'None here.'));
       var table = batched(shown, 50, row);
       return out.concat(
@@ -813,16 +842,16 @@
         table.more);
     }
     function draw() {
-      list.replaceChildren.apply(list, section('Greatest Hits', greatest).concat(section('Interesting', interesting)));
+      list.replaceChildren.apply(list, section('greatest', greatest).concat(section('interesting', interesting), section('stretch', stretch)));
     }
     filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
     category.addEventListener('change', function () { state.category = category.value; draw(); });
     show.addEventListener('change', function () { state.show = show.value; draw(); });
     main.append(
       h('h2', {}, 'The Greatest Hits page'),
-      h('p', { class: 'small' }, 'Every anagram the site\'s Greatest Hits page shows: ' + total + ' in all, ' + greatest.length + ' Greatest Hits and ' +
-        interesting.length + ' Interesting. Each starts on the label it has now, so a prompt copied without changes changes nothing. ' +
-        'Set a label to Greatest Hits, Interesting or Remove from the page, and edit a justification, reorder the words or add a note as in the review desk.'),
+      h('p', { class: 'small' }, 'Every anagram the site shows, ' + total + ' in all, each labelled with the section it is in now: ' + greatest.length +
+        ' in Greatest Hits, ' + interesting.length + ' in Interesting and ' + stretch.length + ' in A stretch. A prompt copied without changes changes nothing. ' +
+        'Change a label to move an anagram to another section or off the page, and edit a justification, reorder the words or add a note as in the review desk.'),
       h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show)),
       list);
     draw();

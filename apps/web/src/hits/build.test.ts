@@ -38,6 +38,8 @@ describe('gallery build', () => {
     expect(withNote.justification).toBe('the one everyone knows');
     expect(withNote.tags).toEqual(['submitted']);
     expect(withNote.submitter).toBe('someone');
+    // A shelf tag becomes the shelf, not a tag.
+    expect(toPublic(record({ tags: ['classic', 'shelf:stretch'] }))).toMatchObject({ shelf: 'stretch', tags: ['classic'] });
   });
 
   it('prefers the operator sentence, then the v2 judge, then the v1 rationale, then a note', () => {
@@ -57,6 +59,10 @@ describe('gallery build', () => {
     expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', relation: 4, reads: 1 }] }))).toBe('interesting');
     expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', relation: 3, reads: 3 }] }))).toBe('stretch');
     expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', total: 12, aptness: 3, grammar: 5 }] }))).toBe('stretch');
+    // The operator's shelf tag decides over the scores, but not over featured.
+    expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', relation: 5, reads: 3 }], tags: ['shelf:stretch'] }))).toBe('stretch');
+    expect(shelfOf(record({ judge: [{ model: 'm', rationale: 'r', relation: 3, reads: 3 }], tags: ['shelf:interesting'] }))).toBe('interesting');
+    expect(shelfOf(record({ status: 'featured', tags: ['shelf:stretch'] }))).toBe('greatest');
   });
 
   it('picks the same anagram of the day for everyone and changes by date', () => {

@@ -29,8 +29,8 @@ describe('hits:tag', () => {
 
   it('uses the hit schema’s own tag pattern', async () => {
     const pattern = await tagPattern();
-    for (const tag of ['classic', 'alternate', 'note:any text at all', 'subject:science-fiction-film', 'tone:self-referential']) expect(pattern.test(tag), tag).toBe(true);
-    for (const tag of ['tone:happy', 'subject:Actor', 'celebrity', 'note:']) expect(pattern.test(tag), tag).toBe(false);
+    for (const tag of ['classic', 'alternate', 'note:any text at all', 'shelf:stretch', 'subject:science-fiction-film', 'tone:self-referential']) expect(pattern.test(tag), tag).toBe(true);
+    for (const tag of ['tone:happy', 'subject:Actor', 'celebrity', 'note:', 'shelf:greatest']) expect(pattern.test(tag), tag).toBe(false);
   });
 
   it('refuses a tag the schema does not allow, and an unknown id, writing nothing', async () => {
