@@ -61,6 +61,7 @@ pnpm hits:set --status=accepted|featured|proposed|retired id…
 pnpm hits:justify id "One plain sentence."   # set a hit's justification
 pnpm hits:tag id +tone:pun -subject:actor     # add and remove a hit's tags
 pnpm hits:desk                                # build the review desk into .cache/desk/index.html
+pnpm hits:desk --artifact                     # also write .cache/desk/artifact.html, to publish as an Artifact for a phone
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
 ```

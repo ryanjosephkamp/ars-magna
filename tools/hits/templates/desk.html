@@ -163,6 +163,30 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+  .copy-fallback { display: block; width: 100%; min-height: 8rem; margin-top: 0.4rem; font: 0.75rem/1.5 var(--font-mono); }
+
+  /* A phone: a table's rows read top to bottom, each value under its column's name. */
+  @media (max-width: 640px) {
+    header, nav[role='tablist'], .layout { padding-left: 0.9rem; padding-right: 0.9rem; }
+    .toolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .toolbar label, .toolbar select, .toolbar input[type='text'] { width: 100%; }
+    .table-wrap { overflow-x: visible; }
+    table.rows thead { display: none; }
+    table.rows, table.rows tbody, table.rows tr, table.rows td { display: block; width: 100%; }
+    table.rows tr { padding: 0.75rem 0; border-bottom: 1px solid var(--rule-strong); }
+    table.rows td { border-bottom: 0; padding: 0.2rem 0; white-space: normal; }
+    table.rows td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-top: 0.3rem;
+      font: 600 0.6875rem/1.4 var(--font-sans);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+    table.rows td.phrase { font-size: 1.25rem; }
+    td textarea, td input[type='text'], td select { min-width: 0; width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -299,6 +323,25 @@
     if (row) row.classList.toggle('pending', pendingFor(id));
   }
 
+  /*
+   * Rows drawn a batch at a time, with a button for the next batch while any
+   * remain. Thousands of rows, each with a select and a text box, stall a phone.
+   */
+  function batched(items, size, draw) {
+    var body = h('tbody');
+    var more = h('div', { class: 'actions' });
+    var shown = 0;
+    function next() {
+      items.slice(shown, shown + size).forEach(function (item) { body.append(draw(item)); });
+      shown = Math.min(items.length, shown + size);
+      var left = items.length - shown;
+      more.replaceChildren();
+      if (left > 0) more.append(h('button', { class: 'act', type: 'button', onclick: next }, 'Show ' + Math.min(size, left) + ' more (' + left + ' left)'));
+    }
+    next();
+    return { body: body, more: more };
+  }
+
   function hitControls(hit) {
     var status = h('select', { 'aria-label': 'Status of ' + hit.display },
       h('option', { value: '' }, 'Keep: ' + STATUS_LABEL[hit.status]),
@@ -366,24 +409,27 @@
     return h('div', { class: 'control' }, choice, text);
   }
 
-  function rowTable(rows, withQueue) {
-    return h('div', { class: 'table-wrap' }, h('table', {},
-      h('thead', {}, h('tr', {},
-        withQueue ? [h('th', {}, 'Queue'), h('th', {}, 'Input')] : null,
-        h('th', {}, 'Anagram'), h('th', {}, 'Scores'), h('th', {}, 'Where'), h('th', {}, 'Judge'), h('th', {}, 'Decision'))),
-      h('tbody', {}, rows.map(function (r) {
-        var queue = DATA.queues.find(function (q) { return q.name === r.queue; });
-        var hit = r.hit ? hitsById.get(r.id) : null;
-        var where = whereOf(r.hit);
-        return h('tr', { class: pendingFor(r.id) ? 'pending' : '' },
-          withQueue ? [h('td', { class: 'scores' }, r.queue), h('td', {}, r.input)] : null,
-          h('td', { class: 'phrase' }, r.display),
-          h('td', { class: 'scores' }, 'relation ' + r.relation, h('br'), 'reads ' + r.reads),
-          h('td', { class: 'where ' + where[1] }, where[0],
-            r.tone.length ? h('div', { class: 'small' }, r.tone.map(function (t) { return 'tone:' + t; }).join(' ')) : null),
-          h('td', { class: 'small' }, r.model ? h('div', {}, r.model) : null, r.rationale),
-          h('td', {}, hit ? hitControls(hit) : nearControls(r, queue)));
-      }))));
+  function rowTable(rows, withQueue, size) {
+    var table = batched(rows, size, function (r) {
+      var queue = DATA.queues.find(function (q) { return q.name === r.queue; });
+      var hit = r.hit ? hitsById.get(r.id) : null;
+      var where = whereOf(r.hit);
+      return h('tr', { class: pendingFor(r.id) ? 'pending' : '' },
+        withQueue ? [h('td', { class: 'scores', 'data-label': 'Queue' }, r.queue), h('td', { 'data-label': 'Input' }, r.input)] : null,
+        h('td', { class: 'phrase' }, r.display),
+        h('td', { class: 'scores', 'data-label': 'Scores' }, 'relation ' + r.relation, h('br'), 'reads ' + r.reads),
+        h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
+          r.tone.length ? h('div', { class: 'small' }, r.tone.map(function (t) { return 'tone:' + t; }).join(' ')) : null),
+        h('td', { class: 'small', 'data-label': 'Judge' }, r.model ? h('div', {}, r.model) : null, r.rationale),
+        h('td', { 'data-label': 'Decision' }, hit ? hitControls(hit) : nearControls(r, queue)));
+    });
+    return h('div', {},
+      h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
+        h('thead', {}, h('tr', {},
+          withQueue ? [h('th', {}, 'Queue'), h('th', {}, 'Input')] : null,
+          h('th', {}, 'Anagram'), h('th', {}, 'Scores'), h('th', {}, 'Where'), h('th', {}, 'Judge'), h('th', {}, 'Decision'))),
+        table.body)),
+      table.more);
   }
 
   function withQueueName(rows, name) {
@@ -421,7 +467,7 @@
     });
     if (!groups.size) main.append(h('p', { class: 'empty' }, 'Nothing in this queue has any link to its input.'));
     groups.forEach(function (rows) {
-      main.append(h('h3', {}, rows[0].input, h('span', { class: 'category' }, rows[0].category)), rowTable(withQueueName(rows, queue.name), false));
+      main.append(h('h3', {}, rows[0].input, h('span', { class: 'category' }, rows[0].category)), rowTable(withQueueName(rows, queue.name), false, 5));
     });
   }
 
@@ -441,20 +487,22 @@
         return (state.status === 'all' || x.status === state.status) &&
           (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
       });
+      var table = batched(hits, 50, function (x) {
+        var where = whereOf(x);
+        return h('tr', { class: pendingFor(x.id) ? 'pending' : '' },
+          h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
+          h('td', { class: 'phrase' }, x.display),
+          h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
+            x.relation !== null ? h('div', { class: 'small' }, 'relation ' + x.relation + ', reads ' + x.reads) : null),
+          h('td', { class: 'small', 'data-label': 'Tags' }, x.tags.join(' ')),
+          h('td', { 'data-label': 'Decision' }, hitControls(x)));
+      });
       list.replaceChildren(
         h('p', { class: 'small', role: 'status' }, hits.length + ' of ' + DATA.hits.length + ' hits'),
-        h('div', { class: 'table-wrap' }, h('table', {},
+        h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
           h('thead', {}, h('tr', {}, h('th', {}, 'Input'), h('th', {}, 'Anagram'), h('th', {}, 'Where'), h('th', {}, 'Tags'), h('th', {}, 'Decision'))),
-          h('tbody', {}, hits.map(function (x) {
-            var where = whereOf(x);
-            return h('tr', { class: pendingFor(x.id) ? 'pending' : '' },
-              h('td', {}, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
-              h('td', { class: 'phrase' }, x.display),
-              h('td', { class: 'where ' + where[1] }, where[0],
-                x.relation !== null ? h('div', { class: 'small' }, 'relation ' + x.relation + ', reads ' + x.reads) : null),
-              h('td', { class: 'small' }, x.tags.join(' ')),
-              h('td', {}, hitControls(x)));
-          })))));
+          table.body)),
+        table.more);
     }
     filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
     status.addEventListener('change', function () { state.status = status.value; draw(); });
@@ -473,7 +521,7 @@
       h('p', { class: 'small' }, rows.length + ' rows from ' + DATA.queues.length + ' queues are not in data/hits.jsonl. ' +
         'Accepting one adds it from its queue\'s verdicts; one without a justification goes in as proposed until it has one.'));
     if (!rows.length) { main.append(h('p', { class: 'empty' }, 'None.')); return; }
-    main.append(rowTable(rows, true));
+    main.append(rowTable(rows, true, 50));
   }
 
   function renderSeed(main) {
@@ -610,18 +658,28 @@
     update();
   }
 
+  /*
+   * Copy to the clipboard. Inside a sandboxed frame, such as a claude.ai
+   * Artifact, the clipboard can be refused; then the text is left selected in a
+   * box to copy by hand, and the page never claims a copy it did not make.
+   */
   async function copy(text, live) {
     try {
       await navigator.clipboard.writeText(text);
       live.textContent = 'Copied.';
-    } catch (e) {
-      var area = h('textarea', {});
-      area.value = text;
-      document.body.append(area);
-      area.select();
-      try { document.execCommand('copy'); live.textContent = 'Copied.'; } catch (err) { live.textContent = 'Select the text below and copy it.'; }
-      area.remove();
-    }
+      return;
+    } catch (e) { /* fall through to a box the text can be copied from */ }
+    var area = h('textarea', { class: 'copy-fallback', readonly: true, 'aria-label': 'Text to copy' });
+    area.value = text;
+    live.replaceChildren(area);
+    area.focus();
+    area.select();
+    var copied = false;
+    try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+    if (copied) { live.textContent = 'Copied.'; return; }
+    live.replaceChildren(h('span', {}, 'This page cannot reach the clipboard here. The text is selected below; copy it from there.'), area);
+    area.focus();
+    area.select();
   }
 
   function renderAside() {
