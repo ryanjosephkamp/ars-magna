@@ -543,3 +543,4 @@
 {"id":"janniksinner:people","input":"Jannik Sinner","category":"people","source":"trending","first_seen":"2026-09-14","status":"new","wikidata_qid":"Q54812588","subjects":["tennis-player"]}
 {"id":"enzomaresca:people","input":"Enzo Maresca","category":"people","source":"trending","first_seen":"2026-09-14","status":"new","wikidata_qid":"Q317282","subjects":["association-football-coach","association-football-player"]}
 {"id":"ugougochukwu:people","input":"Ugo Ugochukwu","category":"people","source":"trending","first_seen":"2026-09-14","status":"enumerated","wikidata_qid":"Q114067774","subjects":["racing-driver"],"notes":"nothing keepable 2026-09-14","runs":[{"queue":"2026-09-14","settings":"s2","rubric":"v2","date":"2026-09-14"}]}
+{"id":"lunaterrasol:products","input":"Luna Terra Sol","category":"products","source":"manual","first_seen":"2026-09-14","status":"enumerated"}
