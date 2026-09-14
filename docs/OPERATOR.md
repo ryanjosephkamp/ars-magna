@@ -356,8 +356,10 @@ After any merge to `main`. Every check reads; none changes anything.
    ```
 
 5. In a browser, search for `dormitory` at https://ars-magna.pages.dev, then open
-   https://ars-magna.pages.dev/hits. A browser that has visited before may show the previous version until
-   it reloads once more.
+   https://ars-magna.pages.dev/hits. Its count matches step 2: the gallery fetches `hits.json` from the
+   network on every visit, and the service worker's copy is only for offline use. The one exception is
+   the first visit after a deploy that changes `apps/web/public/sw.js`: a browser that visited before
+   can show the previous version until the new worker takes over, so reload once more.
 
 On 2026-09-12, after #8: CI and Deploy passed, `hits.json` held 10 hits against 10 accepted and featured
 lines, the dictionary came back as `content-encoding: br`, and `all.jsonl` had 10 lines.
