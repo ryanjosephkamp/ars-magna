@@ -65,6 +65,7 @@ pnpm hits:tag id +tone:pun -subject:actor     # add and remove a hit's tags
 pnpm hits:order id room dirty                 # set the order a hit's words read in
 pnpm hits:desk                                # build the review desk into .cache/desk/index.html
 pnpm hits:desk --artifact                     # also write .cache/desk/artifact.html, to publish as an Artifact for a phone
+pnpm hits:desk --audit                        # build the Greatest Hits audit into .cache/desk/audit.html
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
 ```

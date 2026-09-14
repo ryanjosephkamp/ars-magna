@@ -126,6 +126,35 @@ describe('the page as an Artifact', () => {
   });
 });
 
+describe('the Greatest Hits audit', () => {
+  it('is titled for the audit, carries hits but no queues or candidates, and parses', async () => {
+    const hits = await readJsonl(HITS_PATH, await hitSchema());
+    const data = deskData({
+      mode: 'audit',
+      hits,
+      candidates: [],
+      queues: [],
+      generated: '2026-09-14T00:00:00Z',
+      today: '2026-09-14',
+      tagPattern: (await tagPattern()).source,
+      applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
+      deepRun: '',
+      deepPerInput: null,
+    });
+    const html = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), data, await readFile(COMPOSE_SOURCE, 'utf8'));
+    expect(html).toContain('<title>Ars Magna Greatest Hits Audit</title>');
+    expect(html).toContain('<h1>Greatest Hits audit</h1>');
+    expect(artifactFragment(html).slice(0, 8192)).toContain('<title>Ars Magna Greatest Hits Audit</title>');
+    const embedded = JSON.parse(/<script type="application\/json" id="desk-data">([\s\S]*?)<\/script>/.exec(html)![1]!);
+    expect(embedded).toMatchObject({ mode: 'audit', queues: [], candidates: [] });
+    expect(embedded.hits).toHaveLength(hits.length);
+    for (const script of [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)) expect(() => new Script(script)).not.toThrow();
+    // The review desk keeps its own title.
+    const desk = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), { ...data, mode: 'desk' }, await readFile(COMPOSE_SOURCE, 'utf8'));
+    expect(desk).toContain('<title>Ars Magna Review Desk</title>');
+  });
+});
+
 describe('the page', () => {
   it('embeds data that no text can close early, and inlines compose as plain script', async () => {
     const data = { text: '</script><script>alert(1)</script> & <!-- \u2028' };

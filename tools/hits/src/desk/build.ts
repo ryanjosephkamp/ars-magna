@@ -51,7 +51,11 @@ export type DeskHit = DeskPlace & {
 
 export type DeskCandidate = { id: string; input: string; category: string; status: string; source: string; settings: string; rubric: string };
 
+/** `desk` is the review desk; `audit` is one page for relabelling every anagram the site's Greatest Hits page shows. */
+export type DeskMode = 'desk' | 'audit';
+
 export type DeskData = {
+  mode: DeskMode;
   generated: string;
   today: string;
   hits: DeskHit[];
@@ -159,8 +163,10 @@ export function deskData(input: {
   applyDesk: string;
   deepRun: string;
   deepPerInput: number | null;
+  mode?: DeskMode;
 }): DeskData {
   return {
+    mode: input.mode ?? 'desk',
     generated: input.generated,
     today: input.today,
     hits: input.hits.map((h) => {
@@ -221,7 +227,19 @@ export function artifactFragment(html: string): string {
   return fragment;
 }
 
+/** The audit's own title and heading, in place of the review desk's. */
+const AUDIT_TITLES: [string, string][] = [
+  ['<title>Ars Magna Review Desk</title>', '<title>Ars Magna Greatest Hits Audit</title>'],
+  ['<h1>Ars Magna review desk</h1>', '<h1>Greatest Hits audit</h1>'],
+];
+
 export function renderDesk(template: string, data: DeskData, composeSource: string): string {
+  if (data.mode === 'audit') {
+    for (const [from, to] of AUDIT_TITLES) {
+      if (template.split(from).length !== 2) throw new Error(`the desk template needs exactly one ${from}`);
+      template = template.replace(from, to);
+    }
+  }
   for (const marker of ['/*DESK_DATA*/', '/*DESK_COMPOSE*/']) {
     if (template.split(marker).length !== 2) throw new Error(`the desk template needs exactly one ${marker}`);
   }

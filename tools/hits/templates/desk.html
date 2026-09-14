@@ -227,11 +227,13 @@
   'use strict';
 
   var DATA = JSON.parse(document.getElementById('desk-data').textContent);
-  var STORE = 'ars-magna-desk';
+  /* The Greatest Hits audit is this page with one tab: every anagram the site's Greatest Hits page shows. */
+  var AUDIT = DATA.mode === 'audit';
+  var STORE = AUDIT ? 'ars-magna-audit' : 'ars-magna-desk';
   var TAG = new RegExp(DATA.tagPattern);
   var STATUSES = ['featured', 'accepted', 'proposed', 'retired'];
-  var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'accepted', proposed: 'proposed', retired: 'retired' };
-  var TABS = [
+  var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'Interesting', proposed: 'proposed', retired: 'retired' };
+  var TABS = AUDIT ? [['audit', 'Greatest Hits page']] : [
     ['review', 'Review'],
     ['collection', 'Collection'],
     ['near', 'Near misses'],
@@ -252,10 +254,12 @@
 
   var saved = load();
   var state = {
-    tab: TABS.some(function (t) { return t[0] === saved.tab; }) ? saved.tab : 'review',
+    tab: TABS.some(function (t) { return t[0] === saved.tab; }) ? saved.tab : TABS[0][0],
     queue: DATA.queues.some(function (q) { return q.name === saved.queue; }) ? saved.queue : (DATA.queues[0] ? DATA.queues[0].name : ''),
     filter: '',
     status: 'all',
+    category: 'all',
+    show: 'all',
     decisions: Array.isArray(saved.decisions) ? saved.decisions : [],
     notes: typeof saved.notes === 'string' ? saved.notes : '',
     branch: typeof saved.branch === 'string' ? saved.branch : '',
@@ -451,7 +455,7 @@
     return h('div', {}, open, box);
   }
 
-  function hitControls(hit) {
+  function statusSelect(hit) {
     var status = h('select', { 'aria-label': 'Status of ' + hit.display },
       h('option', { value: '' }, 'Keep: ' + STATUS_LABEL[hit.status]),
       STATUSES.filter(function (s) { return s !== hit.status; }).map(function (s) {
@@ -464,6 +468,30 @@
       else upsert({ kind: 'status', id: hit.id, status: status.value });
       markRow(status, hit.id);
     });
+    return status;
+  }
+
+  /*
+   * The audit's label: the hit's current one to start with, so a prompt copied
+   * without changes changes nothing. Back on the current label, the decision goes.
+   */
+  function labelSelect(hit) {
+    var label = h('select', { 'aria-label': 'Label of ' + hit.display },
+      h('option', { value: 'featured' }, 'Greatest Hits'),
+      h('option', { value: 'accepted' }, 'Interesting'),
+      h('option', { value: 'retired' }, 'Remove from the page'));
+    var pending = find('status:' + hit.id);
+    label.value = pending ? pending.status : hit.status;
+    label.addEventListener('change', function () {
+      if (label.value === hit.status) drop('status:' + hit.id);
+      else upsert({ kind: 'status', id: hit.id, status: label.value });
+      markRow(label, hit.id);
+    });
+    return label;
+  }
+
+  function hitControls(hit) {
+    var status = AUDIT ? labelSelect(hit) : statusSelect(hit);
 
     var text = h('textarea', { 'aria-label': 'Justification of ' + hit.display, placeholder: 'One plain sentence for a reader' });
     var pendingText = find('justify:' + hit.id);
@@ -731,6 +759,75 @@
     draw();
   }
 
+  /*
+   * The Greatest Hits audit: every published hit under the label it has now,
+   * Greatest Hits first, then Interesting. Within each, the judge's Greatest
+   * Hits suggestions come first, then the strongest link.
+   */
+  function renderAudit(main) {
+    function suggested(x) { return x.tags.indexOf('greatest-candidate') >= 0; }
+    function strength(a, b) {
+      return Number(suggested(b)) - Number(suggested(a)) || (b.relation || 0) - (a.relation || 0) ||
+        (b.reads || 0) - (a.reads || 0) || b.added.localeCompare(a.added) || a.id.localeCompare(b.id);
+    }
+    var greatest = DATA.hits.filter(function (x) { return x.status === 'featured'; }).sort(strength);
+    var interesting = DATA.hits.filter(function (x) { return x.status === 'accepted'; }).sort(strength);
+    var total = greatest.length + interesting.length;
+
+    var filter = h('input', { type: 'text', placeholder: 'Input, anagram or tag', 'aria-label': 'Filter the anagrams' });
+    filter.value = state.filter;
+    var category = h('select', { 'aria-label': 'Category' },
+      h('option', { value: 'all' }, 'Every category'),
+      DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
+    category.value = state.category;
+    var show = h('select', { 'aria-label': 'Show' },
+      h('option', { value: 'all' }, 'Every anagram'),
+      h('option', { value: 'suggested' }, 'Suggested for Greatest Hits'),
+      h('option', { value: 'changed' }, 'Changed here'));
+    show.value = state.show;
+    var list = h('div');
+
+    function row(x) {
+      return h('tr', { class: pendingFor(x.id) ? 'pending' : '' },
+        h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
+        phraseCell(x.id, x.display, true),
+        h('td', { class: 'small', 'data-label': 'Judge' },
+          x.relation !== null ? 'relation ' + x.relation + ', reads ' + x.reads : 'not judged',
+          suggested(x) ? h('div', { class: 'where-greatest' }, 'Suggested for Greatest Hits') : null),
+        h('td', { 'data-label': 'Label' }, hitControls(x)));
+    }
+    function section(title, hits) {
+      var q = state.filter.trim().toLowerCase();
+      var shown = hits.filter(function (x) {
+        return (state.category === 'all' || x.category === state.category) &&
+          (state.show === 'all' || (state.show === 'suggested' ? suggested(x) : pendingFor(x.id))) &&
+          (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
+      });
+      var out = [h('h3', {}, title, h('span', { class: 'category' }, shown.length === hits.length ? String(hits.length) : shown.length + ' of ' + hits.length))];
+      if (!shown.length) return out.concat(h('p', { class: 'empty' }, 'None here.'));
+      var table = batched(shown, 50, row);
+      return out.concat(
+        h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Input'), h('th', {}, 'Anagram'), h('th', {}, 'Judge'), h('th', {}, 'Label'))),
+          table.body)),
+        table.more);
+    }
+    function draw() {
+      list.replaceChildren.apply(list, section('Greatest Hits', greatest).concat(section('Interesting', interesting)));
+    }
+    filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
+    category.addEventListener('change', function () { state.category = category.value; draw(); });
+    show.addEventListener('change', function () { state.show = show.value; draw(); });
+    main.append(
+      h('h2', {}, 'The Greatest Hits page'),
+      h('p', { class: 'small' }, 'Every anagram the site\'s Greatest Hits page shows: ' + total + ' in all, ' + greatest.length + ' Greatest Hits and ' +
+        interesting.length + ' Interesting. Each starts on the label it has now, so a prompt copied without changes changes nothing. ' +
+        'Set a label to Greatest Hits, Interesting or Remove from the page, and edit a justification, reorder the words or add a note as in the review desk.'),
+      h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show)),
+      list);
+    draw();
+  }
+
   function renderAdd(main) {
     var input = h('input', { type: 'text', 'aria-label': 'Input' });
     var category = h('select', { 'aria-label': 'Category' }, DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
@@ -797,7 +894,9 @@
     var count = state.decisions.length;
     aside.append(h('h2', {}, 'Decisions'));
     if (!count) {
-      aside.append(h('p', { class: 'empty' }, 'Nothing decided yet. Change a status, edit a justification, reorder the words, add a note or promote a near miss, and it appears here.'));
+      aside.append(h('p', { class: 'empty' }, AUDIT
+        ? 'Nothing changed yet. Every anagram keeps its label until you change it here.'
+        : 'Nothing decided yet. Change a status, edit a justification, reorder the words, add a note or promote a near miss, and it appears here.'));
     } else {
       aside.append(
         h('ul', { class: 'decisions' }, state.decisions.map(function (d) {
@@ -819,7 +918,7 @@
     var commands = composed.commands.join('\n');
     var branchText = state.branch
       ? 'the routine\'s branch ' + state.branch + ': check it out with gh pr checkout, or git switch ' + state.branch
-      : 'a new branch off an up-to-date main named desk-' + DATA.today;
+      : 'a new branch off an up-to-date main named ' + (AUDIT ? 'greatest-hits-audit-' : 'desk-') + DATA.today;
     var prompt = fillPrompt(DATA.applyDesk, composed.commands, [state.notes.trim()].concat(composed.notes).filter(Boolean).join('\n'), branchText, composed.rowNotes);
     var live = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
     aside.append(
@@ -839,9 +938,10 @@
     document.getElementById('tabs').replaceChildren.apply(document.getElementById('tabs'), TABS.map(function (t) {
       return h('button', { role: 'tab', type: 'button', 'aria-selected': String(state.tab === t[0]), onclick: function () { state.tab = t[0]; save(); render(); } }, t[1]);
     }));
+    document.getElementById('tabs').hidden = TABS.length < 2;
     var main = document.getElementById('main');
     main.replaceChildren();
-    ({ review: renderReview, collection: renderCollection, near: renderNear, seed: renderSeed, deep: renderDeep, add: renderAdd })[state.tab](main);
+    ({ audit: renderAudit, review: renderReview, collection: renderCollection, near: renderNear, seed: renderSeed, deep: renderDeep, add: renderAdd })[state.tab](main);
     renderAside();
   }
 
@@ -850,7 +950,10 @@
     return n + ' ' + STATUS_LABEL[s];
   }).join(', ');
   document.getElementById('meta').textContent = 'Built ' + DATA.generated.slice(0, 16).replace('T', ' ') + ' UTC from the repository. ' +
-    DATA.hits.length + ' hits (' + byStatus + '), ' + DATA.queues.length + ' judged queues. Decisions are kept in this browser until you clear them.';
+    (AUDIT
+      ? 'The Greatest Hits page shows ' + DATA.hits.filter(function (x) { return x.status === 'featured' || x.status === 'accepted'; }).length + ' anagrams. '
+      : DATA.hits.length + ' hits (' + byStatus + '), ' + DATA.queues.length + ' judged queues. ') +
+    'Decisions are kept in this browser until you clear them.';
   render();
 })();
 </script>
