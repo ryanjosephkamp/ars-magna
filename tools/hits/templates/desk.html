@@ -357,7 +357,8 @@
     text.value = pending ? pending.justification : row.justification;
     function sync() {
       if (!choice.value) drop(key);
-      else upsert({ kind: 'promote', queue: queue.name, model: queue.model, id: row.id, status: choice.value, justification: text.value.trim(), judged: row.justification });
+      // The row's own judge, so ingest records the model that gave this verdict.
+      else upsert({ kind: 'promote', queue: queue.name, model: row.model || queue.model, id: row.id, status: choice.value, justification: text.value.trim(), judged: row.justification });
       markRow(choice, row.id);
     }
     choice.addEventListener('change', sync);
@@ -380,13 +381,20 @@
           h('td', { class: 'scores' }, 'relation ' + r.relation, h('br'), 'reads ' + r.reads),
           h('td', { class: 'where ' + where[1] }, where[0],
             r.tone.length ? h('div', { class: 'small' }, r.tone.map(function (t) { return 'tone:' + t; }).join(' ')) : null),
-          h('td', { class: 'small' }, r.rationale),
+          h('td', { class: 'small' }, r.model ? h('div', {}, r.model) : null, r.rationale),
           h('td', {}, hit ? hitControls(hit) : nearControls(r, queue)));
       }))));
   }
 
   function withQueueName(rows, name) {
     return rows.map(function (r) { return Object.assign({ queue: name }, r); });
+  }
+
+  /** The models that gave a queue's verdicts, with how many each gave when there is more than one. */
+  function judgedBy(q) {
+    var models = q.models && q.models.length ? q.models : [{ model: q.model, verdicts: q.judged }];
+    if (models.length === 1) return models[0].model;
+    return models.map(function (m) { return m.model + ' (' + m.verdicts.toLocaleString('en-US') + ')'; }).join(', ');
   }
 
   function renderReview(main) {
@@ -396,7 +404,7 @@
     }
     var queue = DATA.queues.find(function (q) { return q.name === state.queue; }) || DATA.queues[0];
     var select = h('select', { 'aria-label': 'Queue' }, DATA.queues.map(function (q) {
-      return h('option', { value: q.name }, q.name + ', judged by ' + q.model);
+      return h('option', { value: q.name }, q.name + ', judged by ' + judgedBy(q));
     }));
     select.value = queue.name;
     select.addEventListener('change', function () { state.queue = select.value; save(); render(); });

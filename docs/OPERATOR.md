@@ -113,8 +113,9 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
    request adds them. To use it on a phone, ask a Claude Code session to publish
    `.cache/desk/index.html` as a private artifact.
 2. Decide in its tabs:
-   - **Review:** one queue by input, each row with its relation, reads, where it stands and the judge's
-     rationale. For a hit, change its status, edit its justification, or add and remove tags
+   - **Review:** one queue by input, labelled with the models that judged it (and how many verdicts each
+     gave, when there are several), each row with its relation, reads, where it stands, the model that
+     judged it and its rationale. For a hit, change its status, edit its justification, or add and remove tags
      (`+tone:pun -subject:actor`). For a near miss, accept it or add it as proposed, with a justification.
    - **Collection:** every hit, filtered by text or status, with the same controls.
    - **Near misses:** every near miss in those queues, strongest first.
