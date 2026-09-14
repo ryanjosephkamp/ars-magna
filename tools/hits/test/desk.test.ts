@@ -54,11 +54,18 @@ describe('a queue in the desk', () => {
       status: 'accepted',
       tags: ['tone:ironic'],
       justification: 'A funeral is anything but fun.',
-      judge: [{ model: 'claude-sonnet-5', rubric_version: 'v2', relation: 4, reads: 3, tone: ['ironic'], subjects: [], rationale: 'r', justification: 'Ironic.', judged_at: '2026-09-13' }],
+      // An earlier queue's judge first, then the entry ingest recorded for this queue's verdict.
+      judge: [
+        { model: 'claude-fable-5-1', rubric_version: 'v2', relation: 4, reads: 2, tone: [], subjects: [], rationale: 'from an earlier queue', justification: 'Fun.', judged_at: '2026-09-11' },
+        { model: 'claude-opus-5', rubric_version: 'v2', relation: 4, reads: 3, tone: ['ironic'], subjects: [], rationale: 'relation 4', justification: 'Ironic.', judged_at: '2026-09-13' },
+      ],
     } as unknown as Hit;
 
     const desk = deskQueue(queue, [hit], '2026-09-14');
-    expect(desk).toMatchObject({ name: '2026-09-13', model: 'claude-sonnet-5', judged: 4 });
+    expect(desk).toMatchObject({ name: '2026-09-13', model: 'claude-opus-5', judged: 4 });
+    // These verdict lines name no model; the judge entry holding this queue's verdict supplies it, not the earlier one.
+    expect(desk.models).toEqual([{ model: 'claude-opus-5', verdicts: 4 }]);
+    expect(desk.rows.map((r) => r.model)).toEqual(['claude-opus-5', 'claude-opus-5', 'claude-opus-5']);
     expect(desk.rows.map((r) => [r.display, r.hit?.status ?? 'near miss'])).toEqual([
       ['real fun', 'accepted'],
       ['flu near', 'near miss'],
@@ -66,6 +73,43 @@ describe('a queue in the desk', () => {
     ]);
     expect(desk.rows[0]).toMatchObject({ justification: 'A funeral is anything but fun.', tone: ['ironic'], hit: { status: 'accepted', shelf: 'interesting', alternate: false } });
     expect(desk.rows[2]!.justification).toBe('Big.');
+  });
+
+  it('names its judges from its own verdict lines, not from an older hit that shares an id', () => {
+    const rows = [
+      row('listen:phrases', 'Listen', ['silent']),
+      row('listen:phrases', 'Listen', ['lets', 'in']),
+      row('listen:phrases', 'Listen', ['tinsel']),
+    ];
+    const queue: QueueInput = {
+      name: '2026-09-13s',
+      rows,
+      verdicts: [
+        { ...verdict(rows[0]!.id, 5, 3, 'Silent.'), model: 'claude-opus-5' },
+        { ...verdict(rows[1]!.id, 3, 3, 'Lets in.'), model: 'claude-opus-5' },
+        { ...verdict(rows[2]!.id, 2, 1), model: 'claude-sonnet-5' },
+      ],
+    };
+    // "silent" was already a hit, judged by another model in an earlier queue.
+    const older = {
+      id: rows[0]!.id,
+      status: 'accepted',
+      tags: [],
+      justification: 'Silent.',
+      judge: [{ model: 'claude-fable-5-1', rubric_version: 'v1', aptness: 5, grammar: 5, memorability: 5, total: 15, rationale: 'r', judged_at: '2026-09-11' }],
+    } as unknown as Hit;
+
+    const desk = deskQueue(queue, [older], '2026-09-14');
+    expect(desk.models).toEqual([
+      { model: 'claude-opus-5', verdicts: 2 },
+      { model: 'claude-sonnet-5', verdicts: 1 },
+    ]);
+    expect(desk.model).toBe('claude-opus-5');
+    expect(desk.rows.map((r) => [r.display, r.model])).toEqual([
+      ['silent', 'claude-opus-5'],
+      ['lets in', 'claude-opus-5'],
+      ['tinsel', 'claude-sonnet-5'],
+    ]);
   });
 });
 

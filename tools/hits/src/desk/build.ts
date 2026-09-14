@@ -26,10 +26,16 @@ export type DeskRow = {
   subjects: string[];
   justification: string;
   rationale: string;
+  /** The model whose verdict this row shows. */
+  model: string;
   hit: DeskPlace | null;
 };
 
-export type DeskQueue = { name: string; model: string; judged: number; rows: DeskRow[] };
+/** How many of a queue's valid verdicts one model gave. */
+export type DeskModel = { model: string; verdicts: number };
+
+/** `model` is the one that gave the most verdicts; `models` lists every one, most verdicts first. */
+export type DeskQueue = { name: string; model: string; models: DeskModel[]; judged: number; rows: DeskRow[] };
 
 export type DeskHit = DeskPlace & {
   id: string;
@@ -67,6 +73,21 @@ export type QueueInput = { name: string; rows: Prefiltered[]; verdicts: Verdict[
 const placeOf = (hit: Hit): DeskPlace => ({ status: hit.status, shelf: shelfOf(hit), alternate: hit.tags.includes('alternate') });
 
 /**
+ * The model ingest recorded for a queue's verdict lines that name none: the
+ * most common model among judge entries, on hits, whose rationale is the
+ * line's own. Undefined when no hit holds one of these verdicts.
+ */
+function recordedModel(verdicts: readonly Verdict[], byId: ReadonlyMap<string, Hit>): string | undefined {
+  const counts = new Map<string, number>();
+  for (const v of verdicts) {
+    if (v.model) continue;
+    const entry = byId.get(v.id)?.judge.find((j) => j.rationale.trim() === v.rationale.trim());
+    if (entry) counts.set(entry.model, (counts.get(entry.model) ?? 0) + 1);
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+}
+
+/**
  * A queue's rows worth a decision: every row now in data/hits.jsonl, and
  * every near miss. Rows the judge found no link in (relation 1) are left
  * out. Inputs keep their order in the queue; within one, best first.
@@ -75,8 +96,16 @@ export function deskQueue(queue: QueueInput, hits: readonly Hit[], date: string)
   const byId = new Map(hits.map((h) => [h.id, h]));
   const rows = new Map(queue.rows.map((r) => [r.id, r]));
   const { ok } = validateVerdicts(queue.verdicts, rows);
+  // Who judged comes from each verdict line's own `model`. A line that names
+  // none (the routine's lines, and queues judged before lines carried it) takes
+  // the model ingest recorded for it: the judge entry, on a hit this queue
+  // produced, that holds this very verdict. Matching the rationale matters: a
+  // phrase that was already a hit from an earlier queue carries that queue's
+  // judge, which once labelled queues judged by Opus and Sonnet as Fable's.
+  // With no such hit, the routine's model.
+  const fallback = recordedModel(ok, byId) ?? 'claude-sonnet-5';
   const judgements = new Map<string, Judgement[]>();
-  for (const v of ok) judgements.set(v.id, [...(judgements.get(v.id) ?? []), toJudgement(v, 'unknown', 'v2', date)]);
+  for (const v of ok) judgements.set(v.id, [...(judgements.get(v.id) ?? []), toJudgement(v, fallback, 'v2', date)]);
 
   const order = new Map<string, number>();
   for (const r of queue.rows) if (!order.has(r.candidate_id)) order.set(r.candidate_id, order.size);
@@ -101,6 +130,7 @@ export function deskQueue(queue: QueueInput, hits: readonly Hit[], date: string)
       subjects: v2 ? [...v2.subjects] : [],
       justification: hit?.justification ?? v2?.justification ?? '',
       rationale: best.rationale,
+      model: best.model,
       hit: hit ? placeOf(hit) : null,
     });
   }
@@ -111,10 +141,12 @@ export function deskQueue(queue: QueueInput, hits: readonly Hit[], date: string)
       b.reads - a.reads ||
       a.id.localeCompare(b.id),
   );
-  // The model that judged, from a hit that came out of this queue; the
-  // routine's model when none did.
-  const model = queue.rows.map((r) => byId.get(r.id)?.judge[0]?.model).find((m): m is string => Boolean(m)) ?? 'claude-sonnet-5';
-  return { name: queue.name, model, judged: ok.length, rows: out };
+  const counts = new Map<string, number>();
+  for (const v of ok) counts.set(v.model ?? fallback, (counts.get(v.model ?? fallback) ?? 0) + 1);
+  const models = [...counts]
+    .map(([name, verdicts]) => ({ model: name, verdicts }))
+    .sort((a, b) => b.verdicts - a.verdicts || a.model.localeCompare(b.model));
+  return { name: queue.name, model: models[0]?.model ?? fallback, models, judged: ok.length, rows: out };
 }
 
 export function deskData(input: {
