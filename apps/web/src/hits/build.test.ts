@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SECTIONS, hitPage, ordered, pickOfTheDay, publishable, shelfOf, slugOf, toPublic, type HitRecord } from './build.ts';
+import { SECTIONS, hitPage, inOrder, ordered, pickOfTheDay, publishable, shelfOf, slugOf, toPublic, type HitRecord } from './build.ts';
 
 const record = (over: Partial<HitRecord>): HitRecord => ({
   id: 'dormitory:phrases:dirty-room',
@@ -79,6 +79,18 @@ describe('gallery build', () => {
       ['interesting', 'Interesting'],
       ['stretch', 'A stretch'],
     ]);
+  });
+
+  it('orders a section newest first or A to Z by input, then anagram', () => {
+    const rows = [
+      toPublic(record({ id: 'titanic:titles:i-intact', input: 'Titanic', display: 'I intact', added: '2026-09-12' })),
+      toPublic(record({ id: 'amsterdam:places:dam-stream', input: 'Amsterdam', display: 'dam stream', added: '2026-09-11' })),
+      toPublic(record({ id: 'animosity:phrases:amity-is-no', input: 'animosity', display: 'is no amity', added: '2026-09-14' })),
+      toPublic(record({ id: 'animosity:phrases:amity-in-so', input: 'Animosity', display: 'so in amity', added: '2026-09-13' })),
+    ];
+    expect(inOrder(rows, 'newest').map((r) => r.display)).toEqual(['is no amity', 'so in amity', 'I intact', 'dam stream']);
+    // Case does not decide the input; the anagram breaks a tie between the same input.
+    expect(inOrder(rows, 'alphabetical').map((r) => r.display)).toEqual(['dam stream', 'is no amity', 'so in amity', 'I intact']);
   });
 
   it('picks the same anagram of the day for everyone, from Greatest Hits and Interesting', () => {

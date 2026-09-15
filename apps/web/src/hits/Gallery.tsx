@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCopy } from '../lib/useCopy.ts';
 import { ShareActions } from '../components/ShareActions.tsx';
-import { CATEGORIES, CATEGORY_LABEL, SECTIONS, pickOfTheDay, type Category, type PublicHit, type Shelf } from './build.ts';
+import { CATEGORIES, CATEGORY_LABEL, SECTIONS, inOrder, pickOfTheDay, type Category, type Order, type PublicHit, type Shelf } from './build.ts';
+
+const ORDERS: readonly { order: Order; label: string }[] = [
+  { order: 'newest', label: 'Newest' },
+  { order: 'alphabetical', label: 'A to Z' },
+];
 
 type Loaded = { state: 'loading' } | { state: 'ready'; hits: PublicHit[] } | { state: 'failed' };
 
@@ -18,6 +23,7 @@ export function Gallery() {
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' });
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [filter, setFilter] = useState('');
+  const [order, setOrder] = useState<Order>('newest');
   const [selected, setSelected] = useState<string | null>(() => window.location.hash.slice(1) || null);
   // Which hit's share actions are open: one at a time, by id.
   const [sharing, setSharing] = useState<string | null>(null);
@@ -59,13 +65,13 @@ export function Gallery() {
     return out;
   }, [hits]);
 
-  // hits.json arrives in section order, newest first, so each section keeps that order.
   const bySection = useMemo(() => {
     const out = new Map<Shelf, { shown: PublicHit[]; total: number }>(SECTIONS.map((s) => [s.shelf, { shown: [], total: 0 }]));
     for (const h of hits) out.get(h.shelf)!.total += 1;
     for (const h of visible) out.get(h.shelf)!.shown.push(h);
+    for (const section of out.values()) section.shown = inOrder(section.shown, order);
     return out;
-  }, [hits, visible]);
+  }, [hits, visible, order]);
 
   const shareUrl = (hit: PublicHit) => `${window.location.origin}/hits/${hit.slug}/`;
   const shareable = (hit: PublicHit) => ({ input: hit.input, phrase: hit.display, url: shareUrl(hit), total: null });
@@ -138,6 +144,30 @@ export function Gallery() {
                       >
                         {c === 'all' ? 'All' : CATEGORY_LABEL[c]}
                         <span className="ml-1.5 font-mono text-[10px] opacity-60">{n}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase" id="order-label">
+                  Order
+                </span>
+                <div role="radiogroup" aria-labelledby="order-label" className="flex divide-x divide-rule overflow-hidden rounded-[3px] border border-rule bg-surface">
+                  {ORDERS.map((o) => {
+                    const active = o.order === order;
+                    return (
+                      <button
+                        key={o.order}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setOrder(o.order)}
+                        className={`px-3 py-1.5 text-sm transition-colors duration-150 ${
+                          active ? 'bg-accent-wash font-medium text-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink'
+                        }`}
+                      >
+                        {o.label}
                       </button>
                     );
                   })}
