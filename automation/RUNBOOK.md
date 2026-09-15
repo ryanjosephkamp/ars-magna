@@ -48,7 +48,7 @@ The CI and deploy workflows ignore `data/queue/**` and `data/candidates.jsonl`, 
    ```
 
    The id is `input letters:category:words sorted and joined with -`, as in `data/hits.jsonl`. Each command prints what it changed.
-4. Commit `data/hits.jsonl` on the branch if you changed it, push, and merge once CI is green. The publish Action pushes the new rows to Hugging Face and the deploy rebuilds the gallery.
+4. Commit `data/hits.jsonl` on the branch if you changed it, push, and merge once CI is green. The publish Action pushes the new rows to Hugging Face and the deploy rebuilds the Discoveries page.
 
 The review desk (`pnpm hits:desk`) shows the same queue with its near misses and alternates, and turns decisions into these commands; see "Review in the desk" in `docs/OPERATOR.md`.
 

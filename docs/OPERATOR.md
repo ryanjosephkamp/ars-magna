@@ -82,12 +82,12 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
    near miss is not in `data/hits.jsonl`; to add one, use "Add a hit by hand".
 3. If you changed anything, commit `data/hits.jsonl` on the branch and push. Merge when CI is green. A
    pull request with N of zero has nothing to accept; merge it so the judged queue stays in the record.
-4. Verify the release: the gallery and the dataset show the new hits.
+4. Verify the release: the Discoveries page and the dataset show the new hits.
 
 | Status | Means |
 |---|---|
-| `featured` | Greatest Hits: listed first in the gallery, and the pool the anagram of the day draws from |
-| `accepted` | in the dataset and the gallery, on Interesting or A stretch |
+| `featured` | Greatest Hits: the first section of the Discoveries page, picked by hand |
+| `accepted` | in the dataset and on the Discoveries page, in Interesting or A stretch; Greatest Hits and Interesting are the pool the anagram of the day draws from |
 | `proposed` | not published: an alternate, or held back |
 | `retired` | buried for good; the id stays in the file, so ingest never proposes it again |
 
@@ -174,7 +174,7 @@ the operator named, and writes a justification only when a note asks for one.
 Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes, desk_row_notes). The desk fills it.
 To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
 
-## Audit the Greatest Hits page
+## Audit the Discoveries page
 
 When you want to decide, across everything already published, which anagrams belong in Greatest Hits,
 Interesting or A stretch, and which should come off the page. The review desk handles what a queue adds;
@@ -419,7 +419,8 @@ After any merge to `main`. Every check reads; none changes anything.
    ```
 
 5. In a browser, search for `dormitory` at https://ars-magna.pages.dev, then open
-   https://ars-magna.pages.dev/hits. Its count matches step 2: the gallery fetches `hits.json` from the
+   https://ars-magna.pages.dev/hits. Its count matches step 2, and its Greatest Hits, Interesting and A
+   stretch sections add up to it: the Discoveries page fetches `hits.json` from the
    network on every visit, and the service worker's copy is only for offline use. The one exception is
    the first visit after a deploy that changes `apps/web/public/sw.js`: a browser that visited before
    can show the previous version until the new worker takes over, so reload once more.

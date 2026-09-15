@@ -51,7 +51,7 @@ include slurs and insults made from the letters.
 
 ## Greatest Hits audit
 
-The audit of the site's Greatest Hits page is the private artifact "Ars Magna Greatest Hits Audit":
+The audit of the site's Discoveries page is the private artifact "Ars Magna Greatest Hits Audit":
 https://claude.ai/code/artifact/449fac53-c4cf-4877-9273-f91d13226ca6. The `greatest-hits-audit` skill
 (`.claude/skills/`) publishes `.cache/desk/audit-artifact.html` from `pnpm hits:desk --audit --artifact`
 to that URL, as `docs/prompts/publish-audit.md` describes.

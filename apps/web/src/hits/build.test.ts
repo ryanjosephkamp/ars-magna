@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hitPage, ordered, pickOfTheDay, publishable, shelfOf, slugOf, toPublic, type HitRecord } from './build.ts';
+import { SECTIONS, hitPage, ordered, pickOfTheDay, publishable, shelfOf, slugOf, toPublic, type HitRecord } from './build.ts';
 
 const record = (over: Partial<HitRecord>): HitRecord => ({
   id: 'dormitory:phrases:dirty-room',
@@ -65,15 +65,31 @@ describe('gallery build', () => {
     expect(shelfOf(record({ status: 'featured', tags: ['shelf:stretch'] }))).toBe('greatest');
   });
 
-  it('picks the same anagram of the day for everyone and changes by date', () => {
+  it('orders the list by section, newest first within each', () => {
+    const stretch = [{ model: 'm', rationale: 'r', relation: 3, reads: 3 }];
+    const rows = ordered([
+      toPublic(record({ id: 'a:phrases:old-stretch', added: '2026-09-01', judge: stretch })),
+      toPublic(record({ id: 'b:phrases:new-interesting', added: '2026-09-13' })),
+      toPublic(record({ id: 'c:phrases:old-interesting', added: '2026-09-02' })),
+      toPublic(record({ id: 'd:phrases:greatest', added: '2026-09-01', status: 'featured' })),
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(['d:phrases:greatest', 'b:phrases:new-interesting', 'c:phrases:old-interesting', 'a:phrases:old-stretch']);
+    expect(SECTIONS.map((s) => [s.shelf, s.label])).toEqual([
+      ['greatest', 'Greatest Hits'],
+      ['interesting', 'Interesting'],
+      ['stretch', 'A stretch'],
+    ]);
+  });
+
+  it('picks the same anagram of the day for everyone, from Greatest Hits and Interesting', () => {
     const rows = publishable(hits).map(toPublic);
-    const today = pickOfTheDay(rows, '2026-09-11');
-    expect(today).toEqual(pickOfTheDay(rows, '2026-09-11'));
-    // Only the featured one is in the pool while any is featured.
-    expect(today!.id).toBe('starwars:titles:stars-war');
-    const plain = rows.map((r) => ({ ...r, featured: false }));
-    const days = new Set(['2026-09-11', '2026-09-12', '2026-09-13', '2026-09-14'].map((d) => pickOfTheDay(plain, d)!.id));
-    expect(days.size).toBeGreaterThan(1);
+    expect(pickOfTheDay(rows, '2026-09-11')).toEqual(pickOfTheDay(rows, '2026-09-11'));
+    const stretch = toPublic(record({ id: 'funeral:phrases:fun-real', input: 'funeral', display: 'real fun', judge: [{ model: 'm', rationale: 'r', relation: 3, reads: 3 }] }));
+    const dates = Array.from({ length: 60 }, (_, i) => new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10));
+    const picks = new Set(dates.map((d) => pickOfTheDay([...rows, stretch], d)!.id));
+    // Both the Greatest Hit and the Interesting one come up over sixty days; A stretch never does.
+    expect([...picks].sort()).toEqual(['dormitory:phrases:dirty-room', 'starwars:titles:stars-war']);
+    expect(pickOfTheDay([stretch], '2026-09-11')!.id).toBe('funeral:phrases:fun-real');
     expect(pickOfTheDay([], '2026-09-11')).toBeNull();
   });
 
