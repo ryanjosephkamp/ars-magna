@@ -38,6 +38,8 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `packages/mcp` | MCP server (stdio): solve, count, nth, explain_word, propose_hit |
 | `apps/web` | the site; `hits.html` is the Discoveries page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl` |
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts` |
+| `apps/web/src/votes`, `apps/web/functions/api` | votes on Discoveries: the logic the page and the API share, with its tests, and the Cloudflare Pages Functions that serve `/api/` |
+| `apps/web/migrations`, `apps/web/wrangler.toml` | the votes database's schema, and the Pages project's configuration: the D1 binding `DISCOVERIES_DB` and the `VOTES_OPEN` switch |
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
 | `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |
 | `tools/hits/src/desk`, `tools/hits/templates/desk.html` | the review desk: `pnpm hits:desk` builds it into `.cache/desk/index.html` |
@@ -55,7 +57,8 @@ pnpm install && pnpm wasm:build      # once per clone; the WASM output is gitign
 cargo test --release --workspace     # Rust: unit, golden, oracle, bench gate, CLI
 pnpm typecheck                       # TypeScript, all packages
 pnpm test                            # vitest, all packages
-pnpm build                           # both pages; runs apps/web/scripts/build-hits.ts first
+pnpm build                           # the site's pages; runs apps/web/scripts/build-hits.ts first
+pnpm dlx wrangler@4.121.0 pages dev dist   # from apps/web, after a build: the site with /api/ (OPERATOR "Votes on Discoveries")
 pnpm dev                             # the site at http://localhost:5173
 pnpm hits:fetch | enumerate | prefilter | screen | judge | ingest --model=… | publish
 pnpm hits:fetch --reclassify         # ask Wikidata again about the unclassified candidates
@@ -92,6 +95,8 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
   `manual` candidates by hand is allowed.
 - Create, change, pause or delete a schedule (the Actions crons, the judge routine, a scheduled task)
   unless the task asks for exactly that.
+- Change the votes database on Cloudflare (`wrangler d1 execute --remote` with anything but a `SELECT`, or
+  `wrangler d1 migrations apply --remote`) unless the task asks for exactly that. Deploy applies migrations.
 - Read, print, store or ask for a secret's value. A person sets secrets with `gh secret set`, which
   prompts for the value.
 

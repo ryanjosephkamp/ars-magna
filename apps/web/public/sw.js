@@ -51,6 +51,9 @@ function strategyFor(pathname, mode) {
   // Storage bucket. Caching them again here would double 2.2 MB of storage for
   // no benefit.
   if (pathname.startsWith('/dict/')) return 'bypass';
+  // Votes are live. A cached count would be wrong the moment anyone voted, and
+  // offline there is nothing to vote with.
+  if (pathname.startsWith('/api/')) return 'bypass';
   if (mode === 'navigate') return 'shell';
   if (pathname.startsWith('/assets/')) return 'cache';
   return 'network';

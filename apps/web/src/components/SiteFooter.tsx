@@ -21,6 +21,7 @@ const DICTIONARY_LINKS: Link[] = [
 
 const HITS_LINKS: Link[] = [
   { label: 'Discoveries', href: '/hits.html', note: 'the ones worth keeping' },
+  { label: 'How it works', href: '/how', note: 'sections and votes' },
   {
     label: 'Dataset',
     href: 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits',

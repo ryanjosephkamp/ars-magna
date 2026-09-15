@@ -91,6 +91,10 @@ describe('gallery build', () => {
     expect(inOrder(rows, 'newest').map((r) => r.display)).toEqual(['is no amity', 'so in amity', 'I intact', 'dam stream']);
     // Case does not decide the input; the anagram breaks a tie between the same input.
     expect(inOrder(rows, 'alphabetical').map((r) => r.display)).toEqual(['dam stream', 'is no amity', 'so in amity', 'I intact']);
+    // Most votes first; a tie, including no votes at all, goes A to Z.
+    const counts = { 'titanic:titles:i-intact': 3, 'animosity:phrases:amity-in-so': 3, 'amsterdam:places:dam-stream': 1 };
+    expect(inOrder(rows, 'votes', counts).map((r) => r.display)).toEqual(['so in amity', 'I intact', 'dam stream', 'is no amity']);
+    expect(inOrder(rows, 'votes').map((r) => r.display)).toEqual(inOrder(rows, 'alphabetical').map((r) => r.display));
   });
 
   it('picks the same anagram of the day for everyone, from Greatest Hits and Interesting', () => {

@@ -127,17 +127,19 @@ export function toPublic(hit: HitRecord): PublicHit {
   };
 }
 
-export type Order = 'newest' | 'alphabetical';
+export type Order = 'votes' | 'newest' | 'alphabetical';
 
 /**
- * A section's hits in the reader's chosen order: newest first, or A to Z by
- * input and then by anagram. The id breaks any tie, so the order is total.
+ * A section's hits in the reader's chosen order: most votes first with ties A
+ * to Z, newest first, or A to Z by input and then by anagram. The id breaks any
+ * remaining tie, so the order is total.
  */
-export function inOrder(hits: readonly PublicHit[], order: Order): PublicHit[] {
+export function inOrder(hits: readonly PublicHit[], order: Order, counts: Readonly<Record<string, number>> = {}): PublicHit[] {
   const newest = (a: PublicHit, b: PublicHit) => b.added.localeCompare(a.added) || a.id.localeCompare(b.id);
   const byName = (a: PublicHit, b: PublicHit) =>
     a.input.localeCompare(b.input, 'en', { sensitivity: 'base' }) || a.display.localeCompare(b.display, 'en') || a.id.localeCompare(b.id);
-  return [...hits].sort(order === 'alphabetical' ? byName : newest);
+  const byVotes = (a: PublicHit, b: PublicHit) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0) || byName(a, b);
+  return [...hits].sort(order === 'votes' ? byVotes : order === 'alphabetical' ? byName : newest);
 }
 
 /** In section order (Greatest Hits, Interesting, A stretch), newest first within each, then by id so the order is total. */

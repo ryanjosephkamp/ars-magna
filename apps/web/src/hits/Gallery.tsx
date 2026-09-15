@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useCopy } from '../lib/useCopy.ts';
 import { ShareActions } from '../components/ShareActions.tsx';
 import { CATEGORIES, CATEGORY_LABEL, SECTIONS, inOrder, pickOfTheDay, type Category, type Order, type PublicHit, type Shelf } from './build.ts';
+import { useVotes, type Votes } from './useVotes.ts';
 
 const ORDERS: readonly { order: Order; label: string }[] = [
+  { order: 'votes', label: 'Most votes' },
   { order: 'newest', label: 'Newest' },
   { order: 'alphabetical', label: 'A to Z' },
 ];
@@ -12,6 +14,8 @@ type Loaded = { state: 'loading' } | { state: 'ready'; hits: PublicHit[] } | { s
 
 const DATASET = 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits';
 const SUBMIT = 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=submit-anagram.yml';
+
+const LINK = 'text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent';
 
 /**
  * Discoveries: the anagrams worth keeping, in three sections (Greatest Hits,
@@ -23,11 +27,23 @@ export function Gallery() {
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' });
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [filter, setFilter] = useState('');
-  const [order, setOrder] = useState<Order>('newest');
+  const [order, setOrder] = useState<Order>('votes');
   const [selected, setSelected] = useState<string | null>(() => window.location.hash.slice(1) || null);
   // Which hit's share actions are open: one at a time, by id.
   const [sharing, setSharing] = useState<string | null>(null);
   const { copied, copy } = useCopy();
+  const votes = useVotes();
+  const votesShown = votes.status === 'open' || votes.status === 'closed';
+  // Most votes ranks by the counts as they were when votes loaded, or when an order was last chosen, so a row
+  // never jumps away from under the reader the moment they vote for it.
+  const [ranking, setRanking] = useState<Readonly<Record<string, number>>>({});
+  useEffect(() => {
+    if (votesShown) setRanking(votes.counts);
+    // Only when votes first arrive: later counts wait until the reader chooses an order.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [votesShown]);
+  const orders = votesShown ? ORDERS : ORDERS.filter((o) => o.order !== 'votes');
+  const shownOrder: Order = order === 'votes' && !votesShown ? 'newest' : order;
 
   useEffect(() => {
     fetch('/hits.json')
@@ -69,14 +85,18 @@ export function Gallery() {
     const out = new Map<Shelf, { shown: PublicHit[]; total: number }>(SECTIONS.map((s) => [s.shelf, { shown: [], total: 0 }]));
     for (const h of hits) out.get(h.shelf)!.total += 1;
     for (const h of visible) out.get(h.shelf)!.shown.push(h);
-    for (const section of out.values()) section.shown = inOrder(section.shown, order);
+    for (const section of out.values()) section.shown = inOrder(section.shown, shownOrder, ranking);
     return out;
-  }, [hits, visible, order]);
+  }, [hits, visible, shownOrder, ranking]);
 
   const shareUrl = (hit: PublicHit) => `${window.location.origin}/hits/${hit.slug}/`;
   const shareable = (hit: PublicHit) => ({ input: hit.input, phrase: hit.display, url: shareUrl(hit), total: null });
   const toggleShare = (id: string) => setSharing((open) => (open === id ? null : id));
   const jumpTo = (shelf: Shelf) => document.getElementById(`section-${shelf}`)?.scrollIntoView({ block: 'start' });
+  const chooseOrder = (next: Order) => {
+    setOrder(next);
+    setRanking(votes.counts);
+  };
 
   return (
     <div className="min-h-dvh">
@@ -91,7 +111,10 @@ export function Gallery() {
           <p className="mt-2 max-w-prose text-sm text-ink-soft">
             Anagrams worth keeping: every letter of a name, a company, a title or a place, rearranged into
             something that says something about it.{' '}
-            <span className="text-ink-faint">Some are classics and some the engine turned up; each was judged and kept by hand.</span>
+            <span className="text-ink-faint">Some are classics and some the engine turned up; each was judged and kept by hand.</span>{' '}
+            <a href="/how" className={LINK}>
+              How Discoveries works
+            </a>
           </p>
         </header>
 
@@ -115,7 +138,8 @@ export function Gallery() {
                   {today.display}
                 </p>
                 {today.justification && <p className="mt-2 max-w-prose text-sm text-ink-soft">{today.justification}</p>}
-                <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px]">
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px]">
+                  <VoteButton hit={today} votes={votes} />
                   <RowAction label="Share" active={sharing === 'today'} onClick={() => toggleShare('today')} always />
                   {sharing === 'today' && <ShareActions item={shareable(today)} id="today" copied={copied} onCopy={copy} />}
                 </div>
@@ -154,15 +178,15 @@ export function Gallery() {
                   Order
                 </span>
                 <div role="radiogroup" aria-labelledby="order-label" className="flex divide-x divide-rule overflow-hidden rounded-[3px] border border-rule bg-surface">
-                  {ORDERS.map((o) => {
-                    const active = o.order === order;
+                  {orders.map((o) => {
+                    const active = o.order === shownOrder;
                     return (
                       <button
                         key={o.order}
                         type="button"
                         role="radio"
                         aria-checked={active}
-                        onClick={() => setOrder(o.order)}
+                        onClick={() => chooseOrder(o.order)}
                         className={`px-3 py-1.5 text-sm transition-colors duration-150 ${
                           active ? 'bg-accent-wash font-medium text-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink'
                         }`}
@@ -173,7 +197,8 @@ export function Gallery() {
                   })}
                 </div>
               </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              {/* At least 10rem wide, so on a phone it takes its own line rather than squeezing beside Order. */}
+              <div className="flex min-w-40 flex-1 flex-col gap-1.5">
                 <label htmlFor="hits-filter" className="text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase">
                   Find
                 </label>
@@ -199,6 +224,7 @@ export function Gallery() {
                   <span className="ml-1.5 opacity-60">{bySection.get(s.shelf)!.shown.length}</span>
                 </button>
               ))}
+              {votes.status === 'closed' && <span>Voting is paused.</span>}
             </nav>
 
             {SECTIONS.map((section) => {
@@ -229,8 +255,9 @@ export function Gallery() {
                                 <span className="mx-3 text-rule-strong">→</span>
                                 {hit.display}
                               </p>
-                              <span className="flex shrink-0 items-baseline gap-3 font-mono text-[11px]">
+                              <span className="flex shrink-0 items-center gap-3 font-mono text-[11px]">
                                 <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
+                                <VoteButton hit={hit} votes={votes} />
                                 <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
                                 <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
                                   Every anagram
@@ -260,18 +287,61 @@ export function Gallery() {
         <footer className="mt-20 border-t border-rule-strong pt-8 text-sm text-ink-faint">
           <p>
             The whole list is a dataset:{' '}
-            <a href={DATASET} target="_blank" rel="noopener noreferrer" className="text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent">
+            <a href={DATASET} target="_blank" rel="noopener noreferrer" className={LINK}>
               ars-magna-greatest-hits on Hugging Face
             </a>
             , one subset per category. Found a good one?{' '}
-            <a href={SUBMIT} target="_blank" rel="noopener noreferrer" className="text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent">
+            <a href={SUBMIT} target="_blank" rel="noopener noreferrer" className={LINK}>
               Submit it
+            </a>
+            .{' '}
+            <a href="/how" className={LINK}>
+              How Discoveries works
             </a>
             .
           </p>
         </footer>
       </main>
+
+      {/* The check before a visit's first vote, and a vote that did not save. Out of sight unless there is something to say. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[var(--z-toast)] flex flex-col items-center gap-2 px-4 pb-4">
+        <div className={votes.challenge ? 'pointer-events-auto rounded-[3px] border border-rule-strong bg-surface px-4 py-3 text-sm text-ink-soft' : ''}>
+          {votes.challenge && <p className="mb-2 max-w-xs">Cloudflare checks this browser once before its first vote of a visit.</p>}
+          <div ref={votes.checkRef} className="pointer-events-auto" />
+        </div>
+        {votes.message && (
+          <p role="status" className="pointer-events-auto flex max-w-md items-baseline gap-4 rounded-[3px] border border-accent bg-accent-wash px-4 py-2 text-sm text-ink">
+            {votes.message}
+            <button type="button" onClick={votes.dismiss} className="font-mono text-[11px] text-ink-soft transition-colors duration-150 hover:text-accent">
+              Dismiss
+            </button>
+          </p>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** Vote, with the count. Pressed, it takes the accent; pressing again takes the vote back. Absent when votes did not load. */
+function VoteButton({ hit, votes }: { hit: PublicHit; votes: Votes }) {
+  if (votes.status !== 'open' && votes.status !== 'closed') return null;
+  const pressed = votes.mine.has(hit.id);
+  const count = votes.counts[hit.id] ?? 0;
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      aria-label={`Vote for ${hit.input} → ${hit.display}, ${count} ${count === 1 ? 'vote' : 'votes'}`}
+      aria-busy={votes.busy.has(hit.id)}
+      disabled={votes.status === 'closed'}
+      onClick={() => votes.toggle(hit.id)}
+      className={`inline-flex min-h-7 items-center gap-1.5 rounded-[3px] border px-2 font-mono text-[11px] transition-colors duration-150 disabled:cursor-default disabled:opacity-60 ${
+        pressed ? 'border-accent bg-accent-wash text-accent' : 'border-rule bg-surface text-ink-soft hover:border-accent hover:text-accent'
+      }`}
+    >
+      Vote
+      <span className="tabular-nums">{count}</span>
+    </button>
   );
 }
 

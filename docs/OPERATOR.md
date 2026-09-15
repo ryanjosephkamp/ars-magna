@@ -12,7 +12,7 @@ explains the pipeline these jobs sit on.
 |---|---|---|
 | 06:00 daily | Hits nightly Action | a commit to `main` with `data/queue/<date>/` (the summary and the screen input) and `data/candidates.jsonl` |
 | 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request, or nothing after a thin night |
-| every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev |
+| every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev, after Deploy applies any new votes database migration |
 | a merge that changes `data/hits.jsonl` | Publish hits Action | the dataset at https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits |
 
 A nightly commit touches only the queue and the candidates, so it runs neither CI nor Deploy.
@@ -209,6 +209,56 @@ Decisions are kept in the browser that made them, apart from the review desk's. 
 `docs/prompts/apply-desk.md`, as the desk does.
 
 Prompt: `docs/prompts/publish-audit.md` (no placeholders).
+
+## Votes on Discoveries
+
+Readers vote for anagrams on the Discoveries page: one vote per browser per anagram, taken back by pressing
+Vote again, and never a vote against. Most votes, the page's usual order, ranks each section by them; votes
+never move an anagram from one section to another. The rules as readers see them are at
+https://ars-magna.pages.dev/how.
+
+| Piece | Where |
+|---|---|
+| the API | Cloudflare Pages Functions in `apps/web/functions/api/`: `GET /api/votes`, `POST /api/pass` (the check before a visit's first vote), `POST /api/vote`. The logic and its tests are in `apps/web/src/votes/`. |
+| the data | the D1 database `ars-magna-discoveries`, bound as `DISCOVERIES_DB` in `apps/web/wrangler.toml`: tables `votes`, `vote_counts` and `rate_limits` |
+| the schema | `apps/web/migrations/`, applied by Deploy before each upload |
+| the check | the Turnstile widget `Ars Magna votes` for `ars-magna.pages.dev`; its site key is in `apps/web/src/votes/state.ts` |
+| the secrets | `TURNSTILE_SECRET` and `IP_HASH_SECRET`, Pages secrets in the dashboard (Workers & Pages, `ars-magna`, Settings, Variables and Secrets) |
+| the switch | `VOTES_OPEN` in `apps/web/wrangler.toml` |
+
+**Look at the counts.** Read-only, from `apps/web`, once `pnpm dlx wrangler@4.121.0 login` has signed this
+machine in to Cloudflare:
+
+```bash
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT hit_id, count FROM vote_counts ORDER BY count DESC LIMIT 20"
+```
+
+**Pause voting.** Set `VOTES_OPEN = "false"` in `apps/web/wrangler.toml` in a pull request and merge it. The page
+keeps showing counts, its Vote buttons turn off, and the API refuses votes. `"true"` reopens it.
+
+**Remove a flood of votes.** Find the voter id behind it, then delete its votes and recount every hit in one
+command. An agent runs this only when you ask for exactly that:
+
+```bash
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT voter, COUNT(*) AS n FROM votes GROUP BY voter ORDER BY n DESC LIMIT 10"
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "DELETE FROM votes WHERE voter = 'voter_id'; DELETE FROM vote_counts; INSERT INTO vote_counts SELECT hit_id, COUNT(*) FROM votes GROUP BY hit_id"
+```
+
+**Change the schema.** Add a new numbered file to `apps/web/migrations/`; never edit one that has already run.
+Deploy applies it before it uploads the site.
+
+**Run it locally.** Cloudflare's test secret always passes, and the page uses the matching test site key on
+`localhost`. `.dev.vars` and `apps/web/.wrangler/` are gitignored:
+
+```bash
+pnpm --filter @ars-magna/web build
+cd apps/web
+printf 'TURNSTILE_SECRET=1x0000000000000000000000000000000AA\nIP_HASH_SECRET=local\n' > .dev.vars
+pnpm dlx wrangler@4.121.0 d1 migrations apply ars-magna-discoveries --local
+pnpm dlx wrangler@4.121.0 pages dev dist
+```
+
+Then open http://localhost:8788/hits.
 
 ## Judge a queue by hand
 
@@ -425,6 +475,12 @@ After any merge to `main`. Every check reads; none changes anything.
    the first visit after a deploy that changes `apps/web/public/sw.js`: a browser that visited before
    can show the previous version until the new worker takes over, so reload once more.
 
+6. Votes answer. The first characters read `{"open":true,"counts":`:
+
+   ```bash
+   curl -s https://ars-magna.pages.dev/api/votes | head -c 40
+   ```
+
 On 2026-09-12, after #8: CI and Deploy passed, `hits.json` held 10 hits against 10 accepted and featured
 lines, the dictionary came back as `content-encoding: br`, and `all.jsonl` had 10 lines.
 
@@ -481,7 +537,9 @@ chat, a file, or a shell history. No agent reads one.
 | Name | Kind | Used by | A new one comes from |
 |---|---|---|---|
 | `HF_TOKEN` | repository secret | Publish hits, `pnpm hits:publish` | Hugging Face, Settings, Access Tokens, with write access to the dataset |
-| `CLOUDFLARE_API_TOKEN` | repository secret | Deploy | Cloudflare, My Profile, API Tokens, with Cloudflare Pages: Edit |
+| `CLOUDFLARE_API_TOKEN` | repository secret | Deploy: the upload and the votes database migrations | Cloudflare, My Profile, API Tokens, with Cloudflare Pages: Edit and D1: Edit |
+| `TURNSTILE_SECRET` | Pages secret | the vote API's check before voting | Cloudflare, Turnstile, the `Ars Magna votes` widget, its secret key |
+| `IP_HASH_SECRET` | Pages secret | the vote API: connection hashes for rate limits, and passes | any long random string, such as `openssl rand -hex 32` |
 | `CLOUDFLARE_ACCOUNT_ID` | repository secret | Deploy | the Cloudflare dashboard sidebar; it changes only with the account |
 | `ANTHROPIC_API_KEY` | your shell only | `hits:judge --via=api`, `hits:fetch --classify-with-haiku` | the Claude Console |
 | `XAI_API_KEY` | your shell only | the second judge column in `hits:judge --via=api` | the xAI console |
@@ -490,6 +548,10 @@ chat, a file, or a shell history. No agent reads one.
 
 The nightly Action and the submission validator use GitHub's built-in token, and the judge routine bills
 to the Claude plan; neither has anything to rotate.
+
+A Pages secret is set in the Cloudflare dashboard (Workers & Pages, `ars-magna`, Settings, Variables and
+Secrets), not with `gh secret set`, and takes effect on the next deploy (`gh workflow run Deploy`). A new
+`IP_HASH_SECRET` ends every visit's pass, so each reader's next vote runs the check again.
 
 1. Create the new token at the provider. Leave the old one working for now.
 2. Set it; the command prompts for the value:

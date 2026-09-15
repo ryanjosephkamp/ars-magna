@@ -20,6 +20,9 @@ packages/engine/src/wasm/
 # local env / editor
 .env
 .env.local
+# wrangler's local secrets for `pages dev`, and its local D1 and cache
+.dev.vars
+apps/web/.wrangler/
 .DS_Store
 .idea/
 .vscode/*
