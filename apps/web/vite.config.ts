@@ -31,7 +31,7 @@ function precacheManifest(): Plugin {
       this.emitFile({
         type: 'asset',
         fileName: 'precache.json',
-        source: `${JSON.stringify({ files: ['/index.html', '/hits.html', '/hits.json', ...files] }, null, 2)}\n`,
+        source: `${JSON.stringify({ files: ['/index.html', '/hits.html', '/how.html', '/hits.json', ...files] }, null, 2)}\n`,
       });
     },
   };
@@ -79,11 +79,12 @@ export default defineConfig({
     // The dictionary artifacts in public/dict are content-hashed and served
     // pre-compressed; never inline them.
     assetsInlineLimit: 0,
-    // Two pages: the search and the Greatest Hits gallery.
+    // Three pages: the search, Discoveries, and how Discoveries works.
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         hits: resolve(__dirname, 'hits.html'),
+        how: resolve(__dirname, 'how.html'),
       },
     },
   },

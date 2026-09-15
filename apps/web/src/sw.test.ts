@@ -104,6 +104,13 @@ describe('service worker', () => {
     expect(strategyFor('/manifest.webmanifest', 'cors')).toBe('network');
     expect(strategyFor('/hits', 'navigate')).toBe('shell');
     expect(strategyFor('/dict/full-0123abcd.bin', 'cors')).toBe('bypass');
+    expect(strategyFor('/api/votes', 'cors')).toBe('bypass');
+  });
+
+  it('leaves the vote API to the network, never answering it from a cache', async () => {
+    const sw = worker({ cached: { '/api/votes': '{"counts":{}}' } });
+    expect(await sw.get('/api/votes?voter=x')).toBeUndefined();
+    expect(sw.fetched).toEqual([]);
   });
 
   it('serves a fresh hits.json over the copy cached on an earlier visit, and keeps the fresh one', async () => {

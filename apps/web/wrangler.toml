@@ -1,0 +1,21 @@
+# Cloudflare Pages configuration for ars-magna.pages.dev.
+#
+# With this file present, it is the source of truth for the project's bindings
+# and variables; the dashboard shows them read-only. Secrets stay in the
+# dashboard (Settings > Variables and Secrets): TURNSTILE_SECRET and
+# IP_HASH_SECRET. The Deploy workflow runs wrangler from apps/web, so the
+# functions/ folder beside this file uploads with the site.
+
+name = "ars-magna"
+pages_build_output_dir = "./dist"
+compatibility_date = "2025-09-01"
+
+[vars]
+# "false" pauses voting: the page shows counts and no one can vote.
+VOTES_OPEN = "true"
+
+[[d1_databases]]
+binding = "DISCOVERIES_DB"
+database_name = "ars-magna-discoveries"
+database_id = "51d376a6-dd51-4bfa-8197-1f1cb12173de"
+migrations_dir = "migrations"
