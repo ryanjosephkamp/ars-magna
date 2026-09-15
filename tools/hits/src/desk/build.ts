@@ -53,7 +53,7 @@ export type DeskHit = DeskPlace & {
 
 export type DeskCandidate = { id: string; input: string; category: string; status: string; source: string; settings: string; rubric: string };
 
-/** `desk` is the review desk; `audit` is one page for relabelling every anagram the site's Greatest Hits page shows. */
+/** `desk` is the review desk; `audit` is one page for moving every anagram the site's Discoveries page shows between its sections. */
 export type DeskMode = 'desk' | 'audit';
 
 export type DeskData = {

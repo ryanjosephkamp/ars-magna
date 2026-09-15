@@ -67,6 +67,15 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   phrases: 'Phrases',
 };
 
+/** The Discoveries page's sections, in order, each with what it means. */
+export const SECTIONS: readonly { shelf: Shelf; label: string; note: string }[] = [
+  { shelf: 'greatest', label: 'Greatest Hits', note: 'The best of them, picked by hand.' },
+  { shelf: 'interesting', label: 'Interesting', note: 'Names the original, or has a clear, specific link to it.' },
+  { shelf: 'stretch', label: 'A stretch', note: 'A looser link, arguable in a sentence.' },
+];
+
+const SECTION_RANK: Record<Shelf, number> = { greatest: 0, interesting: 1, stretch: 2 };
+
 /** The colons of a hit id become hyphens; every part is `[a-z-]`, so it reads back unambiguously. */
 export function slugOf(id: string): string {
   return id.replace(/:/g, '-');
@@ -118,21 +127,35 @@ export function toPublic(hit: HitRecord): PublicHit {
   };
 }
 
-/** Featured first, then newest, then by id so the order is total. */
+export type Order = 'newest' | 'alphabetical';
+
+/**
+ * A section's hits in the reader's chosen order: newest first, or A to Z by
+ * input and then by anagram. The id breaks any tie, so the order is total.
+ */
+export function inOrder(hits: readonly PublicHit[], order: Order): PublicHit[] {
+  const newest = (a: PublicHit, b: PublicHit) => b.added.localeCompare(a.added) || a.id.localeCompare(b.id);
+  const byName = (a: PublicHit, b: PublicHit) =>
+    a.input.localeCompare(b.input, 'en', { sensitivity: 'base' }) || a.display.localeCompare(b.display, 'en') || a.id.localeCompare(b.id);
+  return [...hits].sort(order === 'alphabetical' ? byName : newest);
+}
+
+/** In section order (Greatest Hits, Interesting, A stretch), newest first within each, then by id so the order is total. */
 export function ordered(hits: readonly PublicHit[]): PublicHit[] {
   return [...hits].sort(
-    (a, b) => Number(b.featured) - Number(a.featured) || b.added.localeCompare(a.added) || a.id.localeCompare(b.id),
+    (a, b) => SECTION_RANK[a.shelf] - SECTION_RANK[b.shelf] || b.added.localeCompare(a.added) || a.id.localeCompare(b.id),
   );
 }
 
 /**
  * The anagram of the day: a deterministic pick from the list by the date, so
- * everyone sees the same one and it changes at midnight UTC. Featured hits
- * form the pool when there are any.
+ * everyone sees the same one and it changes at midnight UTC. Greatest Hits
+ * and Interesting form the pool; A stretch only when there is nothing else.
  */
 export function pickOfTheDay(hits: readonly PublicHit[], date: string): PublicHit | null {
   if (hits.length === 0) return null;
-  const pool = hits.some((h) => h.featured) ? hits.filter((h) => h.featured) : hits;
+  const strong = hits.filter((h) => h.shelf !== 'stretch');
+  const pool = strong.length > 0 ? strong : hits;
   let hash = 2166136261;
   for (let i = 0; i < date.length; i++) hash = Math.imul(hash ^ date.charCodeAt(i), 16777619);
   const sorted = [...pool].sort((a, b) => a.id.localeCompare(b.id));
@@ -151,7 +174,7 @@ function escapeHtml(text: string): string {
  */
 export function hitPage(hit: PublicHit, origin: string): string {
   const title = `${hit.input} → ${hit.display}`;
-  const description = hit.justification || `An anagram of ${hit.input}: ${hit.display}. From the Ars Magna Greatest Hits.`;
+  const description = hit.justification || `An anagram of ${hit.input}: ${hit.display}. One of the Ars Magna discoveries.`;
   const url = `${origin}/hits/${hit.slug}/`;
   const target = `/hits.html#${hit.slug}`;
   return `<!doctype html>

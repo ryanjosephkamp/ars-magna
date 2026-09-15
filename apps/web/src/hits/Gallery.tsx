@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCopy } from '../lib/useCopy.ts';
 import { ShareActions } from '../components/ShareActions.tsx';
-import { CATEGORIES, CATEGORY_LABEL, pickOfTheDay, type Category, type PublicHit } from './build.ts';
+import { CATEGORIES, CATEGORY_LABEL, SECTIONS, inOrder, pickOfTheDay, type Category, type Order, type PublicHit, type Shelf } from './build.ts';
+
+const ORDERS: readonly { order: Order; label: string }[] = [
+  { order: 'newest', label: 'Newest' },
+  { order: 'alphabetical', label: 'A to Z' },
+];
 
 type Loaded = { state: 'loading' } | { state: 'ready'; hits: PublicHit[] } | { state: 'failed' };
 
@@ -9,14 +14,16 @@ const DATASET = 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greate
 const SUBMIT = 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=submit-anagram.yml';
 
 /**
- * The Greatest Hits: the anagrams worth keeping, one per row, in the same
- * typographic register as the search results. The list is small enough to
- * hold in memory whole, so filtering is instant and there is no paging.
+ * Discoveries: the anagrams worth keeping, in three sections (Greatest Hits,
+ * Interesting and A stretch), one per row, in the same typographic register as
+ * the search results. The list is small enough to hold in memory whole, so
+ * filtering is instant and there is no paging.
  */
 export function Gallery() {
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' });
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [filter, setFilter] = useState('');
+  const [order, setOrder] = useState<Order>('newest');
   const [selected, setSelected] = useState<string | null>(() => window.location.hash.slice(1) || null);
   // Which hit's share actions are open: one at a time, by id.
   const [sharing, setSharing] = useState<string | null>(null);
@@ -58,9 +65,18 @@ export function Gallery() {
     return out;
   }, [hits]);
 
+  const bySection = useMemo(() => {
+    const out = new Map<Shelf, { shown: PublicHit[]; total: number }>(SECTIONS.map((s) => [s.shelf, { shown: [], total: 0 }]));
+    for (const h of hits) out.get(h.shelf)!.total += 1;
+    for (const h of visible) out.get(h.shelf)!.shown.push(h);
+    for (const section of out.values()) section.shown = inOrder(section.shown, order);
+    return out;
+  }, [hits, visible, order]);
+
   const shareUrl = (hit: PublicHit) => `${window.location.origin}/hits/${hit.slug}/`;
   const shareable = (hit: PublicHit) => ({ input: hit.input, phrase: hit.display, url: shareUrl(hit), total: null });
   const toggleShare = (id: string) => setSharing((open) => (open === id ? null : id));
+  const jumpTo = (shelf: Shelf) => document.getElementById(`section-${shelf}`)?.scrollIntoView({ block: 'start' });
 
   return (
     <div className="min-h-dvh">
@@ -71,17 +87,17 @@ export function Gallery() {
               Ars Magna
             </a>
           </p>
-          <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">Greatest Hits</h1>
+          <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">Discoveries</h1>
           <p className="mt-2 max-w-prose text-sm text-ink-soft">
-            The anagrams worth keeping: every letter of a name, a company, a title or a place, rearranged
-            into something that says something about it.{' '}
-            <span className="text-ink-faint">Found by the engine, judged, and kept by hand.</span>
+            Anagrams worth keeping: every letter of a name, a company, a title or a place, rearranged into
+            something that says something about it.{' '}
+            <span className="text-ink-faint">Some are classics and some the engine turned up; each was judged and kept by hand.</span>
           </p>
         </header>
 
         {loaded.state === 'loading' && (
           <p className="font-mono text-xs text-ink-faint" aria-live="polite">
-            Loading the hits…
+            Loading the anagrams…
           </p>
         )}
         {loaded.state === 'failed' && (
@@ -133,6 +149,30 @@ export function Gallery() {
                   })}
                 </div>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase" id="order-label">
+                  Order
+                </span>
+                <div role="radiogroup" aria-labelledby="order-label" className="flex divide-x divide-rule overflow-hidden rounded-[3px] border border-rule bg-surface">
+                  {ORDERS.map((o) => {
+                    const active = o.order === order;
+                    return (
+                      <button
+                        key={o.order}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setOrder(o.order)}
+                        className={`px-3 py-1.5 text-sm transition-colors duration-150 ${
+                          active ? 'bg-accent-wash font-medium text-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink'
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <label htmlFor="hits-filter" className="text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase">
                   Find
@@ -149,51 +189,71 @@ export function Gallery() {
               </div>
             </div>
 
-            <p className="mt-4 mb-1 font-mono text-[11px] text-ink-faint" aria-live="polite">
-              {visible.length} of {hits.length}
-            </p>
+            <nav aria-label="Sections" className="mt-4 flex flex-wrap items-baseline gap-x-5 gap-y-1 font-mono text-[11px] text-ink-faint">
+              <span aria-live="polite">
+                {visible.length} of {hits.length}
+              </span>
+              {SECTIONS.map((s) => (
+                <button key={s.shelf} type="button" onClick={() => jumpTo(s.shelf)} className="transition-colors duration-150 hover:text-accent">
+                  {s.label}
+                  <span className="ml-1.5 opacity-60">{bySection.get(s.shelf)!.shown.length}</span>
+                </button>
+              ))}
+            </nav>
 
-            <ol className="border-t border-rule-strong">
-              {visible.map((hit) => {
-                const isSelected = hit.slug === selected;
-                return (
-                  <li
-                    key={hit.id}
-                    id={`hit-${hit.slug}`}
-                    className={`group border-b border-rule py-4 ${isSelected ? 'bg-accent-wash/40' : ''}`}
-                  >
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                      <p className="font-display text-2xl leading-snug text-ink">
-                        <span className="text-ink-faint">{hit.input}</span>
-                        <span className="mx-3 text-rule-strong">→</span>
-                        {hit.display}
-                      </p>
-                      <span className="flex shrink-0 items-baseline gap-3 font-mono text-[11px]">
-                        <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
-                        <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
-                        <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
-                          Every anagram
-                        </a>
-                      </span>
-                    </div>
-                    {hit.justification && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.justification}</p>}
-                    {sharing === hit.id && (
-                      <div className="mt-2">
-                        <ShareActions item={shareable(hit)} id={hit.id} copied={copied} onCopy={copy} />
-                      </div>
-                    )}
-                    {(hit.submitter || hit.featured) && (
-                      <p className="mt-1 font-mono text-[11px] text-ink-faint">
-                        {hit.featured && 'featured'}
-                        {hit.featured && hit.submitter && ' · '}
-                        {hit.submitter && `found by ${hit.submitter}`}
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-            {visible.length === 0 && <p className="py-10 text-sm text-ink-soft">Nothing here yet under that filter.</p>}
+            {SECTIONS.map((section) => {
+              const { shown, total } = bySection.get(section.shelf)!;
+              const titleId = `section-${section.shelf}-title`;
+              return (
+                <section key={section.shelf} id={`section-${section.shelf}`} aria-labelledby={titleId} className="mt-12 scroll-mt-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                    <h2 id={titleId} className="font-display text-3xl tracking-[-0.01em] text-ink sm:text-4xl">
+                      {section.label}
+                    </h2>
+                    <span className="font-mono text-[11px] text-ink-faint">{shown.length === total ? total : `${shown.length} of ${total}`}</span>
+                  </div>
+                  <p className="mt-1 mb-4 max-w-prose text-sm text-ink-soft">{section.note}</p>
+                  {shown.length > 0 ? (
+                    <ol className="border-t border-rule-strong">
+                      {shown.map((hit) => {
+                        const isSelected = hit.slug === selected;
+                        return (
+                          <li
+                            key={hit.id}
+                            id={`hit-${hit.slug}`}
+                            className={`group border-b border-rule py-4 ${isSelected ? 'bg-accent-wash/40' : ''}`}
+                          >
+                            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                              <p className="font-display text-2xl leading-snug text-ink">
+                                <span className="text-ink-faint">{hit.input}</span>
+                                <span className="mx-3 text-rule-strong">→</span>
+                                {hit.display}
+                              </p>
+                              <span className="flex shrink-0 items-baseline gap-3 font-mono text-[11px]">
+                                <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
+                                <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
+                                <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
+                                  Every anagram
+                                </a>
+                              </span>
+                            </div>
+                            {hit.justification && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.justification}</p>}
+                            {sharing === hit.id && (
+                              <div className="mt-2">
+                                <ShareActions item={shareable(hit)} id={hit.id} copied={copied} onCopy={copy} />
+                              </div>
+                            )}
+                            {hit.submitter && <p className="mt-1 font-mono text-[11px] text-ink-faint">found by {hit.submitter}</p>}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  ) : (
+                    <p className="border-t border-rule-strong py-6 text-sm text-ink-soft">{total === 0 ? 'None yet.' : 'None here under that filter.'}</p>
+                  )}
+                </section>
+              );
+            })}
           </>
         )}
 

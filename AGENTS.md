@@ -36,7 +36,7 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `crates/anagram-cli` | `anagram solve\|count\|bench\|batch\|check` |
 | `packages/engine` | worker protocol, `fold.ts` (accent folding), `node.ts` (engine under Node), `definitions.ts` |
 | `packages/mcp` | MCP server (stdio): solve, count, nth, explain_word, propose_hit |
-| `apps/web` | the site; `hits.html` is the Greatest Hits gallery, built from `data/hits.jsonl` |
+| `apps/web` | the site; `hits.html` is the Discoveries page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl` |
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts` |
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
 | `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |

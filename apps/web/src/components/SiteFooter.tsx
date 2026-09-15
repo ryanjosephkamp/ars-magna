@@ -20,7 +20,7 @@ const DICTIONARY_LINKS: Link[] = [
 ];
 
 const HITS_LINKS: Link[] = [
-  { label: 'Greatest Hits', href: '/hits.html', note: 'the ones worth keeping' },
+  { label: 'Discoveries', href: '/hits.html', note: 'the ones worth keeping' },
   {
     label: 'Dataset',
     href: 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits',
@@ -89,7 +89,7 @@ export function SiteFooter({
   return (
     <footer className="mt-20 border-t border-rule-strong pt-8">
       <div className="flex flex-col gap-7">
-        <Group title="Greatest Hits" links={HITS_LINKS} />
+        <Group title="Discoveries" links={HITS_LINKS} />
         <Group title="English OpenList" links={DICTIONARY_LINKS} />
         <Group title="Ryan Kamp" links={AUTHOR_LINKS} />
       </div>
