@@ -3,10 +3,19 @@
 Read `AGENTS.md` first. The rules, layout, commands and how work is delivered live there and bind every
 session. This file holds only what is specific to Claude Code.
 
-## Plan
+## Plans
 
-`~/.claude/plans/flickering-sprouting-scott.md` is the Greatest Hits plan. The phases J to M and the
-yield table at the end of that file are the live state.
+- `~/.claude/plans/ars-magna-voting.md` is the live plan: votes and promotions on Discoveries. It holds the
+  operator's ground rules, recommendations R1–R13, phases V1–V4 with their status, and follow-ups.
+  - It is published as the artifact "Ars Magna Voting Plan":
+    https://claude.ai/code/artifact/9ed9ada5-95f2-4fab-b3e6-5135f0312050.
+- `~/.claude/plans/flickering-sprouting-scott.md` is the Greatest Hits plan: phases A to I and N1 to N7, with
+  the yield table.
+  - All are done apart from N7 step 2 (keeping review desk decisions across devices), which is undecided.
+  - Its N6 Collection page shipped as Discoveries.
+
+Session handoffs keep their files in `/Users/noir/Documents/ars-magna/handoff/<date>/`, outside the
+repository: the manual Artifact's HTML source, test scripts and screenshots.
 
 ## Memory
 
@@ -33,7 +42,16 @@ to `data/`.
 ## Browser pane
 
 `.claude/launch.json` names `ars-magna` (`pnpm dev`, port 5173) and `ars-magna-preview`
-(`pnpm preview`, port 4173).
+(`pnpm preview`, port 4173). The parent folder's `/Users/noir/Documents/ars-magna/.claude/launch.json` also
+names `ars-magna-pages`: `wrangler pages dev` on port 8788, the built site with its `/api/` functions.
+
+Verifying votes:
+- **Headless Chrome with `--virtual-time-budget`** stalls Turnstile, so a vote never completes there.
+- **The in-app browser** completes one against localhost, where the page uses Turnstile's test key.
+- **On the live site** Turnstile challenges the in-app browser. Never solve it; reload to drop the pending
+  vote.
+- **Real-time phone-width screenshots** come from `cdp.mjs` in the latest handoff folder, run against Chrome
+  started with `--headless=new --remote-debugging-port=9333 --use-mock-keychain`.
 
 ## Operator manual
 
