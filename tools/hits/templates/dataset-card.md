@@ -51,7 +51,7 @@ from datasets import load_dataset
 | `submitter` | Who found it, when it was submitted rather than mined; `null` for a mined hit. |
 | `added` | The date it entered the list. |
 | `dictionary` | The English OpenList revision it was verified against. |
-| `tier` | The smallest dictionary tier that contains every word: `common`, `standard` or `full`. |
+| `tier` | The smallest dictionary tier that contains every word: `common`, `standard`, `full`, or `extended` for a word the site added on top of English OpenList. |
 | `tags` | Labels: `classic` for the ones everyone knows, `tone:…` and `subject:…` from the judge, `greatest-candidate` where the judge scored relation 5. |
 | `status` | `accepted` or `featured`. Proposed and retired rows are not published. |
 
