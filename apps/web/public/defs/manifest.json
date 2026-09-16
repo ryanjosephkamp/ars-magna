@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "shards": 512,
   "maxSenses": 3,
-  "definedWords": 119594,
-  "totalWords": 378845,
+  "definedWords": 119595,
+  "totalWords": 378846,
   "source": {
     "name": "WordNet 3.1",
     "url": "https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz",

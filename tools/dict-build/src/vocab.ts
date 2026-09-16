@@ -33,7 +33,7 @@ export const ADDITIONS_CAP = 2_000;
 /** Which bitset holds the pinned list once the fourth tier exists. */
 export const FULL_SET = 2;
 
-export type AdditionKind = 'slang' | 'coinage' | 'name' | 'abbreviation' | 'later-in-openlist';
+export type AdditionKind = 'slang' | 'coinage' | 'name' | 'abbreviation' | 'loanword' | 'later-in-openlist';
 
 export type Addition = {
   word: string;

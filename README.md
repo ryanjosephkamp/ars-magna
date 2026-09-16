@@ -34,7 +34,7 @@ nested tiers are available in the UI:
 | Common | 39,951 | Everyday vocabulary: the 40,000 most frequent words, plus the tournament two-letter list |
 | **Standard** (default) | 314,007 | Every attested word |
 | Full | 378,844 | English OpenList at the pinned revision |
-| Extended | 378,845 | The pinned list plus the site's own additions |
+| Extended | 378,846 | The pinned list plus the site's own additions |
 
 Standard is the list minus the 64,837 algorithmically generated entries in the source data
 (`abacteremicer`, `nonlivabler`), which otherwise flood results with unrecognizable words.

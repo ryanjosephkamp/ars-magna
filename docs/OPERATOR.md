@@ -67,9 +67,12 @@ propose, and a word joins the dictionary when you merge the pull request that ad
    pnpm vocab:add doomer --kind=slang --gloss="A person who believes catastrophe is inevitable." --trace=https://en.wiktionary.org/wiki/doomer
    ```
 
-   `--kind` is one of `slang`, `coinage`, `name`, `abbreviation` or `later-in-openlist` (English
-   OpenList has since accepted the word, so the next build drops the duplicate and the line stays
-   as the record).
+   `--kind` is one of `slang`, `coinage`, `name`, `abbreviation`, `loanword` or `later-in-openlist`
+   (English OpenList has since accepted the word, so the next build drops the duplicate and the line
+   stays as the record).
+
+   `loanword` is a word English has borrowed from another language and uses as its own, such as
+   `onsen` from Japanese.
 
 2. Rebuild the dictionary. The word is not searchable until the artifacts carry it:
 

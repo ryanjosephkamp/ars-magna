@@ -45,7 +45,7 @@ the site's operator, and each carries:
 | Field | What it holds |
 |---|---|
 | `word` | The search form: lowercase letters only. |
-| `kind` | `slang`, `coinage`, `name`, `abbreviation`, or `later-in-openlist` (English OpenList has since accepted it, and the next build will drop the duplicate). |
+| `kind` | `slang`, `coinage`, `name`, `abbreviation`, `loanword` (borrowed from another language), or `later-in-openlist` (English OpenList has since accepted it, and the next build will drop the duplicate). |
 | `gloss` | One sentence a reader can read. |
 | `trace` | Where the word is attested: a dictionary entry, a citation, or an explicit note that it is a coinage. |
 | `proposed_by` | Who proposed it. |

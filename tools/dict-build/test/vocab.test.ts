@@ -28,6 +28,8 @@ describe('the additions schema', () => {
   it('accepts a well-formed addition', async () => {
     const check = await additionSchema();
     expect(check(doomer)).toBe(true);
+    // A word English borrowed and uses as its own, such as onsen.
+    expect(check({ ...doomer, word: 'onsen', kind: 'loanword' })).toBe(true);
   });
 
   it('refuses what a reader or the build could not use', async () => {
