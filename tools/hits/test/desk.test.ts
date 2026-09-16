@@ -9,7 +9,7 @@ import { Script } from 'node:vm';
 
 import { composeCommands, type Decision } from '../src/desk/compose.ts';
 import { artifactFragment, deskData, deskQueue, embedJson, inlineCompose, renderDesk, type QueueInput } from '../src/desk/build.ts';
-import { APPLY_DESK_PROMPT, COMPOSE_SOURCE, DEEP_RUN_PROMPT, DESK_TEMPLATE, judgedQueues } from '../src/desk.ts';
+import { APPLY_DESK_PROMPT, COMPOSE_SOURCE, DEEP_RUN_PROMPT, DESK_TEMPLATE, aboutPattern, judgedQueues } from '../src/desk.ts';
 import type { VerdictV2 } from '../src/judge.ts';
 import type { Prefiltered } from '../src/prefilter.ts';
 import { CANDIDATES_PATH, HITS_PATH, candidateSchema, hitSchema, readJsonl, type Hit } from '../src/schema.ts';
@@ -137,6 +137,7 @@ describe('the Greatest Hits audit', () => {
       generated: '2026-09-14T00:00:00Z',
       today: '2026-09-14',
       tagPattern: (await tagPattern()).source,
+      aboutPattern: await aboutPattern(),
       applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
       deepRun: '',
       deepPerInput: null,
@@ -148,6 +149,10 @@ describe('the Greatest Hits audit', () => {
     const embedded = JSON.parse(/<script type="application\/json" id="desk-data">([\s\S]*?)<\/script>/.exec(html)![1]!);
     expect(embedded).toMatchObject({ mode: 'audit', queues: [], candidates: [] });
     expect(embedded.hits).toHaveLength(hits.length);
+    // The audit has no candidates, so what an input is comes with each hit, and the page checks it with the schema's own pattern.
+    expect(Object.keys(embedded.hits[0])).toEqual(expect.arrayContaining(['about', 'wikipedia']));
+    expect(new RegExp(embedded.aboutPattern, 'u').test('A dormitory is a building of shared bedrooms.')).toBe(true);
+    expect(new RegExp(embedded.aboutPattern, 'u').test('no full stop')).toBe(false);
     for (const script of [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)) expect(() => new Script(script)).not.toThrow();
     // The review desk keeps its own title.
     const desk = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), { ...data, mode: 'desk' }, await readFile(COMPOSE_SOURCE, 'utf8'));
@@ -179,6 +184,7 @@ describe('the page', () => {
       generated: '2026-09-14T00:00:00Z',
       today: '2026-09-14',
       tagPattern: (await tagPattern()).source,
+      aboutPattern: await aboutPattern(),
       applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
       deepRun: await readFile(DEEP_RUN_PROMPT, 'utf8'),
       deepPerInput: 300,
@@ -203,6 +209,7 @@ describe('the page', () => {
       { kind: 'order', id: hits[0]!.id, words: [...hits[0]!.words].reverse(), hit: true },
       { kind: 'note', id: hits[0]!.id, display: hits[0]!.display, text: 'Say why it is plain.\nKeep it short.', hit: true },
       { kind: 'shelf', id: hits[1]!.id, shelf: 'stretch', judged: 'interesting', tags: [] },
+      { kind: 'describe', id: hits[1]!.id.split(':').slice(0, 2).join(':'), text: "It's a place." },
     ];
     const inPage = (context['composeCommands'] as typeof composeCommands)(decisions, '2026-09-14');
     expect(JSON.stringify(inPage)).toBe(JSON.stringify(composeCommands(decisions, '2026-09-14')));

@@ -22,6 +22,17 @@
       "description": "new: waiting for its next run. enumerated: processed under its last run; pnpm hits:requeue sends it back to new when the settings or the rubric move on. unclassified: the trending feed found it but no category could be assigned. rejected: not worth running (junk, or a person asked)."
     },
     "wikidata_qid": { "type": "string", "pattern": "^Q[0-9]+$" },
+    "about": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^\\S[^\\r\\n\\u2028\\u2029]*\\.[\"'”’)\\]]?$",
+      "description": "One factual sentence saying what the input is, for a reader: no opinion, never about a private person. One line, ending with a full stop. Written from Wikidata's English description, by the judge where there was none, from a submission, or by the operator with pnpm hits:describe; copied to each of the input's hits."
+    },
+    "wikipedia": {
+      "type": "string",
+      "pattern": "^https://en\\.wikipedia\\.org/wiki/\\S+$",
+      "description": "The input's English Wikipedia article, from Wikidata's sitelink or set by the operator; copied to each of the input's hits."
+    },
     "notes": { "type": "string" },
     "anchors": {
       "type": "array",

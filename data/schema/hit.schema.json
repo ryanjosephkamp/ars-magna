@@ -64,6 +64,17 @@
       "minLength": 1,
       "maxLength": 300,
       "description": "One plain sentence explaining the link to a reader who does not know the reference. Written by the judge or the operator; the operator can edit it."
+    },
+    "about": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^\\S[^\\r\\n\\u2028\\u2029]*\\.[\"'”’)\\]]?$",
+      "description": "One factual sentence saying what the input is. A copy of the candidate's about, kept the same by every tool that writes either file."
+    },
+    "wikipedia": {
+      "type": "string",
+      "pattern": "^https://en\\.wikipedia\\.org/wiki/\\S+$",
+      "description": "The input's English Wikipedia article. A copy of the candidate's wikipedia."
     }
   },
   "$defs": {

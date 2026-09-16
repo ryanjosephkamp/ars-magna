@@ -31,6 +31,6 @@ Add to `claude_desktop_config.json`, with the absolute path to this repository:
 | `count` | The total alone. |
 | `nth` | The result at a position, by unranking. |
 | `explain_word` | Definitions, provenance and the other spellings of a word. |
-| `propose_hit` | Checks a phrase is a real anagram, then records it as a proposed hit for review. Publishes nothing. |
+| `propose_hit` | Checks a phrase is a real anagram, then records it as a proposed hit for review, with its `justification` and, for an input that has none yet, an `about` sentence saying what the input is. Publishes nothing. |
 
 Transport is stdio. Streamable HTTP is not wired up; nothing needs it yet.

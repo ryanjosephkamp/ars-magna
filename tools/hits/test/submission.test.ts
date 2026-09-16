@@ -6,6 +6,11 @@ const body = `### Input
 
 Dormitory
 
+### What the input is
+
+A dormitory is a building
+of shared bedrooms.
+
 ### Category
 
 phrases
@@ -35,8 +40,11 @@ describe('parseIssueForm', () => {
       words: ['dirty', 'room'],
       tier: 'common',
       why: 'The one everyone knows.',
+      about: 'A dormitory is a building\nof shared bedrooms.',
       credit: '',
     });
+    // A form without the field, as issues opened before it existed are, reads it as empty.
+    expect((parseIssueForm(body.replace(/### What the input is[\s\S]*?### Category/, '### Category')) as Submission).about).toBe('');
   });
 
   it('names what is missing or wrong', () => {
@@ -57,6 +65,7 @@ describe('why a submission was refused', () => {
     words: ['i', 'da', 'ai', 'doomer'],
     tier,
     why: '',
+    about: '',
     credit: '',
   });
 

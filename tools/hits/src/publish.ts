@@ -38,18 +38,21 @@ export type Config = { name: string; file: string; rows: Hit[] };
  * mined hit, but a dataset reader infers one schema for the whole file and
  * the JSON loader in the `datasets` library fails outright on a key that
  * some rows have and others lack. So every published row carries every
- * field, with `null` where the file has nothing. `shelf` is derived from the
- * status and the judges; `justification` is the hit's own sentence, or the
- * best v2 judge's when the hit has none.
+ * field, with `null` where the file has nothing, in the same order on every
+ * row. `shelf` is derived from the status and the judges; `justification` is
+ * the hit's own sentence, or the best v2 judge's when the hit has none;
+ * `about` and `wikipedia` say what the input is.
  */
-export type PublishedRow = Omit<Hit, 'submitter' | 'justification'> & {
+export type PublishedRow = Omit<Hit, 'submitter' | 'justification' | 'about' | 'wikipedia'> & {
   submitter: string | null;
   justification: string | null;
+  about: string | null;
+  wikipedia: string | null;
   shelf: Shelf;
 };
 
 export function publishRow(hit: Hit): PublishedRow {
-  const { submitter, justification, ...rest } = hit;
+  const { submitter, justification, about, wikipedia, ...rest } = hit;
   const judged = hit.judge
     .filter(isV2)
     .filter((j) => j.justification)
@@ -58,6 +61,8 @@ export function publishRow(hit: Hit): PublishedRow {
     ...rest,
     submitter: submitter ?? null,
     justification: justification ?? judged?.justification ?? null,
+    about: about ?? null,
+    wikipedia: wikipedia ?? null,
     shelf: shelfOf(hit),
   };
 }

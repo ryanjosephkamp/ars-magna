@@ -8,17 +8,27 @@
  * by category and a tally of the classes it could not place, which is how
  * the category table grows.
  *
- * `--reclassify` fetches nothing: it asks Wikidata again about the candidates
- * the table could not place, for after the table has grown. A candidate that
- * now fits moves to its category as `new`, under the id that category gives
- * it; one that already exists there is dropped rather than duplicated.
+ * A new candidate Wikidata places also gets `about`, a sentence built from the
+ * item's English description, and `wikipedia`, its English Wikipedia article.
+ *
+ * `--reclassify` fetches no titles. It asks Wikidata again about the
+ * candidates the table could not place, for after the table has grown: a
+ * candidate that now fits moves to its category as `new`, under the id that
+ * category gives it; one that already exists there is dropped rather than
+ * duplicated. Then it finds the Wikidata item of each manual candidate that
+ * has none, by its English Wikipedia title, taking an item only when it
+ * reaches the candidate's own category, and prints the one label match in
+ * that category as a suggestion; and it writes `about` and `wikipedia` for every
+ * placed candidate with an item and no sentence yet, copying them to the
+ * hits. A sentence that exists, from any source, is never replaced.
  */
+import { sentenceFromWikidata, syncAbout } from './about.ts';
 import { classifyWithHaiku } from './classify/haiku.ts';
 import { cleanTitle, isJunk } from './classify/junk.ts';
-import { classifyTitles, type Classification } from './classify/wikidata.ts';
+import { classifyTitles, describeItems, lookupLabels, type Classification, type WikidataItem } from './classify/wikidata.ts';
 import { candidateId, type Category } from './ids.ts';
 import { flag, has } from './queue.ts';
-import { CANDIDATES_PATH, appendJsonl, candidateSchema, readJsonl, today, writeJsonl, type Candidate } from './schema.ts';
+import { CANDIDATES_PATH, HITS_PATH, appendJsonl, candidateSchema, explain, hitSchema, readJsonl, today, writeJsonl, type Candidate } from './schema.ts';
 import { USER_AGENT, type RawCandidate, type Source } from './sources/source.ts';
 import { wikipediaTop } from './sources/wikipedia-top.ts';
 
@@ -106,15 +116,154 @@ export function reclassify(
   return { candidates: out, moved };
 }
 
-export async function runReclassify(options: { fetch: typeof fetch; dryRun?: boolean }): Promise<Candidate[]> {
-  const validate = await candidateSchema();
-  const all = await readJsonl(CANDIDATES_PATH, validate);
+/**
+ * A candidate with what Wikidata says about its item: `about` and `wikipedia`
+ * where it has neither yet, each only where Wikidata gives one. Pure.
+ */
+export function withWikidata(candidate: Candidate, item: WikidataItem | undefined): Candidate {
+  if (!item) return candidate;
+  const next = { ...candidate };
+  const about = candidate.about ? null : sentenceFromWikidata(candidate.input, item.description, item.ended);
+  if (about) next.about = about;
+  if (!candidate.wikipedia && item.wikipedia) next.wikipedia = item.wikipedia;
+  return next;
+}
+
+/** A candidate Wikidata may describe: placed, with an item, and not rejected. */
+export function describable(c: Candidate): boolean {
+  return Boolean(c.wikidata_qid) && c.status !== 'unclassified' && c.status !== 'rejected';
+}
+
+/** A manual candidate whose item can be looked up by its text. Phrases are skipped: a common word's label names a concept, not the input. */
+export function lookupable(c: Candidate): boolean {
+  return c.source === 'manual' && !c.wikidata_qid && c.category !== 'phrases' && c.status !== 'unclassified' && c.status !== 'rejected';
+}
+
+export type Matched = { id: string; input: string; qid: string };
+export type Unmatched = { id: string; input: string; reason: string };
+
+/**
+ * The item of each manual candidate, by its English Wikipedia title (as
+ * written, then with a capital first letter), taken only when the item
+ * reaches the candidate's own category. Failing that, the one item in its
+ * category whose English label is its text is a suggestion, never written:
+ * a label is shared by obscure items often enough (Peloton the supercomputer
+ * program, Old England the Brussels department store) that a person names the
+ * item with `pnpm hits:describe <id> --wikidata=Q…`. Pure.
+ */
+export function matchItems(
+  candidates: readonly Candidate[],
+  byTitle: ReadonlyMap<string, Classification>,
+  byLabel: ReadonlyMap<string, readonly { qid: string; category: Category | null; wikipedia: string }[]>,
+): { matched: Matched[]; suggested: Matched[]; unmatched: Unmatched[] } {
+  const matched: Matched[] = [];
+  const suggested: Matched[] = [];
+  const unmatched: Unmatched[] = [];
+  for (const c of candidates) {
+    const titles = [c.input, capitalized(c.input)];
+    const title = titles.map((t) => byTitle.get(t)).find((r) => r?.qid && r.category === c.category);
+    if (title?.qid) {
+      matched.push({ id: c.id, input: c.input, qid: title.qid });
+      continue;
+    }
+    const items = byLabel.get(c.input) ?? [];
+    const fitting = items.filter((i) => i.category === c.category);
+    if (fitting.length === 1) {
+      suggested.push({ id: c.id, input: c.input, qid: fitting[0]!.qid });
+      continue;
+    }
+    const elsewhere = titles.map((t) => byTitle.get(t)).find((r) => r?.qid);
+    const reason =
+      fitting.length > 1
+        ? `${fitting.length} items in ${c.category} share its label (${fitting.map((i) => i.qid).join(', ')})`
+        : elsewhere?.qid
+          ? `its Wikipedia title is ${elsewhere.qid}, which is not in ${c.category}`
+          : items.length > 0
+            ? `no item with its label is in ${c.category}`
+            : 'no item has its title or label';
+    unmatched.push({ id: c.id, input: c.input, reason });
+  }
+  return { matched, suggested, unmatched };
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export type ReclassifyReport = {
+  moved: Candidate[];
+  matched: Matched[];
+  /** Label matches, with the sentence Wikidata would give; written only once a person names the item. */
+  suggested: (Matched & { about: string | null; wikipedia: string | null })[];
+  unmatched: Unmatched[];
+  /** Candidates that gained a sentence or a link, as they now read. */
+  described: Candidate[];
+  /** Placed candidates with an item that Wikidata gave no sentence for. */
+  undescribed: Candidate[];
+  hitsSynced: number;
+};
+
+export async function runReclassify(options: { fetch: typeof fetch; dryRun?: boolean }): Promise<ReclassifyReport> {
+  const deps = { fetch: options.fetch, userAgent: USER_AGENT };
+  const cv = await candidateSchema();
+  const hv = await hitSchema();
+  let all = await readJsonl(CANDIDATES_PATH, cv);
+
   const unplaced = all.filter((c) => c.status === 'unclassified');
-  if (unplaced.length === 0) return [];
-  const classified = await classifyTitles(unplaced.map(titleOf), { fetch: options.fetch, userAgent: USER_AGENT });
-  const { candidates, moved } = reclassify(all, new Map(classified.map((c) => [c.title, c])));
-  if (!options.dryRun && moved.length > 0) await writeJsonl(CANDIDATES_PATH, candidates, validate);
-  return moved;
+  let moved: Candidate[] = [];
+  if (unplaced.length > 0) {
+    const classified = await classifyTitles(unplaced.map(titleOf), deps);
+    ({ candidates: all, moved } = reclassify(all, new Map(classified.map((c) => [c.title, c]))));
+  }
+
+  const manual = all.filter(lookupable);
+  const texts = [...new Set(manual.flatMap((c) => [c.input, capitalized(c.input)]))];
+  const byTitle = new Map((await classifyTitles(texts, deps)).map((c) => [c.title, c]));
+  const unmatchedByTitle = manual.filter((c) => ![c.input, capitalized(c.input)].some((t) => byTitle.get(t)?.qid && byTitle.get(t)?.category === c.category));
+  const byLabel = unmatchedByTitle.length > 0 ? await lookupLabels(unmatchedByTitle.map((c) => c.input), deps) : new Map();
+  const { matched, suggested, unmatched } = matchItems(manual, byTitle, byLabel);
+  const qidOf = new Map(matched.map((m) => [m.id, m.qid]));
+  all = all.map((c) => (qidOf.has(c.id) ? { ...c, wikidata_qid: qidOf.get(c.id)! } : c));
+
+  const wanting = all.filter((c) => describable(c) && (!c.about || !c.wikipedia));
+  const asked = [...wanting.map((c) => c.wikidata_qid!), ...suggested.map((s) => s.qid)];
+  const items = asked.length > 0 ? await describeItems(asked, deps) : new Map<string, WikidataItem>();
+  const described: Candidate[] = [];
+  const undescribed: Candidate[] = [];
+  all = all.map((c) => {
+    if (!describable(c) || (c.about && c.wikipedia)) return c;
+    const next = withWikidata(c, items.get(c.wikidata_qid!));
+    if (next.about !== c.about || next.wikipedia !== c.wikipedia) described.push(next);
+    if (!next.about) undescribed.push(next);
+    return next;
+  });
+
+  const hits = await readJsonl(HITS_PATH, hv);
+  const synced = syncAbout(hits, all);
+  if (!options.dryRun) {
+    for (const c of all) {
+      const id = c.id;
+      if (!cv(c)) throw new Error(`refusing to write ${id}: ${explain(cv)}`);
+    }
+    for (const h of synced.hits) {
+      const id = h.id;
+      if (!hv(h)) throw new Error(`refusing to write ${id}: ${explain(hv)}`);
+    }
+    if (moved.length + matched.length + described.length > 0) await writeJsonl(CANDIDATES_PATH, all, cv);
+    if (synced.changed.length > 0) await writeJsonl(HITS_PATH, synced.hits, hv);
+  }
+  return {
+    moved,
+    matched,
+    suggested: suggested.map((s) => {
+      const item = items.get(s.qid);
+      return { ...s, about: sentenceFromWikidata(s.input, item?.description, item?.ended ?? false), wikipedia: item?.wikipedia ?? null };
+    }),
+    unmatched,
+    described,
+    undescribed,
+    hitsSynced: synced.changed.length,
+  };
 }
 
 export async function runFetch(options: {
@@ -147,7 +296,12 @@ export async function runFetch(options: {
     haiku = await classifyWithHaiku(unplaced, { fetch: options.fetch, apiKey: options.haiku.apiKey });
   }
 
-  const candidates = toCandidates(kept, byTitle, haiku, options.date);
+  // Only candidates Wikidata placed are described: an item the table excludes, such as an event, is not an input.
+  // Ones already on file are described too, and then not appended, which costs nothing but part of one query.
+  const placed = toCandidates(kept, byTitle, haiku, options.date);
+  const wanting = placed.filter(describable);
+  const items = wanting.length > 0 ? await describeItems(wanting.map((c) => c.wikidata_qid!), deps) : new Map<string, WikidataItem>();
+  const candidates = placed.map((c) => (describable(c) ? withWikidata(c, items.get(c.wikidata_qid!)) : c));
   const added = options.dryRun ? [] : await appendJsonl(CANDIDATES_PATH, candidates, await candidateSchema());
 
   const tally = new Map<string, number>();
@@ -167,9 +321,25 @@ async function main(): Promise<void> {
   const haiku = has(argv, 'classify-with-haiku') && apiKey ? { apiKey } : null;
 
   if (has(argv, 'reclassify')) {
-    const moved = await runReclassify({ fetch, dryRun: has(argv, 'dry-run') });
-    console.log(`${moved.length} unclassified candidates now have a category`);
-    for (const c of moved) console.log(`  ${c.input.padEnd(40)} ${c.category}`);
+    const dryRun = has(argv, 'dry-run');
+    const r = await runReclassify({ fetch, dryRun });
+    console.log(`${r.moved.length} unclassified candidates now have a category`);
+    for (const c of r.moved) console.log(`  ${c.input.padEnd(40)} ${c.category}`);
+    console.log(`${r.matched.length} manual candidates matched to a Wikidata item by their Wikipedia title`);
+    for (const m of r.matched) console.log(`  ${m.input.padEnd(40)} ${m.qid}`);
+    if (r.suggested.length) {
+      console.log(`${r.suggested.length} more have one item in their category by label, not written: name it with pnpm hits:describe <id> --wikidata=Q… if it is right`);
+      for (const s of r.suggested) console.log(`  ${s.id.padEnd(40)} ${s.qid.padEnd(12)} would read: ${s.about ?? '(no sentence)'}  ${s.wikipedia ?? ''}`);
+    }
+    console.log(`${r.unmatched.length} left unmatched`);
+    for (const u of r.unmatched) console.log(`  ${u.input.padEnd(40)} ${u.reason}`);
+    console.log(`${r.described.length} candidates described from Wikidata`);
+    for (const c of r.described) console.log(`  ${c.id.padEnd(40)} ${c.about ?? '(no sentence)'}${c.wikipedia ? `  ${c.wikipedia}` : ''}`);
+    if (r.undescribed.length) {
+      console.log(`${r.undescribed.length} candidates with an item still have no sentence: Wikidata gave no usable English description`);
+      for (const c of r.undescribed) console.log(`  ${c.id.padEnd(40)} ${c.wikidata_qid}`);
+    }
+    console.log(`${r.hitsSynced} hits took their input's sentence or link${dryRun ? ' · dry run: nothing written' : ''}`);
     return;
   }
 

@@ -16,6 +16,8 @@ const hit = (over: Partial<PublicHit> & Pick<PublicHit, 'id' | 'words' | 'letter
   submitter: null,
   added: '2026-09-16',
   tags: [],
+  about: null,
+  wikipedia: null,
   ...over,
 });
 

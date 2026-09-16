@@ -13,6 +13,8 @@ export type TierName = 'common' | 'standard' | 'full' | 'extended';
 
 export type StatusDecision = { kind: 'status'; id: string; status: StatusName };
 export type JustifyDecision = { kind: 'justify'; id: string; text: string };
+/** What an input is: one sentence for every hit of it, so `id` is the candidate id. */
+export type DescribeDecision = { kind: 'describe'; id: string; text: string };
 export type TagDecision = { kind: 'tag'; id: string; add: string[]; remove: string[] };
 /**
  * A row of a judged queue that is not in data/hits.jsonl, put there by name.
@@ -50,6 +52,7 @@ export type AddDecision = { kind: 'add'; input: string; category: CategoryName; 
 export type Decision =
   | StatusDecision
   | JustifyDecision
+  | DescribeDecision
   | TagDecision
   | PromoteDecision
   | OrderDecision
@@ -83,6 +86,11 @@ export function foldLetters(text: string): string {
 
 export function candidateIdOf(input: string, category: string): string {
   return `${foldLetters(input)}:${category}`;
+}
+
+/** The candidate a hit or a queue row belongs to: the first two parts of its id. */
+export function candidateOfHit(id: string): string {
+  return id.split(':').slice(0, 2).join(':');
 }
 
 export function hitIdOf(input: string, category: string, words: readonly string[]): string {
@@ -163,7 +171,7 @@ function lastBy<T extends Decision>(decisions: readonly Decision[], kind: T['kin
 /**
  * The commands for a set of decisions, grouped so each runs after what it
  * needs: seeds and requeues, a deep run, rows promoted from a queue, word
- * orders, then justifications, tags, shelves and statuses, then hits added by hand. A
+ * orders, then justifications, what inputs are, tags, shelves and statuses, then hits added by hand. A
  * later decision about the same thing replaces an earlier one. The notes on
  * rows come out as a list for the prompt, each with the row's chosen order.
  */
@@ -252,6 +260,11 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   }
 
   for (const [id, text] of justifications) commands.push(`pnpm hits:justify ${id} ${shellQuote(text)}`);
+
+  // After ingest and the justifications, so a promoted near miss has its hit line to take the sentence.
+  for (const d of lastBy<DescribeDecision>(decisions, 'describe', (x) => x.id)) {
+    commands.push(`pnpm hits:describe ${d.id} ${shellQuote(d.text)}`);
+  }
 
   for (const t of lastBy<TagDecision>(decisions, 'tag', (d) => d.id)) {
     const changes = [...t.add.map((x) => `+${x}`), ...t.remove.map((x) => `-${x}`)];

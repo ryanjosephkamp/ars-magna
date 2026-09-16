@@ -45,13 +45,27 @@ export type DeskHit = DeskPlace & {
   category: string;
   display: string;
   justification: string;
+  /** What the input is, as the hit carries it; empty when it has none. */
+  about: string;
+  /** The input's English Wikipedia article; empty when it has none. */
+  wikipedia: string;
   tags: string[];
   added: string;
   relation: number | null;
   reads: number | null;
 };
 
-export type DeskCandidate = { id: string; input: string; category: string; status: string; source: string; settings: string; rubric: string };
+export type DeskCandidate = {
+  id: string;
+  input: string;
+  category: string;
+  status: string;
+  source: string;
+  settings: string;
+  rubric: string;
+  about: string;
+  wikipedia: string;
+};
 
 /** `desk` is the review desk; `audit` is one page for moving every anagram the site's Discoveries page shows between its sections. */
 export type DeskMode = 'desk' | 'audit';
@@ -65,6 +79,8 @@ export type DeskData = {
   queues: DeskQueue[];
   /** The hit schema's tag pattern, so the page checks a tag the way the schema will. */
   tagPattern: string;
+  /** The hit schema's pattern for what an input is, for the same reason. */
+  aboutPattern: string;
   /** docs/prompts/apply-desk.md as it is on disk. */
   applyDesk: string;
   /** docs/prompts/deep-run.md as it is on disk. */
@@ -162,6 +178,7 @@ export function deskData(input: {
   generated: string;
   today: string;
   tagPattern: string;
+  aboutPattern: string;
   applyDesk: string;
   deepRun: string;
   deepPerInput: number | null;
@@ -182,15 +199,27 @@ export function deskData(input: {
         category: h.category,
         display: h.display,
         justification: h.justification ?? '',
+        about: h.about ?? '',
+        wikipedia: h.wikipedia ?? '',
         tags: [...h.tags],
         added: h.added,
         relation: scores?.relation ?? null,
         reads: scores?.reads ?? null,
       };
     }),
-    candidates: input.candidates.map((c) => ({ id: c.id, input: c.input, category: c.category, status: c.status, source: c.source, ...lastRun(c) })),
+    candidates: input.candidates.map((c) => ({
+      id: c.id,
+      input: c.input,
+      category: c.category,
+      status: c.status,
+      source: c.source,
+      ...lastRun(c),
+      about: c.about ?? '',
+      wikipedia: c.wikipedia ?? '',
+    })),
     queues: input.queues.map((q) => deskQueue(q, input.hits, input.today)),
     tagPattern: input.tagPattern,
+    aboutPattern: input.aboutPattern,
     applyDesk: input.applyDesk,
     deepRun: input.deepRun,
     deepPerInput: input.deepPerInput,
