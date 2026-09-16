@@ -10,6 +10,7 @@ import { TAG_BIT as B } from '@ars-magna/engine';
 import { perInputFlag, prefilterRow, reject, score, screenOrder, select, settleEmpty, type RawRow } from '../src/prefilter.ts';
 import { batches, parseVerdicts, renderBatch, rubric, type Verdict } from '../src/judge.ts';
 import { assessBatch, buildHits, renderReport, takenCounts, validateVerdicts } from '../src/ingest.ts';
+import { queueDate } from '../src/queue.ts';
 import type { VerdictV2 } from '../src/judge.ts';
 import type { Hit } from '../src/schema.ts';
 import { hitSchema, type Candidate } from '../src/schema.ts';
@@ -242,6 +243,7 @@ describe('ingest', () => {
         model: 'claude-sonnet-5',
         version: 'v1',
         date: '2026-09-11',
+        queueDay: '2026-09-11',
         threshold: 11,
         dictionary: { repo: 'r', rev: 'a'.repeat(40) },
       },
@@ -276,7 +278,7 @@ describe('ingest under rubric v2', () => {
     v('l-m', 2, 3),
     v('n-o', 1, 1),
   ];
-  const options = { model: 'claude-sonnet-5', version: 'v2', date: '2026-09-13', threshold: 11, dictionary: { repo: 'r', rev: 'a'.repeat(40) } };
+  const options = { model: 'claude-sonnet-5', version: 'v2', date: '2026-09-13', queueDay: '2026-09-13', threshold: 11, dictionary: { repo: 'r', rev: 'a'.repeat(40) } };
 
   it('rejects what rubric v2 does not allow', () => {
     const { ok, rejected } = validateVerdicts(
@@ -314,6 +316,24 @@ describe('ingest under rubric v2', () => {
     const later = assessBatch(batch, verdicts, { ...options, taken: new Map([['x:phrases', 2]]) });
     expect(later.hits.filter((p) => p.hit.status === 'accepted').map((p) => p.hit.id)).toEqual(['x:phrases:b-c']);
     expect(later.hits.filter((p) => p.placement === 'alternate')).toHaveLength(3);
+  });
+
+  it('dates a replayed queue from the queue, and only its added from the day ingest runs', async () => {
+    // The queue judged on 2026-09-15, ingested again after midnight UTC.
+    const replay = { ...options, date: '2026-09-16', queueDay: queueDate('/repo/data/queue/2026-09-15') };
+    const dated = verdicts.map((x) => (x.id === 'x:phrases:d-e' ? { ...x, judged_at: '2026-09-14T23:50:00Z' } : x));
+    const { hits } = assessBatch(batch, dated, replay);
+    expect(hits.map((p) => [p.hit.id, p.hit.added, p.hit.judge.map((j) => j.judged_at)])).toEqual([
+      ['x:phrases:b-c', '2026-09-16', ['2026-09-15']],
+      ['x:phrases:d-e', '2026-09-16', ['2026-09-14']],
+      ['x:phrases:f-g', '2026-09-16', ['2026-09-15']],
+      ['x:phrases:h-i', '2026-09-16', ['2026-09-15']],
+    ]);
+    const valid = await hitSchema();
+    expect(hits.every((p) => valid(p.hit))).toBe(true);
+
+    expect(queueDate('/repo/data/queue/2026-09-13m')).toBe('2026-09-13');
+    expect(() => queueDate('/repo/data/queue/latest')).toThrow('not a queue folder');
   });
 
   it('leaves a phrase already in the file alone, without spending a slot on it', () => {

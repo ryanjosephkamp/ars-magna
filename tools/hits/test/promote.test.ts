@@ -31,6 +31,7 @@ async function options(existing: string[] = []): Promise<IngestOptions> {
     model: 'claude-sonnet-5',
     version: 'v2',
     date: '2026-09-14',
+    queueDay: '2026-09-14',
     threshold: 11,
     dictionary: await dictionaryPin(),
     existing: new Set(existing),

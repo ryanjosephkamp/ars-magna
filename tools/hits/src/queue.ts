@@ -5,7 +5,7 @@
  * ingest report.
  */
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 
 import type { Prefiltered } from './prefilter.ts';
 import { QUEUE_DIR, today } from './schema.ts';
@@ -35,6 +35,18 @@ export async function readJudgedRows(dir: string): Promise<Prefiltered[]> {
     return text.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as Prefiltered);
   }
   return [];
+}
+
+/**
+ * The date a queue folder is named for: `2026-09-13` for `2026-09-13m`. The
+ * nightly names a folder for the day it enumerated, and the routine judges it
+ * that morning, so this is the day its verdicts were written unless a verdict
+ * says otherwise.
+ */
+export function queueDate(dir: string): string {
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(basename(dir));
+  if (!match) throw new Error(`${dir} is not a queue folder: its name does not start with a date`);
+  return match[0];
 }
 
 export function queueDir(date: string = today()): string {

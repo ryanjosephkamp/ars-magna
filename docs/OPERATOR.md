@@ -419,7 +419,9 @@ on a laptop, with the engine check turned back on.
    `ANTHROPIC_API_KEY` set in your shell, `pnpm hits:judge --date=<folder> --via=api` writes the judge's
    answers through the API instead; the screen is always answered in a session.
 5. `pnpm hits:ingest --date=<folder> --model=<the model that judged>` re-checks every phrase with the
-   engine, writes the shelved hits and the alternates, and writes `ingest-report.md`.
+   engine, writes the shelved hits and the alternates, and writes `ingest-report.md`. Each judgement's
+   `judged_at` is the queue's date, or the date its verdict line carries (as `--via=api` writes one); a
+   hit's `added` is the day ingest runs. Ingesting a queue again on a later day keeps the day it was judged.
 6. Commit on a branch named `hits/<folder>` exactly as step 7 of `automation/judge-routine.md` lists, open
    the pull request, and review it as above.
 
@@ -511,6 +513,23 @@ counts as `s1` and `v1`.
 
 A requeued candidate's earlier hits stay in `data/hits.jsonl`, and ingest leaves any phrase already
 there alone.
+
+## Correct when hits were judged
+
+When hits in `data/hits.jsonl` carry the wrong `judged_at`. Before 2026-09-16, `hits:ingest` stamped
+`judged_at` with the day it ran rather than the day the queue was judged, so a queue ingested again after
+midnight UTC came out a day late. That is how the nine hits #47 replayed from the queue `2026-09-15` read
+2026-09-16; this command corrected them.
+
+```bash
+pnpm hits:judged-at --date=2026-09-15 macklemore:people:lack-me-more macklemore:people:clamor-meek
+```
+
+Every judgement on each named hit takes the date its verdict in that queue carries, or else the queue's
+date, the rule ingest now follows. `added` stays as it is: it is the day the hit entered the file. An id
+that is not a hit, or that the queue has no verdict for, is refused, and then nothing is written. Each
+line it prints gives the dates before and after. Commit `data/hits.jsonl` on a branch and open a pull
+request; merging it republishes the dataset through Publish hits.
 
 ## Run a deep run
 
