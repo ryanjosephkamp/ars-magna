@@ -12,12 +12,23 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { Definitions, fnv1a, shouldExplain } from './definitions.ts';
+import { Definitions, PROVENANCE_LABEL, fnv1a, shouldExplain } from './definitions.ts';
 import { fnv1a as buildFnv1a, shardOf } from '../../../../tools/dict-build/src/hash.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defsDir = resolve(here, '../../public/defs');
 const built = existsSync(resolve(defsDir, 'manifest.json'));
+
+describe('provenance labels', () => {
+  it('answer the question the reader asked, then say why the word is in the list', () => {
+    // Each label stands in for a definition, so it carries the "no definition"
+    // half itself, and reads as a sentence like every other message.
+    expect(PROVENANCE_LABEL.attested).toBeNull();
+    expect(PROVENANCE_LABEL.twl).toBe('No definition found — valid in tournament play.');
+    expect(PROVENANCE_LABEL.generated).toBe('No definition found — a machine-derived form in English OpenList.');
+    expect(PROVENANCE_LABEL.unattested).toBe('No definition found — and no source confirms this word.');
+  });
+});
 
 describe('fnv1a', () => {
   it('matches the build script on every kind of input', () => {

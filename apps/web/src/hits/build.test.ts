@@ -38,6 +38,9 @@ describe('gallery build', () => {
     expect(withNote.justification).toBe('the one everyone knows');
     expect(withNote.tags).toEqual(['submitted']);
     expect(withNote.submitter).toBe('someone');
+    // `seed` and `mcp` are how a hit reached the file, not someone to credit on the page.
+    expect(toPublic(record({ submitter: 'seed' })).submitter).toBeNull();
+    expect(toPublic(record({ submitter: 'mcp' })).submitter).toBeNull();
     // A shelf tag becomes the shelf, not a tag.
     expect(toPublic(record({ tags: ['classic', 'shelf:stretch'] }))).toMatchObject({ shelf: 'stretch', tags: ['classic'] });
   });

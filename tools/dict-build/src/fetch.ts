@@ -148,8 +148,10 @@ export async function fetchAll(): Promise<void> {
   await mkdir(WORDNET_CACHE, { recursive: true });
   await download(WORDNET.url, WORDNET_ARCHIVE, WORDNET.bytes, WORDNET.sha256);
 
-  // Only the sense index and gloss files are needed; the archive also carries
-  // morphology exceptions and verb framesets that nothing here reads.
+  // The glosses, the sense index and the morphology exceptions are all needed:
+  // `wordnet.ts` reads the `.exc` files, which is how `men` reaches `man`. Only
+  // what the archive carries beyond them, such as the verb framesets, goes
+  // unread, and those are not extracted.
   const needed = await Promise.all(
     WORDNET.members.map((member) =>
       stat(`${WORDNET_CACHE}/${member}`).then(

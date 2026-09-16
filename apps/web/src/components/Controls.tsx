@@ -16,7 +16,7 @@ const TIER_LABEL: Record<Tier, string> = {
 
 const TIER_HINT: Record<Tier, string> = {
   common: 'Everyday words only.',
-  standard: 'Everyday words plus the Scrabble dictionary.',
+  standard: 'Every attested word: the list without its machine-derived forms.',
   full: 'Every word in English OpenList, including rare and machine-derived forms.',
 };
 

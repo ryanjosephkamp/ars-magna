@@ -120,7 +120,8 @@ export function toPublic(hit: HitRecord): PublicHit {
     shelf: shelfOf(hit),
     score: v1?.total ?? null,
     featured: hit.status === 'featured',
-    submitter: hit.submitter && hit.submitter !== 'seed' ? hit.submitter : null,
+    // `seed` and `mcp` say how the hit reached the file, not a person to credit.
+    submitter: hit.submitter && hit.submitter !== 'seed' && hit.submitter !== 'mcp' ? hit.submitter : null,
     added: hit.added,
     // A note becomes the justification and a shelf tag the shelf; neither is a tag a reader filters by.
     tags: hit.tags.filter((t) => !t.startsWith('note:') && !t.startsWith('shelf:')),
