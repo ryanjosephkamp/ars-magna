@@ -21,6 +21,8 @@ type Props = {
   onLoadAll(): void;
   onExport(format: ExportFormat): void;
   exporting: ExportFormat | null;
+  /** The filter is dictionary words and the list is partial: search every result for them instead. */
+  searchAll: { label: string; onSearch(): void } | null;
 };
 
 /**
@@ -29,7 +31,9 @@ type Props = {
  * Filtering and sorting act on what is loaded, not on the whole answer space —
  * there is no sorting eleven million results that were never enumerated. Rather
  * than hide that, the status line states exactly what the operation covered and
- * offers to load the rest when the total is small enough to make that real.
+ * offers to load the rest when the total is small enough to make that real. A
+ * filter that is dictionary words is offered as a search of every result
+ * instead (see `lib/filterScope.ts`).
  */
 export function ResultToolbar({
   filter,
@@ -44,6 +48,7 @@ export function ResultToolbar({
   onLoadAll,
   onExport,
   exporting,
+  searchAll,
 }: Props) {
   const filterId = useId();
   const sortId = useId();
@@ -131,13 +136,26 @@ export function ResultToolbar({
           <>{loaded.toLocaleString()} loaded</>
         )}
         {partial && <> · of {total}</>}
-        {canLoadAll && !loadingAll && (
+        {searchAll && !loadingAll && (
+          <>
+            {' · '}
+            <button
+              type="button"
+              onClick={searchAll.onSearch}
+              className="text-left underline decoration-rule-strong underline-offset-4 transition-colors
+                         duration-150 hover:text-accent hover:decoration-accent"
+            >
+              {searchAll.label}
+            </button>
+          </>
+        )}
+        {canLoadAll && !loadingAll && !searchAll && (
           <>
             {' · '}
             <button
               type="button"
               onClick={onLoadAll}
-              className="underline decoration-rule-strong underline-offset-4 transition-colors
+              className="text-left underline decoration-rule-strong underline-offset-4 transition-colors
                          duration-150 hover:text-accent hover:decoration-accent"
             >
               load all to filter and sort across everything

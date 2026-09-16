@@ -16,6 +16,7 @@ import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
 import { applyView, type SortMode } from './lib/resultView.ts';
+import { filterScope, filterWords, searchAllLabel } from './lib/filterScope.ts';
 import { discoveredFor } from './lib/inDiscoveries.ts';
 import { InDiscoveries } from './components/InDiscoveries.tsx';
 import { CheckToast } from './components/CheckToast.tsx';
@@ -73,7 +74,7 @@ export function App() {
   const letters = folded.letters;
 
   const {
-    engine, searching, error, candidates, countedLetters, loadMore, collect, at, surpriseMe, spellings, masks,
+    engine, searching, error, candidates, countedLetters, loadMore, collect, at, surpriseMe, spellings, masks, has,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
@@ -226,6 +227,57 @@ export function App() {
       setLoadingAll(false);
     }
   }, [collect, results]);
+
+  // Which of the filter's words the dictionary carries at this tier, looked up
+  // once typing pauses. Until the answer is in, the filter is said to cover the
+  // loaded rows, which is true.
+  const typedWords = useMemo(() => filterWords(filter), [filter]);
+  const [known, setKnown] = useState<{ key: string; words: string[] } | null>(null);
+  const knownKey = typedWords ? `${query.tier}|${typedWords.join(' ')}` : null;
+  useEffect(() => {
+    if (!typedWords || !knownKey) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      void Promise.all(typedWords.map((word) => has(word, query.tier))).then((found) => {
+        if (live) setKnown({ key: knownKey, words: typedWords.filter((_, i) => found[i]) });
+      });
+    }, 200);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [typedWords, knownKey, query.tier, has]);
+
+  const scope = filterScope({
+    filter,
+    loaded: results.length,
+    total,
+    letters,
+    mustInclude: query.mustInclude,
+    known: known && known.key === knownKey ? known.words : null,
+  });
+
+  // A typed filter over a short list loads the rest, once per search, so it
+  // covers every result rather than the first page.
+  const autoLoaded = useRef<Query | null>(null);
+  useEffect(() => {
+    if (scope.kind !== 'load-rest' || loadingAll || autoLoaded.current === query) return;
+    autoLoaded.current = query;
+    void loadAll();
+  }, [scope.kind, loadingAll, query, loadAll]);
+
+  const searchAll = useMemo(
+    () =>
+      scope.kind === 'must-include'
+        ? {
+            label: searchAllLabel(total, scope.words),
+            onSearch: () => patch({ mustInclude: [...query.mustInclude, ...scope.words] }),
+          }
+        : null,
+    // `scope` is rebuilt every render; its words, as text, are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scope.kind, scope.kind === 'must-include' ? scope.words.join(' ') : '', total, query.mustInclude, patch],
+  );
 
   const exportAs = useCallback(
     async (format: ExportFormat) => {
@@ -400,6 +452,7 @@ export function App() {
                     onLoadAll={() => void loadAll()}
                     onExport={(format) => void exportAs(format)}
                     exporting={exporting}
+                    searchAll={searchAll}
                   />
                   <ResultList
                     rows={visibleRows}

@@ -177,7 +177,18 @@ export function useEngine(query: Query) {
     }
   }, [query.tier]);
 
-  return { ...state, loadMore, collect, at, surpriseMe, spellings, masks };
+  /** Whether a dictionary tier carries a word. False when the engine cannot say. */
+  const has = useCallback(async (word: string, tier: Query['tier']): Promise<boolean> => {
+    const client = clientRef.current;
+    if (!client) return false;
+    try {
+      return await client.has(word, tier);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  return { ...state, loadMore, collect, at, surpriseMe, spellings, masks, has };
 }
 
 export { DEFAULT_QUERY };
