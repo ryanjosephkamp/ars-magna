@@ -36,6 +36,8 @@ export type VerdictV1 = {
   /** Present when the API wrote the line; a session's answers get it at ingest. */
   model?: string;
   rubric_version?: string;
+  /** The day the verdict was written, when the line says; otherwise its queue's date. */
+  judged_at?: string;
 };
 
 /** A judge's answer for one candidate under rubric v2, as written to judge-output.jsonl. */
@@ -49,6 +51,8 @@ export type VerdictV2 = {
   rationale: string;
   model?: string;
   rubric_version?: string;
+  /** The day the verdict was written, when the line says; otherwise its queue's date. */
+  judged_at?: string;
   /**
    * A word the judge believes the vocabulary is missing. A proposal for the
    * operator, not a change: nothing here reaches the dictionary. Its gloss

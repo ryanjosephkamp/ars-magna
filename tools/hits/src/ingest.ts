@@ -37,7 +37,7 @@ import { alphagram, candidateId, hitId } from './ids.ts';
 import { parseIssueForm } from './submission.ts';
 import { isV2Verdict, rubric, type Verdict, type VerdictV1, type VerdictV2 } from './judge.ts';
 import type { Prefiltered } from './prefilter.ts';
-import { INGEST_REPORT, JUDGE_OUTPUT, flag, has, pickQueue, readJudgedRows } from './queue.ts';
+import { INGEST_REPORT, JUDGE_OUTPUT, flag, has, pickQueue, queueDate, readJudgedRows } from './queue.ts';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
@@ -178,7 +178,20 @@ export function validateVerdicts(
   return { ok, rejected };
 }
 
-export function toJudgement(v: Verdict, model: string, version: string, date: string): Judgement {
+const DAY = /^\d{4}-\d{2}-\d{2}/;
+
+/**
+ * The day a verdict was judged: the date its line carries, or else the date of
+ * the queue it answers. Never the day ingest runs, which differs on any replay:
+ * #47 replayed a queue judged on 2026-09-15 after midnight UTC and stamped its
+ * nine hits 2026-09-16.
+ */
+export function judgedAt(v: Pick<Verdict, 'judged_at'>, queueDay: string): string {
+  return typeof v.judged_at === 'string' && DAY.test(v.judged_at) ? v.judged_at.slice(0, 10) : queueDay;
+}
+
+export function toJudgement(v: Verdict, model: string, version: string, queueDay: string): Judgement {
+  const date = judgedAt(v, queueDay);
   if (isV2Verdict(v)) {
     const judgement: JudgementV2 = {
       model: v.model ?? model,
@@ -209,7 +222,10 @@ export function toJudgement(v: Verdict, model: string, version: string, date: st
 export type IngestOptions = {
   model: string;
   version: string;
+  /** The day ingest runs: a new hit's `added`. */
   date: string;
+  /** The queue's date: a judgement's `judged_at` when its verdict carries none. */
+  queueDay: string;
   threshold: number;
   dictionary: { repo: string; rev: string };
   /** Hits each candidate already has on a shelf (accepted or featured), by candidate id. */
@@ -285,7 +301,7 @@ export function assessBatch(
   const byId = new Map<string, Judgement[]>();
   for (const v of verdicts) {
     const list = byId.get(v.id) ?? [];
-    list.push(toJudgement(v, options.model, options.version, options.date));
+    list.push(toJudgement(v, options.model, options.version, options.queueDay));
     byId.set(v.id, list);
   }
 
@@ -364,7 +380,7 @@ export function promoteOnly(
       refused.push({ id, reason: 'already in data/hits.jsonl; change it with pnpm hits:set' });
       continue;
     }
-    const judge = verdicts.filter((v) => v.id === id).map((v) => toJudgement(v, options.model, options.version, options.date));
+    const judge = verdicts.filter((v) => v.id === id).map((v) => toJudgement(v, options.model, options.version, options.queueDay));
     const best = bestJudgement(judge);
     if (!best) {
       refused.push({ id, reason: 'no valid verdict in this queue' });
@@ -558,6 +574,7 @@ async function main(): Promise<void> {
     model,
     version,
     date,
+    queueDay: queueDate(dir),
     threshold,
     dictionary: await dictionaryPin(),
     taken: takenCounts(known),
