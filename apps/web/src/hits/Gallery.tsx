@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCopy } from '../lib/useCopy.ts';
 import { CheckToast } from '../components/CheckToast.tsx';
 import { VoteButton } from '../components/CountButton.tsx';
@@ -45,8 +45,11 @@ export function Gallery() {
     // Only when votes first arrive: later counts wait until the reader chooses an order.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [votesShown]);
-  const orders = votesShown ? ORDERS : ORDERS.filter((o) => o.order !== 'votes');
-  const shownOrder: Order = order === 'votes' && !votesShown ? 'newest' : order;
+  // While votes are on their way the list is already in Most votes order, ranked by no counts (A to Z),
+  // so it does not re-sort from Newest the moment they arrive. Newest stands in only when votes cannot load.
+  const votesUnavailable = votes.status === 'unavailable';
+  const orders = votesUnavailable ? ORDERS.filter((o) => o.order !== 'votes') : ORDERS;
+  const shownOrder: Order = order === 'votes' && votesUnavailable ? 'newest' : order;
 
   useEffect(() => {
     fetch('/hits.json')
@@ -62,10 +65,33 @@ export function Gallery() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+  // It scrolls there once the list is in, and again once votes settle, since their counts can re-rank a
+  // section; the second time only if the reader has not begun scrolling for themselves.
+  const readerMoved = useRef(false);
+  useEffect(() => {
+    const moved = () => {
+      readerMoved.current = true;
+    };
+    window.addEventListener('wheel', moved, { passive: true });
+    window.addEventListener('touchmove', moved, { passive: true });
+    window.addEventListener('keydown', moved);
+    return () => {
+      window.removeEventListener('wheel', moved);
+      window.removeEventListener('touchmove', moved);
+      window.removeEventListener('keydown', moved);
+    };
+  }, []);
+  const votesSettled = votes.status !== 'loading';
   useEffect(() => {
     if (loaded.state !== 'ready' || !selected) return;
+    readerMoved.current = false;
     document.getElementById(`hit-${selected}`)?.scrollIntoView({ block: 'center' });
   }, [loaded.state, selected]);
+  // Keyed on the ranking as well: it is applied a render after votes settle, and the scroll has to follow it.
+  useEffect(() => {
+    if (loaded.state !== 'ready' || !selected || !votesSettled || readerMoved.current) return;
+    document.getElementById(`hit-${selected}`)?.scrollIntoView({ block: 'center' });
+  }, [loaded.state, selected, votesSettled, ranking]);
 
   const hits = loaded.state === 'ready' ? loaded.hits : [];
   const today = useMemo(() => pickOfTheDay(hits, new Date().toISOString().slice(0, 10)), [hits]);
@@ -138,7 +164,7 @@ export function Gallery() {
                 </p>
                 {today.justification && <p className="mt-2 max-w-prose text-sm text-ink-soft">{today.justification}</p>}
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px]">
-                  <VoteButton hit={today} votes={votes} />
+                  <VoteButton hit={today} votes={votes} reserve />
                   <RowAction label="Share" active={sharing === 'today'} onClick={() => toggleShare('today')} always />
                   {sharing === 'today' && <ShareActions item={shareable(today)} id="today" copied={copied} onCopy={copy} />}
                 </div>
@@ -256,7 +282,7 @@ export function Gallery() {
                               </p>
                               <span className="flex shrink-0 items-center gap-3 font-mono text-[11px]">
                                 <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
-                                <VoteButton hit={hit} votes={votes} />
+                                <VoteButton hit={hit} votes={votes} reserve />
                                 <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
                                 <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
                                   Every anagram
