@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 
 import type { VotesBody } from '../votes/api.ts';
-import { forgetPass, keepPass, keptPass, siteKeyFor, voterId, withCount, withVote, type KeyValue, type Pass, type Tally } from '../votes/state.ts';
+import { CHECK_TIMED_OUT, forgetPass, keepPass, keptPass, siteKeyFor, voterId, withCount, withVote, type KeyValue, type Pass, type Tally } from '../votes/state.ts';
 import { turnstileToken } from '../votes/turnstile.ts';
 
 /** `open`: votes load and count. `closed`: counts show, voting is paused. `unavailable`: the API did not answer, so nothing about votes shows. */
@@ -23,6 +23,10 @@ export type Votes = {
 };
 
 const GENERIC = 'Your vote did not save. Try again.';
+/** The check ran, and Cloudflare turned it down. */
+const CHECK_FAILED = 'The check before voting did not pass. Try again.';
+/** The check was still waiting two minutes on, usually for a click nobody made. */
+const CHECK_UNFINISHED = 'The check before voting did not finish, so your vote did not save. Try again.';
 
 class VoteProblem extends Error {
   closed: boolean;
@@ -103,8 +107,10 @@ export function useVotes(): Votes {
         let token: string;
         try {
           token = await turnstileToken(container, siteKeyFor(window.location.hostname), setChallenge);
-        } catch {
-          throw new VoteProblem('The check before voting did not pass. Try again.');
+        } catch (error) {
+          // Either way the vote is undone and Vote comes back; the two differ
+          // only in what the reader is told happened.
+          throw new VoteProblem(error instanceof Error && error.message === CHECK_TIMED_OUT ? CHECK_UNFINISHED : CHECK_FAILED);
         }
         const response = await postJson('/api/pass', { voter, token });
         if (!response.ok) throw await problemFrom(response);

@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
 import { HIT_ID_PATTERN, PASS_TTL_MS, VOTER_PATTERN, connectionKey, hourBucket, signPass, verifyPass } from './core.ts';
-import { forgetPass, keepPass, keptPass, siteKeyFor, voterId, withCount, withVote, TURNSTILE_SITE_KEY, TURNSTILE_TEST_KEY, type KeyValue } from './state.ts';
+import {
+  CHECK_TIMED_OUT,
+  CHECK_TIME_LIMIT_MS,
+  forgetPass,
+  keepPass,
+  keptPass,
+  siteKeyFor,
+  voterId,
+  withCount,
+  withTimeLimit,
+  withVote,
+  TURNSTILE_SITE_KEY,
+  TURNSTILE_TEST_KEY,
+  type KeyValue,
+  type Tally,
+  type Timer,
+} from './state.ts';
 
 const VOTER = '0b6a1f3e-8d2c-4c1a-9f5e-2b7d6c4a1e90';
 const NOW = Date.UTC(2026, 8, 15, 12, 30);
@@ -82,5 +98,72 @@ describe('the page’s tally', () => {
     expect(siteKeyFor('ars-magna.pages.dev')).toBe(TURNSTILE_SITE_KEY);
     expect(siteKeyFor('localhost')).toBe(TURNSTILE_TEST_KEY);
     expect(siteKeyFor('127.0.0.1')).toBe(TURNSTILE_TEST_KEY);
+  });
+});
+
+/** A timer the test fires by hand, so two minutes cost nothing to wait out. */
+function fakeTimer(): Timer & { fire(): void; scheduled(): boolean; waited: number } {
+  let run: (() => void) | null = null;
+  const timer = {
+    waited: 0,
+    set(fn: () => void, ms: number): number {
+      run = fn;
+      timer.waited = ms;
+      return 1;
+    },
+    clear(): void {
+      run = null;
+    },
+    fire(): void {
+      const fn = run;
+      run = null;
+      fn?.();
+    },
+    scheduled: () => run !== null,
+  };
+  return timer;
+}
+
+describe('the check before voting', () => {
+  it('is abandoned two minutes on, and tidies the widget away as it goes', async () => {
+    const timer = fakeTimer();
+    let tidied = 0;
+    // A check nobody ever answers: the reader walked away from the click.
+    const limited = withTimeLimit(new Promise<string>(() => {}), CHECK_TIME_LIMIT_MS, () => (tidied += 1), timer);
+    expect(timer.waited).toBe(120_000);
+    timer.fire();
+    await expect(limited).rejects.toThrow(CHECK_TIMED_OUT);
+    expect(tidied).toBe(1);
+  });
+
+  it('takes the token a finished check gives it, and stops waiting', async () => {
+    const timer = fakeTimer();
+    let tidied = 0;
+    await expect(withTimeLimit(Promise.resolve('a token'), CHECK_TIME_LIMIT_MS, () => (tidied += 1), timer)).resolves.toBe('a token');
+    expect([timer.scheduled(), tidied]).toEqual([false, 0]);
+  });
+
+  it('passes a check that failed or expired straight through, as before', async () => {
+    for (const reason of ['check-failed', 'check-expired']) {
+      const timer = fakeTimer();
+      let tidied = 0;
+      await expect(withTimeLimit(Promise.reject(new Error(reason)), CHECK_TIME_LIMIT_MS, () => (tidied += 1), timer)).rejects.toThrow(reason);
+      // The check tidied up after itself, so the limit has nothing to do.
+      expect([timer.scheduled(), tidied]).toEqual([false, 0]);
+    }
+  });
+
+  it('leaves the count where it started when the check runs out of time', async () => {
+    const start: Tally = { counts: { 'dormitory:phrases:dirty-room': 2 }, mine: new Set<string>() };
+    const pressed = withVote(start, 'dormitory:phrases:dirty-room', true);
+    expect(pressed.counts['dormitory:phrases:dirty-room']).toBe(3);
+
+    const timer = fakeTimer();
+    const limited = withTimeLimit(new Promise<string>(() => {}), CHECK_TIME_LIMIT_MS, () => {}, timer);
+    timer.fire();
+    await expect(limited).rejects.toThrow(CHECK_TIMED_OUT);
+
+    // The hook undoes the press by this path on any failure, the limit included.
+    expect(withVote(pressed, 'dormitory:phrases:dirty-room', false)).toEqual(start);
   });
 });

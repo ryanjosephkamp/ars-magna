@@ -34,6 +34,51 @@ export function siteKeyFor(hostname: string): string {
   return hostname === 'localhost' || hostname === '127.0.0.1' ? TURNSTILE_TEST_KEY : TURNSTILE_SITE_KEY;
 }
 
+/** How long the check before voting may run before the page gives up on it. */
+export const CHECK_TIME_LIMIT_MS = 120_000;
+
+/** What a check that ran out of time rejects with, so the page can tell it apart from one that failed. */
+export const CHECK_TIMED_OUT = 'check-timed-out';
+
+/** The timers `withTimeLimit` waits on, so a test fires the two minutes by hand. */
+export type Timer = {
+  set(run: () => void, ms: number): number;
+  clear(id: number): void;
+};
+
+const REAL_TIMER: Timer = {
+  set: (run, ms) => setTimeout(run, ms) as unknown as number,
+  clear: (id) => clearTimeout(id),
+};
+
+/**
+ * `work`, abandoned once `limitMs` has passed.
+ *
+ * A check nobody ever finishes would otherwise leave the widget on screen, the
+ * vote counted on the page but in no database, and Vote busy for the rest of
+ * the visit. On the limit `giveUp` tidies away what `work` left running and the
+ * promise rejects with CHECK_TIMED_OUT; work that settles first clears the
+ * timer, so neither path leaves one behind.
+ */
+export function withTimeLimit<T>(work: Promise<T>, limitMs: number, giveUp: () => void, timer: Timer = REAL_TIMER): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = timer.set(() => {
+      giveUp();
+      reject(new Error(CHECK_TIMED_OUT));
+    }, limitMs);
+    work.then(
+      (value) => {
+        timer.clear(id);
+        resolve(value);
+      },
+      (error: unknown) => {
+        timer.clear(id);
+        reject(error);
+      },
+    );
+  });
+}
+
 export type KeyValue = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 const VOTER_KEY = 'ars-magna-voter';
