@@ -176,7 +176,7 @@ fn every_word_returned_is_in_the_dictionary_and_tier() {
         .map(|(i, w)| (w.as_str(), i))
         .collect();
 
-    for tier in [Tier::Common, Tier::Standard, Tier::Full] {
+    for tier in [Tier::Common, Tier::Standard, Tier::Full, Tier::Extended] {
         let options = SolveOptions {
             tier,
             limit: 500,
@@ -221,9 +221,14 @@ fn tiers_are_strictly_nested() {
     let common = at(Tier::Common);
     let standard = at(Tier::Standard);
     let full = at(Tier::Full);
+    let extended = at(Tier::Extended);
 
     assert!(common.is_subset(&standard), "common ⊄ standard");
     assert!(standard.is_subset(&full), "standard ⊄ full");
+    // Full stopped being the unfiltered tier when the site gained words of its
+    // own; this is the assertion that would catch the bitset mapping drifting,
+    // since a dictionary built without tiers reports every word in every tier.
+    assert!(full.is_subset(&extended), "full ⊄ extended");
     assert!(common.len() < full.len(), "tiers should differ in size");
 }
 

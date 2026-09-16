@@ -45,7 +45,7 @@
         "rev": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
       }
     },
-    "tier": { "type": "string", "enum": ["common", "standard", "full"] },
+    "tier": { "type": "string", "enum": ["common", "standard", "full", "extended"] },
     "tags": {
       "type": "array",
       "description": "classic; submitted; alternate (qualified past the per-input cap); greatest-candidate (the judge scored relation 5); note:<text>; shelf:interesting or shelf:stretch (the operator's placement, over the judge's scores); subject:<label>; tone:<label>.",

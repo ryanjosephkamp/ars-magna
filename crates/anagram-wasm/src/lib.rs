@@ -27,6 +27,10 @@ fn tier_from(name: &str) -> Tier {
     match name {
         "common" => Tier::Common,
         "full" => Tier::Full,
+        "extended" => Tier::Extended,
+        // Standard is the default, and an unknown name lands here rather than
+        // failing: a stale bundle asking for a tier this build does not know
+        // still returns real results, just narrower ones.
         _ => Tier::Standard,
     }
 }

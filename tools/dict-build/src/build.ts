@@ -24,10 +24,12 @@ import {
 } from './paths.ts';
 import { normalize, signature } from './normalize.ts';
 import { loadFacts } from './facts.ts';
-import { COMMON_RANK_CUTOFF, inCommon, inStandard, zipfByte, type WordFacts } from './tiers.ts';
+import { COMMON_RANK_CUTOFF, inCommon, inFull, inStandard, zipfByte, type WordFacts } from './tiers.ts';
 import { buildPos } from './pos.ts';
+import { readAdditions } from './vocab.ts';
 import {
   bitsetCount,
+  bitsetGet,
   bitsetSet,
   decodeDict,
   encodeBitsets,
@@ -35,7 +37,13 @@ import {
   makeBitset,
 } from './format.ts';
 
-const TIER_FULL = 2;
+/**
+ * Which list the artifact carries. It was Full until the site had words of its
+ * own; the shipped list is the union now, and Full became a bitset over it.
+ * Nothing reads this byte — it is provenance for anyone opening the file — but
+ * leaving it at the old value would be a lie in the header.
+ */
+const TIER_EXTENDED = 3;
 
 const verifyOnly = process.argv.includes('--verify');
 
@@ -181,14 +189,17 @@ async function main(): Promise<void> {
   console.log(`  openlist ${OPENLIST.repo}@${OPENLIST.rev.slice(0, 12)}\n`);
 
   console.log('1. word list');
-  const { words, indexOf, hyphenated, nonAscii, collisions } = await loadWords();
+  const pinned = await loadWords();
+  const { hyphenated, nonAscii, collisions } = pinned;
   console.log(
-    `   ${words.length.toLocaleString()} words ` +
+    `   ${pinned.words.length.toLocaleString()} words ` +
       `(${hyphenated} hyphenated, ${nonAscii.length} accented, ${collisions} collisions)`,
   );
 
-  if (words.length !== EXPECTED.normalizedWords) {
-    throw new Error(`expected ${EXPECTED.normalizedWords} normalized words, got ${words.length}`);
+  if (pinned.words.length !== EXPECTED.normalizedWords) {
+    throw new Error(
+      `expected ${EXPECTED.normalizedWords} normalized words, got ${pinned.words.length}`,
+    );
   }
   if (hyphenated !== EXPECTED.hyphenatedSurfaces) {
     throw new Error(`expected ${EXPECTED.hyphenatedSurfaces} hyphenated surfaces, got ${hyphenated}`);
@@ -199,13 +210,45 @@ async function main(): Promise<void> {
 
   console.log('\n2. signatures');
   const signatures = new Set<string>();
-  for (const word of words) signatures.add(signature(word));
+  for (const word of pinned.words) signatures.add(signature(word));
   console.log(`   ${signatures.size.toLocaleString()} distinct anagram classes`);
   if (signatures.size !== EXPECTED.signatures) {
     throw new Error(`expected ${EXPECTED.signatures} signatures, got ${signatures.size}`);
   }
 
-  console.log('\n3. provenance');
+  // Every tripwire above is measured against the pin alone, before the site's
+  // own words join it. A pin that moved has to be caught, and it would not be if
+  // the two lists were counted together.
+  console.log('\n3. additions');
+  const additions = await readAdditions();
+  const [fewest, most] = EXPECTED.additionsRange;
+  if (additions.length < fewest || additions.length > most) {
+    throw new Error(`${additions.length} additions outside the expected band ${fewest}–${most}`);
+  }
+
+  const pinnedSet = new Set(pinned.words);
+  for (const addition of additions) {
+    if (pinnedSet.has(addition.word)) {
+      throw new Error(`${addition.word} is already in English OpenList at the pinned revision`);
+    }
+  }
+
+  const isAddition = new Set(additions.map((a) => a.word));
+  const words = [...pinned.words, ...isAddition].sort();
+  const indexOf = new Map<string, number>();
+  words.forEach((w, i) => indexOf.set(w, i));
+  // An addition usually joins a class that already exists — `doomer` lands with
+  // `moored` — but it may open a new one, so the count the manifest reports is
+  // taken over the union while the tripwire above stays on the pin.
+  for (const word of isAddition) signatures.add(signature(word));
+  console.log(
+    additions.length === 0
+      ? '   none'
+      : `   ${additions.length} site addition${additions.length === 1 ? '' : 's'}: ` +
+          additions.map((a) => a.word).join(', '),
+  );
+
+  console.log('\n4. provenance');
   const facts: WordFacts[] = await loadFacts({
     metaPath: META_PATH,
     metaSha256: OPENLIST.files.meta.sha256,
@@ -221,38 +264,54 @@ async function main(): Promise<void> {
     `   ${twlCount.toLocaleString()} TWL · ${generatedCount.toLocaleString()} machine-generated`,
   );
 
-  console.log('\n4. frequency');
+  console.log('\n5. frequency');
   const { rank, zipf, attested } = await loadFrequency(indexOf, words.length);
   console.log(
     `   ${attested.toLocaleString()} words carry frequency data ` +
       `(${FREQUENCY.repo}@${FREQUENCY.rev.slice(0, 8)})`,
   );
 
-  console.log('\n5. tiers');
+  console.log('\n6. tiers');
   const commonSet = makeBitset(words.length);
   const standardSet = makeBitset(words.length);
+  const fullSet = makeBitset(words.length);
 
   for (let i = 0; i < words.length; i++) {
-    const input = { word: words[i]!, facts: facts[i]!, freqRank: rank[i]! };
+    const word = words[i]!;
+    const input = { word, facts: facts[i]!, freqRank: rank[i]!, addition: isAddition.has(word) };
     if (inCommon(input)) bitsetSet(commonSet, i);
     if (inStandard(input)) bitsetSet(standardSet, i);
+    if (inFull(input)) bitsetSet(fullSet, i);
   }
 
   const commonCount = bitsetCount(commonSet);
   const standardCount = bitsetCount(standardSet);
+  const fullCount = bitsetCount(fullSet);
   console.log(`   common   ${commonCount.toLocaleString()} (rank ≤ ${COMMON_RANK_CUTOFF.toLocaleString()})`);
   console.log(`   standard ${standardCount.toLocaleString()}`);
-  console.log(`   full     ${words.length.toLocaleString()}`);
+  console.log(`   full     ${fullCount.toLocaleString()}`);
+  console.log(`   extended ${words.length.toLocaleString()}`);
 
   const [low, high] = EXPECTED.standardRange;
   if (standardCount < low || standardCount > high) {
     throw new Error(`standard tier ${standardCount} outside expected band ${low}–${high}`);
   }
-  if (commonCount > standardCount) {
-    throw new Error('tier nesting violated: common ⊄ standard');
+  if (fullCount !== EXPECTED.normalizedWords) {
+    throw new Error(`full tier ${fullCount} is not the pinned list's ${EXPECTED.normalizedWords}`);
+  }
+  // Counts alone would let a word slip sideways between tiers unnoticed, so the
+  // nesting is checked word by word: Common ⊆ Standard ⊆ Full. Extended is the
+  // whole list and so has nothing to check.
+  for (let i = 0; i < words.length; i++) {
+    if (bitsetGet(commonSet, i) && !bitsetGet(standardSet, i)) {
+      throw new Error(`tier nesting violated: ${words[i]} is common but not standard`);
+    }
+    if (bitsetGet(standardSet, i) && !bitsetGet(fullSet, i)) {
+      throw new Error(`tier nesting violated: ${words[i]} is standard but not full`);
+    }
   }
 
-  console.log('\n6. parts of speech');
+  console.log('\n7. parts of speech');
   const pos = await buildPos({ dir: WORDNET_DICT, words });
   console.log(
     `   ${pos.fromCurated.toLocaleString()} curated · ` +
@@ -261,14 +320,16 @@ async function main(): Promise<void> {
       `${pos.unknown.toLocaleString()} unknown`,
   );
 
-  console.log('\n7. artifacts');
+  console.log('\n8. artifacts');
   await mkdir(DIST_DIR, { recursive: true });
 
-  // One word list plus two bitsets. A standalone Common artifact used to be
+  // One word list plus three bitsets. A standalone Common artifact used to be
   // emitted as well; nothing ever loaded it, since switching tiers is a
-  // bitset lookup over the one list.
-  const fullBin = encodeDict({ words, zipf, pos: pos.bytes, tier: TIER_FULL });
-  const bits = encodeBitsets(words.length, [commonSet, standardSet]);
+  // bitset lookup over the one list. The artifact keys stay `full` and `tiers`:
+  // they name files the engine and the CLI already ask for, and renaming them
+  // would buy nothing.
+  const fullBin = encodeDict({ words, zipf, pos: pos.bytes, tier: TIER_EXTENDED });
+  const bits = encodeBitsets(words.length, [commonSet, standardSet, fullSet]);
 
   // Round-trip every artifact before it is written. A silent encoder bug here
   // would be invisible until the worker tried to solve with a corrupt list.
@@ -299,7 +360,8 @@ async function main(): Promise<void> {
     counts: {
       common: commonCount,
       standard: standardCount,
-      full: words.length,
+      full: fullCount,
+      extended: words.length,
       signatures: signatures.size,
       withFrequency: attested,
     },

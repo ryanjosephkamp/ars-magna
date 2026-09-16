@@ -26,13 +26,15 @@ anagrams    →  ars magna
 ## Dictionary
 
 Word validity is judged against [English OpenList][eol], pinned to a specific revision so
-results are reproducible. Three nested tiers are available in the UI:
+results are reproducible, plus a short public list of words this site has added. Four
+nested tiers are available in the UI:
 
 | Tier | Words | What it is |
 |---|---|---|
 | Common | 39,951 | Everyday vocabulary: the 40,000 most frequent words, plus the tournament two-letter list |
 | **Standard** (default) | 314,007 | Every attested word |
-| Full | 378,844 | The complete list |
+| Full | 378,844 | English OpenList at the pinned revision |
+| Extended | 378,845 | The pinned list plus the site's own additions |
 
 Standard is the list minus the 64,837 algorithmically generated entries in the source data
 (`abacteremicer`, `nonlivabler`), which otherwise flood results with unrecognizable words.
@@ -40,6 +42,11 @@ It used to be Common plus the TWL Scrabble dictionary, which sounded reasonable 
 TWL stops at 15 letters, so almost every longer word was missing from the default tier.
 Nothing is removed from English OpenList itself — Full still carries every word, and
 expanding a result says where each word came from.
+
+Extended adds the site's own words on top of the pinned list. Every one is a line in
+`data/vocabulary/additions.jsonl` with a meaning and a source, `pnpm vocab:check` keeps the
+file honest in CI, and the word panel labels such a word as a site addition, so the
+vocabulary stays something a reader can look up rather than guess at.
 
 ## Definitions
 

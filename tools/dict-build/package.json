@@ -8,9 +8,12 @@
     "fetch": "node --experimental-strip-types src/fetch.ts",
     "build": "node --max-old-space-size=2048 --experimental-strip-types src/build.ts",
     "verify": "node --max-old-space-size=2048 --experimental-strip-types src/build.ts --verify",
-    "shards": "node --max-old-space-size=2048 --experimental-strip-types src/shards.ts"
+    "shards": "node --max-old-space-size=2048 --experimental-strip-types src/shards.ts",
+    "vocab:add": "node --experimental-strip-types src/vocab-add.ts",
+    "vocab:check": "node --experimental-strip-types src/vocab-check.ts"
   },
   "dependencies": {
+    "ajv": "^8.17.1",
     "stream-chain": "^3.4.0",
     "stream-json": "^1.9.1"
   },

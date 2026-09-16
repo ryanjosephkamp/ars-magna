@@ -78,9 +78,12 @@ export type TierInputs = {
   /** 1-based rank among dictionary words by descending corpus frequency;
    *  `0` means the word has no frequency data at all. */
   readonly freqRank: number;
+  /** A word the site added, absent from English OpenList at the pinned revision. */
+  readonly addition: boolean;
 };
 
-export function inCommon({ word, facts, freqRank }: TierInputs): boolean {
+export function inCommon({ word, facts, freqRank, addition }: TierInputs): boolean {
+  if (addition) return false;
   if (facts.generated) return false;
   if (SHORT_ALLOWLIST.has(word)) return true;
   if (word.length < 3) return false;
@@ -99,7 +102,20 @@ export function inCommon({ word, facts, freqRank }: TierInputs): boolean {
  * as "the list without the generated entries"; now it is.
  */
 export function inStandard(input: TierInputs): boolean {
-  return !input.facts.generated;
+  return !input.addition && !input.facts.generated;
+}
+
+/**
+ * Full is English OpenList at the pinned revision, and nothing else.
+ *
+ * It used to be the whole shipped list, which is why it needed no bitset at all.
+ * Extended is that tier now — the pinned list plus the site's own additions — so
+ * Full has to be stated rather than assumed. An addition carries no provenance
+ * record from the source metadata, so without this it would fall through
+ * `inStandard`'s "not generated" test and land in the default tier.
+ */
+export function inFull(input: TierInputs): boolean {
+  return !input.addition;
 }
 
 /**

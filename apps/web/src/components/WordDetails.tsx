@@ -47,9 +47,15 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
                 <ul className="space-y-0.5">
                   {info.senses.map((sense, i) => (
                     <li key={i} className="text-ink-soft">
-                      <span className="font-mono text-[10px] tracking-wide text-ink-faint">
-                        {POS_LABEL[sense.pos] ?? sense.pos}
-                      </span>{' '}
+                      {/* A site addition's gloss carries no part of speech;
+                          `kind` is not one, so there is no chip to show. */}
+                      {sense.pos.length > 0 && (
+                        <>
+                          <span className="font-mono text-[10px] tracking-wide text-ink-faint">
+                            {POS_LABEL[sense.pos] ?? sense.pos}
+                          </span>{' '}
+                        </>
+                      )}
                       {sense.gloss}
                       {sense.base !== undefined && (
                         <span className="text-ink-faint"> — from {sense.base}</span>
@@ -57,11 +63,14 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
                     </li>
                   ))}
                 </ul>
-              ) : explain ? (
-                <p className="text-ink-faint">{PROVENANCE_LABEL[info.provenance]}</p>
-              ) : (
+              ) : explain ? null : (
                 <p className="text-ink-faint">No definition found.</p>
               )}
+
+              {/* Usually this stands in place of a definition. For a site
+                  addition it sits under one: the gloss says what the word
+                  means, this says why the dictionary has it. */}
+              {explain && <p className="text-ink-faint">{PROVENANCE_LABEL[info.provenance]}</p>}
 
               {others.length > 0 && (
                 <p className="mt-0.5 text-ink-faint">

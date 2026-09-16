@@ -1,0 +1,177 @@
+/**
+ * The site's own additions to the vocabulary.
+ *
+ * English OpenList at the pinned revision is the dictionary. This is the short,
+ * public list of words the site adds on top of it, so that completeness can
+ * still be claimed honestly: the vocabulary is larger than the pin, and it is
+ * still fully named.
+ *
+ * Every addition carries a gloss a reader can read and a trace saying where the
+ * word is attested. Nothing here admits a word by itself — `vocab:add` appends a
+ * proposal and the operator admits it by merging the pull request. The routine
+ * and the Submit page propose; only a merge adds.
+ *
+ * The cap is a tripwire rather than a budget. If this list ever approaches two
+ * thousand words, the question is no longer "is this word real" but "should the
+ * pin move", and that is a different decision.
+ */
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020.js';
+
+import { DIST_DIR, REPO_ROOT } from './paths.ts';
+import { normalize } from './normalize.ts';
+import { bitsetGet, decodeDict } from './format.ts';
+
+export const VOCAB_DIR = resolve(REPO_ROOT, 'data/vocabulary');
+export const ADDITIONS_PATH = resolve(VOCAB_DIR, 'additions.jsonl');
+const SCHEMA_PATH = resolve(REPO_ROOT, 'data/schema/addition.schema.json');
+
+/** The most additions the list may hold. A number the operator may tune. */
+export const ADDITIONS_CAP = 2_000;
+
+/** Which bitset holds the pinned list once the fourth tier exists. */
+export const FULL_SET = 2;
+
+export type AdditionKind = 'slang' | 'coinage' | 'name' | 'abbreviation' | 'later-in-openlist';
+
+export type Addition = {
+  word: string;
+  kind: AdditionKind;
+  gloss: string;
+  trace: string;
+  proposed_by: string;
+  added: string;
+  note?: string;
+};
+
+let validator: ValidateFunction<Addition> | null = null;
+
+export async function additionSchema(): Promise<ValidateFunction<Addition>> {
+  if (!validator) {
+    const ajv = new Ajv2020({ allErrors: true, strict: true });
+    const schema = JSON.parse(await readFile(SCHEMA_PATH, 'utf8')) as object;
+    validator = ajv.compile<Addition>(schema);
+  }
+  return validator;
+}
+
+/** A readable one-line summary of why a record failed. */
+export function explain(check: ValidateFunction): string {
+  return (check.errors ?? [])
+    .map((e) => `${e.instancePath || '/'} ${e.message ?? ''}`.trim())
+    .join('; ');
+}
+
+/**
+ * Every addition, in file order. Blank lines are allowed; anything the schema
+ * refuses is an error naming the line, so a bad edit fails loudly rather than
+ * quietly dropping a word out of the dictionary.
+ */
+export async function readAdditions(path = ADDITIONS_PATH): Promise<Addition[]> {
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (error) {
+    // No file yet is not a problem: the vocabulary is then exactly the pin.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+
+  const check = await additionSchema();
+  const out: Addition[] = [];
+  const lines = text.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    if (line.length === 0) continue;
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      throw new Error(`${path}:${i + 1}: not JSON`);
+    }
+    if (!check(value)) throw new Error(`${path}:${i + 1}: ${explain(check)}`);
+    out.push(value);
+  }
+  return out;
+}
+
+/**
+ * The rules the schema cannot state, as a list of problems. Empty means the
+ * list is admissible.
+ *
+ * `pinned` is the pinned word list when it is available; without it the
+ * duplicate rule is skipped rather than guessed at, and the caller says so.
+ */
+export function problemsWith(
+  additions: readonly Addition[],
+  pinned: ReadonlySet<string> | null,
+): string[] {
+  const problems: string[] = [];
+
+  if (additions.length > ADDITIONS_CAP) {
+    problems.push(`${additions.length} additions is over the cap of ${ADDITIONS_CAP}`);
+  }
+
+  const seen = new Set<string>();
+  for (const addition of additions) {
+    const { word } = addition;
+
+    if (normalize(word) !== word) {
+      problems.push(`${word}: not a search form; it normalizes to ${normalize(word) || 'nothing'}`);
+    }
+    if (seen.has(word)) problems.push(`${word}: listed more than once`);
+    seen.add(word);
+
+    if (pinned?.has(word)) {
+      problems.push(`${word}: already in English OpenList at the pinned revision`);
+    }
+
+    // The admission rule says no private person's name. That judgement is the
+    // operator's, made by merging; what can be checked here is that a word
+    // admitted as a name points at somewhere public.
+    if (addition.kind === 'name' && !/^https?:\/\//.test(addition.trace)) {
+      problems.push(`${word}: a name needs a public URL as its trace`);
+    }
+  }
+
+  return problems;
+}
+
+/**
+ * The pinned list, read back from the committed artifacts rather than the 330 MB
+ * source, so `vocab:check` is a tripwire CI can afford to run on every pull
+ * request.
+ *
+ * Before the fourth tier exists the artifact carries two bitsets and the shipped
+ * list *is* the pinned list; after it, the list is the union and bitset 2 marks
+ * the pinned words. Both are handled, because the first run of this check
+ * happens on a checkout built the old way.
+ */
+export async function pinnedWords(): Promise<ReadonlySet<string> | null> {
+  type Manifest = { files: Record<string, { name: string } | undefined> };
+  let manifest: Manifest;
+  try {
+    manifest = JSON.parse(await readFile(resolve(DIST_DIR, 'manifest.json'), 'utf8')) as Manifest;
+  } catch {
+    return null;
+  }
+
+  const full = manifest.files['full']?.name;
+  const tiers = manifest.files['tiers']?.name;
+  if (!full) return null;
+
+  const { words } = decodeDict(new Uint8Array(await readFile(resolve(DIST_DIR, full))));
+  if (!tiers) return new Set(words);
+
+  const bits = new Uint8Array(await readFile(resolve(DIST_DIR, tiers)));
+  const setCount = new DataView(bits.buffer, bits.byteOffset, bits.byteLength).getUint16(10, true);
+  // Two bitsets means an artifact from before the fourth tier: every word in it
+  // came from the pin.
+  if (setCount <= FULL_SET) return new Set(words);
+
+  const setBytes = Math.ceil(words.length / 8);
+  const fullSet = bits.subarray(16 + FULL_SET * setBytes, 16 + (FULL_SET + 1) * setBytes);
+  return new Set(words.filter((_, index) => bitsetGet(fullSet, index)));
+}

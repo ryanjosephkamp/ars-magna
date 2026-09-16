@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/addition.schema.json",
+  "title": "Addition",
+  "description": "One word this site adds to the vocabulary on top of the pinned English OpenList revision. One line of data/vocabulary/additions.jsonl. Every addition is public, carries a meaning a reader can read, and names where it came from; the operator accepts it by merging the pull request that adds it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["word", "kind", "gloss", "trace", "proposed_by", "added"],
+  "properties": {
+    "word": {
+      "type": "string",
+      "pattern": "^[a-z]+$",
+      "maxLength": 45,
+      "description": "The search form, already normalized: lowercase, accents folded, nothing else. A word that normalize() would change is not a legal addition."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["slang", "coinage", "name", "abbreviation", "later-in-openlist"],
+      "description": "later-in-openlist: English OpenList has since accepted the word, so the next build drops the duplicate and this line becomes a record."
+    },
+    "gloss": {
+      "type": "string",
+      "maxLength": 160,
+      "pattern": "^[A-Z][^\\n]*\\.$",
+      "description": "What the word means, in one sentence. A reader sees this in the word panel, so PRODUCT.md's rule applies: a capital letter at the start and a full stop at the end."
+    },
+    "trace": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where the word is attested: a public URL (Wiktionary, Urban Dictionary, a citation), an explicit coinage note, or — for later-in-openlist — the English OpenList revision that accepted it."
+    },
+    "proposed_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who proposed it. The routine and the Submit page propose; only a merge admits."
+    },
+    "added": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "note": {
+      "type": "string",
+      "description": "Anything else worth recording about the admission."
+    }
+  }
+}

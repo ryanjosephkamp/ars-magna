@@ -219,6 +219,21 @@ describe.skipIf(!built)('Definitions', () => {
     expect(shouldExplain(info)).toBe(true);
   });
 
+  it('gives a site addition its gloss and says why the dictionary has it', async () => {
+    // `doomer` is the first word the site added on top of the pinned list. It
+    // is the one case where a label sits *under* a definition rather than in
+    // place of one: the gloss says what the word means, the label says why it
+    // is here when English OpenList does not carry it.
+    const info = await defs.lookup('doomer');
+    expect(info.provenance).toBe('addition');
+    expect(info.senses.length).toBe(1);
+    expect(info.senses[0]!.gloss.toLowerCase()).toContain('catastrophe');
+    // No part of speech: `kind` is not one, so the panel shows no chip.
+    expect(info.senses[0]!.pos).toBe('');
+    expect(shouldExplain(info)).toBe(true);
+    expect(PROVENANCE_LABEL.addition).toBe('Site addition, not in English OpenList.');
+  });
+
   it('explains an undefined word by where it came from', async () => {
     // `qi` is a real tournament word most people will not recognize, and
     // WordNet has no entry for it.

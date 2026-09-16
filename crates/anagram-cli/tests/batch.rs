@@ -95,7 +95,10 @@ fn batch_enumerates_samples_and_is_deterministic() {
             assert_eq!(row["tiers"].as_array().unwrap().len(), words.len());
             assert_eq!(row["pos"].as_array().unwrap().len(), words.len());
             for tier in row["tiers"].as_array().unwrap() {
-                assert!(matches!(tier.as_str().unwrap(), "common" | "standard" | "full"));
+                assert!(matches!(
+                    tier.as_str().unwrap(),
+                    "common" | "standard" | "full" | "extended"
+                ));
             }
             // Indices are unique and inside the count; samples come after the head.
             let index: u128 = row["index"].as_str().unwrap().parse().unwrap();

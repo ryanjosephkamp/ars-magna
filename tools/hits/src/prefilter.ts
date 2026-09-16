@@ -42,7 +42,7 @@ export type RawRow = {
   anchor?: string;
   words: string[];
   zipf: number[];
-  tiers: ('common' | 'standard' | 'full')[];
+  tiers: ('common' | 'standard' | 'full' | 'extended')[];
   pos: number[];
 };
 
@@ -61,7 +61,7 @@ export type Prefiltered = {
   display: string;
   letters: string;
   prefilter_score: number;
-  tier: 'common' | 'standard' | 'full';
+  tier: 'common' | 'standard' | 'full' | 'extended';
   count?: string;
   index?: string;
   sampled?: boolean;
@@ -137,7 +137,16 @@ export function prefilterRow(row: RawRow, allow: ReadonlySet<string> = new Set()
     display: ordered.join(' '),
     letters: alphagram(row.input),
     prefilter_score: score(ordered, masks, row.zipf),
-    tier: row.tiers.includes('full') ? 'full' : row.tiers.includes('standard') ? 'standard' : 'common',
+    // The narrowest tier that holds every word, widest test first. A site
+    // addition is outside the pinned list entirely, so it has to be asked about
+    // before `full`, or an extended row would be recorded as a pinned one.
+    tier: row.tiers.includes('extended')
+      ? 'extended'
+      : row.tiers.includes('full')
+        ? 'full'
+        : row.tiers.includes('standard')
+          ? 'standard'
+          : 'common',
     count: row.count,
     index: row.index,
     sampled: row.sampled,

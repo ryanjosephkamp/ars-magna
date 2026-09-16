@@ -27,8 +27,10 @@ Two things make this different from the anagram tools that already exist:
 1. **Completeness is the promise.** Most tools silently cap, sample, or drop
    results. Ars Magna states the exact total and can reach any result in it.
 2. **The dictionary is a stated authority.** Validity is judged against a pinned
-   revision of English OpenList, with three nested tiers the user chooses
-   between, so results are reproducible and the vocabulary is never a mystery.
+   revision of English OpenList plus a short, public list of site additions,
+   each with a gloss and a trace. Four nested tiers let the user choose how far
+   the vocabulary reaches, so results are reproducible and the vocabulary is
+   never a mystery.
 
 Success is a user finding the specific rearrangement they were looking for, and
 trusting that if it were not shown, it does not exist.

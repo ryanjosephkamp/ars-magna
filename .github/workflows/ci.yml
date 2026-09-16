@@ -31,6 +31,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Cheap, and needs neither the engine nor the pinned sources: it reads the
+      # committed dictionary to catch an addition English OpenList already
+      # carries, a malformed line, or a list over the cap.
+      - name: Vocabulary
+        run: pnpm vocab:check
+
       # The wasm-bindgen output is generated, not committed, so a clean checkout
       # has no `packages/engine/src/wasm/`. Typecheck and the TypeScript tests
       # both import it, so the engine has to be built before either runs.
