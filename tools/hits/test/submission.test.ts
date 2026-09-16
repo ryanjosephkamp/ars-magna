@@ -44,5 +44,8 @@ describe('parseIssueForm', () => {
     expect(parseIssueForm(body.replace('phrases', 'celebrities'))).toEqual({ error: 'unknown category "celebrities"' });
     expect(parseIssueForm(body.replace('Dirty  Room', '123'))).toEqual({ error: 'the Anagram field has no letters' });
     expect((parseIssueForm(body.replace('common', 'whatever')) as { tier: string }).tier).toBe('standard');
+    // Extended is a real tier now, so the form must carry it through rather
+    // than quietly checking the submission against the default dictionary.
+    expect((parseIssueForm(body.replace('common', 'extended')) as { tier: string }).tier).toBe('extended');
   });
 });
