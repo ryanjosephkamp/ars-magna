@@ -12,20 +12,26 @@
  * the first spelling of each letter group, the first 2,000 results plus 500
  * sampled, and the best 25 per input by fluency.
  *
- * s2: the presets below. Common tier, words of 3+ letters plus the short-word
- * allowlist, at most 5 words, every spelling, complete enumeration up to a
- * limit with a sample and anchor searches above it, and a model screen in
- * place of the fluency cap.
+ * s2 (to 2026-09-16): the presets below. Common tier, words of 3+ letters plus
+ * the short-word allowlist, at most 5 words, every spelling, complete
+ * enumeration up to a limit with a sample and anchor searches above it, and a
+ * model screen in place of the fluency cap.
+ *
+ * s3: s2 plus the site's own additions, searched beside Common. An addition
+ * lives only in Extended, so before s3 no machine-generated candidate could
+ * contain one. Adding a word to `data/vocabulary/additions.jsonl` therefore
+ * changes what enumeration finds, which is why the queue keeps its own copy
+ * of the list it used.
  */
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Candidate, CandidateRun } from './schema.ts';
+import { REPO_ROOT, type Candidate, type CandidateRun } from './schema.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export const SETTINGS_VERSION = 's2';
+export const SETTINGS_VERSION = 's3';
 
 /** A candidate processed before runs were recorded counts as this. */
 export const LEGACY_RUN: Pick<CandidateRun, 'settings' | 'rubric'> = { settings: 's1', rubric: 'v1' };
@@ -77,6 +83,55 @@ export function parseShortWords(text: string): Set<string> {
 
 export async function readShortWords(path: string = SHORT_WORDS_PATH): Promise<Set<string>> {
   return parseShortWords(await readFile(path, 'utf8'));
+}
+
+/** The reviewed list of site additions, the same file `vocab:add` appends to. */
+export const ADDITIONS_PATH = resolve(REPO_ROOT, 'data/vocabulary/additions.jsonl');
+
+/** The copy a queue keeps of the additions it was enumerated with. */
+export const QUEUE_ADDITIONS = 'additions.txt';
+
+/**
+ * The words in `additions.jsonl`, for handing to the engine.
+ *
+ * Only the `word` of each line is taken; the schema, the cap and the
+ * duplicate rules are `pnpm vocab:check`'s job, and CI runs it on every pull
+ * request. A missing file means no additions, which is how this repository
+ * stood before phase V.
+ */
+export async function readAdditionWords(path: string = ADDITIONS_PATH): Promise<string[]> {
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+  return text
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line, i) => {
+      const word = (JSON.parse(line) as { word?: unknown }).word;
+      if (typeof word !== 'string') throw new Error(`${path}:${i + 1}: no word`);
+      return word;
+    });
+}
+
+/**
+ * The additions a queue was enumerated with, read back from its own copy.
+ *
+ * The prefilter has to judge rows against the vocabulary that produced them,
+ * not against today's list: re-running it after a word was added would
+ * otherwise keep rows the engine never could have written. A queue from
+ * before s3 has no copy, and no additions.
+ */
+export async function readQueueAdditions(dir: string): Promise<Set<string>> {
+  try {
+    return parseShortWords(await readFile(resolve(dir, QUEUE_ADDITIONS), 'utf8'));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
+    throw error;
+  }
 }
 
 /**

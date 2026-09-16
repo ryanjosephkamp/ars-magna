@@ -90,7 +90,10 @@ jobs:
           QUEUE=data/queue/${{ steps.enumerate.outputs.date }}
           git config user.name "hits-nightly"
           git config user.email "hits-nightly@users.noreply.github.com"
-          git add data/candidates.jsonl "$QUEUE/summary.json"
+          # additions.txt is the vocabulary this queue was enumerated with.
+          # Without it a later prefilter of the same queue, from a fresh
+          # checkout, would drop every row containing a site addition.
+          git add data/candidates.jsonl "$QUEUE/summary.json" "$QUEUE/additions.txt"
           # A thin night writes no screen input; its summary is the record.
           if ls "$QUEUE"/screen-input-*.md > /dev/null 2>&1; then
             git add "$QUEUE"/screen-input-*.md "$QUEUE/screen-scores.txt"

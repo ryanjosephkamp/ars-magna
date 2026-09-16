@@ -89,6 +89,25 @@ English OpenList defines them — and the word panel labels it `Site addition, n
 OpenList.` `pnpm vocab:check` runs on every pull request and catches a malformed line, a duplicate,
 or a list over the cap.
 
+**It also changes what the nightly finds.** Enumeration searches Common plus the additions, so from
+the next run the word can appear in a machine-generated candidate. Before this, an addition could
+only ever reach the site through a submission that chose the Extended tier by hand.
+
+Two things follow. A row containing an addition is labelled `extended` rather than `common`, which
+is how the prefilter tells it from a genuinely rare word and how you can spot one in a queue. And
+each queue keeps its own `additions.txt`, the list it was enumerated with: the prefilter reads that
+back rather than today's list, so re-running it on an older queue judges rows against the
+vocabulary that actually produced them. The file is written by `hits:enumerate` and committed with
+the queue; do not edit it.
+
+Adding a word does **not** re-run the inputs already enumerated. Candidates enumerated under `s2`
+or earlier never saw the additions, and they are not sent round again automatically — a requeue is
+a deep-run decision, taken on its own:
+
+```bash
+pnpm hits:requeue --settings-before=s3
+```
+
 ## Review a routine pull request
 
 When a pull request titled `Greatest Hits: N new for <date>` appears. The routine opens one after it

@@ -9,12 +9,18 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { CANDIDATES_PATH, REPO_ROOT, today } from './schema.ts';
 import { flag, queueDir } from './queue.ts';
-import { SETTINGS_VERSION, SHORT_WORDS_PATH, presetFlag } from './settings.ts';
+import {
+  QUEUE_ADDITIONS,
+  SETTINGS_VERSION,
+  SHORT_WORDS_PATH,
+  presetFlag,
+  readAdditionWords,
+} from './settings.ts';
 
 const BINARY = resolve(REPO_ROOT, 'target/release/anagram');
 
@@ -43,6 +49,10 @@ export function batchArgs(argv: readonly string[], out: string): string[] {
     `--tier=${preset.tier}`,
     `--min-len=${preset.minLength}`,
     `--short-words=${SHORT_WORDS_PATH}`,
+    // The queue's own copy, written just before this runs, so the queue
+    // records the vocabulary it was built with rather than pointing at a
+    // file that changes underneath it.
+    `--additions=${resolve(out, QUEUE_ADDITIONS)}`,
     `--max-words=${preset.maxWords}`,
     `--spellings=${preset.spellings}`,
     `--expand-cap=${preset.expandCap}`,
@@ -58,6 +68,17 @@ async function main(): Promise<void> {
   const date = flag(argv, 'date') ?? today();
   const out = queueDir(date);
   await mkdir(out, { recursive: true });
+
+  // Written before the engine runs, and kept: the prefilter reads it back so
+  // it judges rows against the vocabulary that produced them.
+  const additions = await readAdditionWords();
+  await writeFile(
+    resolve(out, QUEUE_ADDITIONS),
+    `# The site additions this queue was enumerated with, from\n` +
+      `# data/vocabulary/additions.jsonl. Written by hits:enumerate; do not edit.\n` +
+      additions.map((word) => `${word}\n`).join(''),
+  );
+  console.log(`additions: ${additions.length}`);
 
   const args = batchArgs(argv, out);
   console.log(`anagram ${args.join(' ')}`);

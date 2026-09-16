@@ -12,7 +12,7 @@
 //! progressive disclosure in the UI rather than permanent chrome.
 
 use crate::counts::Counts;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 const MAGIC_DICT: &[u8; 8] = b"ARSMAGNA";
 const MAGIC_BITS: &[u8; 8] = b"ARSMBITS";
@@ -244,6 +244,13 @@ pub struct Dict {
     /// runs on every must-include check and every word of an expanded row.
     class_of: HashMap<Counts, u32>,
     tiers: Option<TierBits>,
+    /// Word indices admitted at every tier, whatever the bitsets say: the
+    /// site's own additions, so a run can search a narrow tier plus them.
+    ///
+    /// Empty unless `admit` is called, which only the batch does. The site
+    /// and the CLI's own `solve` leave it empty and see the tiers exactly as
+    /// they were built.
+    extra: HashSet<u32>,
 }
 
 impl Dict {
@@ -297,7 +304,32 @@ impl Dict {
             classes,
             class_of,
             tiers,
+            extra: HashSet::new(),
         })
+    }
+
+    /// Admit `words` at every tier, on top of whatever the bitsets hold.
+    ///
+    /// This is how enumeration searches Common plus the site's additions
+    /// without widening Common itself: an addition lives only in Extended, so
+    /// a Common search would otherwise never reach it. Returns how many of
+    /// `words` were found; a word the dictionary does not carry is ignored,
+    /// which is what happens between adding a word and rebuilding the
+    /// artifacts.
+    pub fn admit(&mut self, words: &[String]) -> usize {
+        let mut found = 0;
+        for word in words {
+            if let Ok(index) = self.words.binary_search_by(|w| w.as_str().cmp(word.as_str())) {
+                self.extra.insert(index as u32);
+                found += 1;
+            }
+        }
+        found
+    }
+
+    /// How many words are admitted beyond their tiers.
+    pub fn admitted(&self) -> usize {
+        self.extra.len()
     }
 
     pub fn decode(dict_bytes: &[u8], tier_bytes: Option<&[u8]>) -> Result<Dict, DictError> {
@@ -325,10 +357,18 @@ impl Dict {
         }
     }
 
-    /// Words of `class` that are members of `tier`.
+    /// Words of `class` that are members of `tier`, plus any admitted by
+    /// `admit`.
     pub fn class_words(&self, class: usize, tier: Tier) -> impl Iterator<Item = u32> + '_ {
         let set = tier.bitset();
+        // The emptiness test comes first deliberately: this runs for every
+        // word of every class the sweep touches, and the site never admits
+        // anything, so the common case must not pay for a hash.
+        let extra = (!self.extra.is_empty()).then_some(&self.extra);
         self.classes[class].words.iter().copied().filter(move |&i| {
+            if extra.is_some_and(|e| e.contains(&i)) {
+                return true;
+            }
             match (set, &self.tiers) {
                 (Some(s), Some(bits)) => bits.contains(s, i as usize),
                 _ => true,
@@ -358,6 +398,18 @@ impl Dict {
     }
 
     pub fn in_tier(&self, word_index: u32, tier: Tier) -> bool {
+        (!self.extra.is_empty() && self.extra.contains(&word_index))
+            || self.in_built_tier(word_index, tier)
+    }
+
+    /// Whether `word_index` is in `tier` as the artifact was built, ignoring
+    /// anything `admit` let through.
+    ///
+    /// The two differ only during a run that admitted additions, and the
+    /// difference matters: a result's tier label has to say where a word
+    /// really comes from. Labelling through `in_tier` would call every
+    /// addition "common" the moment a Common run admitted it.
+    pub fn in_built_tier(&self, word_index: u32, tier: Tier) -> bool {
         match (tier.bitset(), &self.tiers) {
             (Some(s), Some(bits)) => bits.contains(s, word_index as usize),
             _ => true,
