@@ -40,11 +40,12 @@ body:
     id: tier
     attributes:
       label: Dictionary tier
-      description: Common is everyday words; Standard is every attested word; Full includes machine-derived forms.
+      description: Common is everyday words; Standard is every attested word; Full includes machine-derived forms; Extended adds the site's own words on top of the list.
       options:
         - common
         - standard
         - full
+        - extended
       default: 1
   - type: textarea
     id: why

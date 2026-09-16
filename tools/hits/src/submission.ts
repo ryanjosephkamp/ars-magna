@@ -19,7 +19,7 @@ export type Submission = {
   input: string;
   category: Category;
   words: string[];
-  tier: 'common' | 'standard' | 'full';
+  tier: 'common' | 'standard' | 'full' | 'extended';
   why: string;
   credit: string;
 };
@@ -44,7 +44,10 @@ export function parseIssueForm(body: string): Submission | { error: string } {
   if (!input) return { error: 'the Input field is empty' };
   if (!isCategory(category)) return { error: `unknown category "${category}"` };
   if (!anagram) return { error: 'the Anagram field is empty' };
-  const tier = tierRaw === 'common' || tierRaw === 'full' ? tierRaw : 'standard';
+  // Standard is the default and the fallback, so a tier this build does not
+  // know is checked against the default dictionary rather than refused.
+  const tier =
+    tierRaw === 'common' || tierRaw === 'full' || tierRaw === 'extended' ? tierRaw : 'standard';
   const words = anagram.split(/\s+/).map(normalizeLetters).filter((w) => w.length > 0);
   if (words.length === 0) return { error: 'the Anagram field has no letters' };
   return { input, category, words, tier, why: fields.get('why it is good') ?? '', credit: fields.get('credit') ?? '' };
