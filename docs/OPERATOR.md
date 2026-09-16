@@ -305,6 +305,18 @@ only how the words read: the id, and so the hit's page address, stays the same. 
 a row that is not in the queue, is already a hit, or has no valid verdict. An agent runs these only on what
 the operator named, and writes a justification only when a note asks for one.
 
+`hits:input` changes how a hit's input reads when its letters stay exactly the same, in the same order. The
+search ignores digits, so "Big Brother 28" and "Big Brother" are one input with one id:
+
+```bash
+pnpm hits:input bigbrother:titles:brig-bro-the "Big Brother"
+```
+
+It refuses an input that would change the id ("Brother Big", "Big Brothers") and writes nothing then. The
+id, the letters, the votes and the hit's page address stay as they are. An input with digits still matches
+today, but numbers are to become letters in roadmap phase N, so an input that names a season or a sequel is
+better without its number.
+
 Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes, desk_row_notes). The desk fills it.
 To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
 

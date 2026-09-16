@@ -15,8 +15,8 @@ Code) adds only what is specific to that harness and never restates a rule from 
 - Nothing enters the published dataset without a person's merge. A hit is published when a person
   merges the pull request that makes it `accepted`, whether the judge routine shelved it or
   `pnpm hits:set` set it. Greatest Hits (`featured`) changes only when the operator promotes a hit by
-  name. An agent runs `hits:set`, `hits:justify`, `hits:tag`, `hits:order` and `hits:judged-at` only on the ids,
-  statuses, sentences, tags, word orders and queues the operator named, whether in a message or in a prompt the review desk
+  name. An agent runs `hits:set`, `hits:justify`, `hits:tag`, `hits:order`, `hits:input` and `hits:judged-at` only on the ids,
+  statuses, sentences, tags, word orders, inputs and queues the operator named, whether in a message or in a prompt the review desk
   filled. When the operator's note on a hit in that prompt asks for a justification, the agent writes it
   and lists it in the pull request, whose merge approves it.
 - The commit author email is the GitHub no-reply address
@@ -66,6 +66,7 @@ pnpm hits:set --status=accepted|featured|proposed|retired id…
 pnpm hits:justify id "One plain sentence."   # set a hit's justification
 pnpm hits:tag id +tone:pun -subject:actor     # add and remove a hit's tags
 pnpm hits:order id room dirty                 # set the order a hit's words read in
+pnpm hits:input id "Big Brother"              # set how a hit's input reads, letters unchanged
 pnpm hits:judged-at --date=2026-09-15 id…     # date named hits' judgements from the queue that judged them
 pnpm hits:desk                                # build the review desk into .cache/desk/index.html
 pnpm hits:desk --artifact                     # also write .cache/desk/artifact.html, to publish as an Artifact for a phone
@@ -91,7 +92,7 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
 
 - Push to `main`, merge a pull request, or rewrite a branch someone else pushed.
 - Edit `data/hits.jsonl` by hand, or change an existing line of `data/candidates.jsonl`. The tools
-  write them: `hits:ingest`, `hits:set`, `hits:justify`, `hits:tag`, `hits:order`, `hits:judged-at`, `hits:fetch`, and the MCP tool
+  write them: `hits:ingest`, `hits:set`, `hits:justify`, `hits:tag`, `hits:order`, `hits:input`, `hits:judged-at`, `hits:fetch`, and the MCP tool
   `propose_hit`. Appending new
   `manual` candidates by hand is allowed.
 - Create, change, pause or delete a schedule (the Actions crons, the judge routine, a scheduled task)

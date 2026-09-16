@@ -19,6 +19,7 @@
     "justify": "node --experimental-strip-types src/justify.ts",
     "tag": "node --experimental-strip-types src/tag.ts",
     "order": "node --experimental-strip-types src/order.ts",
+    "input": "node --experimental-strip-types src/input.ts",
     "judged-at": "node --experimental-strip-types src/judged-at.ts",
     "request": "node --experimental-strip-types src/request.ts"
   },
