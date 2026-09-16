@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { SECTIONS, hitPage, inOrder, ordered, pickOfTheDay, publishable, shelfOf, slugOf, toPublic, type HitRecord } from './build.ts';
+import {
+  FOLD,
+  SECTIONS,
+  hitPage,
+  inOrder,
+  linkedSection,
+  ordered,
+  pickOfTheDay,
+  publishable,
+  sectionAt,
+  sectionOpen,
+  shelfOf,
+  slugOf,
+  toPublic,
+  type HitRecord,
+} from './build.ts';
 
 const record = (over: Partial<HitRecord>): HitRecord => ({
   id: 'dormitory:phrases:dirty-room',
@@ -98,6 +113,45 @@ describe('gallery build', () => {
     const counts = { 'titanic:titles:i-intact': 3, 'animosity:phrases:amity-in-so': 3, 'amsterdam:places:dam-stream': 1 };
     expect(inOrder(rows, 'votes', counts).map((r) => r.display)).toEqual(['so in amity', 'I intact', 'dam stream', 'is no amity']);
     expect(inOrder(rows, 'votes').map((r) => r.display)).toEqual(inOrder(rows, 'alphabetical').map((r) => r.display));
+  });
+
+  it('folds a section at twelve rows unless a filter, the reader or a link opens it', () => {
+    const rows = Array.from({ length: 14 }, (_, i) =>
+      toPublic(record({ id: `word${String.fromCharCode(97 + i)}:phrases:w`, input: `word ${i}` })),
+    );
+    const featured = toPublic(record({ id: 'starwars:titles:stars-war', input: 'Star Wars', status: 'featured' }));
+    expect(FOLD).toBe(12);
+    // A link opens its hit's section, wherever the hit sits in it; a link to nothing opens none.
+    expect(linkedSection([featured, ...rows], rows[12]!.slug)).toBe('interesting');
+    expect(linkedSection([featured, ...rows], rows[0]!.slug)).toBe('interesting');
+    expect(linkedSection([featured, ...rows], featured.slug)).toBe('greatest');
+    expect(linkedSection(rows, 'nothing-here')).toBeNull();
+    expect(linkedSection(rows, null)).toBeNull();
+
+    const closed = { filtered: false, chosen: undefined, linked: null };
+    expect(sectionOpen('interesting', closed)).toBe(false);
+    expect(sectionOpen('interesting', { ...closed, filtered: true })).toBe(true);
+    expect(sectionOpen('interesting', { ...closed, chosen: true })).toBe(true);
+    expect(sectionOpen('interesting', { ...closed, linked: 'interesting' })).toBe(true);
+    expect(sectionOpen('stretch', { ...closed, linked: 'interesting' })).toBe(false);
+    // Show fewer on the linked section folds it; a filter still shows every match.
+    expect(sectionOpen('interesting', { ...closed, chosen: false, linked: 'interesting' })).toBe(false);
+    expect(sectionOpen('interesting', { filtered: true, chosen: false, linked: null })).toBe(true);
+  });
+
+  it('names the section under a line, and none above the first or past the last', () => {
+    // Forty pixels between sections, as the page has.
+    const bounds = [
+      { shelf: 'greatest' as const, top: 100, bottom: 460 },
+      { shelf: 'interesting' as const, top: 500, bottom: 860 },
+      { shelf: 'stretch' as const, top: 900, bottom: 1400 },
+    ];
+    expect(sectionAt(bounds, 50)).toBeNull();
+    expect(sectionAt(bounds, 100)).toBe('greatest');
+    expect(sectionAt(bounds, 480)).toBe('greatest');
+    expect(sectionAt(bounds, 500)).toBe('interesting');
+    expect(sectionAt(bounds, 1399)).toBe('stretch');
+    expect(sectionAt(bounds, 1400)).toBeNull();
   });
 
   it('picks the same anagram of the day for everyone, from Greatest Hits and Interesting', () => {

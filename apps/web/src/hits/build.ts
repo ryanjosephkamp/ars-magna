@@ -143,6 +143,40 @@ export function inOrder(hits: readonly PublicHit[], order: Order, counts: Readon
   return [...hits].sort(order === 'votes' ? byVotes : order === 'alphabetical' ? byName : newest);
 }
 
+/** Rows a section shows before its Show all control. */
+export const FOLD = 12;
+
+/**
+ * Whether a section shows every row. Under Find or Category every section does,
+ * since a reader looking for something should see all of it. Otherwise the
+ * reader's own Show all or Show fewer decides, and before they choose, the
+ * section a link points into opens.
+ */
+export function sectionOpen(shelf: Shelf, state: { filtered: boolean; chosen: boolean | undefined; linked: Shelf | null }): boolean {
+  if (state.filtered) return true;
+  return state.chosen ?? state.linked === shelf;
+}
+
+/**
+ * The section a link to a hit opens: the hit's own, wherever the hit sits in it. Wherever, rather than only
+ * past the fold, because votes arriving can move the hit across the fold after the page has landed on it, and
+ * the section folding under the reader then would be worse than a section opened that did not need to be.
+ */
+export function linkedSection(hits: readonly PublicHit[], slug: string | null): Shelf | null {
+  if (!slug) return null;
+  return hits.find((h) => h.slug === slug)?.shelf ?? null;
+}
+
+/**
+ * The section under a line across the page, just below the sections bar; null above the first or past the
+ * last. Sections are given in page order, and each runs on to the next one's top, so the space between two
+ * never leaves the line with no section.
+ */
+export function sectionAt(bounds: readonly { shelf: Shelf; top: number; bottom: number }[], line: number): Shelf | null {
+  const index = bounds.findIndex((b, i) => b.top <= line && line < (bounds[i + 1]?.top ?? b.bottom));
+  return index >= 0 ? bounds[index]!.shelf : null;
+}
+
 /** In section order (Greatest Hits, Interesting, A stretch), newest first within each, then by id so the order is total. */
 export function ordered(hits: readonly PublicHit[]): PublicHit[] {
   return [...hits].sort(

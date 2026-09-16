@@ -1,11 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useCopy } from '../lib/useCopy.ts';
 import { CheckToast } from '../components/CheckToast.tsx';
 import { VoteButton } from '../components/CountButton.tsx';
 import { ShareActions } from '../components/ShareActions.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
-import { CATEGORIES, CATEGORY_LABEL, SECTIONS, inOrder, pickOfTheDay, type Category, type Order, type PublicHit, type Shelf } from './build.ts';
+import {
+  CATEGORIES,
+  CATEGORY_LABEL,
+  FOLD,
+  SECTIONS,
+  inOrder,
+  linkedSection,
+  pickOfTheDay,
+  sectionAt,
+  sectionOpen,
+  type Category,
+  type Order,
+  type PublicHit,
+  type Shelf,
+} from './build.ts';
 import { usePass } from '../state/usePass.ts';
 import { useVotes } from './useVotes.ts';
 
@@ -17,13 +32,21 @@ const ORDERS: readonly { order: Order; label: string }[] = [
 
 type Loaded = { state: 'loading' } | { state: 'ready'; hits: PublicHit[] } | { state: 'failed' };
 
+/** How long the list waits for votes before it is shown without them, in milliseconds. */
+const VOTES_WAIT = 1500;
+
+/** Space between the pinned sections line and a section the reader jumped to, in pixels. */
+const JUMP_GAP = 16;
+
 const LINK = 'text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent';
 
 /**
  * Discoveries: the anagrams worth keeping, in three sections (Greatest Hits,
  * Interesting and A stretch), one per row, in the same typographic register as
  * the search results. The list is small enough to hold in memory whole, so
- * filtering is instant and there is no paging.
+ * filtering is instant and there is no paging: each section shows its first
+ * twelve rows and the rest behind Show all, and the sections line stays at the
+ * top of the screen once scrolled past.
  */
 export function Gallery() {
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' });
@@ -33,20 +56,26 @@ export function Gallery() {
   const [selected, setSelected] = useState<string | null>(() => window.location.hash.slice(1) || null);
   // Which hit's share actions are open: one at a time, by id.
   const [sharing, setSharing] = useState<string | null>(null);
+  // Show all (true) and Show fewer (false), by section; a section the reader has not chosen for is folded,
+  // unless a link points into it.
+  const [unfolded, setUnfolded] = useState<Partial<Record<Shelf, boolean>>>({});
   const { copied, copy } = useCopy();
   const pass = usePass();
   const votes = useVotes(pass);
   const votesShown = votes.status === 'open' || votes.status === 'closed';
   // Most votes ranks by the counts as they were when votes loaded, or when an order was last chosen, so a row
-  // never jumps away from under the reader the moment they vote for it.
+  // never jumps away from under the reader the moment they vote for it. Captured while rendering, not in an
+  // effect, so the render that first shows the counts is already in their order; later counts wait until the
+  // reader chooses an order.
   const [ranking, setRanking] = useState<Readonly<Record<string, number>>>({});
-  useEffect(() => {
-    if (votesShown) setRanking(votes.counts);
-    // Only when votes first arrive: later counts wait until the reader chooses an order.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [votesShown]);
-  // While votes are on their way the list is already in Most votes order, ranked by no counts (A to Z),
-  // so it does not re-sort from Newest the moment they arrive. Newest stands in only when votes cannot load.
+  const [ranked, setRanked] = useState(false);
+  if (votesShown && !ranked) {
+    setRanked(true);
+    setRanking(votes.counts);
+  }
+  // When votes are slower than the list waits for, the list is already in Most votes order, ranked by no
+  // counts (A to Z), so it does not re-sort from Newest the moment they arrive. Newest stands in only when
+  // votes cannot load.
   const votesUnavailable = votes.status === 'unavailable';
   const orders = votesUnavailable ? ORDERS.filter((o) => o.order !== 'votes') : ORDERS;
   const shownOrder: Order = order === 'votes' && votesUnavailable ? 'newest' : order;
@@ -58,10 +87,25 @@ export function Gallery() {
       .catch(() => setLoaded({ state: 'failed' }));
   }, []);
 
+  // The list waits for votes as well as the anagrams, for up to VOTES_WAIT. Shown before their counts, the
+  // sections sat in A to Z order and re-sorted when the counts came, which changed which twelve rows each
+  // section showed and moved everything below. A vote service slower than that gets no say in the first paint.
+  const [votesLate, setVotesLate] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setVotesLate(true), VOTES_WAIT);
+    return () => clearTimeout(timer);
+  }, []);
+  const votesSettled = votes.status !== 'loading';
+  const listReady = loaded.state === 'ready' && (votesSettled || votesLate);
+
   // A shared link lands on its hit: keep the selection in the hash so the
   // address bar is the share link, and scroll it into view once loaded.
   useEffect(() => {
-    const onHash = () => setSelected(window.location.hash.slice(1) || null);
+    const onHash = () => {
+      setSelected(window.location.hash.slice(1) || null);
+      // A new link opens its section again, even one the reader folded.
+      setUnfolded((u) => Object.fromEntries(Object.entries(u).filter(([, open]) => open)));
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -81,17 +125,17 @@ export function Gallery() {
       window.removeEventListener('keydown', moved);
     };
   }, []);
-  const votesSettled = votes.status !== 'loading';
   useEffect(() => {
-    if (loaded.state !== 'ready' || !selected) return;
+    if (!listReady || !selected) return;
     readerMoved.current = false;
     document.getElementById(`hit-${selected}`)?.scrollIntoView({ block: 'center' });
-  }, [loaded.state, selected]);
-  // Keyed on the ranking as well: it is applied a render after votes settle, and the scroll has to follow it.
+  }, [listReady, selected]);
+  // Keyed on the ranking as well, for votes that settle after the list is shown, since the scroll has to follow
+  // their order.
   useEffect(() => {
-    if (loaded.state !== 'ready' || !selected || !votesSettled || readerMoved.current) return;
+    if (!listReady || !selected || !votesSettled || readerMoved.current) return;
     document.getElementById(`hit-${selected}`)?.scrollIntoView({ block: 'center' });
-  }, [loaded.state, selected, votesSettled, ranking]);
+  }, [listReady, selected, votesSettled, ranking]);
 
   const hits = loaded.state === 'ready' ? loaded.hits : [];
   const today = useMemo(() => pickOfTheDay(hits, new Date().toISOString().slice(0, 10)), [hits]);
@@ -118,6 +162,66 @@ export function Gallery() {
     return out;
   }, [hits, visible, shownOrder, ranking]);
 
+  const filtered = category !== 'all' || filter.trim().length > 0;
+  const linked = useMemo(() => linkedSection(hits, selected), [hits, selected]);
+
+  // The sections line: whether it is pinned, its height (each section's scroll margin, so a jump lands below
+  // it), and the section under its lower edge. A zero-height marker sits where the line would rest; once the
+  // marker is above the screen, the line is pinned.
+  const bar = useRef<HTMLElement>(null);
+  const barRest = useRef<HTMLDivElement>(null);
+  const [pinned, setPinned] = useState(false);
+  const [barHeight, setBarHeight] = useState(0);
+  const [inView, setInView] = useState<Shelf | null>(null);
+  useEffect(() => {
+    if (!listReady) return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (!bar.current || !barRest.current) return;
+      const edge = bar.current.getBoundingClientRect();
+      setPinned(barRest.current.getBoundingClientRect().top < 0);
+      setBarHeight(Math.ceil(edge.height));
+      const bounds = SECTIONS.flatMap((s) => {
+        const rect = document.getElementById(`section-${s.shelf}`)?.getBoundingClientRect();
+        return rect ? [{ shelf: s.shelf, top: rect.top, bottom: rect.bottom }] : [];
+      });
+      // A little past where a jump lands a section, so the section jumped to is the one marked.
+      setInView(sectionAt(bounds, edge.bottom + JUMP_GAP + 8));
+    };
+    const schedule = () => {
+      if (frame === 0) frame = requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    // Rows opening, folding or filtering move the sections without a scroll.
+    const observer = new ResizeObserver(schedule);
+    observer.observe(document.body);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      observer.disconnect();
+    };
+  }, [listReady]);
+
+  /**
+   * Show all keeps the reader where they are and moves focus to the first row it
+   * revealed. Show fewer keeps its own control where it was on the screen, so
+   * folding forty rows away does not drop the reader somewhere else on the page.
+   */
+  const toggleFold = (shelf: Shelf, open: boolean, control: HTMLElement) => {
+    if (open) {
+      const before = control.getBoundingClientRect().top;
+      flushSync(() => setUnfolded((u) => ({ ...u, [shelf]: false })));
+      window.scrollBy(0, control.getBoundingClientRect().top - before);
+      return;
+    }
+    flushSync(() => setUnfolded((u) => ({ ...u, [shelf]: true })));
+    document.querySelector<HTMLElement>(`#section-${shelf} li[data-fold]`)?.focus({ preventScroll: true });
+  };
+
   const shareUrl = (hit: PublicHit) => `${window.location.origin}/hits/${hit.slug}/`;
   const shareable = (hit: PublicHit) => ({ input: hit.input, phrase: hit.display, url: shareUrl(hit), total: null });
   const toggleShare = (id: string) => setSharing((open) => (open === id ? null : id));
@@ -143,7 +247,7 @@ export function Gallery() {
           </p>
         </header>
 
-        {loaded.state === 'loading' && (
+        {(loaded.state === 'loading' || (loaded.state === 'ready' && !listReady)) && (
           <p className="font-mono text-xs text-ink-faint" aria-live="polite">
             Loading the anagrams…
           </p>
@@ -152,7 +256,7 @@ export function Gallery() {
           <p className="border-t border-accent bg-accent-wash px-4 py-3 text-sm text-ink">The list didn’t load. Reload to try again.</p>
         )}
 
-        {loaded.state === 'ready' && (
+        {listReady && (
           <>
             {today && (
               <section aria-label="Anagram of the day" className="mb-12 border-y border-rule-strong py-6">
@@ -239,77 +343,133 @@ export function Gallery() {
               </div>
             </div>
 
-            <nav aria-label="Sections" className="mt-4 flex flex-wrap items-baseline gap-x-5 gap-y-1 font-mono text-[11px] text-ink-faint">
-              <span aria-live="polite">
-                {visible.length} of {hits.length}
-              </span>
-              {SECTIONS.map((s) => (
-                <button key={s.shelf} type="button" onClick={() => jumpTo(s.shelf)} className="transition-colors duration-150 hover:text-accent">
-                  {s.label}
-                  <span className="ml-1.5 opacity-60">{bySection.get(s.shelf)!.shown.length}</span>
+            {/* The line pins inside this block, so it lets go once the last section has scrolled past. */}
+            <div>
+              <div ref={barRest} aria-hidden="true" className="mt-2" />
+              <nav
+                ref={bar}
+                aria-label="Sections"
+                // The padding above takes the safe area, so on a phone with a notch the ground runs up behind it
+                // rather than leaving rows showing through. On a phone the line runs edge to edge; wider, it keeps
+                // to the column the rows sit in. Only the hairline and Top change once pinned, and both keep their
+                // space, so pinning moves nothing.
+                className={`sticky top-0 z-[var(--z-sticky)] -mx-6 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-b bg-ground px-6 sm:mx-0 sm:px-0 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 font-mono text-[11px] text-ink-faint transition-colors duration-150 ${
+                  pinned ? 'border-rule' : 'border-transparent'
+                }`}
+              >
+                <span aria-live="polite">
+                  {visible.length} of {hits.length}
+                </span>
+                {SECTIONS.map((s) => {
+                  const current = pinned && inView === s.shelf;
+                  return (
+                    <button
+                      key={s.shelf}
+                      type="button"
+                      aria-current={current ? 'true' : undefined}
+                      onClick={() => jumpTo(s.shelf)}
+                      className={`transition-colors duration-150 hover:text-accent ${current ? 'text-accent' : ''}`}
+                    >
+                      {s.label}
+                      <span className="ml-1.5 opacity-60">{bySection.get(s.shelf)!.shown.length}</span>
+                    </button>
+                  );
+                })}
+                {votes.status === 'closed' && <span>Voting is paused.</span>}
+                <button
+                  type="button"
+                  onClick={() => window.scrollTo({ top: 0 })}
+                  aria-hidden={pinned ? undefined : 'true'}
+                  tabIndex={pinned ? undefined : -1}
+                  className={`ml-auto transition-colors duration-150 hover:text-accent ${pinned ? '' : 'invisible'}`}
+                >
+                  Top
                 </button>
-              ))}
-              {votes.status === 'closed' && <span>Voting is paused.</span>}
-            </nav>
+              </nav>
 
-            {SECTIONS.map((section) => {
-              const { shown, total } = bySection.get(section.shelf)!;
-              const titleId = `section-${section.shelf}-title`;
-              return (
-                <section key={section.shelf} id={`section-${section.shelf}`} aria-labelledby={titleId} className="mt-12 scroll-mt-6">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                    <h2 id={titleId} className="font-display text-3xl tracking-[-0.01em] text-ink sm:text-4xl">
-                      {section.label}
-                    </h2>
-                    <span className="font-mono text-[11px] text-ink-faint">{shown.length === total ? total : `${shown.length} of ${total}`}</span>
-                  </div>
-                  <p className="mt-1 mb-4 max-w-prose text-sm text-ink-soft">{section.note}</p>
-                  {shown.length > 0 ? (
-                    <ol className="border-t border-rule-strong">
-                      {shown.map((hit) => {
-                        const isSelected = hit.slug === selected;
-                        return (
-                          <li
-                            key={hit.id}
-                            id={`hit-${hit.slug}`}
-                            className={`group border-b border-rule py-4 ${isSelected ? 'bg-accent-wash/40' : ''}`}
-                          >
-                            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                              <p className="font-display text-2xl leading-snug text-ink">
-                                <span className="text-ink-faint">{hit.input}</span>
-                                <span className="mx-3 text-rule-strong">→</span>
-                                {hit.display}
-                              </p>
-                              <span className="flex shrink-0 items-center gap-3 font-mono text-[11px]">
-                                <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
-                                <VoteButton hit={hit} votes={votes} reserve />
-                                <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
-                                <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
-                                  Every anagram
-                                </a>
-                              </span>
-                            </div>
-                            {hit.justification && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.justification}</p>}
-                            {sharing === hit.id && (
-                              <div className="mt-2">
-                                <ShareActions item={shareable(hit)} id={hit.id} copied={copied} onCopy={copy} />
+              {SECTIONS.map((section) => {
+                const { shown, total } = bySection.get(section.shelf)!;
+                const titleId = `section-${section.shelf}-title`;
+                const listId = `section-${section.shelf}-list`;
+                const open = sectionOpen(section.shelf, { filtered, chosen: unfolded[section.shelf], linked });
+                const rows = open ? shown : shown.slice(0, FOLD);
+                return (
+                  <section
+                    key={section.shelf}
+                    id={`section-${section.shelf}`}
+                    aria-labelledby={titleId}
+                    className="mt-10"
+                    style={{ scrollMarginTop: barHeight + JUMP_GAP }}
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                      <h2 id={titleId} className="font-display text-3xl tracking-[-0.01em] text-ink sm:text-4xl">
+                        {section.label}
+                      </h2>
+                      <span className="font-mono text-[11px] text-ink-faint">{shown.length === total ? total : `${shown.length} of ${total}`}</span>
+                    </div>
+                    <p className="mt-1 mb-4 max-w-prose text-sm text-ink-soft">{section.note}</p>
+                    {shown.length > 0 ? (
+                      <ol id={listId} className="border-t border-rule-strong">
+                        {rows.map((hit, index) => {
+                          const isSelected = hit.slug === selected;
+                          return (
+                            <li
+                              key={hit.id}
+                              id={`hit-${hit.slug}`}
+                              // The first row Show all reveals takes focus, so a keyboard carries on from where the fold was.
+                              {...(index === FOLD ? { 'data-fold': '', tabIndex: -1 } : {})}
+                              className={`group border-b border-rule py-4 ${isSelected ? 'bg-accent-wash/40' : ''}`}
+                            >
+                              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                                <p className="font-display text-2xl leading-snug text-ink">
+                                  <span className="text-ink-faint">{hit.input}</span>
+                                  <span className="mx-3 text-rule-strong">→</span>
+                                  {hit.display}
+                                </p>
+                                <span className="flex shrink-0 items-center gap-3 font-mono text-[11px]">
+                                  <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
+                                  <VoteButton hit={hit} votes={votes} reserve />
+                                  <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
+                                  <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
+                                    Every anagram
+                                  </a>
+                                </span>
                               </div>
-                            )}
-                            {hit.submitter && <p className="mt-1 font-mono text-[11px] text-ink-faint">found by {hit.submitter}</p>}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  ) : (
-                    <p className="border-t border-rule-strong py-6 text-sm text-ink-soft">{total === 0 ? 'None yet.' : 'None here under that filter.'}</p>
-                  )}
-                </section>
-              );
-            })}
+                              {hit.justification && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.justification}</p>}
+                              {sharing === hit.id && (
+                                <div className="mt-2">
+                                  <ShareActions item={shareable(hit)} id={hit.id} copied={copied} onCopy={copy} />
+                                </div>
+                              )}
+                              {hit.submitter && <p className="mt-1 font-mono text-[11px] text-ink-faint">found by {hit.submitter}</p>}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    ) : (
+                      <p className="border-t border-rule-strong py-6 text-sm text-ink-soft">{total === 0 ? 'None yet.' : 'None here under that filter.'}</p>
+                    )}
+                    {!filtered && shown.length > FOLD && (
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-controls={listId}
+                        onClick={(e) => toggleFold(section.shelf, open, e.currentTarget)}
+                        className="mt-4 rounded-[3px] border border-rule bg-surface px-3 py-1.5 text-sm text-ink-soft transition-colors duration-150 hover:border-accent hover:bg-accent-wash hover:text-accent"
+                      >
+                        {open ? 'Show fewer' : `Show all ${shown.length}`}
+                      </button>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
           </>
         )}
 
-        <SiteFooter />
+        {/* The footer waits for the list. Painted under an empty page, it sat high on the screen and dropped when
+            the rows arrived, which was the page's whole layout shift. */}
+        {(listReady || loaded.state === 'failed') && <SiteFooter />}
       </main>
 
       <CheckToast pass={pass} />
