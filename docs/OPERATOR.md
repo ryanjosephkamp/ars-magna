@@ -27,8 +27,10 @@ When you know an anagram that belongs in the dataset.
    cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
    ```
 
-   If a word is missing, try `--tier=standard`, then `--tier=full`; the narrowest tier that passes is the
-   hit's tier. If the letters differ, it is not an anagram.
+   If a word is missing, try `--tier=standard`, then `--tier=full`, then `--tier=extended`, which adds
+   the site's own words to the pinned list; the narrowest tier that passes is the hit's tier. If the
+   letters differ, it is not an anagram. A word missing even at Extended is a word request: see "Add a
+   word to the vocabulary".
 2. On a branch off `main`, record it as a proposed hit. In a session with the MCP server (Claude Code in
    this repository, or Codex set up as `docs/BOOTSTRAP.md` describes), call `propose_hit` with the input,
    the category, the words in reading order, the tier, and a `justification`: one plain sentence
