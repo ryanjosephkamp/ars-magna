@@ -38,6 +38,7 @@ data/queue/*/raw.jsonl
 data/queue/*/prefiltered.jsonl
 data/queue/*/judge-input-*.md
 dataset/
+dataset-vocabulary/
 
 # Built by apps/web/scripts/build-hits.ts from data/hits.jsonl before every dev and build.
 apps/web/public/hits.json

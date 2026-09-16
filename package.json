@@ -21,6 +21,7 @@
     "dict:shards": "pnpm --filter @ars-magna/dict-build run shards",
     "vocab:add": "pnpm --filter @ars-magna/dict-build run vocab:add",
     "vocab:check": "pnpm --filter @ars-magna/dict-build run vocab:check",
+    "vocab:publish": "pnpm --filter @ars-magna/dict-build run vocab:publish",
     "vocab:request": "pnpm --filter @ars-magna/hits run request",
     "hits:fetch": "pnpm --filter @ars-magna/hits run fetch",
     "hits:enumerate": "pnpm --filter @ars-magna/hits run enumerate",

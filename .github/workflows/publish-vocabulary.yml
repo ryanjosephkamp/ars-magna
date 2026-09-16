@@ -1,0 +1,42 @@
+name: Publish vocabulary
+
+# The site's vocabulary is a stated authority, so it is published where it can
+# be checked: the union it searches, plus the short list of words it adds on
+# top of the pin. Runs when an addition is accepted or the dictionary is
+# rebuilt. English OpenList is credited, never modified, and never republished
+# as itself.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/vocabulary/additions.jsonl'
+      - 'apps/web/public/dict/manifest.json'
+      - 'tools/dict-build/src/vocab-publish.ts'
+      - 'tools/dict-build/templates/vocabulary-card.md'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-vocabulary
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # The same Hugging Face token the hits dataset uses.
+    if: ${{ vars.PUBLISH_VOCABULARY != 'off' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Publish to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: pnpm vocab:publish
