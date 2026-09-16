@@ -22,7 +22,7 @@ export type Sense = {
   readonly base?: string;
 };
 
-export type Provenance = 'attested' | 'twl' | 'generated' | 'unattested';
+export type Provenance = 'attested' | 'twl' | 'generated' | 'unattested' | 'addition';
 
 export type WordInfo = {
   readonly word: string;
@@ -34,17 +34,23 @@ const PROVENANCE_OF: Record<string, Provenance> = {
   t: 'twl',
   g: 'generated',
   o: 'unattested',
+  x: 'addition',
 };
 
 /**
- * Shown only when there is no definition, so each of these has to carry the
- * "no definition" half of the message itself.
+ * Mostly shown when there is no definition, so those labels have to carry the
+ * "no definition" half of the message themselves.
  *
  * `twl` used to read just "in the Scrabble dictionary", which is true and was
  * doing a definition's job: it answered a question nobody asked instead of the
  * one they did. A reader looking at `za` wants to know what it means, and the
  * honest answer is that we do not have one — followed by the reason the word is
  * in the list at all.
+ *
+ * `addition` is the exception, and reads differently for it: a site addition
+ * always has a gloss, so its label is not standing in for a definition. It
+ * answers the question the gloss raises — why is this word here, when the
+ * dictionary this site names does not carry it.
  */
 export const PROVENANCE_LABEL: Record<Provenance, string | null> = {
   // The ordinary case needs no explanation; saying so would be noise on most rows.
@@ -52,6 +58,7 @@ export const PROVENANCE_LABEL: Record<Provenance, string | null> = {
   twl: 'No definition found — valid in tournament play.',
   generated: 'No definition found — a machine-derived form in English OpenList.',
   unattested: 'No definition found — and no source confirms this word.',
+  addition: 'Site addition, not in English OpenList.',
 };
 
 /**
@@ -65,6 +72,11 @@ export const PROVENANCE_LABEL: Record<Provenance, string | null> = {
  * teaches people to stop reading.
  */
 export function shouldExplain(info: WordInfo): boolean {
+  // A site addition explains itself even with a gloss on screen: the gloss says
+  // what the word means, the label says why this dictionary has it when English
+  // OpenList does not. Every other label stands in place of a definition, so it
+  // is suppressed the moment there is one.
+  if (info.provenance === 'addition') return true;
   return info.senses.length === 0 && PROVENANCE_LABEL[info.provenance] !== null;
 }
 

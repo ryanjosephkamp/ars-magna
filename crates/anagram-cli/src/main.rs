@@ -63,6 +63,7 @@ fn tier_from(name: &str) -> Tier {
     match name {
         "common" => Tier::Common,
         "full" => Tier::Full,
+        "extended" => Tier::Extended,
         _ => Tier::Standard,
     }
 }
@@ -72,6 +73,7 @@ fn tier_name(tier: Tier) -> &'static str {
         Tier::Common => "common",
         Tier::Standard => "standard",
         Tier::Full => "full",
+        Tier::Extended => "extended",
     }
 }
 
@@ -555,12 +557,17 @@ fn write_result(
             tiers: words
                 .iter()
                 .map(|&w| {
+                    // The narrowest tier the word belongs to. The last arm used
+                    // to be an unconditional "full", which would now mislabel
+                    // every site addition as part of the pinned list.
                     if dict.in_tier(w, Tier::Common) {
                         "common"
                     } else if dict.in_tier(w, Tier::Standard) {
                         "standard"
-                    } else {
+                    } else if dict.in_tier(w, Tier::Full) {
                         "full"
+                    } else {
+                        "extended"
                     }
                 })
                 .collect(),

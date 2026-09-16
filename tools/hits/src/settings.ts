@@ -33,7 +33,7 @@ export const LEGACY_RUN: Pick<CandidateRun, 'settings' | 'rubric'> = { settings:
 export const SHORT_WORDS_PATH = resolve(here, 'short-words.txt');
 
 export type Preset = {
-  tier: 'common' | 'standard' | 'full';
+  tier: 'common' | 'standard' | 'full' | 'extended';
   minLength: number;
   maxWords: number;
   spellings: 'first' | 'all';

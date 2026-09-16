@@ -41,6 +41,11 @@ describe.skipIf(!built)('checkAnagram', () => {
     // Tier matters: a machine-generated word exists only at Full.
     expect((await checkAnagram(engine, 'abacteremicer', ['abacteremicer'], 'standard')).ok).toBe(false);
     expect((await checkAnagram(engine, 'abacteremicer', ['abacteremicer'], 'full')).ok).toBe(true);
+
+    // And a site addition only at Extended: the pinned list does not carry it,
+    // which is the whole reason it was added.
+    expect((await checkAnagram(engine, 'doomer', ['doomer'], 'full')).ok).toBe(false);
+    expect((await checkAnagram(engine, 'doomer', ['doomer'], 'extended')).ok).toBe(true);
   });
 
   it('solves and unranks through the same engine', async () => {

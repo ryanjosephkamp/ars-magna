@@ -126,4 +126,8 @@ export const EXPECTED = {
   /** Full minus the machine-generated entries; a band, so a small drift in
    *  the generation flags is looked at rather than failing the build. */
   standardRange: [305_000, 320_000],
+  /** The site's own additions, which sit outside the pin entirely. A band
+   *  rather than a count: the list grows one reviewed word at a time, and the
+   *  upper bound is the cap `vocab:check` enforces. */
+  additionsRange: [0, 2_000],
 } as const;

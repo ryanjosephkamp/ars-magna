@@ -19,6 +19,8 @@
     "dict:build": "pnpm --filter @ars-magna/dict-build run build",
     "dict:verify": "pnpm --filter @ars-magna/dict-build run verify",
     "dict:shards": "pnpm --filter @ars-magna/dict-build run shards",
+    "vocab:add": "pnpm --filter @ars-magna/dict-build run vocab:add",
+    "vocab:check": "pnpm --filter @ars-magna/dict-build run vocab:check",
     "hits:fetch": "pnpm --filter @ars-magna/hits run fetch",
     "hits:enumerate": "pnpm --filter @ars-magna/hits run enumerate",
     "hits:prefilter": "pnpm --filter @ars-magna/hits run prefilter",

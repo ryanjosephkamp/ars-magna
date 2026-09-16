@@ -1315,22 +1315,24 @@ mod tests {
         assert_eq!(classes(&dict, "onto", options(Some(&["on", "to"]))), found);
     }
 
-    /// A dictionary with tiers, from `(word, in_common, in_standard)` rows.
-    /// `TierBits` only decodes, so the bitset artifact is assembled by hand.
-    fn tiered(rows: &[(&str, bool, bool)]) -> Dict {
+    /// A dictionary with tiers, from `(word, in_common, in_standard, in_full)`
+    /// rows. `TierBits` only decodes, so the bitset artifact is assembled by
+    /// hand. A word in none of the three sets is a site addition: the shipped
+    /// list carries it and only Extended, which filters nothing, admits it.
+    fn tiered(rows: &[(&str, bool, bool, bool)]) -> Dict {
         let mut rows = rows.to_vec();
-        rows.sort_by_key(|&(word, _, _)| word);
-        let words: Vec<String> = rows.iter().map(|&(word, _, _)| word.to_owned()).collect();
+        rows.sort_by_key(|&(word, _, _, _)| word);
+        let words: Vec<String> = rows.iter().map(|&(word, _, _, _)| word.to_owned()).collect();
 
         let mut buf = Vec::new();
         buf.extend_from_slice(b"ARSMBITS");
         buf.extend_from_slice(&1u16.to_le_bytes()); // format version
-        buf.extend_from_slice(&2u16.to_le_bytes()); // Common, Standard
+        buf.extend_from_slice(&3u16.to_le_bytes()); // Common, Standard, Full
         buf.extend_from_slice(&(words.len() as u32).to_le_bytes());
-        for set in 0..2 {
+        for set in 0..3 {
             let mut bits = vec![0u8; words.len().div_ceil(8)];
-            for (i, &(_, common, standard)) in rows.iter().enumerate() {
-                if [common, standard][set] {
+            for (i, &(_, common, standard, full)) in rows.iter().enumerate() {
+                if [common, standard, full][set] {
                     bits[i >> 3] |= 1 << (i & 7);
                 }
             }
@@ -1345,12 +1347,12 @@ mod tests {
     #[test]
     fn a_listed_word_outside_the_query_tier_does_not_admit_its_class() {
         let dict = tiered(&[
-            ("toad", true, true),
-            ("dot", true, true),
-            ("to", true, true),
-            ("a", false, true),  // Standard only
-            ("on", true, true),
-            ("no", false, false), // Full only
+            ("toad", true, true, true),
+            ("dot", true, true, true),
+            ("to", true, true, true),
+            ("a", false, true, true), // Standard and up
+            ("on", true, true, true),
+            ("no", false, false, true), // Full only
         ]);
         let at = |tier: Tier, short: &[&str]| SolveOptions { tier, ..options(Some(short)) };
 
@@ -1373,5 +1375,25 @@ mod tests {
             spelled(&dict, "onto", at(Tier::Full, &["no", "to"])),
             rows(&[&["no", "to"]])
         );
+    }
+
+    #[test]
+    fn a_site_addition_belongs_to_extended_and_nothing_narrower() {
+        // No bitset claims "zz", which is what a word the site added looks like
+        // in the artifact: the shipped list carries it, and only the tier that
+        // filters nothing lets it through.
+        let dict = tiered(&[("zz", false, false, false), ("to", true, true, true)]);
+        let addition = dict.words.iter().position(|w| w == "zz").unwrap() as u32;
+        let pinned = dict.words.iter().position(|w| w == "to").unwrap() as u32;
+
+        assert!(!dict.in_tier(addition, Tier::Common));
+        assert!(!dict.in_tier(addition, Tier::Standard));
+        assert!(!dict.in_tier(addition, Tier::Full));
+        assert!(dict.in_tier(addition, Tier::Extended));
+
+        // And the pinned word is in every tier, Extended included.
+        for tier in [Tier::Common, Tier::Standard, Tier::Full, Tier::Extended] {
+            assert!(dict.in_tier(pinned, tier), "{tier:?} should contain a pinned word");
+        }
     }
 }

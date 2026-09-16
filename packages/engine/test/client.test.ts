@@ -49,7 +49,7 @@ const ready = (worker: FakeWorker, id: number) =>
   worker.reply({
     k: 'ready',
     id,
-    counts: { common: 1, standard: 2, full: 3, signatures: 3 },
+    counts: { common: 1, standard: 2, full: 3, extended: 4, signatures: 4 },
     builtAt: 'now',
     loadMs: 1,
   });

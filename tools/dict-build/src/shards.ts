@@ -22,6 +22,7 @@ import { DEFS_DIR, FACTS_CACHE, META_PATH, WORDNET_DICT, WORDS_PATH } from './pa
 import { normalize } from './normalize.ts';
 import { loadFacts } from './facts.ts';
 import { loadSenses, type Sense } from './wordnet.ts';
+import { readAdditions } from './vocab.ts';
 import { shardOf } from './hash.ts';
 
 /** 512 keeps each shard around 20–40 KB — one fetch, no meaningful latency. */
@@ -38,6 +39,8 @@ const PROVENANCE = {
   twl: 't',
   generated: 'g',
   other: 'o',
+  /** A word the site added; its gloss is written from the additions file. */
+  addition: 'x',
 } as const;
 
 type Shard = {
@@ -61,9 +64,18 @@ async function main(): Promise<void> {
 
   console.log('1. word list');
   const surfaces = (await readFile(WORDS_PATH, 'utf8')).split('\n').filter((l) => l.length > 0);
-  const words = [...new Set(surfaces.map(normalize).filter((w) => w.length > 0))].sort();
+  const pinned = [...new Set(surfaces.map(normalize).filter((w) => w.length > 0))];
+  // The same union `build.ts` ships. A word's shard is a hash of the word alone,
+  // but the provenance written beside it comes from arrays parallel to this
+  // list, so the two have to be built the same way.
+  const additions = await readAdditions();
+  const glossOf = new Map(additions.map((a) => [a.word, a.gloss]));
+  const words = [...new Set([...pinned, ...glossOf.keys()])].sort();
   const indexOf = new Map(words.map((w, i) => [w, i]));
-  console.log(`   ${words.length.toLocaleString()} words`);
+  console.log(
+    `   ${words.length.toLocaleString()} words ` +
+      `(${glossOf.size} site addition${glossOf.size === 1 ? '' : 's'})`,
+  );
 
   console.log('\n2. provenance');
   const facts = await loadFacts({
@@ -94,21 +106,36 @@ async function main(): Promise<void> {
 
   console.log('\n4. sharding');
   const shards: Shard[] = Array.from({ length: SHARD_COUNT }, () => ({ p: {}, d: {} }));
+  let defined = 0;
 
   for (let i = 0; i < words.length; i++) {
     const word = words[i]!;
     const shard = shards[shardOf(word, SHARD_COUNT)]!;
     const fact = facts[i]!;
+    const gloss = glossOf.get(word);
 
-    const code = fact.generated
-      ? PROVENANCE.generated
-      : fact.twl
-        ? PROVENANCE.twl
-        : fact.nValid > 0
-          ? null // attested — the default, not written
-          : PROVENANCE.other;
+    const code =
+      gloss !== undefined
+        ? PROVENANCE.addition
+        : fact.generated
+          ? PROVENANCE.generated
+          : fact.twl
+            ? PROVENANCE.twl
+            : fact.nValid > 0
+              ? null // attested — the default, not written
+              : PROVENANCE.other;
 
     if (code !== null) (shard.p[code] ??= []).push(word);
+
+    // An addition's gloss is its definition, and it carries no part of speech:
+    // `kind` — slang, a coinage, an abbreviation — is not one, and asking a
+    // proposer to supply one would invite a wrong answer. The word panel names
+    // it a site addition instead.
+    if (gloss !== undefined) {
+      shard.d[word] = [['', gloss]];
+      defined++;
+      continue;
+    }
 
     const list = senses.get(word);
     if (list) {
@@ -117,6 +144,7 @@ async function main(): Promise<void> {
           ? ([sense.pos, sense.gloss] as [string, string])
           : ([sense.pos, sense.gloss, sense.base] as [string, string, string]),
       );
+      defined++;
     }
   }
 
@@ -143,11 +171,17 @@ async function main(): Promise<void> {
         schemaVersion: 1,
         shards: SHARD_COUNT,
         maxSenses: MAX_SENSES,
-        definedWords: senses.size,
+        definedWords: defined,
         totalWords: words.length,
         source: { name: 'WordNet 3.1', url: WORDNET.url, sha256: WORDNET.sha256 },
         // 'a' never appears in a shard; it is what absence means.
-        provenance: { t: 'twl_scrabble', g: 'machine_generated', o: 'unattested', a: 'attested' },
+        provenance: {
+          t: 'twl_scrabble',
+          g: 'machine_generated',
+          o: 'unattested',
+          x: 'site_addition',
+          a: 'attested',
+        },
       },
       null,
       2,

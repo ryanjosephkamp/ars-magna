@@ -148,7 +148,8 @@ impl WordList {
     }
 }
 
-/// Tier membership bitsets, indexed over the Full-tier word ordering.
+/// Tier membership bitsets, indexed over the shipped word ordering, which is
+/// the Extended tier: the pinned list plus the site's own additions.
 pub struct TierBits {
     word_count: usize,
     sets: Vec<Vec<u8>>,
@@ -185,27 +186,38 @@ impl TierBits {
         }
         match self.sets.get(set) {
             Some(bits) => bits[word_index >> 3] & (1 << (word_index & 7)) != 0,
-            // Full tier has no bitset: everything is a member.
+            // Extended has no bitset: every word in the shipped list is a
+            // member. A dictionary built with no tiers at all lands here too,
+            // which is why `Dict::from_words` reports every word in every tier.
             None => true,
         }
     }
 }
 
-/// Which vocabulary a query runs against. Strictly nested.
+/// Which vocabulary a query runs against. Strictly nested:
+/// Common ⊂ Standard ⊂ Full ⊂ Extended.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tier {
     Common,
     Standard,
+    /// English OpenList at the pinned revision.
     Full,
+    /// The pinned list plus the site's own additions: every word that ships.
+    Extended,
 }
 
 impl Tier {
     /// Index into `TierBits`; `None` means "no filtering".
+    ///
+    /// Full held the `None` slot until the site had words of its own. The
+    /// shipped list is the union now, so Full has to be stated as a bitset of
+    /// its own and Extended is the tier that filters nothing.
     fn bitset(self) -> Option<usize> {
         match self {
             Tier::Common => Some(0),
             Tier::Standard => Some(1),
-            Tier::Full => None,
+            Tier::Full => Some(2),
+            Tier::Extended => None,
         }
     }
 }

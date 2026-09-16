@@ -30,7 +30,7 @@ import {
   type Hit,
 } from '@ars-magna/hits/schema';
 
-const tier = z.enum(['common', 'standard', 'full']).default('standard');
+const tier = z.enum(['common', 'standard', 'full', 'extended']).default('standard');
 
 export type ServerDeps = {
   engine?: () => Promise<Engine>;

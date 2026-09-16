@@ -8,9 +8,10 @@
  * to interrupt work already in flight.
  */
 
-export type Tier = 'common' | 'standard' | 'full';
+export type Tier = 'common' | 'standard' | 'full' | 'extended';
 
-export const TIERS: readonly Tier[] = ['common', 'standard', 'full'];
+/** Narrowest first, which is the order the picker shows them in. */
+export const TIERS: readonly Tier[] = ['common', 'standard', 'full', 'extended'];
 
 /** Treated by the engine as "no limit on how many words a result may use". */
 export const UNLIMITED_WORDS = 64;
@@ -36,7 +37,10 @@ export const DEFAULT_QUERY: Omit<Query, 'input'> = {
 export type DictCounts = {
   readonly common: number;
   readonly standard: number;
+  /** English OpenList at the pinned revision. */
   readonly full: number;
+  /** The pinned list plus the site's own additions: every word that ships. */
+  readonly extended: number;
   readonly signatures: number;
 };
 

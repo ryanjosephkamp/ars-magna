@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "shards": 512,
   "maxSenses": 3,
-  "definedWords": 119593,
-  "totalWords": 378844,
+  "definedWords": 119594,
+  "totalWords": 378845,
   "source": {
     "name": "WordNet 3.1",
     "url": "https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz",
@@ -13,6 +13,7 @@
     "t": "twl_scrabble",
     "g": "machine_generated",
     "o": "unattested",
+    "x": "site_addition",
     "a": "attested"
   }
 }

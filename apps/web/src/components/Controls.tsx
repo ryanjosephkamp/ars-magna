@@ -12,12 +12,14 @@ const TIER_LABEL: Record<Tier, string> = {
   common: 'Common',
   standard: 'Standard',
   full: 'Full',
+  extended: 'Extended',
 };
 
 const TIER_HINT: Record<Tier, string> = {
   common: 'Everyday words only.',
   standard: 'Every attested word: the list without its machine-derived forms.',
   full: 'Every word in English OpenList, including rare and machine-derived forms.',
+  extended: "Every word in English OpenList, plus the site's own additions.",
 };
 
 function compact(n: number): string {
@@ -77,8 +79,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /**
- * A radiogroup rather than a select: three options the user toggles constantly,
- * and switching costs nothing because all tiers ship in one artifact.
+ * A radiogroup rather than a select: four options the user toggles constantly,
+ * and switching costs nothing because all tiers ship in one artifact — one word
+ * list and three bitsets over it.
  */
 function TierPicker({
   value,
@@ -100,7 +103,8 @@ function TierPicker({
       <div
         role="radiogroup"
         aria-labelledby="tier-label"
-        className="flex divide-x divide-rule overflow-hidden rounded-[3px] border border-rule bg-surface"
+        className="flex flex-wrap divide-x divide-rule overflow-hidden rounded-[3px] border
+                   border-rule bg-surface"
       >
         {TIERS.map((tier) => {
           const active = tier === value;

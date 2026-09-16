@@ -113,7 +113,8 @@ export function SiteFooter({
           >
             Ryan Kamp
           </a>
-          . Word validity comes from English OpenList; definitions come from WordNet 3.1.
+          . Word validity comes from English OpenList at a pinned revision, plus a short list of the
+          site’s own additions; definitions come from WordNet 3.1.
         </p>
         {counts && (
           <p className="mt-2 font-mono text-[11px]">

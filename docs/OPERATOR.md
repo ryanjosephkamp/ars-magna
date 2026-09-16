@@ -46,6 +46,47 @@ When you know an anagram that belongs in the dataset.
 Prompt: `docs/prompts/add-hit.md` (hit_input, hit_phrase, hit_category). The review desk's "Add a hit"
 tab writes the same steps as commands.
 
+## Add a word to the vocabulary
+
+When a word a reader would expect is missing from English OpenList, and an anagram depends on it.
+The site's vocabulary is the pinned list plus `data/vocabulary/additions.jsonl`, and every addition
+is public: the word, what it means, and where it is attested.
+
+**What may be added.** A gloss — one sentence a reader can read — and a public trace: a Wiktionary
+or Urban Dictionary entry, a citation, or an explicit note saying the word is a coinage. Never a
+private person's name. The list is capped at 2,000 words; if it ever approaches that, the question
+has become whether to move the pin instead. No tool admits a word: the routine and the Submit page
+propose, and a word joins the dictionary when you merge the pull request that adds it.
+
+1. Propose it. The command appends one line through the schema and refuses a word the pinned list
+   already has:
+
+   ```bash
+   pnpm vocab:add doomer --kind=slang --gloss="A person who believes catastrophe is inevitable." --trace=https://en.wiktionary.org/wiki/doomer
+   ```
+
+   `--kind` is one of `slang`, `coinage`, `name`, `abbreviation` or `later-in-openlist` (English
+   OpenList has since accepted the word, so the next build drops the duplicate and the line stays
+   as the record).
+
+2. Rebuild the dictionary. The word is not searchable until the artifacts carry it:
+
+   ```bash
+   pnpm dict:fetch && pnpm dict:build && pnpm dict:shards
+   ```
+
+   The fetch needs about 330 MB in `.cache/` and is paid once per machine. The build refuses an
+   addition that is already in the pinned list, and checks that the four tiers still nest.
+
+3. Run the four suites, commit everything including `apps/web/public/dict/` and
+   `apps/web/public/defs/` with **`[dict]`** in the message so CI rebuilds the artifacts and
+   compares them, and open a pull request. Merging is what admits the word.
+
+The word then appears in the **Extended** tier only — Common, Standard and Full stay exactly as
+English OpenList defines them — and the word panel labels it `Site addition, not in English
+OpenList.` `pnpm vocab:check` runs on every pull request and catches a malformed line, a duplicate,
+or a list over the cap.
+
 ## Review a routine pull request
 
 When a pull request titled `Greatest Hits: N new for <date>` appears. The routine opens one after it

@@ -80,6 +80,17 @@ export function HowItWorks() {
           </ul>
         </section>
 
+        <section aria-labelledby="words-title" className="mt-14">
+          <h2 id="words-title" className="font-display text-3xl tracking-[-0.01em] text-ink">
+            The words
+          </h2>
+          <p className="mt-4 max-w-prose text-sm text-ink-soft">
+            Every anagram here is built from English OpenList at a pinned revision, plus a short,
+            public list of words this site has added, each with its meaning and where it came from.
+            The vocabulary is always something you can look up rather than guess at.
+          </p>
+        </section>
+
         <SiteFooter />
       </main>
     </div>

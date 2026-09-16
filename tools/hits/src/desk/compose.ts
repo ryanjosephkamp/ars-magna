@@ -9,7 +9,7 @@
 
 export type StatusName = 'proposed' | 'accepted' | 'featured' | 'retired';
 export type CategoryName = 'people' | 'companies' | 'products' | 'titles' | 'places' | 'phrases';
-export type TierName = 'common' | 'standard' | 'full';
+export type TierName = 'common' | 'standard' | 'full' | 'extended';
 
 export type StatusDecision = { kind: 'status'; id: string; status: StatusName };
 export type JustifyDecision = { kind: 'justify'; id: string; text: string };

@@ -71,6 +71,9 @@ importers:
 
   tools/dict-build:
     dependencies:
+      ajv:
+        specifier: ^8.17.1
+        version: 8.20.0
       stream-chain:
         specifier: ^3.4.0
         version: 3.6.3

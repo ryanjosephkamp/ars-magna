@@ -91,7 +91,7 @@ export function isV2(judgement: Judgement): judgement is JudgementV2 {
   return 'relation' in judgement;
 }
 
-export type Tier = 'common' | 'standard' | 'full';
+export type Tier = 'common' | 'standard' | 'full' | 'extended';
 export const HIT_STATUSES = ['proposed', 'accepted', 'featured', 'retired'] as const;
 export type HitStatus = (typeof HIT_STATUSES)[number];
 

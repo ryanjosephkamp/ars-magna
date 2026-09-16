@@ -480,7 +480,7 @@ function Notice({ children }: { children: React.ReactNode }) {
 }
 
 /** The empty state teaches the tool rather than apologizing for being empty. */
-function Intro({ counts }: { counts: { full: number } | null }) {
+function Intro({ counts }: { counts: { extended: number } | null }) {
   const examples = [
     ['dormitory', 'dirty room'],
     ['astronomer', 'moon starer'],
@@ -504,7 +504,7 @@ function Intro({ counts }: { counts: { full: number } | null }) {
       </dl>
       {counts && (
         <p className="mt-8 text-ink-faint">
-          Checked against {counts.full.toLocaleString()} words.
+          Checked against {counts.extended.toLocaleString()} words.
         </p>
       )}
     </div>
@@ -519,7 +519,10 @@ function NoResults({ letters, tier }: { letters: string; tier: string }) {
         dictionary.
       </p>
       <ul className="mt-4 space-y-1.5 text-ink-soft">
-        <li>Try a larger dictionary — Full carries every word in the list.</li>
+        <li>
+          Try a larger dictionary — Extended carries every word in the list, plus the site’s own
+          additions.
+        </li>
         <li>Lower the minimum word length, or raise the maximum number of words.</li>
         <li>
           Some letter sets genuinely have no partition. A lone <i>q</i> with no <i>u</i> is a
