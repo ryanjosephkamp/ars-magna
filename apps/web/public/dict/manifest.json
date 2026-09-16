@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "builtAt": "2026-09-16T02:54:34.194Z",
+  "builtAt": "2026-09-16T16:21:51.545Z",
   "source": {
     "repo": "ryanjosephkamp/english-openlist",
     "rev": "368bf0e4460461c985fca8bde49e4062d56c1516",
@@ -14,22 +14,22 @@
     "common": 39951,
     "standard": 314007,
     "full": 378844,
-    "extended": 378845,
+    "extended": 378846,
     "signatures": 350469,
-    "withFrequency": 130577
+    "withFrequency": 130578
   },
   "files": {
     "full": {
-      "name": "full.ccc3a27a9c49.bin",
-      "bytes": 2940680,
-      "brotliBytes": 804374,
-      "sha256": "ccc3a27a9c49b64682f620a30305848b9f3f9fb777e234f91285aedb8165a8f5"
+      "name": "full.56330db71086.bin",
+      "bytes": 2940804,
+      "brotliBytes": 804844,
+      "sha256": "56330db71086525d29232bfe8dad9bec2d41c3d7beebf24528df9d26065f6dd1"
     },
     "tiers": {
-      "name": "tiers.aea13bfb914c.bits",
+      "name": "tiers.f429d5055061.bits",
       "bytes": 142084,
-      "brotliBytes": 51892,
-      "sha256": "aea13bfb914cd51dbdf735ec1f2e03c6601cc9a3c0091c45830d794284f13bf6"
+      "brotliBytes": 51934,
+      "sha256": "f429d505506166c2d0eb07cf6cf60518d40b21b3f96dbe65bf77cef40003b5b1"
     }
   }
 }

@@ -15,8 +15,8 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["slang", "coinage", "name", "abbreviation", "later-in-openlist"],
-      "description": "later-in-openlist: English OpenList has since accepted the word, so the next build drops the duplicate and this line becomes a record."
+      "enum": ["slang", "coinage", "name", "abbreviation", "loanword", "later-in-openlist"],
+      "description": "loanword: a word English has borrowed from another language and uses as its own. later-in-openlist: English OpenList has since accepted the word, so the next build drops the duplicate and this line becomes a record."
     },
     "gloss": {
       "type": "string",

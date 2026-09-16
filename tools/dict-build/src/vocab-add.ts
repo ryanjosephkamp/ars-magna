@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   const word = process.argv.slice(2).find((arg) => !arg.startsWith('--'));
   if (!word) {
     console.error(
-      'usage: pnpm vocab:add <word> --kind=slang|coinage|name|abbreviation|later-in-openlist \\\n' +
+      'usage: pnpm vocab:add <word> --kind=slang|coinage|name|abbreviation|loanword|later-in-openlist \\\n' +
         '         --gloss="One sentence." --trace=<url or note> [--proposed-by=<who>] [--note=<text>]',
     );
     process.exit(1);

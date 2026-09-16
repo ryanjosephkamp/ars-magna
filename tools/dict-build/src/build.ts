@@ -24,7 +24,7 @@ import {
 } from './paths.ts';
 import { normalize, signature } from './normalize.ts';
 import { loadFacts } from './facts.ts';
-import { COMMON_RANK_CUTOFF, inCommon, inFull, inStandard, zipfByte, type WordFacts } from './tiers.ts';
+import { COMMON_RANK_CUTOFF, frequencyRanks, inCommon, inFull, inStandard, zipfByte, type WordFacts } from './tiers.ts';
 import { buildPos } from './pos.ts';
 import { readAdditions } from './vocab.ts';
 import {
@@ -111,13 +111,17 @@ async function loadWords(): Promise<WordList> {
 // ---------------------------------------------------------------- frequency
 
 type Frequency = {
-  /** 1-based rank among dictionary words, 0 = absent from the corpus. */
+  /** 1-based rank among the pinned list's words, 0 = absent from the corpus or a site addition. */
   rank: Int32Array;
   zipf: Uint8Array;
   attested: number;
 };
 
-async function loadFrequency(indexOf: ReadonlyMap<string, number>, size: number): Promise<Frequency> {
+async function loadFrequency(
+  indexOf: ReadonlyMap<string, number>,
+  size: number,
+  isAddition: (index: number) => boolean,
+): Promise<Frequency> {
   const text = await readFile(FREQ_PATH, 'utf8');
 
   const occurrences = new Float64Array(size);
@@ -138,19 +142,17 @@ async function loadFrequency(indexOf: ReadonlyMap<string, number>, size: number)
     if (index !== undefined) occurrences[index]! += count;
   }
 
-  const present: number[] = [];
-  for (let i = 0; i < size; i++) if (occurrences[i]! > 0) present.push(i);
-  present.sort((a, b) => occurrences[b]! - occurrences[a]! || (a < b ? -1 : 1));
-
-  const rank = new Int32Array(size);
-  present.forEach((index, position) => {
-    rank[index] = position + 1;
-  });
+  // An addition keeps its frequency, which orders results, but takes no rank.
+  const rank = frequencyRanks(occurrences, (index) => !isAddition(index));
 
   const zipf = new Uint8Array(size);
-  for (let i = 0; i < size; i++) zipf[i] = zipfByte(occurrences[i]!, corpusTotal);
+  let attested = 0;
+  for (let i = 0; i < size; i++) {
+    zipf[i] = zipfByte(occurrences[i]!, corpusTotal);
+    if (occurrences[i]! > 0) attested++;
+  }
 
-  return { rank, zipf, attested: present.length };
+  return { rank, zipf, attested };
 }
 
 // ---------------------------------------------------------------- artifacts
@@ -265,7 +267,7 @@ async function main(): Promise<void> {
   );
 
   console.log('\n5. frequency');
-  const { rank, zipf, attested } = await loadFrequency(indexOf, words.length);
+  const { rank, zipf, attested } = await loadFrequency(indexOf, words.length, (index) => isAddition.has(words[index]!));
   console.log(
     `   ${attested.toLocaleString()} words carry frequency data ` +
       `(${FREQUENCY.repo}@${FREQUENCY.rev.slice(0, 8)})`,

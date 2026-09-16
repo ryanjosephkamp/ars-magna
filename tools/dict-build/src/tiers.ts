@@ -62,6 +62,29 @@ export const SHORT_ALLOWLIST: ReadonlySet<string> = new Set([
  *  that exist in the dictionary, not over the raw frequency list. */
 export const COMMON_RANK_CUTOFF = 40_000;
 
+/**
+ * Each word's 1-based rank by descending corpus frequency, with ties broken by
+ * list order; `0` for a word with no occurrences, and for a word `ranked`
+ * leaves out.
+ *
+ * Only English OpenList's own words take a place. A site addition is never in
+ * Common, but if it held a rank it would still push the word at rank 40,000 out
+ * of Common: `onsen`, the first addition the corpus knows, took `transients`'
+ * place until 2026-09-16. Common, Standard and Full stay exactly as the pinned
+ * list defines them, whatever the additions are.
+ */
+export function frequencyRanks(occurrences: Float64Array, ranked: (index: number) => boolean): Int32Array {
+  const present: number[] = [];
+  for (let i = 0; i < occurrences.length; i++) if (occurrences[i]! > 0 && ranked(i)) present.push(i);
+  present.sort((a, b) => occurrences[b]! - occurrences[a]! || a - b);
+
+  const rank = new Int32Array(occurrences.length);
+  present.forEach((index, position) => {
+    rank[index] = position + 1;
+  });
+  return rank;
+}
+
 export type WordFacts = {
   /** Present in the TWL Scrabble dictionary. */
   twl: boolean;
