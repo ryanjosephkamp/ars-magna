@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCopy } from '../lib/useCopy.ts';
 import { ShareActions } from '../components/ShareActions.tsx';
+import { SiteFooter } from '../components/SiteFooter.tsx';
+import { SiteHeader } from '../components/SiteHeader.tsx';
 import { CATEGORIES, CATEGORY_LABEL, SECTIONS, inOrder, pickOfTheDay, type Category, type Order, type PublicHit, type Shelf } from './build.ts';
 import { useVotes, type Votes } from './useVotes.ts';
 
@@ -11,9 +13,6 @@ const ORDERS: readonly { order: Order; label: string }[] = [
 ];
 
 type Loaded = { state: 'loading' } | { state: 'ready'; hits: PublicHit[] } | { state: 'failed' };
-
-const DATASET = 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits';
-const SUBMIT = 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=submit-anagram.yml';
 
 const LINK = 'text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent';
 
@@ -100,13 +99,9 @@ export function Gallery() {
 
   return (
     <div className="min-h-dvh">
+      <SiteHeader page="/hits" />
       <main className="mx-auto max-w-3xl px-6 pt-16 pb-24 sm:pt-24">
         <header className="mb-12">
-          <p className="mb-3 font-mono text-[11px] tracking-[0.08em] text-ink-faint uppercase">
-            <a href="/" className="transition-colors duration-150 hover:text-accent">
-              Ars Magna
-            </a>
-          </p>
           <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">Discoveries</h1>
           <p className="mt-2 max-w-prose text-sm text-ink-soft">
             Anagrams worth keeping: every letter of a name, a company, a title or a place, rearranged into
@@ -284,23 +279,7 @@ export function Gallery() {
           </>
         )}
 
-        <footer className="mt-20 border-t border-rule-strong pt-8 text-sm text-ink-faint">
-          <p>
-            The whole list is a dataset:{' '}
-            <a href={DATASET} target="_blank" rel="noopener noreferrer" className={LINK}>
-              ars-magna-greatest-hits on Hugging Face
-            </a>
-            , one subset per category. Found a good one?{' '}
-            <a href={SUBMIT} target="_blank" rel="noopener noreferrer" className={LINK}>
-              Submit it
-            </a>
-            .{' '}
-            <a href="/how" className={LINK}>
-              How Discoveries works
-            </a>
-            .
-          </p>
-        </footer>
+        <SiteFooter />
       </main>
 
       {/* The check before a visit's first vote, and a vote that did not save. Out of sight unless there is something to say. */}

@@ -8,6 +8,11 @@ type Link = {
 
 const DICTIONARY_LINKS: Link[] = [
   {
+    label: 'English OpenList',
+    href: 'https://english-openlist.pages.dev/',
+    note: 'the list',
+  },
+  {
     label: 'Hugging Face',
     href: 'https://huggingface.co/datasets/ryanjosephkamp/english-openlist',
     note: 'the dataset',
@@ -20,7 +25,7 @@ const DICTIONARY_LINKS: Link[] = [
 ];
 
 const HITS_LINKS: Link[] = [
-  { label: 'Discoveries', href: '/hits.html', note: 'the ones worth keeping' },
+  { label: 'Discoveries', href: '/hits', note: 'the ones worth keeping' },
   { label: 'How it works', href: '/how', note: 'sections and votes' },
   {
     label: 'Dataset',
@@ -80,12 +85,13 @@ function Group({ title, links }: { title: string; links: readonly Link[] }) {
 }
 
 export function SiteFooter({
-  counts,
-  candidates,
+  counts = null,
+  candidates = 0,
 }: {
-  counts: DictCounts | null;
+  /** Absent on the pages that never load the dictionary, and then the colophon's counts line is left out. */
+  counts?: DictCounts | null;
   /** Words that could appear in the current query — the real difficulty signal. */
-  candidates: number;
+  candidates?: number;
 }) {
   return (
     <footer className="mt-20 border-t border-rule-strong pt-8">

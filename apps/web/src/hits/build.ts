@@ -179,7 +179,7 @@ export function hitPage(hit: PublicHit, origin: string): string {
   const title = `${hit.input} → ${hit.display}`;
   const description = hit.justification || `An anagram of ${hit.input}: ${hit.display}. One of the Ars Magna discoveries.`;
   const url = `${origin}/hits/${hit.slug}/`;
-  const target = `/hits.html#${hit.slug}`;
+  const target = `/hits#${hit.slug}`;
   return `<!doctype html>
 <html lang="en">
   <head>

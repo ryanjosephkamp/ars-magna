@@ -14,6 +14,7 @@ import { Definitions } from './lib/definitions.ts';
 import type { WordDetail } from './components/WordDetails.tsx';
 import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
+import { SiteHeader } from './components/SiteHeader.tsx';
 import { applyView, type SortMode } from './lib/resultView.ts';
 import {
   EXPORT_LIMIT,
@@ -207,6 +208,7 @@ export function App() {
 
   return (
     <div className="min-h-dvh">
+      <SiteHeader page="/" />
       <main className="mx-auto max-w-3xl px-6 pt-16 pb-24 sm:pt-24">
         <header className="mb-12">
           <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">
