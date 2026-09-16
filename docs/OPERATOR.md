@@ -145,6 +145,38 @@ A refused submission now says which of three things went wrong: the letters diff
 a wider tier and the dropdown needs changing, or the vocabulary has no such word at any tier. Only
 the third is a word request, and only it is labelled `word-request`.
 
+## The vocabulary dataset
+
+The site's vocabulary is published so its results can be checked rather than taken on trust:
+[ars-magna-vocabulary](https://huggingface.co/datasets/ryanjosephkamp/ars-magna-vocabulary), linked
+in the site footer under "The words". Two files, plus a card naming the pinned revision:
+
+| File | What it is |
+|---|---|
+| `vocabulary.txt` | Every word the site accepts, sorted, one per line: the union the engine searches. |
+| `additions.jsonl` | The site's own words, each with its gloss, trace, and the revision it was added on top of. |
+
+**English OpenList is credited, never republished as itself and never modified.** The union is a
+derived artifact, published because a claim to find every anagram is only checkable against a
+stated word list. The card sends a reader to English OpenList's own dataset for the list itself.
+
+The **Publish vocabulary** Action does it, on a merge to `main` that changes
+`data/vocabulary/additions.jsonl` or rebuilds the dictionary. It uses the same `HF_TOKEN` secret as
+the hits dataset, and creates the dataset on Hugging Face the first time it runs. Pause it with
+`gh variable set PUBLISH_VOCABULARY --body off`, and resume with `gh variable delete
+PUBLISH_VOCABULARY`.
+
+To see what would be published without uploading anything:
+
+```bash
+pnpm vocab:publish --dry-run
+```
+
+It reads the **committed artifacts**, not the pinned sources, so it needs no 330 MB fetch and
+publishes exactly what the site ships. It refuses to run when an addition is missing from those
+artifacts: that means the dictionary has not been rebuilt since the word was added, and publishing
+would announce a word the site cannot find.
+
 ## Review a routine pull request
 
 When a pull request titled `Greatest Hits: N new for <date>` appears. The routine opens one after it

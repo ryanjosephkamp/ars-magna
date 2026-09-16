@@ -150,7 +150,26 @@ export function problemsWith(
  * happens on a checkout built the old way.
  */
 export async function pinnedWords(): Promise<ReadonlySet<string> | null> {
-  type Manifest = { files: Record<string, { name: string } | undefined> };
+  return (await committedDictionary())?.pinned ?? null;
+}
+
+/**
+ * The committed dictionary as it was built: every word it carries, which of
+ * them came from the pin, and the revision it was pinned at.
+ *
+ * One decode serves both the duplicate check and the published dataset. A
+ * second copy of this reading that drifted from the first would be a silent
+ * wrong answer, not a crash.
+ */
+export async function committedDictionary(): Promise<{
+  words: string[];
+  pinned: ReadonlySet<string>;
+  source: { repo: string; rev: string };
+} | null> {
+  type Manifest = {
+    files: Record<string, { name: string } | undefined>;
+    source?: { repo: string; rev: string };
+  };
   let manifest: Manifest;
   try {
     manifest = JSON.parse(await readFile(resolve(DIST_DIR, 'manifest.json'), 'utf8')) as Manifest;
@@ -161,17 +180,18 @@ export async function pinnedWords(): Promise<ReadonlySet<string> | null> {
   const full = manifest.files['full']?.name;
   const tiers = manifest.files['tiers']?.name;
   if (!full) return null;
+  const source = manifest.source ?? { repo: 'ryanjosephkamp/english-openlist', rev: 'unknown' };
 
   const { words } = decodeDict(new Uint8Array(await readFile(resolve(DIST_DIR, full))));
-  if (!tiers) return new Set(words);
+  if (!tiers) return { words, pinned: new Set(words), source };
 
   const bits = new Uint8Array(await readFile(resolve(DIST_DIR, tiers)));
   const setCount = new DataView(bits.buffer, bits.byteOffset, bits.byteLength).getUint16(10, true);
   // Two bitsets means an artifact from before the fourth tier: every word in it
   // came from the pin.
-  if (setCount <= FULL_SET) return new Set(words);
+  if (setCount <= FULL_SET) return { words, pinned: new Set(words), source };
 
   const setBytes = Math.ceil(words.length / 8);
   const fullSet = bits.subarray(16 + FULL_SET * setBytes, 16 + (FULL_SET + 1) * setBytes);
-  return new Set(words.filter((_, index) => bitsetGet(fullSet, index)));
+  return { words, pinned: new Set(words.filter((_, index) => bitsetGet(fullSet, index))), source };
 }

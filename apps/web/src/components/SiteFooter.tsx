@@ -22,6 +22,11 @@ const DICTIONARY_LINKS: Link[] = [
     href: 'https://github.com/ryanjosephkamp/english-openlist',
     note: 'how it is built',
   },
+  {
+    label: 'Vocabulary',
+    href: 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-vocabulary',
+    note: "this site's own words",
+  },
 ];
 
 const HITS_LINKS: Link[] = [
@@ -97,7 +102,7 @@ export function SiteFooter({
     <footer className="mt-20 border-t border-rule-strong pt-8">
       <div className="flex flex-col gap-7">
         <Group title="Discoveries" links={HITS_LINKS} />
-        <Group title="English OpenList" links={DICTIONARY_LINKS} />
+        <Group title="The words" links={DICTIONARY_LINKS} />
         <Group title="Ryan Kamp" links={AUTHOR_LINKS} />
       </div>
 
