@@ -49,9 +49,9 @@ const PROVENANCE_OF: Record<string, Provenance> = {
 export const PROVENANCE_LABEL: Record<Provenance, string | null> = {
   // The ordinary case needs no explanation; saying so would be noise on most rows.
   attested: null,
-  twl: 'no definition found — valid in tournament play',
-  generated: 'no definition found — a machine-derived form in English OpenList',
-  unattested: 'no definition found — and no source confirms this word',
+  twl: 'No definition found — valid in tournament play.',
+  generated: 'No definition found — a machine-derived form in English OpenList.',
+  unattested: 'No definition found — and no source confirms this word.',
 };
 
 /**

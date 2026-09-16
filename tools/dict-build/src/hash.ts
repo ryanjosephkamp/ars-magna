@@ -2,10 +2,11 @@
  * FNV-1a, 32-bit.
  *
  * Used to decide which shard a word's definition lives in. The browser computes
- * the same hash to know which file to fetch, so this function and
- * `packages/engine/src/fnv1a.ts` must agree exactly — `hash.test.ts` pins known
- * values on both sides. A drift here would not throw; it would just return
- * "no definition" for most words.
+ * the same hash to know which file to fetch, so this function and the one in
+ * `packages/engine/src/definitions.ts` must agree exactly —
+ * `apps/web/src/lib/definitions.test.ts` pins known values on both sides. A
+ * drift here would not throw; it would just return "no definition" for most
+ * words.
  */
 export function fnv1a(text: string): number {
   let hash = 0x811c9dc5;

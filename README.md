@@ -44,7 +44,7 @@ expanding a result says where each word came from.
 ## Definitions
 
 English OpenList carries no definitions despite its dataset card advertising them, so
-glosses come from [WordNet 3.1][wordnet] instead. 116,837 words (30.8% of the list) are
+glosses come from [WordNet 3.1][wordnet] instead. 119,593 words (31.6% of the list) are
 covered; a little over half of those are reached through WordNet's own morphology, so
 `dormitories` gets `dormitory`'s definition and says that it did. Words with no gloss fall
 back to explaining their provenance.

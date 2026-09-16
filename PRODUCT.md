@@ -45,6 +45,11 @@ it. No exclamation marks, no encouragement, no mascot.
 Voice test: an error message reads *"elephant doesn't fit in these letters"*, not
 *"Oops! We couldn't find that word 😅"*.
 
+Every message to the reader is a sentence: it starts with a capital letter and
+ends with a full stop. Labels and buttons are not sentences and take neither — a
+button reads *Vote*, a control is labelled *Dictionary*, and the sentence under
+it ends properly.
+
 ## Anti-references
 
 - **Warm cream / parchment / sand backgrounds.** The saturated default of the
