@@ -46,10 +46,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NUMBER: ${{ github.event.issue.number }}
           STATUS: ${{ steps.check.outputs.status }}
+          REPO: ${{ github.repository }}
         run: |
+          # Adding a label that does not exist fails the step, so make sure of
+          # it first. --force leaves an existing one alone apart from its
+          # description and colour.
+          gh label create word-request --repo "$REPO" --force \
+            --color BFD4F2 \
+            --description "A word the vocabulary does not have, proposed by a submission" > /dev/null
           gh issue comment "$NUMBER" --body-file verdict.md
           if [ "$STATUS" = "0" ]; then
-            gh issue edit "$NUMBER" --add-label "submission:valid" --remove-label "submission:invalid"
+            gh issue edit "$NUMBER" --add-label "submission:valid" --remove-label "submission:invalid,word-request"
+          elif [ "$STATUS" = "3" ]; then
+            # A word the vocabulary does not have at any tier. Not the
+            # author's mistake, and not fixable by editing the issue: it is a
+            # word request for the operator to accept or decline.
+            gh issue edit "$NUMBER" --add-label "submission:invalid,word-request" --remove-label "submission:valid"
           else
-            gh issue edit "$NUMBER" --add-label "submission:invalid" --remove-label "submission:valid"
+            gh issue edit "$NUMBER" --add-label "submission:invalid" --remove-label "submission:valid,word-request"
           fi

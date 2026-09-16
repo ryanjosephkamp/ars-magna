@@ -49,6 +49,12 @@ export type VerdictV2 = {
   rationale: string;
   model?: string;
   rubric_version?: string;
+  /**
+   * A word the judge believes the vocabulary is missing. A proposal for the
+   * operator, not a change: nothing here reaches the dictionary. Its gloss
+   * and trace are the model's own and are unverified.
+   */
+  request?: { word?: unknown; gloss?: unknown; trace?: unknown; why?: unknown };
 };
 
 export type Verdict = VerdictV1 | VerdictV2;

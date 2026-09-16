@@ -11,6 +11,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { normalizeLetters } from '@ars-magna/engine/fold';
+import type { Tier } from '@ars-magna/engine/protocol';
 
 import { isCategory, type Category } from './ids.ts';
 import { REPO_ROOT } from './schema.ts';
@@ -62,6 +63,40 @@ export function checkWithCli(submission: Submission): { ok: boolean; message: st
   return { ok: run.status === 0, message: (run.stdout || run.stderr).trim() };
 }
 
+/** The word a refusal names, when it named one. */
+export function missingWord(message: string): string | null {
+  return /"([a-z]+)" is not in the \w+ dictionary/.exec(message)?.[1] ?? null;
+}
+
+/**
+ * Why a submission was refused, in the terms its author needs.
+ *
+ * The three cases have different remedies and used to share one sentence.
+ * The letters differing is the author's mistake. A word missing from the tier
+ * they chose but present in a wider one is a dropdown away. A word in no tier
+ * at all is not their mistake at all: the vocabulary does not have it, and
+ * the remedy is to propose it.
+ */
+export function refusal(
+  submission: Submission,
+  message: string,
+  check: (s: Submission) => { ok: boolean; message: string } = checkWithCli,
+): { kind: 'letters' | 'tier' | 'vocabulary'; word?: string; wider?: Tier } {
+  const word = missingWord(message);
+  if (word === null) return { kind: 'letters' };
+
+  const wider: Tier[] = ['standard', 'full', 'extended'];
+  for (const tier of wider) {
+    if (tier === submission.tier) continue;
+    const at = check({ ...submission, tier });
+    if (at.ok) return { kind: 'tier', word, wider: tier };
+    // Once a wider tier fails on a different word, the first word is no
+    // longer the whole story; keep reporting the one we were asked about.
+    if (missingWord(at.message) !== word) break;
+  }
+  return { kind: 'vocabulary', word };
+}
+
 async function main(): Promise<void> {
   const body = process.env['ISSUE_BODY'] ?? '';
   const parsed = parseIssueForm(body);
@@ -76,8 +111,25 @@ async function main(): Promise<void> {
     );
     process.exit(0);
   }
-  console.log(`**Not yet.** ${verdict.message.replace(/^no: /, '')}. Edit the issue to fix it and the check will run again.`);
-  process.exit(1);
+  const why = refusal(parsed, verdict.message);
+  const said = verdict.message.replace(/^no: /, '');
+  if (why.kind === 'tier') {
+    console.log(
+      `**Not yet.** ${said}, but it is in the ${why.wider} dictionary. ` +
+        `Edit the issue and set **Dictionary tier** to ${why.wider}; the check will run again.`,
+    );
+  } else if (why.kind === 'vocabulary') {
+    console.log(
+      `**Not yet.** *${why.word}* is not in the site's vocabulary at any tier, so this is not something to fix in the issue. ` +
+        `The vocabulary is English OpenList at a pinned revision plus a short, public list of the site's own additions, and *${why.word}* is in neither. ` +
+        `A maintainer will decide whether to add it; if they do, the check will pass here.`,
+    );
+  } else {
+    console.log(`**Not yet.** ${said}. Edit the issue to fix it and the check will run again.`);
+  }
+  // 3 marks a word the vocabulary does not have, so the workflow can label
+  // it for the operator. 1 stays "the author can fix this".
+  process.exit(why.kind === 'vocabulary' ? 3 : 1);
 }
 
 if (process.argv[1] && import.meta.filename === process.argv[1] && process.argv[2] === 'check') {

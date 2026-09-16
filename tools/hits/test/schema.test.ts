@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { describe, expect, it } from 'vitest';
+
+import { readRequests } from '../src/requests.ts';
+import { readAdditionWords } from '../src/settings.ts';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
@@ -132,6 +135,18 @@ describe('schemas', () => {
       expect(h.letters).toBe(alphagram(h.input));
       expect(alphagram(h.words.join(''))).toBe(h.letters);
       expect(h.display.split(' ').sort()).toEqual([...h.words].sort());
+    }
+  });
+
+  it('validate every committed word request, and never one already in the vocabulary', async () => {
+    // The file is hand-edited to decline a word, so CI has to read it.
+    const requests = await readRequests();
+    const additions = new Set(await readAdditionWords());
+    const seen = new Set<string>();
+    for (const r of requests) {
+      expect(additions.has(r.word), `${r.word} is already an addition, so it is not a request`).toBe(false);
+      expect(seen.has(r.word), `${r.word} is requested twice`).toBe(false);
+      seen.add(r.word);
     }
   });
 });

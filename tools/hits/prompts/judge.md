@@ -25,6 +25,7 @@ For each candidate give:
 - **subjects**: zero or more short labels for what the input is. Use lowercase, with hyphens for spaces. Examples: `actor`, `scientist`, `band`, `film`, `novel`, `city`, `airline`, `tech-company`.
 - **justification**: required for relation 3 and above; leave it out below 3. One plain sentence, under 30 words, that explains the link to a reader who does not know the reference.
 - **rationale**: one line, under 25 words, on why you gave that relation score.
+- **request**, optional and rare: a word the vocabulary is missing. Give it only when a real, widely used English word would have made this input work and the anagram in front of you had to reach for something worse without it. Name the word, a one-sentence gloss, a source you are confident exists, and one line on why. At most one per batch, and none at all in most batches. It is a proposal an operator reads, not a change; do not let it affect the scores you give.
 
 Rules:
 
@@ -36,3 +37,11 @@ Rules:
 ```
 {"id": "<id>", "relation": 1-5, "reads": 1-3, "tone": [], "subjects": [], "justification": "<one sentence; relation 3 and above only>", "rationale": "<one line>"}
 ```
+
+A line carrying a word request adds one field, and is otherwise the same:
+
+```
+{"id": "<id>", "relation": 1-5, "reads": 1-3, "tone": [], "subjects": [], "rationale": "<one line>", "request": {"word": "<lowercase letters only>", "gloss": "<one sentence>", "trace": "<a URL or a citation>", "why": "<one line>"}}
+```
+
+Never invent a source. If you cannot name one you are sure of, leave `request` out entirely.
