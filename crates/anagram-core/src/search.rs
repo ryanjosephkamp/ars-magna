@@ -1396,4 +1396,38 @@ mod tests {
             assert!(dict.in_tier(pinned, tier), "{tier:?} should contain a pinned word");
         }
     }
+
+    #[test]
+    fn admitting_an_addition_reaches_it_from_a_narrow_tier_without_relabelling_it() {
+        let mut dict = tiered(&[("zz", false, false, false), ("to", true, true, true)]);
+        let addition = dict.words.iter().position(|w| w == "zz").unwrap() as u32;
+
+        assert_eq!(dict.admit(&["zz".to_string()]), 1);
+        assert_eq!(dict.admitted(), 1);
+
+        // Common now reaches it: this is what lets enumeration search Common
+        // plus the additions.
+        assert!(dict.in_tier(addition, Tier::Common));
+        assert!(dict.class_in_tier(dict.find_class("zz", Tier::Common).unwrap(), Tier::Common));
+
+        // But the built tiers are untouched, so a result can still say where
+        // the word really came from. Reading provenance through `in_tier`
+        // would call every admitted addition "common".
+        assert!(!dict.in_built_tier(addition, Tier::Common));
+        assert!(!dict.in_built_tier(addition, Tier::Full));
+        assert!(dict.in_built_tier(addition, Tier::Extended));
+
+        // A word the artifact does not carry is ignored rather than failing:
+        // that is the state between `vocab:add` and the dictionary rebuild.
+        assert_eq!(dict.admit(&["notaword".to_string()]), 0);
+        assert_eq!(dict.admitted(), 1);
+    }
+
+    #[test]
+    fn a_dictionary_admits_nothing_until_asked() {
+        let dict = tiered(&[("zz", false, false, false), ("to", true, true, true)]);
+        assert_eq!(dict.admitted(), 0);
+        let addition = dict.words.iter().position(|w| w == "zz").unwrap() as u32;
+        assert!(!dict.in_tier(addition, Tier::Common));
+    }
 }

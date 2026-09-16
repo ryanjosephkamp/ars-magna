@@ -27,7 +27,7 @@ import { hitId, alphagram, isCategory, type Category } from './ids.ts';
 import { PREFILTERED, RAW, SUMMARY, flag, pickQueue } from './queue.ts';
 import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate, type CandidateRun } from './schema.ts';
 import { rubric } from './judge.ts';
-import { PRESETS, addRun, queueName, queueSettings, readShortWords } from './settings.ts';
+import { PRESETS, addRun, queueName, queueSettings, readQueueAdditions, readShortWords } from './settings.ts';
 
 /** One line of raw.jsonl, as `anagram batch` writes it. */
 export type RawRow = {
@@ -79,13 +79,22 @@ export const RULES = {
 
 /**
  * Why a row was dropped, or `null` to keep it. Exposed so the tests can
- * name the rule that fired. `allow` is the short-word allowlist.
+ * name the rule that fired. `allow` is the short-word allowlist, and
+ * `additions` the site's own words, which the engine searched beside Common
+ * and which carry the `extended` tier label rather than `common`.
  */
-export function reject(row: RawRow, allow: ReadonlySet<string> = new Set()): string | null {
+export function reject(
+  row: RawRow,
+  allow: ReadonlySet<string> = new Set(),
+  additions: ReadonlySet<string> = new Set(),
+): string | null {
   if (row.words.length === 0 || row.words.length > RULES.maxWords) return 'word count';
   if (row.words.some((w) => w.length < RULES.minWordLength && !allow.has(w))) return 'short word';
   if (new Set(row.words).size !== row.words.length) return 'repeated word';
-  if (row.tiers.some((t) => t !== RULES.tier)) return 'rare word';
+  // `tiers` is parallel to `words`, so an addition is excused by name rather
+  // than by its label. Excusing the label alone would let any rare word
+  // through the moment one addition appeared in the row.
+  if (row.tiers.some((t, i) => t !== RULES.tier && !additions.has(row.words[i] ?? ''))) return 'rare word';
   if (!isCategory(row.category)) return 'category';
   // "Star Wars" -> "star wars", "The Godfather" -> "the god father": the
   // input's own letters in the input's own order, in some arrangement of the
@@ -124,8 +133,12 @@ export function score(words: readonly string[], masks: readonly number[], zipf: 
   return Math.round((order + 2 * meanZipf - lengthPenalty) * 100) / 100;
 }
 
-export function prefilterRow(row: RawRow, allow: ReadonlySet<string> = new Set()): Prefiltered | null {
-  if (reject(row, allow) !== null || !isCategory(row.category)) return null;
+export function prefilterRow(
+  row: RawRow,
+  allow: ReadonlySet<string> = new Set(),
+  additions: ReadonlySet<string> = new Set(),
+): Prefiltered | null {
+  if (reject(row, allow, additions) !== null || !isCategory(row.category)) return null;
   const ordered = bestOrder(row.words, row.pos);
   const masks = ordered.map((w) => row.pos[row.words.indexOf(w)] ?? 0);
   return {
@@ -242,6 +255,8 @@ async function main(): Promise<void> {
   const dir = await pickQueue(argv);
   const perInput = perInputFlag(flag(argv, 'per-input'));
   const allow = await readShortWords();
+  const additions = await readQueueAdditions(dir);
+  if (additions.size > 0) console.log(`additions: ${additions.size}`);
 
   const kept: Prefiltered[] = [];
   const dropped = new Map<string, number>();
@@ -252,12 +267,15 @@ async function main(): Promise<void> {
     if (line.trim().length === 0) continue;
     seen++;
     const row = JSON.parse(line) as RawRow;
-    const why = reject(row, allow);
+    const why = reject(row, allow, additions);
     if (why !== null) {
       dropped.set(why, (dropped.get(why) ?? 0) + 1);
       continue;
     }
-    const pre = prefilterRow(row, allow);
+    // `prefilterRow` runs `reject` again, so it needs the same additions:
+    // without them it quietly returns null and the row is lost without any
+    // rule being named for it.
+    const pre = prefilterRow(row, allow, additions);
     if (pre) kept.push(pre);
   }
 

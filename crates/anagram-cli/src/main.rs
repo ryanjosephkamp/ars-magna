@@ -170,8 +170,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=]\n  \
                  anagram bench\n  \
                  anagram batch --in=candidates.jsonl --out=DIR [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] \
-                 [--spellings=first|all] [--expand-cap=] [--limit=] [--sample=] [--seed=] [--status=new|all] [--max-nodes=] \
-                 [--settings=]\n  \
+                 [--additions=FILE] [--spellings=first|all] [--expand-cap=] [--limit=] [--sample=] [--seed=] \
+                 [--status=new|all] [--max-nodes=] [--settings=]\n  \
                  anagram check \"input\" \"anagram phrase\" [--tier=]"
             );
             Ok(())
@@ -365,6 +365,10 @@ struct Summary {
     tier: &'static str,
     min_word_len: u8,
     short_words: usize,
+    /// Site additions admitted beside `tier`. Absent on a queue enumerated
+    /// before s3, which had none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    additions: Option<usize>,
     max_words: u8,
     spellings: &'static str,
     expand_cap: usize,
@@ -560,11 +564,16 @@ fn write_result(
                     // The narrowest tier the word belongs to. The last arm used
                     // to be an unconditional "full", which would now mislabel
                     // every site addition as part of the pinned list.
-                    if dict.in_tier(w, Tier::Common) {
+                    //
+                    // These read the built tiers, not `in_tier`: a run that
+                    // admitted additions would otherwise label every one of
+                    // them "common" and the prefilter would wave them through
+                    // as pinned words.
+                    if dict.in_built_tier(w, Tier::Common) {
                         "common"
-                    } else if dict.in_tier(w, Tier::Standard) {
+                    } else if dict.in_built_tier(w, Tier::Standard) {
                         "standard"
-                    } else if dict.in_tier(w, Tier::Full) {
+                    } else if dict.in_built_tier(w, Tier::Full) {
                         "full"
                     } else {
                         "extended"
@@ -665,7 +674,17 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
     };
     let only_status = argv.get("status").unwrap_or("new");
 
-    let dict = load_dict()?;
+    let mut dict = load_dict()?;
+    // The site's additions, searched alongside `--tier`. An addition lives
+    // only in Extended, so without this a Common run can never reach one.
+    // Words the artifact does not carry are ignored, which is the state
+    // between adding a word and rebuilding the dictionary.
+    let additions = argv.get("additions").map(read_short_words).transpose()?.unwrap_or_default();
+    let admitted = dict.admit(&additions);
+    if !additions.is_empty() {
+        eprintln!("additions: {admitted} of {} admitted beside {}", additions.len(), tier_name(config.tier));
+    }
+    let dict = dict;
     fs::create_dir_all(&out_dir)?;
     let mut raw = std::io::BufWriter::new(fs::File::create(out_dir.join("raw.jsonl"))?);
 
@@ -786,6 +805,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
         tier: tier_name(config.tier),
         min_word_len: config.min_word_len,
         short_words: config.short_words.len(),
+        additions: (!additions.is_empty()).then_some(admitted),
         max_words: config.max_words,
         spellings: if config.all_spellings { "all" } else { "first" },
         expand_cap: config.expand_cap,

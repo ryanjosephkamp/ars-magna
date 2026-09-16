@@ -41,6 +41,20 @@ describe('prefilter', () => {
     expect(reject(raw({ words: ['papa', 'papa'], zipf: [1, 1], tiers: ['common', 'common'], pos: [0, 0] }))).toBe('repeated word');
     expect(reject(raw({ tiers: ['common', 'full'] }))).toBe('rare word');
     expect(reject(raw({ tiers: ['common', 'standard'] }))).toBe('rare word');
+  });
+
+  it('keeps a site addition, which is labelled extended, and still drops rare words beside it', () => {
+    // The engine searched Common plus the additions, so an addition arrives
+    // labelled `extended`. It is excused by name, never by its label.
+    const row = raw({ words: ['act', 'doomer'], tiers: ['common', 'extended'] });
+    expect(reject(row)).toBe('rare word');
+    expect(reject(row, new Set(), new Set(['doomer']))).toBeNull();
+
+    // A different extended word in the same row is still rare: excusing the
+    // label would let any of them through once one addition appeared.
+    const both = raw({ words: ['onsen', 'doomer'], tiers: ['extended', 'extended'] });
+    expect(reject(both, new Set(), new Set(['doomer']))).toBe('rare word');
+    expect(reject(both, new Set(), new Set(['doomer', 'onsen']))).toBeNull();
     expect(reject(raw({ category: 'celebrities' }))).toBe('category');
     expect(reject(raw({ input: 'Star Wars', words: ['star', 'wars'], pos: [0, 0] }))).toBe('identity');
     expect(reject(raw({ input: 'Star Wars', words: ['wars', 'star'], pos: [0, 0] }))).toBe('identity');

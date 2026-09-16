@@ -9,7 +9,17 @@ import { join } from 'node:path';
 
 import { batchArgs } from '../src/enumerate.ts';
 import { CANDIDATES_PATH } from '../src/schema.ts';
-import { PRESETS, SETTINGS_VERSION, SHORT_WORDS_PATH, parseShortWords, presetFlag, queueSettings, readShortWords } from '../src/settings.ts';
+import {
+  PRESETS,
+  SETTINGS_VERSION,
+  SHORT_WORDS_PATH,
+  parseShortWords,
+  presetFlag,
+  queueSettings,
+  readAdditionWords,
+  readQueueAdditions,
+  readShortWords,
+} from '../src/settings.ts';
 
 describe('presets', () => {
   it('pass the routine preset to anagram batch, with the settings version and the allowlist', () => {
@@ -22,6 +32,7 @@ describe('presets', () => {
       '--tier=common',
       '--min-len=3',
       `--short-words=${SHORT_WORDS_PATH}`,
+      '--additions=/queue/2026-09-14/additions.txt',
       '--max-words=5',
       '--spellings=all',
       '--expand-cap=64',
@@ -30,7 +41,7 @@ describe('presets', () => {
       '--seed=1',
       '--status=new',
     ]);
-    expect(SETTINGS_VERSION).toBe('s2');
+    expect(SETTINGS_VERSION).toBe('s3');
   });
 
   it('take the deep preset and explicit overrides, and refuse an unknown preset', () => {
@@ -53,6 +64,27 @@ describe('short words', () => {
     for (const word of ['a', 'i', 'to', 'no', 'is', 'of', 'by', 'it']) expect(allow.has(word), word).toBe(true);
     for (const word of ['qi', 'za', 'xu', 'aa']) expect(allow.has(word), word).toBe(false);
     expect([...allow].every((w) => w.length < 3)).toBe(true);
+  });
+});
+
+describe('additions', () => {
+  it('takes the word of each line, and treats a missing file as none', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ars-magna-additions-'));
+    expect(await readAdditionWords(join(dir, 'nothing.jsonl'))).toEqual([]);
+
+    const path = join(dir, 'additions.jsonl');
+    await writeFile(path, `{"word":"doomer","kind":"slang"}\n\n{"word":"rizz","kind":"slang"}\n`);
+    expect(await readAdditionWords(path)).toEqual(['doomer', 'rizz']);
+
+    await writeFile(path, `{"kind":"slang"}\n`);
+    await expect(readAdditionWords(path)).rejects.toThrow(/:1: no word/);
+  });
+
+  it("reads a queue's own copy, and treats a queue from before s3 as having none", async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ars-magna-queue-additions-'));
+    expect(await readQueueAdditions(dir)).toEqual(new Set());
+    await writeFile(join(dir, 'additions.txt'), '# written by hits:enumerate\ndoomer\n');
+    expect(await readQueueAdditions(dir)).toEqual(new Set(['doomer']));
   });
 });
 
