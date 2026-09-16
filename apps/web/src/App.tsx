@@ -16,6 +16,14 @@ import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
 import { applyView, type SortMode } from './lib/resultView.ts';
+import { discoveredFor } from './lib/inDiscoveries.ts';
+import { InDiscoveries } from './components/InDiscoveries.tsx';
+import { CheckToast } from './components/CheckToast.tsx';
+import { usePass } from './state/usePass.ts';
+import { usePromotions } from './state/usePromotions.ts';
+import { usePublishedHits } from './state/usePublishedHits.ts';
+import { useVotes } from './hits/useVotes.ts';
+import { sortedLetters } from './votes/core.ts';
 import {
   EXPORT_LIMIT,
   buildBlob,
@@ -23,6 +31,8 @@ import {
   fileStem,
   type ExportFormat,
 } from './lib/exporters.ts';
+
+const NO_COUNTS: Readonly<Record<string, number>> = {};
 
 export function App() {
   // The URL is the source of truth on first paint, so a shared link opens on
@@ -63,7 +73,7 @@ export function App() {
   const letters = folded.letters;
 
   const {
-    engine, searching, error, candidates, loadMore, collect, at, surpriseMe, spellings, masks,
+    engine, searching, error, candidates, countedLetters, loadMore, collect, at, surpriseMe, spellings, masks,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
@@ -111,6 +121,41 @@ export function App() {
 
   const counts = engine.state === 'ready' ? engine.counts : null;
   const hasQuery = letters.length > 0;
+
+  // Discoveries on the search page. No count loads before the engine has
+  // counted these letters, and nothing here ever holds back a result.
+  const counted = hasQuery && countedLetters === letters;
+  const [started, setStarted] = useState(false);
+  useEffect(() => {
+    if (counted) setStarted(true);
+  }, [counted]);
+  const pass = usePass();
+  const votes = useVotes(pass, started);
+  // The published hits are a static file, not counts, and they load with the
+  // page: when the first count arrives they are already here, so the block can
+  // take its place before the rows paint rather than push them down after.
+  const publishedHits = usePublishedHits(true, letters);
+  const sorted = useMemo(() => sortedLetters(letters), [letters]);
+  // The block ranks by the vote counts as they were when votes settled for
+  // these letters, so an entry never moves under the reader who votes for it.
+  const votesSettled = votes.status !== 'loading';
+  const [ranking, setRanking] = useState<{ letters: string; counts: Readonly<Record<string, number>> } | null>(null);
+  useEffect(() => {
+    if (votesSettled && ranking?.letters !== sorted) setRanking({ letters: sorted, counts: votes.counts });
+    // Only a new set of letters, or votes settling, takes a new snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [votesSettled, sorted]);
+  const rankBy = ranking?.letters === sorted ? ranking.counts : NO_COUNTS;
+  const discovered = useMemo(
+    () => (publishedHits ? discoveredFor(publishedHits, sorted, rankBy) : null),
+    [publishedHits, sorted, rankBy],
+  );
+  // The block and the row labels need only the letters and the published
+  // hits, so they take their place as the search starts, before the rows
+  // paint. Counts are another matter: votes load after the first count, and
+  // promotions after the count for these letters.
+  const shownDiscoveries = hasQuery ? discovered : null;
+  const promotions = usePromotions(pass, { letters: sorted, input, tier: query.tier, enabled: counted && discovered !== null });
   const total = results.total;
   const empty = hasQuery && !searching && total === '0' && error === null;
 
@@ -336,6 +381,8 @@ export function App() {
                 copied={copied}
               />
 
+              {shownDiscoveries && <InDiscoveries sections={shownDiscoveries.sections} votes={votes} />}
+
               {empty ? (
                 <NoResults letters={letters} tier={filters.tier} />
               ) : (
@@ -368,6 +415,9 @@ export function App() {
                     chosen={chosen}
                     onChoose={onChoose}
                     share={shareContext}
+                    discovered={shownDiscoveries}
+                    votes={votes}
+                    promotions={promotions}
                   />
                 </>
               )}
@@ -378,6 +428,8 @@ export function App() {
         <SiteFooter counts={counts} candidates={candidates} />
 
       </main>
+
+      <CheckToast pass={pass} />
     </div>
   );
 }

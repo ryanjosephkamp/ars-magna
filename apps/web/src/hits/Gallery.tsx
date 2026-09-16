@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCopy } from '../lib/useCopy.ts';
+import { CheckToast } from '../components/CheckToast.tsx';
+import { VoteButton } from '../components/CountButton.tsx';
 import { ShareActions } from '../components/ShareActions.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { CATEGORIES, CATEGORY_LABEL, SECTIONS, inOrder, pickOfTheDay, type Category, type Order, type PublicHit, type Shelf } from './build.ts';
-import { useVotes, type Votes } from './useVotes.ts';
+import { usePass } from '../state/usePass.ts';
+import { useVotes } from './useVotes.ts';
 
 const ORDERS: readonly { order: Order; label: string }[] = [
   { order: 'votes', label: 'Most votes' },
@@ -31,7 +34,8 @@ export function Gallery() {
   // Which hit's share actions are open: one at a time, by id.
   const [sharing, setSharing] = useState<string | null>(null);
   const { copied, copy } = useCopy();
-  const votes = useVotes();
+  const pass = usePass();
+  const votes = useVotes(pass);
   const votesShown = votes.status === 'open' || votes.status === 'closed';
   // Most votes ranks by the counts as they were when votes loaded, or when an order was last chosen, so a row
   // never jumps away from under the reader the moment they vote for it.
@@ -282,45 +286,8 @@ export function Gallery() {
         <SiteFooter />
       </main>
 
-      {/* The check before a visit's first vote, and a vote that did not save. Out of sight unless there is something to say. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[var(--z-toast)] flex flex-col items-center gap-2 px-4 pb-4">
-        <div className={votes.challenge ? 'pointer-events-auto rounded-[3px] border border-rule-strong bg-surface px-4 py-3 text-sm text-ink-soft' : ''}>
-          {votes.challenge && <p className="mb-2 max-w-xs">Cloudflare checks this browser once before its first vote of a visit.</p>}
-          <div ref={votes.checkRef} className="pointer-events-auto" />
-        </div>
-        {votes.message && (
-          <p role="status" className="pointer-events-auto flex max-w-md items-baseline gap-4 rounded-[3px] border border-accent bg-accent-wash px-4 py-2 text-sm text-ink">
-            {votes.message}
-            <button type="button" onClick={votes.dismiss} className="font-mono text-[11px] text-ink-soft transition-colors duration-150 hover:text-accent">
-              Dismiss
-            </button>
-          </p>
-        )}
-      </div>
+      <CheckToast pass={pass} />
     </div>
-  );
-}
-
-/** Vote, with the count. Pressed, it takes the accent; pressing again takes the vote back. Absent when votes did not load. */
-function VoteButton({ hit, votes }: { hit: PublicHit; votes: Votes }) {
-  if (votes.status !== 'open' && votes.status !== 'closed') return null;
-  const pressed = votes.mine.has(hit.id);
-  const count = votes.counts[hit.id] ?? 0;
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      aria-label={`Vote for ${hit.input} → ${hit.display}, ${count} ${count === 1 ? 'vote' : 'votes'}`}
-      aria-busy={votes.busy.has(hit.id)}
-      disabled={votes.status === 'closed'}
-      onClick={() => votes.toggle(hit.id)}
-      className={`inline-flex min-h-7 items-center gap-1.5 rounded-[3px] border px-2 font-mono text-[11px] transition-colors duration-150 disabled:cursor-default disabled:opacity-60 ${
-        pressed ? 'border-accent bg-accent-wash text-accent' : 'border-rule bg-surface text-ink-soft hover:border-accent hover:text-accent'
-      }`}
-    >
-      Vote
-      <span className="tabular-nums">{count}</span>
-    </button>
   );
 }
 

@@ -24,6 +24,11 @@ export type SearchState = {
   error: { code: ErrorCode; message: string } | null;
   /** Candidate word classes for the current input — the real difficulty signal. */
   candidates: number;
+  /**
+   * The letters the latest count was for. The result total cannot say this: it
+   * still holds the previous search's count until the next one resets it.
+   */
+  countedLetters: string | null;
 };
 
 export function useResults() {
@@ -38,6 +43,7 @@ export function useEngine(query: Query) {
     searching: false,
     error: null,
     candidates: 0,
+    countedLetters: null,
   });
 
   // Boot the worker once.
@@ -65,7 +71,7 @@ export function useEngine(query: Query) {
 
     if (normalizeLetters(query.input).length === 0) {
       results.reset();
-      setState((s) => ({ ...s, searching: false, error: null, candidates: 0 }));
+      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null }));
       return;
     }
 
@@ -78,7 +84,7 @@ export function useEngine(query: Query) {
         {
           onCount: (total, candidates) => {
             results.setTotal(total);
-            setState((s) => ({ ...s, candidates }));
+            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input) }));
           },
           onBatch: (offset, rows, done, truncated) =>
             results.append(offset, rows, done, truncated),

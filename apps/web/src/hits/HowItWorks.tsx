@@ -49,9 +49,30 @@ export function HowItWorks() {
               votes against.
             </p>
             <p>
+              A search lists the anagrams of its letters that are on Discoveries above the complete list. In the list, a row with the same
+              words, or other spellings of them, carries Vote instead of Promote.
+            </p>
+            <p>
               Most votes, the usual order, lists the most voted first in each section; a tie goes A to Z. Newest and A to Z are there too.
             </p>
             <p>Votes put anagrams forward for a second look. They never move an anagram from one section to another by themselves.</p>
+          </div>
+        </section>
+
+        <section aria-labelledby="promote-title" className="mt-14">
+          <h2 id="promote-title" className="font-display text-3xl tracking-[-0.01em] text-ink">
+            Promote
+          </h2>
+          <div className="mt-4 flex max-w-prose flex-col gap-3 text-sm text-ink-soft">
+            <p>
+              Every other anagram in a search has a Promote button. Press it to put that anagram forward for Discoveries. A browser has one
+              promotion for each anagram, and pressing Promote again takes it back. There are no promotions against.
+            </p>
+            <p>
+              Promotions are counted now. Once the review starts, a model will read the most promoted anagrams and place each in Interesting
+              or A stretch, or leave it out when the link does not hold. Promotions never put an anagram in Greatest Hits: the site’s editor
+              picks those by hand.
+            </p>
           </div>
         </section>
 
@@ -60,8 +81,9 @@ export function HowItWorks() {
             The check before voting
           </h2>
           <p className="mt-4 max-w-prose text-sm text-ink-soft">
-            Before the first vote of a visit, Cloudflare Turnstile checks that the browser is not an automated one. Most of the time it asks
-            nothing; now and then it asks for a click. A connection can vote {LIMITS.vote} times an hour.
+            Before the first vote or promotion of a visit, Cloudflare Turnstile checks that the browser is not an automated one. Most of the
+            time it asks nothing; now and then it asks for a click. A connection can vote {LIMITS.vote} times an hour and promote{' '}
+            {LIMITS.promote} times an hour.
           </p>
         </section>
 
@@ -70,13 +92,18 @@ export function HowItWorks() {
             What is stored
           </h2>
           <ul className="mt-4 flex max-w-prose list-disc flex-col gap-2 pl-5 text-sm text-ink-soft marker:text-rule-strong">
-            <li>A random id your browser makes and keeps, sent with each vote.</li>
-            <li>Which anagrams that id voted for, and when.</li>
+            <li>A random id your browser makes and keeps, sent with each vote and promotion.</li>
+            <li>
+              Which anagrams that id voted for or promoted, and when. A promotion also keeps the text searched, the words in the order shown,
+              and the dictionary used. Only the number of promotions an anagram has is ever published.
+            </li>
             <li>
               To stop floods of votes, a code made from your connection’s address, a secret and the day. It changes every day and cannot be
               turned back into the address, which is never stored.
             </li>
-            <li>No cookies and no accounts. Clearing this site’s data gives your browser a new id; the votes it cast stay counted.</li>
+            <li>
+              No cookies and no accounts. Clearing this site’s data gives your browser a new id; the votes and promotions it made stay counted.
+            </li>
           </ul>
         </section>
 

@@ -346,40 +346,70 @@ Prompt: `docs/prompts/publish-audit.md` (no placeholders).
 
 ## Votes on Discoveries
 
-Readers vote for anagrams on the Discoveries page: one vote per browser per anagram, taken back by pressing
-Vote again, and never a vote against. Most votes, the page's usual order, ranks each section by them; votes
-never move an anagram from one section to another. The rules as readers see them are at
-https://ars-magna.pages.dev/how.
+Readers vote for anagrams on Discoveries and promote the ones that are not there yet. A vote is for an
+anagram already in a section: one per browser per anagram, taken back by pressing Vote again, never a vote
+against. Most votes, the page's usual order, ranks each section by them; votes never move an anagram from one
+section to another. A promotion is for any other anagram in a search, on the same terms, and asks for it to
+be considered for a section. Nothing reviews promotions yet (roadmap phase F), so for now they are only
+counted. The search page shows both: an In Discoveries block above the complete list, and Vote or Promote on
+every row. The rules as readers see them are at https://ars-magna.pages.dev/how.
 
 | Piece | Where |
 |---|---|
-| the API | Cloudflare Pages Functions in `apps/web/functions/api/`: `GET /api/votes`, `POST /api/pass` (the check before a visit's first vote), `POST /api/vote`. The logic and its tests are in `apps/web/src/votes/`. |
-| the data | the D1 database `ars-magna-discoveries`, bound as `DISCOVERIES_DB` in `apps/web/wrangler.toml`: tables `votes`, `vote_counts` and `rate_limits` |
+| the API | Cloudflare Pages Functions in `apps/web/functions/api/`: `GET /api/votes`, `POST /api/pass` (the check before a visit's first vote or promotion), `POST /api/vote`, `GET /api/promotions?letters=`, `POST /api/promote`. The logic and its tests are in `apps/web/src/votes/`. |
+| the data | the D1 database `ars-magna-discoveries`, bound as `DISCOVERIES_DB` in `apps/web/wrangler.toml`: tables `votes`, `vote_counts`, `promotions`, `promotion_counts` and `rate_limits` |
 | the schema | `apps/web/migrations/`, applied by Deploy before each upload |
 | the check | the Turnstile widget `Ars Magna votes` for `ars-magna.pages.dev`; its site key is in `apps/web/src/votes/state.ts` |
 | the secrets | `TURNSTILE_SECRET` and `IP_HASH_SECRET`, Pages secrets in the dashboard (Workers & Pages, `ars-magna`, Settings, Variables and Secrets) |
-| the switch | `VOTES_OPEN` in `apps/web/wrangler.toml` |
+| the switches | `VOTES_OPEN` and `PROMOTIONS_OPEN` in `apps/web/wrangler.toml` |
 
-A check that has produced nothing two minutes after Vote was pressed is abandoned: the widget goes, the
-vote is not saved, and the page tells the reader to try again.
+A check that has produced nothing two minutes after Vote or Promote was pressed is abandoned: the widget
+goes, nothing is saved, and the page tells the reader to try again.
+
+**Which rows carry Vote.** The search shows one spelling for each set of words that share letters, so a
+published anagram can sit behind a row that spells it another way: for `Doritos`, "its odor" is the row
+"door sit". Such a row carries Vote for the published anagram, and its label names the Discoveries spelling:
+`A stretch · its odor`. Every other row carries Promote.
+
+**The promotions table.** One row per browser per anagram: `key` (the letters sorted, a colon, the words
+sorted and joined with hyphens: `aaeeglmnnt:elegant-man`), `voter`, `input` as the reader typed it, `words` in
+the order they saw, the `tier` they searched, `via` (`result` from a search; `typed` is kept for the Submit
+page), `category`, `why`, `credit` and `missing` (empty until the Submit page), and `created_at`.
+`promotion_counts` holds each key's count, recounted with every change. A promotion of an anagram already on
+Discoveries is refused, and the search page shows Vote for it instead.
 
 **Look at the counts.** Read-only, from `apps/web`, once `pnpm dlx wrangler@4.121.0 login` has signed this
 machine in to Cloudflare:
 
 ```bash
 pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT hit_id, count FROM vote_counts ORDER BY count DESC LIMIT 20"
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT key, count FROM promotion_counts ORDER BY count DESC LIMIT 20"
 ```
 
 **Pause voting.** Set `VOTES_OPEN = "false"` in `apps/web/wrangler.toml` in a pull request and merge it. The page
 keeps showing counts, its Vote buttons turn off, and the API refuses votes. `"true"` reopens it.
+
+**Pause promotions.** Set `PROMOTIONS_OPEN = "false"` the same way. The search page keeps showing counts, its
+Promote buttons turn off, the API refuses promotions, and votes carry on. `"true"` reopens them. The check
+before a visit's first action stays open while either switch is.
 
 **Remove a flood of votes.** Find the voter id behind it, then delete its votes and recount every hit in one
 command. An agent runs this only when you ask for exactly that:
 
 ```bash
 pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT voter, COUNT(*) AS n FROM votes GROUP BY voter ORDER BY n DESC LIMIT 10"
-pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "DELETE FROM votes WHERE voter = 'voter_id'; DELETE FROM vote_counts; INSERT INTO vote_counts SELECT hit_id, COUNT(*) FROM votes GROUP BY hit_id"
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "DELETE FROM votes WHERE voter = 'voter_id'; UPDATE vote_counts SET count = (SELECT COUNT(*) FROM votes v WHERE v.hit_id = vote_counts.hit_id)"
 ```
+
+A flood of promotions goes the same way:
+
+```bash
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT voter, COUNT(*) AS n FROM promotions GROUP BY voter ORDER BY n DESC LIMIT 10"
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "DELETE FROM promotions WHERE voter = 'voter_id'; UPDATE promotion_counts SET count = (SELECT COUNT(*) FROM promotions p WHERE p.key = promotion_counts.key)"
+```
+
+Each recounts in place rather than emptying the counts and refilling them, so a vote or promotion that lands
+between the two statements cannot collide with the refill.
 
 **Change the schema.** Add a new numbered file to `apps/web/migrations/`; never edit one that has already run.
 Deploy applies it before it uploads the site.
@@ -395,7 +425,8 @@ pnpm dlx wrangler@4.121.0 d1 migrations apply ars-magna-discoveries --local
 pnpm dlx wrangler@4.121.0 pages dev dist
 ```
 
-Then open http://localhost:8788/hits.
+Then open http://localhost:8788/hits, and http://localhost:8788/#q=A%20gentleman for the search page's In
+Discoveries block and Promote.
 
 ## Judge a queue by hand
 
@@ -631,10 +662,11 @@ After any merge to `main`. Every check reads; none changes anything.
    the first visit after a deploy that changes `apps/web/public/sw.js`: a browser that visited before
    can show the previous version until the new worker takes over, so reload once more.
 
-6. Votes answer. The first characters read `{"open":true,"counts":`:
+6. Votes and promotions answer. Each reads `{"open":true,"counts":` first:
 
    ```bash
    curl -s https://ars-magna.pages.dev/api/votes | head -c 40
+   curl -s 'https://ars-magna.pages.dev/api/promotions?letters=aaeeglmnnt' | head -c 40
    ```
 
 On 2026-09-12, after #8: CI and Deploy passed, `hits.json` held 10 hits against 10 accepted and featured

@@ -12,6 +12,11 @@ import type { Row } from '../state/resultBuffer.ts';
 import { countOrderings, nextOrdering, orderings } from '../lib/orderings.ts';
 import { displayOrder, type Chosen } from '../lib/chosen.ts';
 import type { Shareable } from '../lib/share.ts';
+import { discoveryFor, type Discovered, type RowDiscovery } from '../lib/inDiscoveries.ts';
+import type { Votes } from '../hits/useVotes.ts';
+import type { Promotions } from '../state/usePromotions.ts';
+import { promotable, promotionKey } from '../votes/core.ts';
+import { CountButton, VoteButton } from './CountButton.tsx';
 import { ShareActions } from './ShareActions.tsx';
 import { WordDetails, type WordDetail } from './WordDetails.tsx';
 
@@ -34,6 +39,10 @@ type Props = {
   onChoose(order: readonly string[]): void;
   /** What a share of any row needs beyond its phrase. */
   share: ShareContext;
+  /** The anagrams of these letters on Discoveries, once known. */
+  discovered: Discovered | null;
+  votes: Votes;
+  promotions: Promotions;
 };
 
 export type ShareContext = {
@@ -66,6 +75,9 @@ export function ResultList({
   chosen,
   onChoose,
   share,
+  discovered,
+  votes,
+  promotions,
 }: Props) {
   const anchor = useRef<HTMLDivElement>(null);
   const [offsetTop, setOffsetTop] = useState(0);
@@ -221,6 +233,9 @@ export function ResultList({
                 onCopy={onCopy}
                 onChoose={onChoose}
                 share={share}
+                discovery={discoveryFor(discovered, row)}
+                votes={votes}
+                promotions={discovered ? promotions : null}
               />
             </div>
           );
@@ -251,6 +266,9 @@ function ResultRow({
   onCopy,
   onChoose,
   share,
+  discovery,
+  votes,
+  promotions,
 }: {
   /** The engine's order: the row's identity and the root of its orderings. */
   row: Row;
@@ -268,6 +286,11 @@ function ResultRow({
   onCopy(key: string, text: string): void;
   onChoose(order: readonly string[]): void;
   share: ShareContext;
+  /** The published hit this row stands for, if any. */
+  discovery: RowDiscovery | null;
+  votes: Votes;
+  /** Null until the page knows which rows are published, so no row offers Promote for one that is. */
+  promotions: Promotions | null;
 }) {
   const phrase = shown.join(' ');
   const [details, setDetails] = useState<WordDetail[] | null>(null);
@@ -342,8 +365,9 @@ function ResultRow({
         </button>
 
         {/* Four actions no longer fit beside a phrase on a phone; below `sm`
-            they take their own line under it instead of squeezing the words. */}
-        <span className="flex basis-full shrink-0 items-baseline gap-2 pb-2 pl-14 sm:basis-auto sm:pb-0 sm:pl-2 sm:pr-1">
+            they take their own line under it instead of squeezing the words,
+            and wrap when Vote or Promote needs the room. */}
+        <span className="flex basis-full shrink-0 flex-wrap items-baseline gap-x-2 gap-y-1 pb-2 pl-14 sm:basis-auto sm:flex-nowrap sm:pb-0 sm:pl-2 sm:pr-1">
           {orderCount > 1 && (
             <RowAction label="Reorder" active={false} onClick={() => void reorder()} />
           )}
@@ -358,6 +382,11 @@ function ResultRow({
             onClick={() => onTogglePin(phrase)}
           />
           <RowAction label="Share" active={sharing} onClick={() => setSharing((open) => !open)} />
+          {discovery ? (
+            <PublishedAction discovery={discovery} votes={votes} />
+          ) : (
+            promotions && <PromoteAction words={shown} input={share.input} promotions={promotions} />
+          )}
         </span>
       </div>
 
@@ -407,6 +436,46 @@ function ResultRow({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * A row that is on Discoveries: its section, the Discoveries spelling when the
+ * row spells it another way, and Vote. Always visible, since few rows have it.
+ */
+function PublishedAction({ discovery, votes }: { discovery: RowDiscovery; votes: Votes }) {
+  const { hit, label, respelled } = discovery;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <a
+        href={`/hits#${hit.slug}`}
+        className="font-mono text-[11px] text-ink-faint transition-colors duration-150 hover:text-accent"
+      >
+        {label}
+        {respelled && <> · {hit.display}</>}
+      </a>
+      <VoteButton hit={hit} votes={votes} reserve />
+    </span>
+  );
+}
+
+/** Promote, with its count, for a row that is not on Discoveries. Absent when promotions did not load. */
+function PromoteAction({ words, input, promotions }: { words: readonly string[]; input: string; promotions: Promotions }) {
+  if (promotions.status !== 'open' && promotions.status !== 'closed') return null;
+  if (!promotable(input, words)) return null;
+  const key = promotionKey(words);
+  const count = promotions.counts[key] ?? 0;
+  return (
+    <CountButton
+      label="Promote"
+      count={count}
+      pressed={promotions.mine.has(key)}
+      busy={promotions.busy.has(key)}
+      disabled={promotions.status === 'closed'}
+      ariaLabel={`Promote ${words.join(' ')}, ${count} ${count === 1 ? 'promotion' : 'promotions'}`}
+      onClick={() => promotions.toggle(words)}
+      quiet
+    />
   );
 }
 

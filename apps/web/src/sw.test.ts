@@ -105,11 +105,13 @@ describe('service worker', () => {
     expect(strategyFor('/hits', 'navigate')).toBe('shell');
     expect(strategyFor('/dict/full-0123abcd.bin', 'cors')).toBe('bypass');
     expect(strategyFor('/api/votes', 'cors')).toBe('bypass');
+    expect(strategyFor('/api/promotions', 'cors')).toBe('bypass');
   });
 
-  it('leaves the vote API to the network, never answering it from a cache', async () => {
-    const sw = worker({ cached: { '/api/votes': '{"counts":{}}' } });
+  it('leaves the vote and promotion API to the network, never answering it from a cache', async () => {
+    const sw = worker({ cached: { '/api/votes': '{"counts":{}}', '/api/promotions': '{"counts":{}}' } });
     expect(await sw.get('/api/votes?voter=x')).toBeUndefined();
+    expect(await sw.get('/api/promotions?letters=aaeeglmnnt')).toBeUndefined();
     expect(sw.fetched).toEqual([]);
   });
 
