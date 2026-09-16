@@ -63,8 +63,35 @@ function brotliHeaders(): Plugin {
   };
 }
 
+/**
+ * Serve `/hits` and `/how` the way Cloudflare Pages does.
+ *
+ * Pages resolves an extensionless path to its `.html` file, so that is what the
+ * site links to. Vite knows nothing of the convention and would answer 404,
+ * which would leave every local run disagreeing with production about the one
+ * thing the header exists to do.
+ */
+function prettyUrls(): Plugin {
+  const PAGES: Record<string, string> = { '/hits': '/hits.html', '/how': '/how.html' };
+
+  const middleware = (req: IncomingMessage, _res: ServerResponse, next: () => void): void => {
+    const [path = '', query] = (req.url ?? '').split('?');
+    // `/hits/` and `/hits` are the same page; `/hits/<slug>/` is a built file
+    // and is left alone.
+    const target = PAGES[path.endsWith('/') ? path.slice(0, -1) : path];
+    if (target !== undefined) req.url = query === undefined ? target : `${target}?${query}`;
+    next();
+  };
+
+  return {
+    name: 'ars-magna-pretty-urls',
+    configureServer: (server) => void server.middlewares.use(middleware),
+    configurePreviewServer: (server) => void server.middlewares.use(middleware),
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), precacheManifest(), brotliHeaders()],
+  plugins: [react(), tailwindcss(), precacheManifest(), brotliHeaders(), prettyUrls()],
   worker: {
     format: 'es',
   },

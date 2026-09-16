@@ -117,7 +117,7 @@ describe('gallery build', () => {
     expect(page).toContain('<title>Star Wars → stars war — Ars Magna</title>');
     expect(page).toContain('property="og:description" content="The title as a sentence."');
     expect(page).toContain('href="https://ars-magna.pages.dev/hits/starwars-titles-stars-war/"');
-    expect(page).toContain('url=/hits.html#starwars-titles-stars-war');
+    expect(page).toContain('url=/hits#starwars-titles-stars-war');
     expect(hitPage(toPublic(record({ input: 'A "quoted" <name>' })), 'x')).toContain('A &quot;quoted&quot; &lt;name&gt;');
   });
 });

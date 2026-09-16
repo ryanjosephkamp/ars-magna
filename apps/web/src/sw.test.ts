@@ -138,6 +138,19 @@ describe('service worker', () => {
     expect(await sw.get('/hits/dirty-room', 'navigate')).toBe('gallery shell');
   });
 
+  it('sends both spellings of a page to that page’s own shell offline', async () => {
+    // The site links to /hits and /how; Pages serves them from the .html files.
+    // Offline, a reader who followed one of those links would otherwise land on
+    // the search page.
+    const cached = { '/index.html': 'search shell', '/hits.html': 'gallery shell', '/how.html': 'how shell' };
+    const sw = worker({ online: false, cached });
+    expect(await sw.get('/hits', 'navigate')).toBe('gallery shell');
+    expect(await sw.get('/hits.html', 'navigate')).toBe('gallery shell');
+    expect(await sw.get('/how', 'navigate')).toBe('how shell');
+    expect(await sw.get('/how.html', 'navigate')).toBe('how shell');
+    expect(await sw.get('/', 'navigate')).toBe('search shell');
+  });
+
   it('leaves the dictionary artifacts to the engine', async () => {
     const sw = worker();
     expect(await sw.get('/dict/full-0123abcd.bin')).toBeUndefined();

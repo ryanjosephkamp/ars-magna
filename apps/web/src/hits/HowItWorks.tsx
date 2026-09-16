@@ -1,5 +1,7 @@
 import { SECTIONS, type Shelf } from './build.ts';
 import { LIMITS } from '../votes/core.ts';
+import { SiteFooter } from '../components/SiteFooter.tsx';
+import { SiteHeader } from '../components/SiteHeader.tsx';
 
 /** What each section's meaning adds to on this page. */
 const SECTION_MORE: Record<Shelf, string> = {
@@ -8,24 +10,13 @@ const SECTION_MORE: Record<Shelf, string> = {
   stretch: 'Judged the same way, with a link that holds only loosely.',
 };
 
-const link =
-  'text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent';
-
 /** The rules of Discoveries, written for readers: the sections, what a vote does, and what is stored. */
 export function HowItWorks() {
   return (
     <div className="min-h-dvh">
+      <SiteHeader page="/how" />
       <main className="mx-auto max-w-3xl px-6 pt-16 pb-24 sm:pt-24">
         <header className="mb-12">
-          <p className="mb-3 font-mono text-[11px] tracking-[0.08em] text-ink-faint uppercase">
-            <a href="/" className="transition-colors duration-150 hover:text-accent">
-              Ars Magna
-            </a>
-            <span className="mx-2 text-rule-strong">/</span>
-            <a href="/hits" className="transition-colors duration-150 hover:text-accent">
-              Discoveries
-            </a>
-          </p>
           <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">How Discoveries works</h1>
           <p className="mt-2 max-w-prose text-sm text-ink-soft">
             Discoveries lists anagrams that say something about the name, company, product, title, place or phrase their letters came from.
@@ -89,13 +80,7 @@ export function HowItWorks() {
           </ul>
         </section>
 
-        <footer className="mt-20 border-t border-rule-strong pt-8 text-sm text-ink-faint">
-          <p>
-            <a href="/hits" className={link}>
-              Back to Discoveries
-            </a>
-          </p>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );
