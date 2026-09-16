@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { HIT_ID_PATTERN, PASS_TTL_MS, VOTER_PATTERN, connectionKey, hourBucket, signPass, verifyPass } from './core.ts';
+import {
+  HIT_ID_PATTERN,
+  KEY_PATTERN,
+  MAX_LETTERS,
+  MAX_WORDS,
+  PASS_TTL_MS,
+  VOTER_PATTERN,
+  connectionKey,
+  hourBucket,
+  promotable,
+  promotionKey,
+  signPass,
+  sortedLetters,
+  spellingKey,
+  verifyPass,
+} from './core.ts';
 import {
   CHECK_TIMED_OUT,
   CHECK_TIME_LIMIT_MS,
@@ -62,6 +77,32 @@ describe('connections', () => {
     expect(VOTER_PATTERN.test('ALICE')).toBe(false);
     expect(HIT_ID_PATTERN.test('dormitory:phrases:dirty-room')).toBe(true);
     expect(HIT_ID_PATTERN.test('dormitory:plays:dirty-room')).toBe(false);
+  });
+});
+
+describe('promotions', () => {
+  it('key an anagram by its letters and its words, never by their order', () => {
+    expect(sortedLetters('agentleman')).toBe('aaeeglmnnt');
+    expect(promotionKey(['entangle', 'am'])).toBe('aaeeglmnnt:am-entangle');
+    expect(promotionKey(['am', 'entangle'])).toBe('aaeeglmnnt:am-entangle');
+    expect(KEY_PATTERN.test(promotionKey(['elegant', 'man']))).toBe(true);
+    expect(KEY_PATTERN.test('aaeeglmnnt:Elegant-man')).toBe(false);
+  });
+
+  it('share a spelling key across the spellings the search shows as one row', () => {
+    expect(spellingKey(['door', 'sit'])).toBe(spellingKey(['its', 'odor']));
+    expect(spellingKey(['man', 'get', 'lane'])).toBe(spellingKey(['elan', 'get', 'man']));
+    expect(spellingKey(['elegant', 'man'])).not.toBe(spellingKey(['entangle', 'am']));
+  });
+
+  it('are offered only for well-formed words that use exactly the input’s folded letters', () => {
+    expect(promotable('A gentleman', ['entangle', 'am'])).toBe(true);
+    expect(promotable('Beyoncé', ['boney', 'ec'])).toBe(true);
+    expect(promotable('A gentleman', ['entangle', 'ma', 'a'])).toBe(false);
+    expect(promotable('A gentleman', ['Entangle', 'am'])).toBe(false);
+    expect(promotable('   ', [])).toBe(false);
+    expect(promotable('z'.repeat(MAX_LETTERS + 1), ['z'.repeat(MAX_LETTERS + 1)])).toBe(false);
+    expect(promotable('a'.repeat(MAX_WORDS + 1), Array.from({ length: MAX_WORDS + 1 }, () => 'a'))).toBe(false);
   });
 });
 

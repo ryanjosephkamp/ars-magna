@@ -38,8 +38,8 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `packages/mcp` | MCP server (stdio): solve, count, nth, explain_word, propose_hit |
 | `apps/web` | the site; `hits.html` is the Discoveries page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl` |
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts` |
-| `apps/web/src/votes`, `apps/web/functions/api` | votes on Discoveries: the logic the page and the API share, with its tests, and the Cloudflare Pages Functions that serve `/api/` |
-| `apps/web/migrations`, `apps/web/wrangler.toml` | the votes database's schema, and the Pages project's configuration: the D1 binding `DISCOVERIES_DB` and the `VOTES_OPEN` switch |
+| `apps/web/src/votes`, `apps/web/functions/api` | votes on Discoveries and promotions from search: the logic the page and the API share, with its tests, and the Cloudflare Pages Functions that serve `/api/` |
+| `apps/web/migrations`, `apps/web/wrangler.toml` | the votes and promotions database's schema, and the Pages project's configuration: the D1 binding `DISCOVERIES_DB` and the `VOTES_OPEN` and `PROMOTIONS_OPEN` switches |
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
 | `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |
 | `tools/hits/src/desk`, `tools/hits/templates/desk.html` | the review desk: `pnpm hits:desk` builds it into `.cache/desk/index.html` |

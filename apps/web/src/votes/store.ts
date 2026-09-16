@@ -1,6 +1,7 @@
 /**
- * The votes database, through the part of Cloudflare D1's interface the API
- * uses. The tests give it SQLite in memory with the same migrations.
+ * The votes and promotions database, through the part of Cloudflare D1's
+ * interface the API uses. The tests give it SQLite in memory with the same
+ * migrations.
  */
 
 export type D1Result<T> = { results: T[] };
@@ -46,6 +47,64 @@ export async function setVote(db: D1Database, hitId: string, voter: string, on: 
     )
     .bind(hitId, hitId);
   const read = db.prepare('SELECT count FROM vote_counts WHERE hit_id = ?').bind(hitId);
+  const results = await db.batch<{ count: number }>([change, recount, read]);
+  return results[2]?.results[0]?.count ?? 0;
+}
+
+/** The first and last keys of one set of letters: every key between them is `letters:` and some words. */
+function keyRange(letters: string): [string, string] {
+  // `;` is the character after `:`, so the range holds exactly these letters' keys.
+  return [`${letters}:`, `${letters};`];
+}
+
+/** Every promotion count above zero for one set of sorted letters. */
+export async function readPromotionCounts(db: D1Database, letters: string): Promise<Record<string, number>> {
+  const { results } = await db
+    .prepare('SELECT key, count FROM promotion_counts WHERE key > ? AND key < ? AND count > 0')
+    .bind(...keyRange(letters))
+    .all<{ key: string; count: number }>();
+  return Object.fromEntries(results.map((r) => [r.key, r.count]));
+}
+
+/** The anagrams of one set of letters a voter has promoted. */
+export async function readMyPromotions(db: D1Database, voter: string, letters: string): Promise<string[]> {
+  const { results } = await db
+    .prepare('SELECT key FROM promotions WHERE voter = ? AND key > ? AND key < ? ORDER BY key')
+    .bind(voter, ...keyRange(letters))
+    .all<{ key: string }>();
+  return results.map((r) => r.key);
+}
+
+/** What a promotion records beyond its key and voter. */
+export type PromotionFields = { input: string; words: readonly string[]; tier: string; via: 'result' | 'typed' };
+
+/**
+ * Makes or takes back one voter's promotion of an anagram and returns its
+ * count. Promoting twice keeps the first promotion as it was; taking back one
+ * never made changes nothing. The count is recounted in the same transaction.
+ */
+export async function setPromotion(
+  db: D1Database,
+  key: string,
+  voter: string,
+  on: boolean,
+  fields: PromotionFields,
+  at: string,
+): Promise<number> {
+  const change = on
+    ? db
+        .prepare(
+          'INSERT INTO promotions (key, voter, input, words, tier, via, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        )
+        .bind(key, voter, fields.input, fields.words.join(' '), fields.tier, fields.via, at)
+    : db.prepare('DELETE FROM promotions WHERE key = ? AND voter = ?').bind(key, voter);
+  const recount = db
+    .prepare(
+      'INSERT INTO promotion_counts (key, count) VALUES (?, (SELECT COUNT(*) FROM promotions WHERE key = ?)) ' +
+        'ON CONFLICT (key) DO UPDATE SET count = excluded.count',
+    )
+    .bind(key, key);
+  const read = db.prepare('SELECT count FROM promotion_counts WHERE key = ?').bind(key);
   const results = await db.batch<{ count: number }>([change, recount, read]);
   return results[2]?.results[0]?.count ?? 0;
 }

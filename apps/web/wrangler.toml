@@ -13,6 +13,8 @@ compatibility_date = "2025-09-01"
 [vars]
 # "false" pauses voting: the page shows counts and no one can vote.
 VOTES_OPEN = "true"
+# "false" pauses promotions: the search page shows counts and no one can promote.
+PROMOTIONS_OPEN = "true"
 
 [[d1_databases]]
 binding = "DISCOVERIES_DB"
