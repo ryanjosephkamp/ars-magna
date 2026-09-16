@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseIssueForm } from '../src/submission.ts';
+import { missingWord, parseIssueForm, refusal, type Submission } from '../src/submission.ts';
 
 const body = `### Input
 
@@ -47,5 +47,53 @@ describe('parseIssueForm', () => {
     // Extended is a real tier now, so the form must carry it through rather
     // than quietly checking the submission against the default dictionary.
     expect((parseIssueForm(body.replace('common', 'extended')) as { tier: string }).tier).toBe('extended');
+  });
+});
+
+describe('why a submission was refused', () => {
+  const sub = (tier: Submission['tier'] = 'common'): Submission => ({
+    input: 'Dario Amodei',
+    category: 'people',
+    words: ['i', 'da', 'ai', 'doomer'],
+    tier,
+    why: '',
+    credit: '',
+  });
+
+  it('names the word a refusal is about, and nothing when it names none', () => {
+    expect(missingWord('no: "doomer" is not in the common dictionary')).toBe('doomer');
+    expect(missingWord('no: the letters differ (a vs b)')).toBeNull();
+  });
+
+  it('calls it the author\'s mistake only when the letters differ', () => {
+    expect(refusal(sub(), 'no: the letters differ (x vs y)', () => ({ ok: false, message: '' }))).toEqual({ kind: 'letters' });
+  });
+
+  it('points at the wider tier when the word is simply in one', () => {
+    // Missing from Common, present at Full: a dropdown away, not a word request.
+    const check = (s: Submission) => ({ ok: s.tier === 'full' || s.tier === 'extended', message: 'no: "doomer" is not in the standard dictionary' });
+    expect(refusal(sub(), 'no: "doomer" is not in the common dictionary', check)).toEqual({
+      kind: 'tier',
+      word: 'doomer',
+      wider: 'full',
+    });
+  });
+
+  it('calls it a word request when no tier has the word', () => {
+    const check = () => ({ ok: false, message: 'no: "doomer" is not in the extended dictionary' });
+    expect(refusal(sub(), 'no: "doomer" is not in the common dictionary', check)).toEqual({
+      kind: 'vocabulary',
+      word: 'doomer',
+    });
+  });
+
+  it('keeps reporting the word it was asked about when a wider tier trips on another', () => {
+    // Widening reveals a second missing word. The first is still the one the
+    // author was told about, so do not silently switch to the second.
+    const check = () => ({ ok: false, message: 'no: "zzz" is not in the standard dictionary' });
+    expect(refusal(sub(), 'no: "doomer" is not in the common dictionary', check)).toEqual({
+      kind: 'vocabulary',
+      word: 'doomer',
+    });
   });
 });

@@ -57,8 +57,16 @@ import {
   type JudgementV2,
   type Tone,
 } from './schema.ts';
+import {
+  fromVerdicts,
+  mergeRequests,
+  readRequests,
+  renderRequests,
+  writeRequests,
+  type WordRequest,
+} from './requests.ts';
 import { screenedCandidateIds } from './screen.ts';
-import { addRun, queueName, queueSettings } from './settings.ts';
+import { addRun, queueName, queueSettings, readAdditionWords } from './settings.ts';
 import { assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
 
 async function fromIssue(number: string): Promise<void> {
@@ -407,6 +415,10 @@ export function renderReport(r: {
   heading?: string;
   /** Defaults to the count of candidates moved to enumerated. */
   ledger?: string;
+  /** Words this queue proposed for the vocabulary. */
+  requests?: readonly WordRequest[];
+  /** Every request on file, so the report can name the ones still waiting. */
+  openRequests?: readonly WordRequest[];
 }): string {
   const head = [
     `# ${r.heading ?? `Ingest ${r.date}`}`,
@@ -483,6 +495,7 @@ export function renderReport(r: {
           '',
         ]
       : []),
+    ...renderRequests(r.requests ?? [], r.openRequests ?? []),
     ...rejected,
   ].join('\n');
 }
@@ -588,6 +601,23 @@ async function main(): Promise<void> {
   }
   await writeJsonl(CANDIDATES_PATH, candidates, cv);
 
+  // Word requests. Nothing here changes the vocabulary: the list is a
+  // proposal the operator accepts by name. A word the dictionary already
+  // carries at Extended is refused, since the remedy there is a wider tier,
+  // not a new word.
+  const proposed = fromVerdicts(verdicts, queueName(dir), date);
+  const onFile = await readRequests();
+  const vocabulary = new Set(await readAdditionWords());
+  if (engine) {
+    for (const r of proposed.requests) {
+      if (await engine.has(r.word, 'extended')) vocabulary.add(r.word);
+    }
+  }
+  const merged = mergeRequests(onFile, proposed.requests, vocabulary);
+  if (merged.added.length > 0) await writeRequests(merged.next);
+  for (const s of proposed.skipped) console.error(`request skipped: ${s.id}: ${s.reason}`);
+  for (const r of merged.refused) console.error(`request refused: ${r.word}: ${r.reason}`);
+
   const report = renderReport({
     date,
     dir,
@@ -601,6 +631,8 @@ async function main(): Promise<void> {
     near: assessed.near,
     moved,
     threshold,
+    requests: merged.added,
+    openRequests: merged.next,
   });
   await writeFile(resolve(dir, INGEST_REPORT), report);
   console.log(report);

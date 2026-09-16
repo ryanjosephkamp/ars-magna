@@ -108,6 +108,43 @@ a deep-run decision, taken on its own:
 pnpm hits:requeue --settings-before=s3
 ```
 
+## Word requests
+
+A request is a word the pipeline thinks the vocabulary is missing. It is a proposal and nothing
+more: no tool admits a word, and one joins the vocabulary only when you accept it by name and merge
+the pull request that adds it. The list is `data/vocabulary/requests.jsonl`.
+
+| Source | Where it comes from |
+|---|---|
+| `judge` | A model judging a queue proposed it. `hits:ingest` collects these, and the routine's pull request lists them. |
+| `submission` | A reader's anagram was refused because the word is in no tier. The issue is labelled `word-request`. |
+| `anchor` | A seeded anchor word the engine could not find. As often a typo as a real word. |
+
+**A gloss or trace a model proposed is unverified.** Check the source exists and says what it is
+claimed to say before accepting. A model can write a Wiktionary URL that looks right and is not
+there, and the gloss and trace are exactly the parts you would otherwise take on trust.
+
+**Accept one** with `pnpm vocab:add`, exactly as "Add a word to the vocabulary" above describes —
+the ingest report prints the command ready to paste. Once the word is in `additions.jsonl`, remove
+its line from `requests.jsonl` in the same pull request.
+
+**Decline one** so it is never proposed again. Without this, every night proposes the same word and
+you decline it forever:
+
+```bash
+pnpm vocab:request doomer --decline
+```
+
+**Record one by hand**, for a submission or an anchor, where no model is in the loop:
+
+```bash
+pnpm vocab:request onsen --source=submission --from=https://github.com/ryanjosephkamp/ars-magna/issues/51 --why="A reader's anagram needed it."
+```
+
+A refused submission now says which of three things went wrong: the letters differ, the word is in
+a wider tier and the dropdown needs changing, or the vocabulary has no such word at any tier. Only
+the third is a word request, and only it is labelled `word-request`.
+
 ## Review a routine pull request
 
 When a pull request titled `Greatest Hits: N new for <date>` appears. The routine opens one after it

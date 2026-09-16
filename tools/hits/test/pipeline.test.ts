@@ -354,5 +354,41 @@ describe('ingest under rubric v2', () => {
     expect(text).toContain('| 5, flagged for Greatest Hits | 3 | x | b c | about b-c |');
     expect(text).toContain('| 3 | 2 | x:phrases:h-i | h i | about h-i |');
     expect(text).toContain('| 2 | 3 | x | l m | why |');
+    // No requests, no section.
+    expect(text).not.toContain('## Word requests');
+  });
+
+  it('carries word requests into the report, warning that a proposed source is unverified', () => {
+    const assessed = assessBatch(batch, verdicts, options);
+    const request = {
+      word: 'doomer',
+      source: 'judge' as const,
+      from: '2026-09-13 · x:phrases:b-c',
+      why: 'the anagram reached for something worse without it',
+      gloss: 'A person who expects catastrophe.',
+      trace: 'https://en.wiktionary.org/wiki/doomer',
+      seen: '2026-09-13',
+      status: 'open' as const,
+    };
+    const text = renderReport({
+      date: '2026-09-13',
+      dir: 'data/queue/2026-09-13',
+      empty: false,
+      read: 7,
+      valid: 7,
+      rejected: [],
+      rubric: 'v2',
+      placed: assessed.hits,
+      addedIds: new Set(assessed.hits.map((p) => p.hit.id)),
+      near: assessed.near,
+      moved: 1,
+      threshold: 11,
+      requests: [request],
+      openRequests: [request],
+    });
+    expect(text).toContain('## Word requests');
+    expect(text).toContain('a word joins the vocabulary only when you accept it by name');
+    expect(text).toContain('unverified');
+    expect(text).toContain('pnpm vocab:add doomer');
   });
 });
