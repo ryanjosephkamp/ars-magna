@@ -226,6 +226,9 @@ https://ars-magna.pages.dev/how.
 | the secrets | `TURNSTILE_SECRET` and `IP_HASH_SECRET`, Pages secrets in the dashboard (Workers & Pages, `ars-magna`, Settings, Variables and Secrets) |
 | the switch | `VOTES_OPEN` in `apps/web/wrangler.toml` |
 
+A check that has produced nothing two minutes after Vote was pressed is abandoned: the widget goes, the
+vote is not saved, and the page tells the reader to try again.
+
 **Look at the counts.** Read-only, from `apps/web`, once `pnpm dlx wrangler@4.121.0 login` has signed this
 machine in to Cloudflare:
 

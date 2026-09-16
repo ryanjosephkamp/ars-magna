@@ -5,8 +5,11 @@ session. This file holds only what is specific to Claude Code.
 
 ## Plans
 
-- `~/.claude/plans/ars-magna-voting.md` is the live plan: votes and promotions on Discoveries. It holds the
-  operator's ground rules, recommendations R1–R13, phases V1–V4 with their status, and follow-ups.
+- `~/.claude/plans/ars-magna-roadmap-2026-09.md` is the live plan: phases A to H in the order they run, the
+  decisions D1–D22 the operator accepted on 2026-09-15, and the English OpenList track.
+- `~/.claude/plans/ars-magna-voting.md` holds votes and promotions on Discoveries: the operator's ground
+  rules, recommendations R1–R13, phases V1–V4 with their status, and follow-ups. Its V3 and V4 now run as
+  the roadmap's phases C, E and F.
   - It is published as the artifact "Ars Magna Voting Plan":
     https://claude.ai/code/artifact/9ed9ada5-95f2-4fab-b3e6-5135f0312050.
 - `~/.claude/plans/flickering-sprouting-scott.md` is the Greatest Hits plan: phases A to I and N1 to N7, with
