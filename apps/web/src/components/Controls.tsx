@@ -59,9 +59,9 @@ export function Controls({ query, counts, onChange, invalidWord }: Props) {
       />
 
       <MustInclude
-        value={query.mustInclude[0] ?? ''}
+        value={query.mustInclude.join(' ')}
         invalid={invalidWord}
-        onChange={(word) => onChange({ mustInclude: word ? [word] : [] })}
+        onChange={(words) => onChange({ mustInclude: words })}
       />
     </div>
   );
@@ -182,7 +182,7 @@ function MustInclude({
 }: {
   value: string;
   invalid: string | null;
-  onChange(word: string): void;
+  onChange(words: string[]): void;
 }) {
   const id = useId();
   const [draft, setDraft] = useState(value);
@@ -195,10 +195,15 @@ function MustInclude({
     }
   }, [value]);
 
+  // One word, or several separated by spaces or commas: the search keeps every
+  // one of them, as "Search all … for anagrams containing" asks it to.
   const commit = (next: string) => {
-    const cleaned = normalizeLetters(next);
-    committed.current = cleaned;
-    onChange(cleaned);
+    const words = next
+      .split(/[\s,]+/)
+      .map(normalizeLetters)
+      .filter((word) => word.length > 0);
+    committed.current = words.join(' ');
+    onChange(words);
   };
 
   const bad = invalid !== null && draft.length > 0;
@@ -218,7 +223,7 @@ function MustInclude({
           }
         }}
         placeholder="a word"
-        aria-label="Must include this word"
+        aria-label="Must include these words"
         aria-invalid={bad}
         aria-describedby={bad ? `${id}-error` : undefined}
         autoComplete="off"
