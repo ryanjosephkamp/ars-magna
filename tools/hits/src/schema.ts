@@ -35,6 +35,10 @@ export type Candidate = {
   first_seen: string;
   status: CandidateStatus;
   wikidata_qid?: string;
+  /** One factual sentence saying what the input is; copied to each of its hits. */
+  about?: string;
+  /** The input's English Wikipedia article; copied to each of its hits. */
+  wikipedia?: string;
   notes?: string;
   /** Words to search around when the input has more results than the enumeration limit. */
   anchors?: string[];
@@ -112,6 +116,10 @@ export type Hit = {
   status: HitStatus;
   /** One plain sentence for a reader; the operator can edit it. */
   justification?: string;
+  /** A copy of its candidate's `about`. */
+  about?: string;
+  /** A copy of its candidate's `wikipedia`. */
+  wikipedia?: string;
 };
 
 let candidateValidator: ValidateFunction<Candidate> | null = null;

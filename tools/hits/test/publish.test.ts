@@ -41,6 +41,22 @@ describe('publish', () => {
     expect(Object.keys(publishRow(hit({})))).toEqual(Object.keys(publishRow(hit({ submitter: 'seed', justification: 'why' }))));
   });
 
+  it('publishes what the input is, null where the hit has nothing, with the keys in one order on every row', () => {
+    const bare = publishRow(hit({}));
+    const full = publishRow(
+      hit({
+        submitter: 'seed',
+        justification: 'why',
+        about: 'A dormitory is a building of shared bedrooms.',
+        wikipedia: 'https://en.wikipedia.org/wiki/Dormitory',
+      }),
+    );
+    expect(bare).toMatchObject({ about: null, wikipedia: null });
+    expect(full).toMatchObject({ about: 'A dormitory is a building of shared bedrooms.', wikipedia: 'https://en.wikipedia.org/wiki/Dormitory' });
+    // The datasets loader reads the first rows for a schema, so order matters as much as presence.
+    expect(Object.keys(full)).toEqual(Object.keys(bare));
+  });
+
   it('publishes the shelf and the justification, falling back to the best v2 judge', () => {
     const judge = (relation: number, justification?: string) => ({
       model: 'claude-sonnet-5', rubric_version: 'v2', relation, reads: 3, tone: [], subjects: [], rationale: 'r', judged_at: '2026-09-13',
@@ -79,11 +95,17 @@ describe('publish', () => {
     // Every published row carries every field: a dataset reader infers one
     // schema for the file and chokes on a key some rows lack.
     for (const row of all) {
-      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'shelf']));
-      const { submitter, justification, shelf, ...rest } = row;
+      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'about', 'wikipedia', 'shelf']));
+      const { submitter, justification, about, wikipedia, shelf, ...rest } = row;
       expect(['greatest', 'interesting', 'stretch']).toContain(shelf);
       // The published extras aside, the row is still a valid hit.
-      const back = { ...rest, ...(submitter === null ? {} : { submitter }), ...(justification === null ? {} : { justification }) };
+      const back = {
+        ...rest,
+        ...(submitter === null ? {} : { submitter }),
+        ...(justification === null ? {} : { justification }),
+        ...(about === null ? {} : { about }),
+        ...(wikipedia === null ? {} : { wikipedia }),
+      };
       expect(validate(back)).toBe(true);
     }
     expect(all.map((r) => r['submitter'])).toEqual([null, null]);

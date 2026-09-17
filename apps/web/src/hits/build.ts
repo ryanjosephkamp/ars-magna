@@ -36,6 +36,10 @@ export type HitRecord = {
   tags: string[];
   status: 'proposed' | 'accepted' | 'featured' | 'retired';
   justification?: string;
+  /** One factual sentence saying what the input is. */
+  about?: string;
+  /** The input's English Wikipedia article. */
+  wikipedia?: string;
 };
 
 /** What ships in /hits.json: one compact row per published hit. */
@@ -54,6 +58,10 @@ export type PublicHit = {
   submitter: string | null;
   added: string;
   tags: string[];
+  /** What the input is, in one sentence; null until it has one. */
+  about: string | null;
+  /** The input's English Wikipedia article, or null. */
+  wikipedia: string | null;
 };
 
 export const CATEGORIES: readonly Category[] = ['people', 'companies', 'products', 'titles', 'places', 'phrases'];
@@ -125,6 +133,8 @@ export function toPublic(hit: HitRecord): PublicHit {
     added: hit.added,
     // A note becomes the justification and a shelf tag the shelf; neither is a tag a reader filters by.
     tags: hit.tags.filter((t) => !t.startsWith('note:') && !t.startsWith('shelf:')),
+    about: hit.about ?? null,
+    wikipedia: hit.wikipedia ?? null,
   };
 }
 

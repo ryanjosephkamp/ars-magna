@@ -47,6 +47,8 @@ from datasets import load_dataset
 | `prefilter_score` | The model-free score that put it in front of a judge (ordering, word frequency, length). |
 | `judge` | One entry per judge, with its model, rubric version, rationale and date. Rubric v2 scores `relation` to the input (1–5, the score that decides) and `reads` (1–3), with `tone` and `subjects` labels and a `justification`. Rubric v1 scored aptness, grammar and memorability (1–5 each) and a total. |
 | `justification` | One plain sentence explaining why the anagram fits its input, for a reader who does not know the reference; `null` when there is none yet. |
+| `about` | One factual sentence saying what the input is, from Wikidata's English description or written for the dataset; `null` when there is none yet. |
+| `wikipedia` | The input's English Wikipedia article; `null` when it has none or none is known. |
 | `shelf` | `greatest` (Greatest Hits, chosen by hand), `interesting` (a clear link), or `stretch` (a loose one). |
 | `submitter` | Who found it, when it was submitted rather than mined; `null` for a mined hit. |
 | `added` | The date it entered the list. |

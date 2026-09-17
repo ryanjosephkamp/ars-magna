@@ -13,7 +13,7 @@ explains the pipeline these jobs sit on.
 | 06:00 daily | Hits nightly Action | a commit to `main` with `data/queue/<date>/` (the summary and the screen input) and `data/candidates.jsonl` |
 | 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request, or nothing after a thin night |
 | every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev, after Deploy applies any new votes database migration |
-| a merge that changes `data/hits.jsonl` | Publish hits Action | the dataset at https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits |
+| a merge that changes `data/hits.jsonl`, `tools/hits/src/publish.ts` or the dataset card | Publish hits Action | the dataset at https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits |
 
 A nightly commit touches only the queue and the candidates, so it runs neither CI nor Deploy.
 
@@ -34,8 +34,13 @@ When you know an anagram that belongs in the dataset.
 2. On a branch off `main`, record it as a proposed hit. In a session with the MCP server (Claude Code in
    this repository, or Codex set up as `docs/BOOTSTRAP.md` describes), call `propose_hit` with the input,
    the category, the words in reading order, the tier, and a `justification`: one plain sentence
-   explaining the link for a reader. It checks again, then adds the candidate and the hit. Without the MCP server, open a "Submit an anagram" issue on GitHub; when the validator labels
-   it `submission:valid`, run `pnpm hits:ingest --from-issue=<issue number>`.
+   explaining the link for a reader. When the input is a public name, work, place or phrase, add `about`:
+   one factual sentence saying what the input is (see "What an input is"). It checks again, then adds the
+   candidate and the hit. Without the MCP server, open a "Submit an anagram" issue on GitHub; when the
+   validator labels it `submission:valid`, run `pnpm hits:ingest --from-issue=<issue number>`. The form's
+   "Why it is good" becomes the hit's justification and its "What the input is" the input's sentence; one
+   that breaks its rule (over length, emoji, no full stop) is left off, and ingest prints the command that
+   sets it.
 3. Accept it by id. The id is the input's letters, the category, and the words sorted and joined with `-`:
 
    ```bash
@@ -148,6 +153,10 @@ A refused submission now says which of three things went wrong: the letters diff
 a wider tier and the dropdown needs changing, or the vocabulary has no such word at any tier. Only
 the third is a word request, and only it is labelled `word-request`.
 
+**An addition only helps a word that is in no tier at all.** A word the pinned list already carries at
+Standard or Full is refused as already in the vocabulary: it is unreachable by the nightly for a
+different reason, the tier enumeration runs at, and adding it is not the remedy.
+
 ## The vocabulary dataset
 
 The site's vocabulary is published so its results can be checked rather than taken on trust:
@@ -201,7 +210,10 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
 `tone:rude`.
 
 1. Read the ingest report in the body. For each hit it lists the relation, reads, input, phrase and
-   justification, then the alternates, then the near misses.
+   justification, then the alternates, then the near misses. Its **About** section lists every sentence
+   saying what an input is that reached a hit in this run: the ones the judge wrote, marked with the model,
+   and the ones the input already had (from Wikidata, by way of the nightly fetch). Merging accepts them;
+   change one with `pnpm hits:describe <candidate> "One factual sentence."` on the branch.
 2. Check out the branch and change only what you disagree with, one command per status:
 
    ```bash
@@ -250,6 +262,9 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
      gave, when there are several), each row with its relation, reads, where it stands, the model that
      judged it and its rationale. For a hit, change its status, edit its justification, or add and remove tags
      (`+tone:pun -subject:actor`). For a near miss, accept it or add it as proposed, with a justification.
+     On either, **About the input** holds the sentence saying what the input is, with its Wikipedia article
+     beneath when it has one. The sentence belongs to the input, so every row of that input shows the same
+     change; it can be rewritten here but not removed.
      On any row of more than one word, **Reorder words** lets you tap the words in the order they should
      read; a near miss takes that order once it is promoted. **Add a note** on any row tells the agent
      something about that hit alone: why it deserves promoting, what its justification should say, or what
@@ -292,6 +307,7 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 |---|---|
 | status | `pnpm hits:set --status=featured id…` |
 | justification | `pnpm hits:justify id "One plain sentence."` |
+| about the input | `pnpm hits:describe <candidate> "One factual sentence."`, after the justifications |
 | tags | `pnpm hits:tag id +tone:pun -subject:actor` |
 | accept a near miss | `pnpm hits:ingest --date=<queue> --model=<judge> --only=id,… --status=accepted`; a row with no justification goes in as `proposed`, then `hits:justify` and `hits:set` |
 | word order | `pnpm hits:order id room dirty`, after the ingest that writes a promoted near miss |
@@ -299,7 +315,7 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 | seed | appends the lines to `data/candidates.jsonl` |
 | deep run | `pnpm hits:requeue …`, then `hits:enumerate --preset=deep`, `hits:prefilter --per-input=all` and `hits:screen` |
 
-`hits:justify`, `hits:tag` and `hits:order` refuse an unknown id, an empty or over-long sentence, a tag the
+`hits:justify`, `hits:describe`, `hits:tag` and `hits:order` refuse an unknown id, an empty or over-long sentence, a tag the
 schema does not allow, and words that are not the hit's own, and write nothing then. `hits:order` changes
 only how the words read: the id, and so the hit's page address, stays the same. `hits:ingest --only` refuses
 a row that is not in the queue, is already a hit, or has no valid verdict. An agent runs these only on what
@@ -337,7 +353,7 @@ the audit handles what the page already shows.
    Within each, the anagrams the judge suggested for Greatest Hits come first, then the strongest links.
    Filter by text or category, or show only the suggestions or what you have changed.
 3. Change a row's label to move it to another section or **Remove from the page** (`retired`), and edit its
-   justification, tags or word order, or add a note, as in the review desk. Every row starts on its current
+   justification, what its input is, tags or word order, or add a note, as in the review desk. Every row starts on its current
    label, so a prompt copied without changes changes nothing.
 4. Press **Copy prompt** and paste it into an agent session on the repository. It applies the changes on a
    new branch named `greatest-hits-audit-<date>` and opens a pull request. The page changes when you merge it.
@@ -355,6 +371,55 @@ Decisions are kept in the browser that made them, apart from the review desk's. 
 `docs/prompts/apply-desk.md`, as the desk does.
 
 Prompt: `docs/prompts/publish-audit.md` (no placeholders).
+
+## What an input is
+
+Each input carries one factual sentence saying what it is, `about`, and its English Wikipedia article,
+`wikipedia`, when it has one. Both live on the candidate in `data/candidates.jsonl`, and every hit of that
+input carries a copy, so a dataset row and the site's `hits.json` are complete on their own. Every tool that
+writes either field keeps the copies the same.
+
+**The rule.** One sentence, on one line, at most 200 characters, ending with a full stop. Facts only: no
+opinion and no joke, and never about a private person. The schemas refuse anything longer or unfinished.
+
+**Four ways a sentence is written.** Whichever comes first stays until you change it:
+
+| Source | How |
+|---|---|
+| Wikidata | `hits:fetch` writes one for each new trending input from its item's English description ("American singer-songwriter (1946–2026)" becomes "Dolly Parton was an American singer-songwriter (1946–2026)."), and the link from its English Wikipedia article. The sentence is built mechanically, so read it. |
+| the judge | Each input's first row in a judge batch shows its sentence or `(empty)`; for an empty one the judge may write one. Ingest keeps the first that follows the rule, and the routine's pull request lists it under About. |
+| a submission | The issue form's "What the input is", or `about` on the MCP tool `propose_hit`, for an input that has none. |
+| you | `pnpm hits:describe`, or About the input in the review desk or the audit. |
+
+**Set or change one:**
+
+```bash
+pnpm hits:describe dormitory:phrases "A dormitory is a building of shared bedrooms, as at a school or college."
+pnpm hits:describe starwars:titles --wikidata=Q462
+pnpm hits:describe titanic:titles --wikipedia=https://en.wikipedia.org/wiki/Titanic_(1997_film)
+pnpm hits:describe titanic:titles --wikipedia=none
+```
+
+It takes the **candidate** id, the first two parts of a hit id, since every hit of an input shares its
+sentence. `--wikidata=Q…` names the item: it records the id and writes the sentence and the link from
+Wikidata. `--wikipedia` sets or clears the link alone. It refuses an unknown id, a hit id, a sentence that
+breaks the rule and an address that is not an English Wikipedia article, and writes nothing then. For an
+input whose hits have no candidate line, such as the classics seeded before candidates existed, it appends
+one as `manual` and `enumerated`. That line has no recorded run, so it reads as settings s1:
+`pnpm hits:requeue --settings-before=s2` would send it back to `new`, as it would a `propose_hit` candidate.
+
+**Find items for older inputs.** `pnpm hits:fetch --reclassify` does three things, and `--dry-run` shows them
+without writing:
+
+1. Moves unclassified candidates that the category table now places.
+2. Finds the Wikidata item of each manual candidate outside phrases that has none, by its English Wikipedia
+   title, taking the item only when its classes reach the candidate's own category. When the title finds
+   nothing in that category but exactly one item with the input as its English label does, it prints that
+   item as a suggestion and writes nothing for it: labels are shared by obscure items often enough (Peloton,
+   a supercomputer program; Old England, a department store in Brussels) that a person confirms each one with
+   `--wikidata`. It lists every input it left unmatched, with the reason.
+3. Writes a sentence and a link for every placed candidate with an item and no sentence, and copies them to
+   the hits. A sentence that exists, from any source, is never replaced.
 
 ## Votes on Discoveries
 
@@ -513,7 +578,8 @@ What to do:
     request before the following 06:00 UTC run, or disable Hits nightly until it is merged; otherwise
     the routine screens the repeat queue instead.
   - Grow the category table and run `pnpm hits:fetch --reclassify`, which moves unclassified candidates
-    that now fit to `new` ("Growing the category table" in `automation/RUNBOOK.md`).
+    that now fit to `new` ("Growing the category table" in `automation/RUNBOOK.md`). It also looks up
+    items for manual candidates and writes what inputs are ("What an input is").
   - Requeue candidates processed under older enumeration settings or an older rubric ("Requeue
     candidates" below).
   - Run Hits nightly by hand from the Actions tab with a larger `limit`. `limit` is how many of the day's
@@ -633,8 +699,8 @@ Prompt: `docs/prompts/ship-feature.md` (feature_description).
 
 After any merge to `main`. Every check reads; none changes anything.
 
-1. The merge's runs passed. CI and Deploy run on every merge; Publish hits only when `data/hits.jsonl`
-   changed:
+1. The merge's runs passed. CI and Deploy run on every merge; Publish hits only when `data/hits.jsonl`,
+   `tools/hits/src/publish.ts` or `tools/hits/templates/dataset-card.md` changed:
 
    ```bash
    gh run list --branch main --limit 6

@@ -124,6 +124,23 @@ describe('schemas', () => {
     expect(hv(hit({ justification: 'x'.repeat(301) }))).toBe(false);
   });
 
+  it('accept what an input is on a candidate and on a hit, and refuse a sentence or link that breaks the rule', async () => {
+    const cv = await candidateSchema();
+    const hv = await hitSchema();
+    const about = 'A dormitory is a building of shared bedrooms, as at a school or college.';
+    const wikipedia = 'https://en.wikipedia.org/wiki/Dormitory';
+    expect(cv(candidate({ about, wikipedia })), JSON.stringify(cv.errors)).toBe(true);
+    expect(hv(hit({ about, wikipedia })), JSON.stringify(hv.errors)).toBe(true);
+    for (const validate of [(x: string) => cv(candidate({ about: x })), (x: string) => hv(hit({ about: x }))]) {
+      expect(validate(`${'x'.repeat(200)}.`)).toBe(false);
+      expect(validate('Two\nlines.')).toBe(false);
+      expect(validate(' Leading space.')).toBe(false);
+      expect(validate('No full stop')).toBe(false);
+    }
+    expect(cv(candidate({ wikipedia: 'https://en.wikipedia.org/wiki/' }))).toBe(false);
+    expect(hv(hit({ wikipedia: 'https://fr.wikipedia.org/wiki/Dortoir' }))).toBe(false);
+  });
+
   it('validate every committed line of both data files', async () => {
     const candidates = await readJsonl(CANDIDATES_PATH, await candidateSchema());
     const hits = await readJsonl(HITS_PATH, await hitSchema());

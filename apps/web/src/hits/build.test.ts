@@ -60,6 +60,13 @@ describe('gallery build', () => {
     expect(toPublic(record({ tags: ['classic', 'shelf:stretch'] }))).toMatchObject({ shelf: 'stretch', tags: ['classic'] });
   });
 
+  it('carries what the input is and its Wikipedia article, null until the hit has them', () => {
+    expect(toPublic(record({}))).toMatchObject({ about: null, wikipedia: null });
+    expect(
+      toPublic(record({ about: 'A dormitory is a building of shared bedrooms.', wikipedia: 'https://en.wikipedia.org/wiki/Dormitory' })),
+    ).toMatchObject({ about: 'A dormitory is a building of shared bedrooms.', wikipedia: 'https://en.wikipedia.org/wiki/Dormitory' });
+  });
+
   it('prefers the operator sentence, then the v2 judge, then the v1 rationale, then a note', () => {
     const v1 = { model: 'm', total: 11, aptness: 3, grammar: 4, rationale: 'v1 rationale' };
     const v2 = { model: 'm', relation: 4, reads: 3, rationale: 'v2 rationale', justification: 'v2 justification' };

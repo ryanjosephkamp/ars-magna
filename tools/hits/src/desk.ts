@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { artifactFragment, deskData, renderDesk, type DeskMode, type QueueInput } from './desk/build.ts';
 import { parseVerdicts } from './judge.ts';
 import { JUDGE_OUTPUT, flag, queueDates, queueDir, readJudgedRows } from './queue.ts';
-import { CANDIDATES_PATH, HITS_PATH, REPO_ROOT, candidateSchema, hitSchema, readJsonl, today } from './schema.ts';
+import { CANDIDATES_PATH, HITS_PATH, REPO_ROOT, SCHEMA_DIR, candidateSchema, hitSchema, readJsonl, today } from './schema.ts';
 import { PRESETS } from './settings.ts';
 import { tagPattern } from './tag.ts';
 
@@ -39,6 +39,14 @@ export const DESK_OUT = resolve(REPO_ROOT, '.cache/desk/index.html');
 export const DESK_ARTIFACT_OUT = resolve(REPO_ROOT, '.cache/desk/artifact.html');
 export const AUDIT_OUT = resolve(REPO_ROOT, '.cache/desk/audit.html');
 export const AUDIT_ARTIFACT_OUT = resolve(REPO_ROOT, '.cache/desk/audit-artifact.html');
+
+/** The pattern for what an input is, read from the hit schema so the page checks a sentence the way the schema will. */
+export async function aboutPattern(): Promise<string> {
+  const schema = JSON.parse(await readFile(resolve(SCHEMA_DIR, 'hit.schema.json'), 'utf8')) as {
+    properties: { about: { pattern: string } };
+  };
+  return schema.properties.about.pattern;
+}
 
 /** The newest `count` queues that have verdicts, newest first. */
 export async function judgedQueues(count: number): Promise<QueueInput[]> {
@@ -72,6 +80,7 @@ export async function buildDesk(options: {
     generated: options.generated ?? new Date().toISOString(),
     today: today(),
     tagPattern: (await tagPattern()).source,
+    aboutPattern: await aboutPattern(),
     applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
     deepRun: await readFile(DEEP_RUN_PROMPT, 'utf8'),
     deepPerInput: PRESETS.deep.perInput,

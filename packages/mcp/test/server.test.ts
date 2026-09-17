@@ -72,4 +72,32 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     const again = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'dormitory', category: 'phrases', words: ['dirty', 'room'] } }));
     expect(again).toMatchObject({ ok: true, newCandidate: false, newHit: false });
   });
+
+  it('records what the input is on the candidate and the hit, and a rationale as the justification rather than a note tag', async () => {
+    const refused = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Listen', category: 'phrases', words: ['silent'], about: 'no full stop' } }));
+    expect(refused).toMatchObject({ ok: false });
+    expect(String(refused['reason'])).toMatch(/about: .*full stop/);
+
+    const good = parse(
+      await client.callTool({
+        name: 'propose_hit',
+        arguments: { input: 'Listen', category: 'phrases', words: ['silent'], rationale: 'To listen, be silent.', about: 'To listen is to pay attention to sound.' },
+      }),
+    );
+    expect(good).toMatchObject({ ok: true, hit: 'listen:phrases:silent', newCandidate: true, newHit: true, about: 'To listen is to pay attention to sound.' });
+    const candidates = (await readFile(join(scratch, 'c.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    const hits = (await readFile(join(scratch, 'h.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(candidates.find((c) => c['id'] === 'listen:phrases')).toMatchObject({ about: 'To listen is to pay attention to sound.' });
+    expect(hits.find((h) => h['id'] === 'listen:phrases:silent')).toMatchObject({
+      about: 'To listen is to pay attention to sound.',
+      justification: 'To listen, be silent.',
+      tags: [],
+    });
+
+    // A second proposal for the same input never replaces its sentence, and a new hit of it carries that sentence.
+    const second = parse(
+      await client.callTool({ name: 'propose_hit', arguments: { input: 'Listen', category: 'phrases', words: ['tinsel'], about: 'Another sentence entirely.' } }),
+    );
+    expect(second).toMatchObject({ ok: true, newCandidate: false, newHit: true, about: 'To listen is to pay attention to sound.' });
+  });
 });

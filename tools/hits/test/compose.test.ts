@@ -9,6 +9,7 @@ import { normalizeLetters } from '@ars-magna/engine/fold';
 
 import {
   candidateIdOf,
+  candidateOfHit,
   composeCommands,
   fillDeepRunPrompt,
   fillPrompt,
@@ -68,6 +69,7 @@ describe('commands', () => {
       { kind: 'seed', input: 'The countryside', category: 'phrases', anchors: ['city', 'dust'] },
       { kind: 'seed', input: 'Sagrada Família', category: 'places', anchors: [] },
       { kind: 'add', input: 'Dormitory', category: 'phrases', phrase: 'dirty room', tier: 'common', justification: 'A dormitory is a dirty room.' },
+      { kind: 'describe', id: 'supergirl:titles', text: "Supergirl is DC Comics' cousin of Superman." },
     ];
     const { commands, notes } = composeCommands(decisions, today);
     expect(commands).toEqual([
@@ -85,6 +87,7 @@ describe('commands', () => {
       'pnpm hits:ingest --date=2026-09-12c --model=claude-sonnet-5 --only=c:phrases:d --status=proposed',
       `pnpm hits:justify funeral:phrases:fun-real 'A funeral is the opposite of real fun, and that'\\''s the joke.'`,
       "pnpm hits:justify arthurashe:people:ash-her-tau 'Arthur Ashe.'",
+      `pnpm hits:describe supergirl:titles 'Supergirl is DC Comics'\\'' cousin of Superman.'`,
       "pnpm hits:tag funeral:phrases:fun-real +tone:ironic '+note:dark humour' -tone:pun",
       'pnpm hits:set --status=featured boeing:companies:big-one doctorwho:titles:torch-wood',
       'pnpm hits:set --status=accepted arthurashe:people:ash-her-tau',
@@ -93,6 +96,18 @@ describe('commands', () => {
       'pnpm hits:set --status=accepted dormitory:phrases:dirty-room',
     ]);
     expect(notes).toEqual(['a:phrases:b has no justification yet, so it goes in as proposed. Give it one with pnpm hits:justify before accepting it.']);
+  });
+
+  it('say what an input is once for the input, whichever of its rows it was written on', () => {
+    expect(candidateOfHit('funeral:phrases:fun-real')).toBe('funeral:phrases');
+    const { commands } = composeCommands(
+      [
+        { kind: 'describe', id: candidateOfHit('funeral:phrases:fun-real'), text: 'First.' },
+        { kind: 'describe', id: candidateOfHit('funeral:phrases:real-fun'), text: 'A funeral is a ceremony for the dead.' },
+      ],
+      today,
+    );
+    expect(commands).toEqual(["pnpm hits:describe funeral:phrases 'A funeral is a ceremony for the dead.'"]);
   });
 
   it('let a later decision about the same thing replace an earlier one', () => {

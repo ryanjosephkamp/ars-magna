@@ -34,6 +34,8 @@
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  a { color: var(--accent); text-underline-offset: 0.15em; }
+  a:hover { color: var(--accent-hover); }
   ::selection { background: var(--accent-wash); }
   button, input, select, textarea { font: inherit; color: inherit; }
 
@@ -231,6 +233,7 @@
   var AUDIT = DATA.mode === 'audit';
   var STORE = AUDIT ? 'ars-magna-audit' : 'ars-magna-desk';
   var TAG = new RegExp(DATA.tagPattern);
+  var ABOUT = new RegExp(DATA.aboutPattern, 'u');
   var STATUSES = ['featured', 'accepted', 'proposed', 'retired'];
   var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'accepted', proposed: 'proposed', retired: 'retired' };
   var SHELF_LABEL = { greatest: 'Greatest Hits', interesting: 'Interesting', stretch: 'A stretch' };
@@ -243,6 +246,7 @@
     ['add', 'Add a hit'],
   ];
   var hitsById = new Map(DATA.hits.map(function (x) { return [x.id, x]; }));
+  var candidatesById = new Map(DATA.candidates.map(function (c) { return [c.id, c]; }));
 
   function load() {
     try { return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { return {}; }
@@ -289,7 +293,7 @@
 
   function keyOf(d) {
     switch (d.kind) {
-      case 'status': case 'justify': case 'tag': case 'order': case 'note': case 'shelf': return d.kind + ':' + d.id;
+      case 'status': case 'justify': case 'describe': case 'tag': case 'order': case 'note': case 'shelf': return d.kind + ':' + d.id;
       case 'promote': return 'promote:' + d.id;
       case 'seed': return 'seed:' + candidateIdOf(d.input, d.category);
       case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/));
@@ -310,14 +314,17 @@
     save();
     renderAside();
   }
+  /* A row is pending when a decision names it, or says what its input is. */
   function pendingFor(id) {
-    return state.decisions.some(function (d) { return d.id === id; });
+    var input = candidateOfHit(id);
+    return state.decisions.some(function (d) { return d.id === id || (d.kind === 'describe' && d.id === input); });
   }
 
   function describe(d) {
     switch (d.kind) {
       case 'status': return d.id + ' to ' + STATUS_LABEL[d.status];
       case 'justify': return d.id + ': new justification';
+      case 'describe': return d.id + ': what the input is';
       case 'tag': return d.id + ': ' + d.add.map(function (t) { return '+' + t; }).concat(d.remove.map(function (t) { return '-' + t; })).join(' ');
       case 'promote': return d.id + ' from ' + d.queue + ', ' + d.status;
       case 'order': return d.id + ' reads "' + d.words.join(' ') + '"' + (d.hit || find('promote:' + d.id) ? '' : ', once it is promoted');
@@ -348,6 +355,66 @@
   function markRow(control, id) {
     var row = control.closest('tr');
     if (row) row.classList.toggle('pending', pendingFor(id));
+  }
+
+  /* The attributes every row carries, so a decision about its input can reach every row of that input. */
+  function rowAttrs(id) {
+    return { class: pendingFor(id) ? 'pending' : '', 'data-id': id, 'data-candidate': candidateOfHit(id) };
+  }
+
+  /* Why a sentence cannot say what an input is, checked as the schema checks it; empty when it can. */
+  function aboutProblemIn(text) {
+    var length = Array.from(text).length;
+    if (length > 200) return 'This sentence is ' + length + ' characters; keep it to 200.';
+    if (!ABOUT.test(text)) return 'Write one sentence on one line, ending with a full stop.';
+    return '';
+  }
+
+  /*
+   * What the input is: one sentence for every hit of that input, so the
+   * decision belongs to the input, and every row of it shows the same pending
+   * sentence. A sentence can be rewritten here but not removed; an unchanged
+   * one makes no decision.
+   */
+  function aboutControl(id, about, wikipedia, display) {
+    var input = candidateOfHit(id);
+    var key = 'describe:' + input;
+    var pending = find(key);
+    var area = h('textarea', { 'aria-label': 'What the input of ' + display + ' is', placeholder: 'One factual sentence about what the input is', 'data-about': input });
+    area.value = pending ? pending.text : about;
+    var problem = h('p', { class: 'problem', role: 'status', 'data-about-problem': input });
+    area.addEventListener('change', function () {
+      var text = area.value.replace(/\s+/g, ' ').trim();
+      var bad = text && text !== about ? aboutProblemIn(text) : '';
+      if (!text && about) {
+        area.value = about;
+        bad = 'A sentence can be rewritten here, not removed.';
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('p[data-about-problem]'), function (other) {
+        if (other.getAttribute('data-about-problem') === input) other.textContent = '';
+      });
+      problem.textContent = bad;
+      if (!text || text === about || bad) drop(key);
+      else upsert({ kind: 'describe', id: input, text: text });
+      var now = find(key);
+      Array.prototype.forEach.call(document.querySelectorAll('textarea[data-about]'), function (other) {
+        if (other !== area && other.getAttribute('data-about') === input) other.value = now ? now.text : about;
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('tr[data-candidate]'), function (row) {
+        if (row.getAttribute('data-candidate') === input) row.classList.toggle('pending', pendingFor(row.getAttribute('data-id')));
+      });
+    });
+    return h('div', {},
+      h('label', {}, h('span', { class: 'label' }, 'About the input'), area),
+      problem,
+      wikipedia ? h('div', { class: 'small' }, 'Wikipedia: ', h('a', { href: wikipedia, target: '_blank', rel: 'noopener noreferrer' }, articleTitle(wikipedia))) : null);
+  }
+
+  /* An article's title from its address, as Wikipedia shows it. */
+  function articleTitle(url) {
+    var path = url.replace('https://en.wikipedia.org/wiki/', '');
+    try { path = decodeURIComponent(path); } catch (e) { /* shown as it is */ }
+    return path.replace(/_/g, ' ');
   }
 
   /*
@@ -537,7 +604,7 @@
       });
       markRow(tags, hit.id);
     });
-    return h('div', { class: 'control' }, status, text, tags, problem, noteControl(hit.id, hit.display, true));
+    return h('div', { class: 'control' }, status, text, aboutControl(hit.id, hit.about, hit.wikipedia, hit.display), tags, problem, noteControl(hit.id, hit.display, true));
   }
 
   function nearControls(row, queue) {
@@ -558,7 +625,8 @@
     }
     choice.addEventListener('change', sync);
     text.addEventListener('change', function () { if (choice.value) sync(); });
-    return h('div', { class: 'control' }, choice, text, noteControl(row.id, row.display, false));
+    var known = candidatesById.get(row.candidate_id);
+    return h('div', { class: 'control' }, choice, text, aboutControl(row.id, known ? known.about : '', known ? known.wikipedia : '', row.display), noteControl(row.id, row.display, false));
   }
 
   function rowTable(rows, withQueue, size) {
@@ -566,7 +634,7 @@
       var queue = DATA.queues.find(function (q) { return q.name === r.queue; });
       var hit = r.hit ? hitsById.get(r.id) : null;
       var where = whereOf(r.hit);
-      return h('tr', { class: pendingFor(r.id) ? 'pending' : '' },
+      return h('tr', rowAttrs(r.id),
         withQueue ? [h('td', { class: 'scores', 'data-label': 'Queue' }, r.queue), h('td', { 'data-label': 'Input' }, r.input)] : null,
         phraseCell(r.id, hit ? hit.display : r.display, !!hit),
         h('td', { class: 'scores', 'data-label': 'Scores' }, 'relation ' + r.relation, h('br'), 'reads ' + r.reads),
@@ -641,7 +709,7 @@
       });
       var table = batched(hits, 50, function (x) {
         var where = whereOf(x);
-        return h('tr', { class: pendingFor(x.id) ? 'pending' : '' },
+        return h('tr', rowAttrs(x.id),
           h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
           phraseCell(x.id, x.display, true),
           h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
@@ -814,7 +882,7 @@
     var list = h('div');
 
     function row(x) {
-      return h('tr', { class: pendingFor(x.id) ? 'pending' : '' },
+      return h('tr', rowAttrs(x.id),
         h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
         phraseCell(x.id, x.display, true),
         h('td', { class: 'small', 'data-label': 'Judge' },
@@ -851,7 +919,7 @@
       h('h2', {}, 'The Discoveries page'),
       h('p', { class: 'small' }, 'Every anagram the site shows, ' + total + ' in all, each labelled with the section it is in now: ' + greatest.length +
         ' in Greatest Hits, ' + interesting.length + ' in Interesting and ' + stretch.length + ' in A stretch. A prompt copied without changes changes nothing. ' +
-        'Change a label to move an anagram to another section or off the page, and edit a justification, reorder the words or add a note as in the review desk.'),
+        'Change a label to move an anagram to another section or off the page, and edit a justification or what its input is, reorder the words or add a note as in the review desk.'),
       h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show)),
       list);
     draw();
@@ -925,7 +993,7 @@
     if (!count) {
       aside.append(h('p', { class: 'empty' }, AUDIT
         ? 'Nothing changed yet. Every anagram keeps its label until you change it here.'
-        : 'Nothing decided yet. Change a status, edit a justification, reorder the words, add a note or promote a near miss, and it appears here.'));
+        : 'Nothing decided yet. Change a status, edit a justification or what an input is, reorder the words, add a note or promote a near miss, and it appears here.'));
     } else {
       aside.append(
         h('ul', { class: 'decisions' }, state.decisions.map(function (d) {

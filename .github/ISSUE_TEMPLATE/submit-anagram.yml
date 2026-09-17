@@ -15,6 +15,12 @@ body:
       placeholder: Dormitory
     validations:
       required: true
+  - type: input
+    id: about
+    attributes:
+      label: What the input is
+      description: One factual sentence, up to 200 characters, for a reader who has not heard of it. Optional.
+      placeholder: A dormitory is a building of shared bedrooms, as at a school or college.
   - type: dropdown
     id: category
     attributes:

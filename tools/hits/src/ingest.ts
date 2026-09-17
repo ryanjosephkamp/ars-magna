@@ -32,6 +32,7 @@ import { execFileSync } from 'node:child_process';
 
 // The engine is imported only where it boots: loading it needs the WASM
 // build, which the judge routine's sandbox does not have (--no-engine-check).
+import { aboutProblem, candidateOf, syncAbout, tidySentence } from './about.ts';
 import { checkAnagram, sameLetters } from './check.ts';
 import { alphagram, candidateId, hitId } from './ids.ts';
 import { parseIssueForm } from './submission.ts';
@@ -81,17 +82,78 @@ async function fromIssue(number: string): Promise<void> {
   if (!verdict.ok) throw new Error(`issue #${number}: not an anagram: ${verdict.reason}`);
 
   const date = today();
-  const candidate: Candidate = {
-    id: candidateId(parsed.input, parsed.category),
-    input: parsed.input,
-    category: parsed.category,
-    source: 'submission',
-    first_seen: date,
-    status: 'enumerated',
-    notes: issue.url,
-  };
+  const cv = await candidateSchema();
+  const hv = await hitSchema();
+  const candidates = await readJsonl(CANDIDATES_PATH, cv);
+  const hits = await readJsonl(HITS_PATH, hv);
+  const id = hitId(parsed.input, parsed.category, parsed.words);
+  const submitted = fromSubmission(parsed, {
+    candidates,
+    hits,
+    date,
+    url: issue.url,
+    credit: parsed.credit || issue.author.login,
+    dictionary: await dictionaryPin(),
+  });
+  if (submitted.newCandidate || submitted.aboutWritten) await writeJsonl(CANDIDATES_PATH, submitted.candidates, cv);
+  if (submitted.newHit || submitted.synced) await writeJsonl(HITS_PATH, submitted.hits, hv);
+  console.log(submitted.newHit ? `proposed ${id} from issue #${number}` : `${id} was already in data/hits.jsonl`);
+  for (const note of submitted.notes) console.log(`  ${note}`);
+}
+
+/** Emoji have no place in a sentence a reader sees. */
+const PICTOGRAPH = /\p{Extended_Pictographic}/u;
+
+/**
+ * A submission as the data files record it: a candidate (the input, with the
+ * form's "What the input is" as its `about` when it has none), and a proposed
+ * hit crediting the submitter, with "Why it is good" as its justification.
+ * A sentence that breaks its rule is left off and named in `notes` with the
+ * command that sets one. Pure: `fromIssue` reads the issue and writes the files.
+ */
+export function fromSubmission(
+  parsed: { input: string; category: Candidate['category']; words: string[]; tier: Hit['tier']; why: string; about: string },
+  context: {
+    candidates: readonly Candidate[];
+    hits: readonly Hit[];
+    date: string;
+    url: string;
+    credit: string;
+    dictionary: Hit['dictionary'];
+  },
+): { candidates: Candidate[]; hits: Hit[]; newCandidate: boolean; newHit: boolean; aboutWritten: boolean; synced: boolean; notes: string[] } {
+  const notes: string[] = [];
+  const cid = candidateId(parsed.input, parsed.category);
+  const id = hitId(parsed.input, parsed.category, parsed.words);
+  const existing = context.candidates.find((c) => c.id === cid);
+  const candidate: Candidate = existing
+    ? { ...existing }
+    : { id: cid, input: parsed.input, category: parsed.category, source: 'submission', first_seen: context.date, status: 'enumerated', notes: context.url };
+
+  const about = tidySentence(parsed.about);
+  let aboutWritten = false;
+  if (about) {
+    const problem = aboutProblem(about);
+    if (problem) notes.push(`"What the input is" left off (${problem}); set one with pnpm hits:describe ${cid} "One sentence."`);
+    else if (candidate.about) notes.push(`"What the input is" left off: ${cid} already reads "${candidate.about}"`);
+    else {
+      candidate.about = about;
+      aboutWritten = Boolean(existing);
+    }
+  }
+
+  const why = tidySentence(parsed.why);
+  let justification: string | undefined;
+  if (why) {
+    if ([...why].length > 300) notes.push(`"Why it is good" left off (over 300 characters); set a justification with pnpm hits:justify ${id} "One plain sentence."`);
+    else if (PICTOGRAPH.test(why)) notes.push(`"Why it is good" left off (it has emoji); set a justification with pnpm hits:justify ${id} "One plain sentence."`);
+    else justification = why;
+  }
+
+  const candidates = existing ? context.candidates.map((c) => (c.id === cid ? candidate : c)) : [...context.candidates, candidate];
+  const known = context.hits.some((h) => h.id === id);
   const hit: Hit = {
-    id: hitId(parsed.input, parsed.category, parsed.words),
+    id,
     input: parsed.input,
     category: parsed.category,
     words: parsed.words,
@@ -99,16 +161,24 @@ async function fromIssue(number: string): Promise<void> {
     letters: alphagram(parsed.input),
     prefilter_score: 0,
     judge: [],
-    submitter: parsed.credit || issue.author.login,
-    added: date,
-    dictionary: await dictionaryPin(),
+    submitter: context.credit,
+    added: context.date,
+    dictionary: context.dictionary,
     tier: parsed.tier,
-    tags: parsed.why ? ['submitted', `note:${parsed.why.slice(0, 80)}`] : ['submitted'],
+    tags: ['submitted'],
     status: 'proposed',
+    ...(justification ? { justification } : {}),
   };
-  await appendJsonl(CANDIDATES_PATH, [candidate], await candidateSchema());
-  const added = await appendJsonl(HITS_PATH, [hit], await hitSchema());
-  console.log(added.length ? `proposed ${hit.id} from issue #${number}` : `${hit.id} was already in data/hits.jsonl`);
+  const { hits, changed } = syncAbout(known ? context.hits : [...context.hits, hit], candidates, [cid]);
+  return {
+    candidates,
+    hits,
+    newCandidate: !existing,
+    newHit: !known,
+    aboutWritten,
+    synced: changed.length > 0,
+    notes,
+  };
 }
 
 export const DEFAULT_THRESHOLD = 11;
@@ -237,6 +307,8 @@ export type IngestOptions = {
   existing?: ReadonlySet<string>;
   /** Each candidate's subject slugs (from Wikidata or by hand), added to its hits as subject: tags. */
   subjects?: ReadonlyMap<string, readonly string[]>;
+  /** Each candidate's sentence and link, copied onto its new hits. */
+  about?: ReadonlyMap<string, { about?: string; wikipedia?: string }>;
 };
 
 /** Where a written hit came from: a v2 shelf, an alternate, or the v1 threshold. */
@@ -248,7 +320,7 @@ export type NearMiss = { id: string; input: string; display: string; relation: n
 export function hitFromRow(
   row: Prefiltered,
   judge: Judgement[],
-  options: Pick<IngestOptions, 'date' | 'dictionary'>,
+  options: Pick<IngestOptions, 'date' | 'dictionary' | 'about'>,
   status: Hit['status'],
   tags: string[],
   justification?: string,
@@ -269,6 +341,9 @@ export function hitFromRow(
     status,
   };
   if (justification) hit.justification = justification;
+  const known = options.about?.get(row.candidate_id);
+  if (known?.about) hit.about = known.about;
+  if (known?.wikipedia) hit.wikipedia = known.wikipedia;
   return hit;
 }
 
@@ -403,10 +478,45 @@ export function takenCounts(hits: readonly Hit[]): Map<string, number> {
   const taken = new Map<string, number>();
   for (const hit of hits) {
     if (hit.status !== 'accepted' && hit.status !== 'featured') continue;
-    const candidate = hit.id.split(':').slice(0, 2).join(':');
+    const candidate = candidateOf(hit.id);
     taken.set(candidate, (taken.get(candidate) ?? 0) + 1);
   }
   return taken;
+}
+
+/** A sentence about an input, as the report lists it. */
+export type AboutLine = { candidate: string; input: string; text: string; from: string };
+
+/**
+ * The judge's sentences about the inputs of a batch: the first that follows
+ * the rule for each input that has none, from the verdicts that passed. A
+ * sentence that breaks the rule is skipped, and its verdict still counts.
+ * Pure.
+ */
+export function aboutsFromVerdicts(
+  verdicts: readonly Verdict[],
+  batch: ReadonlyMap<string, Prefiltered>,
+  candidates: readonly Candidate[],
+  model: string,
+): { written: AboutLine[]; skipped: Rejection[] } {
+  const has = new Set(candidates.filter((c) => c.about).map((c) => c.id));
+  const written: AboutLine[] = [];
+  const skipped: Rejection[] = [];
+  for (const v of verdicts) {
+    if (!isV2Verdict(v) || v.about === undefined || v.about === null) continue;
+    const row = batch.get(v.id);
+    if (!row) continue;
+    const text = typeof v.about === 'string' ? tidySentence(v.about) : '';
+    const problem = typeof v.about === 'string' ? aboutProblem(text) : 'not a sentence';
+    if (problem) {
+      skipped.push({ id: v.id, reason: `about: ${problem}` });
+      continue;
+    }
+    if (has.has(row.candidate_id)) continue;
+    has.add(row.candidate_id);
+    written.push({ candidate: row.candidate_id, input: row.input, text, from: `the judge, ${v.model ?? model}` });
+  }
+  return { written, skipped };
 }
 
 const NEAR_SHOWN = 30;
@@ -435,6 +545,10 @@ export function renderReport(r: {
   requests?: readonly WordRequest[];
   /** Every request on file, so the report can name the ones still waiting. */
   openRequests?: readonly WordRequest[];
+  /** Sentences about inputs that reached a hit in this run. */
+  about?: readonly AboutLine[];
+  /** Sentences the judge wrote that break the rule, left off. */
+  aboutSkipped?: readonly Rejection[];
 }): string {
   const head = [
     `# ${r.heading ?? `Ingest ${r.date}`}`,
@@ -511,9 +625,30 @@ export function renderReport(r: {
           '',
         ]
       : []),
+    ...renderAbout(r.about ?? [], r.aboutSkipped ?? []),
     ...renderRequests(r.requests ?? [], r.openRequests ?? []),
     ...rejected,
   ].join('\n');
+}
+
+/** The report's About section: what each input is, as its hits now say it. */
+export function renderAbout(lines: readonly AboutLine[], skipped: readonly Rejection[]): string[] {
+  if (lines.length === 0 && skipped.length === 0) return [];
+  return [
+    '## About',
+    '',
+    ...(lines.length
+      ? [
+          'What each input is, as its hits now carry it. Merging accepts these sentences; change one with `pnpm hits:describe <candidate> "One sentence."`.',
+          '',
+          '| candidate | input | sentence | from |',
+          '|---|---|---|---|',
+          ...lines.map((l) => `| ${l.candidate} | ${cell(l.input)} | ${cell(l.text)} | ${cell(l.from)} |`),
+          '',
+        ]
+      : []),
+    ...(skipped.length ? ['Left off, breaking the rule:', '', ...skipped.map((x) => `- ${x.id}: ${x.reason}`), ''] : []),
+  ];
 }
 
 async function main(): Promise<void> {
@@ -570,6 +705,19 @@ async function main(): Promise<void> {
   const candidates = await readJsonl(CANDIDATES_PATH, cv);
   const hitValidator = await hitSchema();
   const known = await readJsonl(HITS_PATH, hitValidator);
+
+  // The judge's sentences about inputs that have none go on the candidates
+  // before any hit is built, so the new hits carry them, and each is checked
+  // against the schema before either file is written.
+  const abouts = onlyIds ? { written: [], skipped: [] } : aboutsFromVerdicts(verified, batch, candidates, model);
+  const byCandidate = new Map(candidates.map((c) => [c.id, c]));
+  abouts.written = abouts.written.filter((line) => byCandidate.has(line.candidate));
+  for (const line of abouts.written) {
+    const c = byCandidate.get(line.candidate)!;
+    c.about = line.text;
+    if (!cv(c)) throw new Error(`refusing the judge's sentence about ${line.candidate}: ${line.text}`);
+  }
+
   const options: IngestOptions = {
     model,
     version,
@@ -580,6 +728,11 @@ async function main(): Promise<void> {
     taken: takenCounts(known),
     existing: new Set(known.map((h) => h.id)),
     subjects: new Map(candidates.flatMap((c) => (c.subjects?.length ? [[c.id, c.subjects] as const] : []))),
+    about: new Map(
+      candidates.flatMap((c) =>
+        c.about || c.wikipedia ? [[c.id, { ...(c.about ? { about: c.about } : {}), ...(c.wikipedia ? { wikipedia: c.wikipedia } : {}) }] as const] : [],
+      ),
+    ),
   };
 
   if (onlyIds) {
@@ -598,14 +751,29 @@ async function main(): Promise<void> {
   }
 
   const assessed = assessBatch(batch, verified, options);
-  const added = await appendJsonl(HITS_PATH, assessed.hits.map((p) => p.hit), hitValidator);
+  // Every input the queue covered is done for now: the ones with rows the
+  // judge saw and, for a screened queue, the ones the screen kept nothing of.
+  const judgedCandidates = new Set([...[...batch.values()].map((r) => r.candidate_id), ...(await screenedCandidateIds(dir))]);
+  // The hits these inputs already had take the sentence too. Only when one
+  // changes is the file rewritten; otherwise the new hits are appended.
+  const synced = syncAbout(known, candidates, judgedCandidates);
+  const fresh = assessed.hits.map((p) => p.hit);
+  let added: Hit[];
+  if (synced.changed.length > 0) {
+    await writeJsonl(HITS_PATH, [...synced.hits, ...fresh], hitValidator);
+    added = fresh;
+  } else {
+    added = await appendJsonl(HITS_PATH, fresh, hitValidator);
+  }
+  const reached = new Map(abouts.written.map((line) => [line.candidate, line]));
+  for (const id of [...added.filter((h) => h.about).map((h) => candidateOf(h.id)), ...synced.changed.map(candidateOf)]) {
+    const c = byCandidate.get(id);
+    if (!reached.has(id) && c?.about) reached.set(id, { candidate: id, input: c.input, text: c.about, from: 'already on the input' });
+  }
 
   // Candidates that were judged are done for now, and the ledger records
   // the queue and the versions they went through.
   const rubricKind = verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2';
-  // Every input the queue covered is done for now: the ones with rows the
-  // judge saw and, for a screened queue, the ones the screen kept nothing of.
-  const judgedCandidates = new Set([...[...batch.values()].map((r) => r.candidate_id), ...(await screenedCandidateIds(dir))]);
   const run = { queue: queueName(dir), settings: await queueSettings(dir), rubric: rubricKind, date };
   let moved = 0;
   for (const c of candidates) {
@@ -650,6 +818,8 @@ async function main(): Promise<void> {
     threshold,
     requests: merged.added,
     openRequests: merged.next,
+    about: [...reached.values()],
+    aboutSkipped: abouts.skipped,
   });
   await writeFile(resolve(dir, INGEST_REPORT), report);
   console.log(report);

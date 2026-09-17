@@ -16,16 +16,18 @@ import { Definitions } from '@ars-magna/engine/definitions';
 import { normalizeLetters } from '@ars-magna/engine/fold';
 import { DEFS_DIR, Engine, fileFetch } from '@ars-magna/engine/node';
 import type { Tier } from '@ars-magna/engine/protocol';
+import { aboutProblem, syncAbout, tidySentence } from '@ars-magna/hits/about';
 import { checkAnagram } from '@ars-magna/hits/check';
 import { CATEGORIES, alphagram, candidateId, hitId } from '@ars-magna/hits/ids';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
-  appendJsonl,
   candidateSchema,
   dictionaryPin,
   hitSchema,
+  readJsonl,
   today,
+  writeJsonl,
   type Candidate,
   type Hit,
 } from '@ars-magna/hits/schema';
@@ -133,7 +135,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     {
       title: 'Propose a hit',
       description:
-        'Check that `words` are a real anagram of `input` at `tier`, then record the input as a candidate and the phrase as a proposed hit for a person to review. `justification` is one plain sentence explaining the link for a reader. Nothing is published by this tool.',
+        'Check that `words` are a real anagram of `input` at `tier`, then record the input as a candidate and the phrase as a proposed hit for a person to review. `justification` is one plain sentence explaining the link for a reader; with none, a `rationale` of up to 300 characters is used instead. `about` is one factual sentence saying what the input is (under 200 characters, ending with a full stop, never an opinion, never about a private person); it is kept only when the input has none yet, and the hit carries the input\'s sentence. Nothing is published by this tool.',
       inputSchema: {
         input: z.string().min(1),
         category: z.enum(CATEGORIES),
@@ -141,26 +143,39 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         tier,
         rationale: z.string().default(''),
         justification: z.string().trim().min(1).max(300).optional(),
+        about: z.string().optional(),
         submitter: z.string().default('mcp'),
       },
     },
     async (args) => {
+      const about = args.about === undefined ? null : tidySentence(args.about);
+      const problem = about === null ? null : aboutProblem(about);
+      if (problem) return text({ ok: false, reason: `about: ${problem}` });
+
       const e = await engine();
       const words = args.words.map(normalizeLetters).filter((w) => w.length > 0);
       const verdict = await checkAnagram(e, args.input, words, args.tier as Tier);
       if (!verdict.ok) return text({ ok: false, reason: verdict.reason });
 
       const date = today();
-      const candidate: Candidate = {
-        id: candidateId(args.input, args.category),
-        input: args.input,
-        category: args.category,
-        source: 'manual',
-        first_seen: date,
-        status: 'enumerated',
-      };
+      const cv = await candidateSchema();
+      const hv = await hitSchema();
+      const candidates = await readJsonl(paths.candidates, cv);
+      const hits = await readJsonl(paths.hits, hv);
+      const cid = candidateId(args.input, args.category);
+      const existing = candidates.find((c) => c.id === cid);
+      const candidate: Candidate = existing
+        ? { ...existing }
+        : { id: cid, input: args.input, category: args.category, source: 'manual', first_seen: date, status: 'enumerated' };
+      // A sentence the input already has is never replaced here; hits:describe changes one.
+      const aboutWritten = about !== null && !candidate.about;
+      if (aboutWritten) candidate.about = about;
+      const rationale = tidySentence(args.rationale);
+      const justification = args.justification ?? (rationale.length > 0 && [...rationale].length <= 300 ? rationale : undefined);
+      const id = hitId(args.input, args.category, words);
+      const newHit = !hits.some((h) => h.id === id);
       const hit: Hit = {
-        id: hitId(args.input, args.category, words),
+        id,
         input: args.input,
         category: args.category,
         words,
@@ -172,13 +187,15 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         added: date,
         dictionary: await dictionaryPin(),
         tier: args.tier as Tier,
-        tags: args.rationale ? [`note:${args.rationale.slice(0, 80)}`] : [],
+        tags: [],
         status: 'proposed',
-        ...(args.justification ? { justification: args.justification } : {}),
+        ...(justification ? { justification } : {}),
       };
-      const addedCandidates = await appendJsonl(paths.candidates, [candidate], await candidateSchema());
-      const addedHits = await appendJsonl(paths.hits, [hit], await hitSchema());
-      return text({ ok: true, hit: hit.id, newCandidate: addedCandidates.length === 1, newHit: addedHits.length === 1 });
+      const nextCandidates = existing ? candidates.map((c) => (c.id === cid ? candidate : c)) : [...candidates, candidate];
+      const synced = syncAbout(newHit ? [...hits, hit] : hits, nextCandidates, [cid]);
+      if (!existing || aboutWritten) await writeJsonl(paths.candidates, nextCandidates, cv);
+      if (newHit || synced.changed.length > 0) await writeJsonl(paths.hits, synced.hits, hv);
+      return text({ ok: true, hit: id, newCandidate: !existing, newHit, about: candidate.about ?? null });
     },
   );
 

@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import type { Prefiltered } from './prefilter.ts';
 import { JUDGE_OUTPUT, SCREENED, flag, pickQueue, readJudgedRows } from './queue.ts';
 import { applyScreen, screenInputFiles } from './screen.ts';
-import { today } from './schema.ts';
+import { CANDIDATES_PATH, candidateSchema, readJsonl, today } from './schema.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const RUBRIC_PATH = resolve(here, '../prompts/judge.md');
@@ -59,6 +59,13 @@ export type VerdictV2 = {
    * and trace are the model's own and are unverified.
    */
   request?: { word?: unknown; gloss?: unknown; trace?: unknown; why?: unknown };
+  /**
+   * One factual sentence saying what the input is, for an input the batch
+   * showed without one. Unchecked here: ingest keeps it only when it follows
+   * the rule and the input still has none, and a bad one never costs the
+   * verdict its place.
+   */
+  about?: unknown;
 };
 
 export type Verdict = VerdictV1 | VerdictV2;
@@ -99,10 +106,25 @@ export function batches(rows: readonly Prefiltered[], size: number): Prefiltered
   return out;
 }
 
-export function renderBatch(rows: readonly Prefiltered[], rubricText: string, n: number, of: number): string {
-  const lines = rows.map(
-    (r) => `- id: ${r.id}\n  input: ${r.input}\n  category: ${r.category}\n  anagram: ${r.display}`,
-  );
+/**
+ * A batch as the judge reads it: the rubric, then each row. With `about`
+ * (each input's sentence, by candidate id), an input's first row also says
+ * what it is, or `(empty)`, so the judge knows where a sentence is wanted.
+ */
+export function renderBatch(
+  rows: readonly Prefiltered[],
+  rubricText: string,
+  n: number,
+  of: number,
+  about?: ReadonlyMap<string, string>,
+): string {
+  const seen = new Set<string>();
+  const lines = rows.map((r) => {
+    const first = !seen.has(r.candidate_id);
+    seen.add(r.candidate_id);
+    const said = about && first ? `\n  about: ${about.get(r.candidate_id) ?? '(empty)'}` : '';
+    return `- id: ${r.id}\n  input: ${r.input}\n  category: ${r.category}${said}\n  anagram: ${r.display}`;
+  });
   return `${rubricText}\n\n## Batch ${n} of ${of}: ${rows.length} candidates\n\n${lines.join('\n')}\n`;
 }
 
@@ -192,11 +214,14 @@ async function main(): Promise<void> {
 
   const { text: rubricText, version } = await rubric();
   const split = batches(rows, size);
+  const about = new Map(
+    (await readJsonl(CANDIDATES_PATH, await candidateSchema())).flatMap((c) => (c.about ? [[c.id, c.about] as const] : [])),
+  );
 
   if (via === 'file') {
     for (let i = 0; i < split.length; i++) {
       const path = resolve(dir, `judge-input-${i + 1}.md`);
-      await writeFile(path, renderBatch(split[i]!, rubricText, i + 1, split.length));
+      await writeFile(path, renderBatch(split[i]!, rubricText, i + 1, split.length, about));
       console.log(`wrote ${path} (${split[i]!.length} candidates)`);
     }
     console.log(
@@ -213,7 +238,7 @@ async function main(): Promise<void> {
   const lines: string[] = [];
   for (const judge of judges) {
     for (let i = 0; i < split.length; i++) {
-      const prompt = renderBatch(split[i]!, rubricText, i + 1, split.length);
+      const prompt = renderBatch(split[i]!, rubricText, i + 1, split.length, about);
       console.log(`${judge.model}: batch ${i + 1} of ${split.length}…`);
       const answer = await judge.ask(prompt);
       for (const verdict of parseVerdicts(answer)) {

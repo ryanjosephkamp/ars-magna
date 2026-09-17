@@ -10,8 +10,19 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cleanTitle, isJunk } from '../src/classify/junk.ts';
-import { MAX_SUBJECTS, buildQuery, categoryTable, classifyTitles, interpret, subjectSlug } from '../src/classify/wikidata.ts';
-import { reclassify, runFetch, titleOf, toCandidates } from '../src/fetch.ts';
+import {
+  MAX_SUBJECTS,
+  buildQuery,
+  categoryTable,
+  classifyTitles,
+  describeQuery,
+  interpret,
+  interpretItems,
+  interpretLabels,
+  subjectSlug,
+  type Classification,
+} from '../src/classify/wikidata.ts';
+import { describable, lookupable, matchItems, reclassify, runFetch, titleOf, toCandidates, withWikidata } from '../src/fetch.ts';
 import { previousDay, wikipediaTop } from '../src/sources/wikipedia-top.ts';
 import { USER_AGENT } from '../src/sources/source.ts';
 import { candidateSchema, type Candidate } from '../src/schema.ts';
@@ -23,6 +34,7 @@ const fixture = (name: string) => readFile(resolve(here, 'fixtures', name), 'utf
 async function recordedFetch(): Promise<{ fetch: typeof fetch; calls: string[] }> {
   const pageviews = await fixture('pageviews-2026-09-09.json');
   const sparql = await fixture('sparql-2026-09-09.json');
+  const described = await fixture('sparql-describe-2026-09-09.json');
   const calls: string[] = [];
   const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.toString();
@@ -31,6 +43,11 @@ async function recordedFetch(): Promise<{ fetch: typeof fetch; calls: string[] }
     if (url.includes('/pageviews/top/')) {
       if (url.endsWith('/2026/09/09')) return new Response(pageviews, { status: 200 });
       return new Response('not yet', { status: 404 });
+    }
+    if (url.startsWith('https://query.wikidata.org/sparql') && String(init?.body).includes(encodeURIComponent('schema:description'))) {
+      // What the placed titles' items are: recorded for every item in the classification fixture.
+      expect(String(init?.body)).toContain(encodeURIComponent('VALUES ?item'));
+      return new Response(described, { status: 200 });
     }
     if (url.startsWith('https://query.wikidata.org/sparql')) {
       // Every batch is a SPARQL query over enwiki titles; the fixture answers
@@ -166,9 +183,122 @@ describe('fetch', () => {
     expect(by.get('Killing of the Clancy children')).toMatchObject({ status: 'unclassified' });
     expect(first.unclassified.length).toBeGreaterThan(0);
 
-    // The pure step is stable: the same inputs give the same records.
+    // A placed candidate says what it is, from Wikidata; an item the table excludes, such as an event, does not.
+    expect(by.get('Ben Shelton')).toMatchObject({
+      about: 'Ben Shelton is an American tennis player.',
+      wikipedia: 'https://en.wikipedia.org/wiki/Ben_Shelton',
+    });
+    expect(by.get('Killing of the Clancy children')!.about).toBeUndefined();
+    expect(by.get('Navier–Stokes equations')!.about).toBeUndefined();
+
+    // The pure steps are stable: the same inputs give the same records.
     const again = toCandidates([{ title: 'Ben Shelton', source: 's', weight: 1 }], new Map(first.classified.map((c) => [c.title, c])), new Map(), '2026-09-11');
-    expect(again[0]).toEqual(by.get('Ben Shelton'));
+    const items = interpretItems([again[0]!.wikidata_qid!], JSON.parse(await fixture('sparql-describe-2026-09-09.json')).results.bindings);
+    expect(withWikidata(again[0]!, items.get(again[0]!.wikidata_qid!))).toEqual(by.get('Ben Shelton'));
+  });
+});
+
+describe('what an input is, from Wikidata', () => {
+  const c = (over: Partial<Candidate>): Candidate => ({ id: 'x:people', input: 'X', category: 'people', source: 'trending', first_seen: '2026-09-11', status: 'new', ...over });
+
+  it('asks for each item once, with the dates of death and dissolution as a yes or no, not a row each', () => {
+    const query = describeQuery(['Q1', 'Q2']);
+    expect(query).toContain('VALUES ?item { wd:Q1 wd:Q2 }');
+    expect(query).toContain('BIND(EXISTS { ?item wdt:P570|wdt:P576 [] } AS ?ended)');
+    expect(query).not.toMatch(/OPTIONAL \{ \?item wdt:P570/);
+    const items = interpretItems(
+      ['Q1', 'Q2', 'Q3'],
+      [
+        { item: { value: 'http://www.wikidata.org/entity/Q1' }, description: { value: 'American singer-songwriter (1946–2026)' }, ended: { value: 'true' }, sitelink: { value: 'https://en.wikipedia.org/wiki/Dolly_Parton' } },
+        { item: { value: 'http://www.wikidata.org/entity/Q2' }, ended: { value: 'false' } },
+      ],
+    );
+    expect(items.get('Q1')).toEqual({ qid: 'Q1', description: 'American singer-songwriter (1946–2026)', ended: true, wikipedia: 'https://en.wikipedia.org/wiki/Dolly_Parton' });
+    expect(items.get('Q2')).toEqual({ qid: 'Q2', description: null, ended: false, wikipedia: null });
+    expect(items.get('Q3')).toEqual({ qid: 'Q3', description: null, ended: false, wikipedia: null });
+  });
+
+  it('fills a sentence and a link only where the candidate has none', () => {
+    const item = { qid: 'Q1', description: 'American singer-songwriter (1946–2026)', ended: true, wikipedia: 'https://en.wikipedia.org/wiki/Dolly_Parton' };
+    expect(withWikidata(c({ input: 'Dolly Parton', wikidata_qid: 'Q1' }), item)).toMatchObject({
+      about: 'Dolly Parton was an American singer-songwriter (1946–2026).',
+      wikipedia: 'https://en.wikipedia.org/wiki/Dolly_Parton',
+    });
+    const mine = c({ input: 'Dolly Parton', wikidata_qid: 'Q1', about: 'Dolly Parton wrote Jolene.' });
+    expect(withWikidata(mine, item)).toEqual({ ...mine, wikipedia: 'https://en.wikipedia.org/wiki/Dolly_Parton' });
+    expect(withWikidata(mine, undefined)).toBe(mine);
+    expect(withWikidata(c({}), { ...item, description: 'Wikimedia disambiguation page', wikipedia: null })).toEqual(c({}));
+  });
+
+  it('describes placed candidates with an item, and looks items up only for manual ones outside phrases', () => {
+    expect(describable(c({ wikidata_qid: 'Q1' }))).toBe(true);
+    expect(describable(c({}))).toBe(false);
+    expect(describable(c({ wikidata_qid: 'Q1', status: 'unclassified' }))).toBe(false);
+    expect(describable(c({ wikidata_qid: 'Q1', status: 'rejected' }))).toBe(false);
+    expect(lookupable(c({ source: 'manual' }))).toBe(true);
+    expect(lookupable(c({ source: 'manual', wikidata_qid: 'Q1' }))).toBe(false);
+    expect(lookupable(c({ source: 'manual', category: 'phrases' }))).toBe(false);
+    expect(lookupable(c({ source: 'trending' }))).toBe(false);
+  });
+
+  it('matches a manual candidate by title inside its own category, and only suggests the one label match that fits', () => {
+    const manual = [
+      c({ id: 'starwars:titles', input: 'Star Wars', category: 'titles', source: 'manual' }),
+      c({ id: 'iphone:products', input: 'iPhone', category: 'products', source: 'manual' }),
+      c({ id: 'titanic:titles', input: 'Titanic', category: 'titles', source: 'manual' }),
+      c({ id: 'saharadesert:places', input: 'Sahara Desert', category: 'places', source: 'manual' }),
+      c({ id: 'nobody:people', input: 'Nobody', category: 'people', source: 'manual' }),
+    ];
+    const cls = (title: string, qid: string | null, category: Candidate['category'] | null): [string, Classification] => [title, { title, qid, classes: [], category, subjects: [] }];
+    const byTitle = new Map([
+      cls('Star Wars', 'Q462', 'titles'),
+      cls('iPhone', null, null),
+      cls('IPhone', 'Q2766', 'products'),
+      cls('Titanic', 'Q25173', 'places'),
+      cls('Sahara Desert', null, null),
+      cls('Nobody', null, null),
+    ]);
+    const byLabel = new Map([
+      ['Titanic', [
+        { qid: 'Q44578', category: 'titles' as const, wikipedia: 'https://en.wikipedia.org/wiki/Titanic_(1997_film)' },
+        { qid: 'Q18605', category: 'titles' as const, wikipedia: 'https://en.wikipedia.org/wiki/Titanic_(1953_film)' },
+      ]],
+      ['Sahara Desert', [{ qid: 'Q6583', category: 'places' as const, wikipedia: 'https://en.wikipedia.org/wiki/Sahara' }]],
+      ['Nobody', []],
+    ]);
+    const { matched, suggested, unmatched } = matchItems(manual, byTitle, byLabel);
+    expect(matched).toEqual([
+      { id: 'starwars:titles', input: 'Star Wars', qid: 'Q462' },
+      { id: 'iphone:products', input: 'iPhone', qid: 'Q2766' },
+    ]);
+    expect(suggested).toEqual([{ id: 'saharadesert:places', input: 'Sahara Desert', qid: 'Q6583' }]);
+    expect(unmatched).toEqual([
+      { id: 'titanic:titles', input: 'Titanic', reason: '2 items in titles share its label (Q44578, Q18605)' },
+      { id: 'nobody:people', input: 'Nobody', reason: 'no item has its title or label' },
+    ]);
+  });
+
+  it('reads every item a label names, each with the category its classes reach', async () => {
+    const table = await categoryTable();
+    const human = Object.keys(table.roots.people)[0]!;
+    const excluded = Object.keys(table.exclude)[0]!;
+    const e = (q: string) => ({ value: `http://www.wikidata.org/entity/${q}` });
+    const labels = interpretLabels(
+      ['Mercury', 'Nothing'],
+      [
+        { label: { value: 'Mercury' }, item: e('Q1'), sitelink: { value: 'https://en.wikipedia.org/wiki/Freddie_Mercury' }, class: e('Q5'), root: e(human) },
+        { label: { value: 'Mercury' }, item: e('Q2'), sitelink: { value: 'https://en.wikipedia.org/wiki/Mercury_(planet)' }, class: e('Q634') },
+        { label: { value: 'Mercury' }, item: e('Q3'), sitelink: { value: 'https://en.wikipedia.org/wiki/Mercury_Prize' }, class: e('Q1'), root: e(human) },
+        { label: { value: 'Mercury' }, item: e('Q3'), sitelink: { value: 'https://en.wikipedia.org/wiki/Mercury_Prize' }, class: e('Q2'), root: e(excluded) },
+      ],
+      table,
+    );
+    expect(labels.get('Mercury')).toEqual([
+      { qid: 'Q1', category: 'people', wikipedia: 'https://en.wikipedia.org/wiki/Freddie_Mercury' },
+      { qid: 'Q2', category: null, wikipedia: 'https://en.wikipedia.org/wiki/Mercury_(planet)' },
+      { qid: 'Q3', category: null, wikipedia: 'https://en.wikipedia.org/wiki/Mercury_Prize' },
+    ]);
+    expect(labels.get('Nothing')).toEqual([]);
   });
 });
 

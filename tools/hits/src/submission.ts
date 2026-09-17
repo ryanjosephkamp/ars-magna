@@ -22,6 +22,8 @@ export type Submission = {
   words: string[];
   tier: 'common' | 'standard' | 'full' | 'extended';
   why: string;
+  /** "What the input is": one factual sentence, or empty. */
+  about: string;
   credit: string;
 };
 
@@ -51,7 +53,15 @@ export function parseIssueForm(body: string): Submission | { error: string } {
     tierRaw === 'common' || tierRaw === 'full' || tierRaw === 'extended' ? tierRaw : 'standard';
   const words = anagram.split(/\s+/).map(normalizeLetters).filter((w) => w.length > 0);
   if (words.length === 0) return { error: 'the Anagram field has no letters' };
-  return { input, category, words, tier, why: fields.get('why it is good') ?? '', credit: fields.get('credit') ?? '' };
+  return {
+    input,
+    category,
+    words,
+    tier,
+    why: fields.get('why it is good') ?? '',
+    about: fields.get('what the input is') ?? '',
+    credit: fields.get('credit') ?? '',
+  };
 }
 
 const BINARY = resolve(REPO_ROOT, 'target/release/anagram');

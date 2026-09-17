@@ -35,6 +35,7 @@
     "hits:backfill": "pnpm --filter @ars-magna/hits run backfill",
     "hits:desk": "pnpm --filter @ars-magna/hits run desk",
     "hits:justify": "pnpm --filter @ars-magna/hits run justify",
+    "hits:describe": "pnpm --filter @ars-magna/hits run describe",
     "hits:tag": "pnpm --filter @ars-magna/hits run tag",
     "hits:order": "pnpm --filter @ars-magna/hits run order",
     "hits:input": "pnpm --filter @ars-magna/hits run input",
