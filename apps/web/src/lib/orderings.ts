@@ -1,5 +1,9 @@
 import { scoreOrder } from '@ars-magna/engine';
 
+import { countOrderings } from './orderingCount.ts';
+
+export { countOrderings };
+
 /**
  * Word orderings for a single result.
  *
@@ -13,29 +17,6 @@ import { scoreOrder } from '@ars-magna/engine';
  * interchangeable. A naive permutation walk emits that twice. Skipping repeated
  * values at each level of the recursion emits each distinct *phrase* once.
  */
-
-/** Above this the count is reported as "more than", not as a figure. */
-const COUNT_CEILING = 1e15;
-
-/**
- * How many distinct orderings exist: k! divided by the factorial of each
- * repeat group. Returns `Infinity` when the answer exceeds what a JS number can
- * represent exactly, so callers can say "more than" instead of lying.
- */
-export function countOrderings(words: readonly string[]): number {
-  const repeats = new Map<string, number>();
-  for (const word of words) repeats.set(word, (repeats.get(word) ?? 0) + 1);
-
-  let total = 1;
-  for (let i = 2; i <= words.length; i++) {
-    total *= i;
-    if (total > COUNT_CEILING) return Infinity;
-  }
-  for (const count of repeats.values()) {
-    for (let i = 2; i <= count; i++) total /= i;
-  }
-  return Math.round(total);
-}
 
 /**
  * Distinct orderings, capped at `limit`.
@@ -144,4 +125,17 @@ export function nextOrdering(
   const phrase = current.join(' ');
   const index = list.findIndex((row) => row.join(' ') === phrase);
   return [...list[(index + 1) % list.length]!];
+}
+
+/** How many orderings Discoveries ships with each hit, its own order first. */
+export const HIT_ORDERINGS = 8;
+
+/**
+ * A published hit's orderings as phrases: its own reading order first, then
+ * the rest ranked by how they read, at most `HIT_ORDERINGS`. None for a hit
+ * whose words read only one way. Computed once, at build time.
+ */
+export function hitOrderings(words: readonly string[], masks: readonly number[]): string[] {
+  if (countOrderings(words) < 2) return [];
+  return orderings(words, HIT_ORDERINGS, masks).map((row) => row.join(' '));
 }

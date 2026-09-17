@@ -18,6 +18,7 @@ const hit = (over: Partial<PublicHit> & Pick<PublicHit, 'id' | 'words' | 'letter
   tags: [],
   about: null,
   wikipedia: null,
+  orderings: [],
   ...over,
 });
 

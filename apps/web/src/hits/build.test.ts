@@ -14,6 +14,8 @@ import {
   shelfOf,
   slugOf,
   toPublic,
+  withDefaults,
+  googleUrl,
   type HitRecord,
 } from './build.ts';
 
@@ -58,6 +60,18 @@ describe('gallery build', () => {
     expect(toPublic(record({ submitter: 'mcp' })).submitter).toBeNull();
     // A shelf tag becomes the shelf, not a tag.
     expect(toPublic(record({ tags: ['classic', 'shelf:stretch'] }))).toMatchObject({ shelf: 'stretch', tags: ['classic'] });
+  });
+
+  it('starts every row with no orderings, and reads an older list as having none of the newer fields', () => {
+    expect(toPublic(record({})).orderings).toEqual([]);
+    const { about: _a, wikipedia: _w, orderings: _o, ...older } = toPublic(record({}));
+    expect(withDefaults(older)).toMatchObject({ about: null, wikipedia: null, orderings: [] });
+    expect(withDefaults({ ...older, orderings: ['room dirty'] }).orderings).toEqual(['room dirty']);
+  });
+
+  it('searches Google for the input as a reader would type it', () => {
+    expect(googleUrl('Dolly Parton')).toBe('https://www.google.com/search?q=Dolly%20Parton');
+    expect(googleUrl("(What's the Story) Morning Glory?")).toBe('https://www.google.com/search?q=(What\'s%20the%20Story)%20Morning%20Glory%3F');
   });
 
   it('carries what the input is and its Wikipedia article, null until the hit has them', () => {
@@ -180,5 +194,9 @@ describe('gallery build', () => {
     expect(page).toContain('href="https://ars-magna.pages.dev/hits/starwars-titles-stars-war/"');
     expect(page).toContain('url=/hits#starwars-titles-stars-war');
     expect(hitPage(toPublic(record({ input: 'A "quoted" <name>' })), 'x')).toContain('A &quot;quoted&quot; &lt;name&gt;');
+    // What the input is describes the page first, when the hit says.
+    const about = hitPage(toPublic({ ...hits[1]!, about: 'Star Wars is an epic space opera franchise.' }), 'https://ars-magna.pages.dev');
+    expect(about).toContain('<meta name="description" content="Star Wars is an epic space opera franchise." />');
+    expect(about).toContain('property="og:description" content="Star Wars is an epic space opera franchise."');
   });
 });

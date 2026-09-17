@@ -129,4 +129,10 @@ export class Engine {
     await this.#core.handle({ k: 'spellings', id: this.#id++, word, tier });
     return [...this.#port.take('spellings').words];
   }
+
+  /** Each word's part-of-speech mask, in order: what ranks a result's orderings, as the site's worker ranks them. */
+  async masks(words: readonly string[]): Promise<number[]> {
+    await this.#core.handle({ k: 'masks', id: this.#id++, words });
+    return [...this.#port.take('masks').masks];
+  }
 }
