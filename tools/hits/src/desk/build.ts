@@ -73,7 +73,7 @@ export type DeskCandidate = {
   wikipedia: string;
 };
 
-/** `desk` is the review desk; `audit` is one page for moving every anagram the site's Discoveries page shows between its sections. */
+/** `desk` is the review desk; `audit` is one page for moving every anagram the site's Discover page shows between its sections. */
 export type DeskMode = 'desk' | 'audit';
 
 export type DeskData = {

@@ -30,7 +30,7 @@ const DICTIONARY_LINKS: Link[] = [
 ];
 
 const HITS_LINKS: Link[] = [
-  { label: 'Discoveries', href: '/hits', note: 'the ones worth keeping' },
+  { label: 'Discover', href: '/hits', note: 'the ones worth keeping' },
   { label: 'How it works', href: '/how', note: 'sections, votes and promotions' },
   {
     label: 'Dataset',
@@ -101,7 +101,7 @@ export function SiteFooter({
   return (
     <footer className="mt-20 border-t border-rule-strong pt-8">
       <div className="flex flex-col gap-7">
-        <Group title="Discoveries" links={HITS_LINKS} />
+        <Group title="Discover" links={HITS_LINKS} />
         <Group title="The words" links={DICTIONARY_LINKS} />
         <Group title="Ryan Kamp" links={AUTHOR_LINKS} />
       </div>

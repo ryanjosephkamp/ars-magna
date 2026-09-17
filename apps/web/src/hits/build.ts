@@ -89,7 +89,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   phrases: 'Phrases',
 };
 
-/** The Discoveries page's sections, in order, each with what it means. */
+/** The Discover page's sections, in order, each with what it means. */
 export const SECTIONS: readonly { shelf: Shelf; label: string; note: string }[] = [
   { shelf: 'greatest', label: 'Greatest Hits', note: 'The best of them, picked by hand.' },
   { shelf: 'interesting', label: 'Interesting', note: 'Names the original, or has a clear, specific link to it.' },
@@ -252,7 +252,7 @@ function escapeHtml(text: string): string {
 export function hitPage(hit: PublicHit, origin: string): string {
   const title = `${hit.input} → ${hit.display}`;
   // What the input is, when the hit says, for a preview read by someone who may not know it.
-  const description = hit.about || hit.justification || `An anagram of ${hit.input}: ${hit.display}. One of the Ars Magna discoveries.`;
+  const description = hit.about || hit.justification || `An anagram of ${hit.input}: ${hit.display}. One of the anagrams on Ars Magna Discover.`;
   const url = `${origin}/hits/${hit.slug}/`;
   const target = `/hits#${hit.slug}`;
   return `<!doctype html>

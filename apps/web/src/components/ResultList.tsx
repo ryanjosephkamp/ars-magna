@@ -39,7 +39,7 @@ type Props = {
   onChoose(order: readonly string[]): void;
   /** What a share of any row needs beyond its phrase. */
   share: ShareContext;
-  /** The anagrams of these letters on Discoveries, once known. */
+  /** The anagrams of these letters on Discover, once known. */
   discovered: Discovered | null;
   votes: Votes;
   promotions: Promotions;
@@ -440,7 +440,7 @@ function ResultRow({
 }
 
 /**
- * A row that is on Discoveries: its section, the Discoveries spelling when the
+ * A row that is on Discover: its section, the Discover spelling when the
  * row spells it another way, and Vote. Always visible, since few rows have it.
  */
 function PublishedAction({ discovery, votes }: { discovery: RowDiscovery; votes: Votes }) {
@@ -459,7 +459,7 @@ function PublishedAction({ discovery, votes }: { discovery: RowDiscovery; votes:
   );
 }
 
-/** Promote, with its count, for a row that is not on Discoveries. Absent when promotions did not load. */
+/** Promote, with its count, for a row that is not on Discover. Absent when promotions did not load. */
 function PromoteAction({ words, input, promotions }: { words: readonly string[]; input: string; promotions: Promotions }) {
   if (promotions.status !== 'open' && promotions.status !== 'closed') return null;
   if (!promotable(input, words)) return null;

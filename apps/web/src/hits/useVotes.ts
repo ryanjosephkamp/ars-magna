@@ -31,7 +31,7 @@ function sentenceFor(error: unknown): string {
 
 /**
  * Votes: the counts, this browser's votes, and pressing Vote. Counts load once
- * `enabled` is true (at once on Discoveries; after the first count on the
+ * `enabled` is true (at once on Discover; after the first count on the
  * search page, so they never delay a search).
  */
 export function useVotes(pass: Pass, enabled = true): Votes {

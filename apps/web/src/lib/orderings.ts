@@ -127,7 +127,7 @@ export function nextOrdering(
   return [...list[(index + 1) % list.length]!];
 }
 
-/** How many orderings Discoveries ships with each hit, its own order first. */
+/** How many orderings Discover ships with each hit, its own order first. */
 export const HIT_ORDERINGS = 8;
 
 /**

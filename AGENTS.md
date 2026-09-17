@@ -36,9 +36,9 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `crates/anagram-cli` | `anagram solve\|count\|bench\|batch\|check` |
 | `packages/engine` | worker protocol, `fold.ts` (accent folding), `node.ts` (engine under Node), `definitions.ts` |
 | `packages/mcp` | MCP server (stdio): solve, count, nth, explain_word, propose_hit |
-| `apps/web` | the site; `hits.html` is the Discoveries page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl` |
+| `apps/web` | the site; `hits.html` is the Discover page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl` |
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts` |
-| `apps/web/src/votes`, `apps/web/functions/api` | votes on Discoveries and promotions from search: the logic the page and the API share, with its tests, and the Cloudflare Pages Functions that serve `/api/` |
+| `apps/web/src/votes`, `apps/web/functions/api` | votes on Discover and promotions from search: the logic the page and the API share, with its tests, and the Cloudflare Pages Functions that serve `/api/` |
 | `apps/web/migrations`, `apps/web/wrangler.toml` | the votes and promotions database's schema, and the Pages project's configuration: the D1 binding `DISCOVERIES_DB` and the `VOTES_OPEN` and `PROMOTIONS_OPEN` switches |
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
 | `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |
@@ -58,14 +58,14 @@ cargo test --release --workspace     # Rust: unit, golden, oracle, bench gate, C
 pnpm typecheck                       # TypeScript, all packages
 pnpm test                            # vitest, all packages
 pnpm build                           # the site's pages; runs apps/web/scripts/build-hits.ts first
-pnpm dlx wrangler@4.121.0 pages dev dist   # from apps/web, after a build: the site with /api/ (OPERATOR "Votes on Discoveries")
+pnpm dlx wrangler@4.121.0 pages dev dist   # from apps/web, after a build: the site with /api/ (OPERATOR "Votes on Discover")
 pnpm dev                             # the site at http://localhost:5173
 pnpm hits:fetch | enumerate | prefilter | screen | judge | ingest --model=… | publish
 pnpm hits:fetch --reclassify         # ask Wikidata again: unclassified candidates, manual candidates' items, what inputs are
 pnpm hits:set --status=accepted|featured|proposed|retired id…
 pnpm hits:justify id "One plain sentence."   # set a hit's justification
 pnpm hits:describe candidate "One factual sentence."   # set what an input is, on it and its hits (--wikidata=Q…, --wikipedia=…)
-pnpm hits:sense id word "One sentence."        # set the sense a hit's word reads in on Discoveries (--clear removes it)
+pnpm hits:sense id word "One sentence."        # set the sense a hit's word reads in on Discover (--clear removes it)
 pnpm hits:glosses                             # list published hits' words with their first dictionary gloss (--all for every hit)
 pnpm hits:tag id +tone:pun -subject:actor     # add and remove a hit's tags
 pnpm hits:order id room dirty                 # set the order a hit's words read in

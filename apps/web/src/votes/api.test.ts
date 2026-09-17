@@ -28,7 +28,7 @@ const ALICE = '0b6a1f3e-8d2c-4c1a-9f5e-2b7d6c4a1e90';
 const BOB = '7c2e4a10-3b5d-4e6f-8a9b-0c1d2e3f4a5b';
 const IP = '203.0.113.7';
 
-/** "A gentleman → elegant man" is on Discoveries; "entangle am" is not. */
+/** "A gentleman → elegant man" is on Discover; "entangle am" is not. */
 const PUBLISHED_KEY = 'aaeeglmnnt:elegant-man';
 const PROMOTED = { input: 'A gentleman', words: ['entangle', 'am'], tier: 'standard' };
 const PROMOTED_KEY = 'aaeeglmnnt:am-entangle';
@@ -118,7 +118,10 @@ describe('POST /api/vote and GET /api/votes', () => {
     expect((await t.vote({ hit_id: HIT, voter: ALICE, on: true })).status).toBe(403);
     expect((await t.vote({ hit_id: HIT, voter: BOB, pass: alice, on: true })).status).toBe(403);
     expect((await t.vote({ hit_id: HIT, voter: ALICE, pass: alice.replace(/.$/, (c) => (c === '0' ? '1' : '0')), on: true })).status).toBe(403);
-    expect((await t.vote({ hit_id: 'titanic:titles:i-intact', voter: ALICE, pass: alice, on: true })).status).toBe(404);
+    const unpublished = await t.vote({ hit_id: 'titanic:titles:i-intact', voter: ALICE, pass: alice, on: true });
+    expect(unpublished.status).toBe(404);
+    // The sentence a reader sees names the page, so a rename has to reach it.
+    expect(await unpublished.json()).toEqual({ error: 'unknown-hit', message: 'That anagram is not on Discover.' });
     expect((await t.vote({ hit_id: 'Not An Id', voter: ALICE, pass: alice, on: true })).status).toBe(400);
     expect((await t.vote({ hit_id: HIT, voter: ALICE, pass: alice, on: 'yes' })).status).toBe(400);
 
@@ -229,7 +232,7 @@ describe('POST /api/promote and GET /api/promotions', () => {
     expect(JSON.stringify(t.db.sqlite.prepare('SELECT * FROM rate_limits').all())).not.toContain(IP);
   });
 
-  it('refuses what is not a promotable anagram, without a pass, on Discoveries already, or blocked', async () => {
+  it('refuses what is not a promotable anagram, without a pass, on Discover already, or blocked', async () => {
     const t = setup({ blocked: ['aaeeglmnnt:elan-get-man'] });
     const alice = await t.passFor(ALICE);
     const status = async (body: Record<string, unknown>) => {
@@ -247,6 +250,8 @@ describe('POST /api/promote and GET /api/promotions', () => {
     expect(await status({ ...PROMOTED, pass: undefined })).toEqual([403, 'no-pass']);
     expect(await status({ ...PROMOTED, voter: BOB })).toEqual([403, 'no-pass']);
     expect(await status({ ...PROMOTED, words: ['elegant', 'man'] })).toEqual([409, 'published']);
+    const published = await t.promote({ ...PROMOTED, words: ['elegant', 'man'], voter: ALICE, pass: alice, on: true });
+    expect(await published.json()).toEqual({ error: 'published', message: 'That anagram is on Discover already. Vote for it instead.' });
     expect(await status({ ...PROMOTED, words: ['man', 'get', 'elan'] })).toEqual([403, 'blocked']);
 
     // An accented input folds as the search folds it.

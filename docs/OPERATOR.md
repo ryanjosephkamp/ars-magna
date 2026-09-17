@@ -48,7 +48,7 @@ When you know an anagram that belongs in the dataset.
    ```
 
    If a word reads in a sense the dictionary does not give first, such as slang or an abbreviation, set that
-   sense now with `pnpm hits:sense` (see "Senses on Discoveries").
+   sense now with `pnpm hits:sense` (see "Senses on Discover").
 
 4. Run the four suites (`pnpm test` validates every line of both data files), commit, push, and open a
    pull request. Merge when CI is green; Publish hits and Deploy take it from there.
@@ -218,7 +218,7 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
    and the ones the input already had (from Wikidata, by way of the nightly fetch). Merging accepts them;
    change one with `pnpm hits:describe <candidate> "One factual sentence."` on the branch. Its **Senses**
    section lists, under each new hit, the sense the judge wrote for a word and the dictionary's first gloss
-   it is read over (see "Senses on Discoveries"). Merging accepts those too; change one with
+   it is read over (see "Senses on Discover"). Merging accepts those too; change one with
    `pnpm hits:sense <id> <word> "One sentence."`, or remove it with `--clear`, on the branch.
 2. Check out the branch and change only what you disagree with, one command per status:
 
@@ -234,12 +234,12 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
    near miss is not in `data/hits.jsonl`; to add one, use "Add a hit by hand".
 3. If you changed anything, commit `data/hits.jsonl` on the branch and push. Merge when CI is green. A
    pull request with N of zero has nothing to accept; merge it so the judged queue stays in the record.
-4. Verify the release: the Discoveries page and the dataset show the new hits.
+4. Verify the release: the Discover page and the dataset show the new hits.
 
 | Status | Means |
 |---|---|
-| `featured` | Greatest Hits: the first section of the Discoveries page, picked by hand |
-| `accepted` | in the dataset and on the Discoveries page, in Interesting or A stretch; Greatest Hits and Interesting are the pool the anagram of the day draws from |
+| `featured` | Greatest Hits: the first section of the Discover page, picked by hand |
+| `accepted` | in the dataset and on the Discover page, in Interesting or A stretch; Greatest Hits and Interesting are the pool the anagram of the day draws from |
 | `proposed` | not published: an alternate, or held back |
 | `retired` | buried for good; the id stays in the file, so ingest never proposes it again |
 
@@ -271,7 +271,7 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
      On either, **About the input** holds the sentence saying what the input is, with its Wikipedia article
      beneath when it has one. The sentence belongs to the input, so every row of that input shows the same
      change; it can be rewritten here but not removed. On a hit, **Senses of the words** holds the sense each
-     word reads in, in that anagram, with the dictionary's first gloss beneath (see "Senses on Discoveries").
+     word reads in, in that anagram, with the dictionary's first gloss beneath (see "Senses on Discover").
      On any row of more than one word, **Reorder words** lets you tap the words in the order they should
      read; a near miss takes that order once it is promoted. **Add a note** on any row tells the agent
      something about that hit alone: why it deserves promoting, what its justification should say, or what
@@ -344,7 +344,7 @@ better without its number.
 Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes, desk_row_notes). The desk fills it.
 To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
 
-## Audit the Discoveries page
+## Audit the Discover page
 
 When you want to decide, across everything already published, which anagrams belong in Greatest Hits,
 Interesting or A stretch, and which should come off the page. The review desk handles what a queue adds;
@@ -429,9 +429,9 @@ without writing:
 3. Writes a sentence and a link for every placed candidate with an item and no sentence, and copies them to
    the hits. A sentence that exists, from any source, is never replaced.
 
-## Senses on Discoveries
+## Senses on Discover
 
-An opened row on Discoveries lists each word of the anagram with the dictionary's senses, in the dictionary's
+An opened row on Discover lists each word of the anagram with the dictionary's senses, in the dictionary's
 order, and that order never changes: the three-toed sloth is the right first sense of `ai` everywhere but one
 anagram. Where the first sense would not explain how an anagram reads a word, the hit carries its own sense for
 that word, and the row shows it first, labelled In this anagram, with the dictionary's senses beneath. A word
@@ -483,14 +483,14 @@ fields until it is a hit; promoted with `hits:ingest --only`, it takes the judge
 `hits.json` carries it on the hits that have one. The dataset publishes `senses` as a list of `word` and
 `sense` in reading order, or `null`, so the column keeps one type however many words get a sense.
 
-## Votes on Discoveries
+## Votes on Discover
 
-Readers vote for anagrams on Discoveries and promote the ones that are not there yet. A vote is for an
+Readers vote for anagrams on Discover and promote the ones that are not there yet. A vote is for an
 anagram already in a section: one per browser per anagram, taken back by pressing Vote again, never a vote
 against. Most votes, the page's usual order, ranks each section by them; votes never move an anagram from one
 section to another. A promotion is for any other anagram in a search, on the same terms, and asks for it to
 be considered for a section. Nothing reviews promotions yet (roadmap phase F), so for now they are only
-counted. The search page shows both: an In Discoveries block above the complete list, and Vote or Promote on
+counted. The search page shows both: a Discover block above the complete list, and Vote or Promote on
 every row. The rules as readers see them are at https://ars-magna.pages.dev/how.
 
 | Piece | Where |
@@ -507,7 +507,7 @@ goes, nothing is saved, and the page tells the reader to try again.
 
 **Which rows carry Vote.** The search shows one spelling for each set of words that share letters, so a
 published anagram can sit behind a row that spells it another way: for `Doritos`, "its odor" is the row
-"door sit". Such a row carries Vote for the published anagram, and its label names the Discoveries spelling:
+"door sit". Such a row carries Vote for the published anagram, and its label names the Discover spelling:
 `A stretch · its odor`. Every other row carries Promote.
 
 **The promotions table.** One row per browser per anagram: `key` (the letters sorted, a colon, the words
@@ -515,7 +515,7 @@ sorted and joined with hyphens: `aaeeglmnnt:elegant-man`), `voter`, `input` as t
 the order they saw, the `tier` they searched, `via` (`result` from a search; `typed` is kept for the Submit
 page), `category`, `why`, `credit` and `missing` (empty until the Submit page), and `created_at`.
 `promotion_counts` holds each key's count, recounted with every change. A promotion of an anagram already on
-Discoveries is refused, and the search page shows Vote for it instead.
+Discover is refused, and the search page shows Vote for it instead.
 
 **Look at the counts.** Read-only, from `apps/web`, once `pnpm dlx wrangler@4.121.0 login` has signed this
 machine in to Cloudflare:
@@ -564,8 +564,8 @@ pnpm dlx wrangler@4.121.0 d1 migrations apply ars-magna-discoveries --local
 pnpm dlx wrangler@4.121.0 pages dev dist
 ```
 
-Then open http://localhost:8788/hits, and http://localhost:8788/#q=A%20gentleman for the search page's In
-Discoveries block and Promote.
+Then open http://localhost:8788/hits, and http://localhost:8788/#q=A%20gentleman for the search page's
+Discover block and Promote.
 
 ## Judge a queue by hand
 
@@ -798,7 +798,7 @@ After any merge to `main`. Every check reads; none changes anything.
 
 5. In a browser, search for `dormitory` at https://ars-magna.pages.dev, then open
    https://ars-magna.pages.dev/hits. Its count matches step 2, and its Greatest Hits, Interesting and A
-   stretch sections add up to it: the Discoveries page fetches `hits.json` from the
+   stretch sections add up to it: the Discover page fetches `hits.json` from the
    network on every visit, and the service worker's copy is only for offline use. The one exception is
    the first visit after a deploy that changes `apps/web/public/sw.js`: a browser that visited before
    can show the previous version until the new worker takes over, so reload once more.

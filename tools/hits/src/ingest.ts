@@ -673,7 +673,7 @@ export function renderSenses(hits: readonly Hit[], glosses: ReadonlyMap<string, 
     '',
     ...(withSenses.length
       ? [
-          'The sense a word reads in, in this anagram, where the dictionary\'s first sense would not explain it; Discoveries shows it first. ' +
+          'The sense a word reads in, in this anagram, where the dictionary\'s first sense would not explain it; Discover shows it first. ' +
             'Merging accepts these; change one with `pnpm hits:sense <id> <word> "One sentence."`, or remove it with `--clear`.',
           '',
           ...withSenses.flatMap((h) => [

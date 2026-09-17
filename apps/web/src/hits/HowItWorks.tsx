@@ -10,16 +10,16 @@ const SECTION_MORE: Record<Shelf, string> = {
   stretch: 'Judged the same way, with a link that holds only loosely.',
 };
 
-/** The rules of Discoveries, written for readers: the sections, what a vote does, and what is stored. */
+/** The rules of Discover, written for readers: the sections, what a vote does, and what is stored. */
 export function HowItWorks() {
   return (
     <div className="min-h-dvh">
       <SiteHeader page="/how" />
       <main className="mx-auto max-w-3xl px-6 pt-16 pb-24 sm:pt-24">
         <header className="mb-12">
-          <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">How Discoveries works</h1>
+          <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">How Discover works</h1>
           <p className="mt-2 max-w-prose text-sm text-ink-soft">
-            Discoveries lists anagrams that say something about the name, company, product, title, place or phrase their letters came from.
+            Discover lists anagrams that say something about the name, company, product, title, place or phrase their letters came from.
           </p>
         </header>
 
@@ -49,7 +49,7 @@ export function HowItWorks() {
               votes against.
             </p>
             <p>
-              A search lists the anagrams of its letters that are on Discoveries above the complete list. In the list, a row with the same
+              A search lists the anagrams of its letters that are on Discover above the complete list. In the list, a row with the same
               words, or other spellings of them, carries Vote instead of Promote.
             </p>
             <p>
@@ -65,7 +65,7 @@ export function HowItWorks() {
           </h2>
           <div className="mt-4 flex max-w-prose flex-col gap-3 text-sm text-ink-soft">
             <p>
-              Every other anagram in a search has a Promote button. Press it to put that anagram forward for Discoveries. A browser has one
+              Every other anagram in a search has a Promote button. Press it to put that anagram forward for Discover. A browser has one
               promotion for each anagram, and pressing Promote again takes it back. There are no promotions against.
             </p>
             <p>

@@ -3,7 +3,7 @@ import type { DiscoverySection } from '../lib/inDiscoveries.ts';
 import { VoteButton } from './CountButton.tsx';
 
 /**
- * The anagrams of these letters that are on Discoveries, above the complete
+ * The anagrams of these letters that are on Discover, above the complete
  * list: Greatest Hits, then Interesting, then A stretch, each most voted first.
  * Absent when there are none, so a search without any shows nothing extra.
  */
@@ -12,7 +12,7 @@ export function InDiscoveries({ sections, votes }: { sections: readonly Discover
   return (
     <section aria-labelledby="in-discoveries-title" className="settle border-b border-rule py-4">
       <h2 id="in-discoveries-title" className="text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase">
-        In Discoveries
+        Discover
       </h2>
       <ol className="mt-1 divide-y divide-rule">
         {sections.flatMap((section) =>

@@ -15,7 +15,7 @@ How the dataset grows, what runs where, and what to do by hand.
 | set | `pnpm hits:set --status=accepted id…` | Changes the status of hits by id (`accepted`, `featured`, `proposed`, `retired`). Refuses an unknown id or status and writes nothing; otherwise rewrites `data/hits.jsonl` through the schema and prints each change. | a person · laptop |
 | justify | `pnpm hits:justify id "…"` | Sets a hit's justification. Refuses an unknown id, an empty sentence or one over 300 characters, and writes nothing then. | a person · laptop |
 | describe | `pnpm hits:describe candidate "…"` | Sets what an input is: the candidate's `about`, with `--wikidata=Q…` from its Wikidata item or `--wikipedia=` for its link, and the copy on each of its hits. Refuses an unknown id, a hit id, or a sentence over 200 characters or without a full stop, and writes nothing then. | a person · laptop |
-| sense | `pnpm hits:sense id word "…"` | Sets the sense one of a hit's words reads in, shown first on Discoveries; `--clear` removes it. Only where the dictionary's first sense would not explain the reading. Refuses an unknown id, a word that is not the hit's, or a sentence over 120 characters or without a full stop, and writes nothing then. | a person · laptop |
+| sense | `pnpm hits:sense id word "…"` | Sets the sense one of a hit's words reads in, shown first on Discover; `--clear` removes it. Only where the dictionary's first sense would not explain the reading. Refuses an unknown id, a word that is not the hit's, or a sentence over 120 characters or without a full stop, and writes nothing then. | a person · laptop |
 | glosses | `pnpm hits:glosses` | Lists every published hit (every hit with `--all`), each word with its first dictionary gloss or `no definition` and any sense already set, to see where a sense is wanted. Writes nothing. | a person · laptop |
 | tag | `pnpm hits:tag id +tag -tag` | Adds and removes a hit's tags. Refuses an unknown id or a tag the hit schema does not allow, and writes nothing then. | a person · laptop |
 | order | `pnpm hits:order id word word…` | Sets the order a hit's words read in: its `words` and `display`. The id and letters stay the same. Refuses an unknown id or words that are not the hit's own, and writes nothing then. | a person · laptop |
@@ -34,7 +34,7 @@ Nothing enters the published dataset without a person's merge. A hit is publishe
 - **A thin night** (the feed overlapped what was already tried, or the new inputs produced nothing keepable) leaves a queue folder with only `summary.json` (before settings s2, an empty `prefiltered.jsonl`). That is a record, not a failure: the routine skips it, and `pnpm hits:judge` on it writes an empty answer so `pnpm hits:ingest` can close it out by hand.
 - **Deep runs** (a Claude Code session on a laptop, when the operator starts one): the deep preset over requeued or seeded candidates, one category at a time, screened by `claude-sonnet-5` subagents and judged by `claude-opus-5` subagents, with a pull request per category. "Run a deep run" in `docs/OPERATOR.md` sizes it; `docs/prompts/deep-run.md` is the prompt.
 - **Publish Action** (`.github/workflows/publish-hits.yml`): on any push to `main` that touches `data/hits.jsonl`. Needs the `HF_TOKEN` secret (`gh secret set HF_TOKEN`). Set the repository variable `PUBLISH_HITS` to `off` to pause it.
-- **Votes** (`apps/web/functions/api/`, Cloudflare Pages Functions over the D1 database `ars-magna-discoveries`): readers' votes on the Discoveries page. They change nothing in this repository and feed nothing in the pipeline yet. The Deploy Action applies `apps/web/migrations/` before it uploads the site. "Votes on Discoveries" in `docs/OPERATOR.md` has the switch, the queries and a local run.
+- **Votes** (`apps/web/functions/api/`, Cloudflare Pages Functions over the D1 database `ars-magna-discoveries`): readers' votes on the Discover page. They change nothing in this repository and feed nothing in the pipeline yet. The Deploy Action applies `apps/web/migrations/` before it uploads the site. "Votes on Discover" in `docs/OPERATOR.md` has the switch, the queries and a local run.
 
 The CI and deploy workflows ignore `data/queue/**` and `data/candidates.jsonl`, so a nightly commit does not rebuild or redeploy the site.
 
@@ -52,7 +52,7 @@ The CI and deploy workflows ignore `data/queue/**` and `data/candidates.jsonl`, 
    ```
 
    The id is `input letters:category:words sorted and joined with -`, as in `data/hits.jsonl`. Each command prints what it changed.
-4. Commit `data/hits.jsonl` on the branch if you changed it, push, and merge once CI is green. The publish Action pushes the new rows to Hugging Face and the deploy rebuilds the Discoveries page.
+4. Commit `data/hits.jsonl` on the branch if you changed it, push, and merge once CI is green. The publish Action pushes the new rows to Hugging Face and the deploy rebuilds the Discover page.
 
 The review desk (`pnpm hits:desk`) shows the same queue with its near misses and alternates, and turns decisions into these commands; see "Review in the desk" in `docs/OPERATOR.md`.
 
