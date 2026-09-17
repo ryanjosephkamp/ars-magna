@@ -10,7 +10,7 @@
  *
  * With `--audit` it builds the Greatest Hits audit instead, to
  * .cache/desk/audit.html (and audit-artifact.html): one page listing every
- * anagram the site's Discoveries page shows, each in its current section,
+ * anagram the site's Discover page shows, each in its current section,
  * to move between Greatest Hits, Interesting and A stretch or off the page.
  *
  * The page never writes to the repository. Every decision made in it becomes

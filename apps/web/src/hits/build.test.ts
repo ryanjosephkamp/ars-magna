@@ -204,6 +204,10 @@ describe('gallery build', () => {
     expect(page).toContain('href="https://ars-magna.pages.dev/hits/starwars-titles-stars-war/"');
     expect(page).toContain('url=/hits#starwars-titles-stars-war');
     expect(hitPage(toPublic(record({ input: 'A "quoted" <name>' })), 'x')).toContain('A &quot;quoted&quot; &lt;name&gt;');
+    // With neither, the description falls back to a sentence naming the page.
+    expect(hitPage(toPublic(record({})), 'x')).toContain(
+      '<meta name="description" content="An anagram of dormitory: dirty room. One of the anagrams on Ars Magna Discover." />',
+    );
     // What the input is describes the page first, when the hit says.
     const about = hitPage(toPublic({ ...hits[1]!, about: 'Star Wars is an epic space opera franchise.' }), 'https://ars-magna.pages.dev');
     expect(about).toContain('<meta name="description" content="Star Wars is an epic space opera franchise." />');

@@ -29,7 +29,7 @@ const odor = hit({ id: 'doritos:products:its-odor', input: 'Doritos', words: ['i
 const beyonce = hit({ id: 'beyonce:people:boney-ec', input: 'Beyoncé', words: ['boney', 'ec'], letters: 'bceenoy', shelf: 'interesting' });
 const all = [male, odor, elan, elegant, beyonce];
 
-describe('In Discoveries', () => {
+describe('Discover on the search page', () => {
   it('finds the hits for a search’s letters, in section order, most voted first with ties A to Z', () => {
     const found = discoveredFor(all, 'agentleman', { [elan.id]: 2 });
     expect(found.sections.map((s) => [s.label, s.hits.map((h) => h.display)])).toEqual([

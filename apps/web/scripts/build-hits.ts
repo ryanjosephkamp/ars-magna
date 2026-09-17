@@ -5,7 +5,7 @@
  * derived, never edited, and never committed.
  *
  * Each hit's orderings are ranked here with the engine under Node, which needs
- * `pnpm wasm:build` and the committed dictionary, so Discoveries can show them
+ * `pnpm wasm:build` and the committed dictionary, so Discover can show them
  * without loading the engine at all.
  */
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';

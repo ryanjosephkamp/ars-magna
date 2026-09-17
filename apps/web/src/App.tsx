@@ -123,7 +123,7 @@ export function App() {
   const counts = engine.state === 'ready' ? engine.counts : null;
   const hasQuery = letters.length > 0;
 
-  // Discoveries on the search page. No count loads before the engine has
+  // Discover on the search page. No count loads before the engine has
   // counted these letters, and nothing here ever holds back a result.
   const counted = hasQuery && countedLetters === letters;
   const [started, setStarted] = useState(false);

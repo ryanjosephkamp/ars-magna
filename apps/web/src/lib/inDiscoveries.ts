@@ -1,12 +1,12 @@
 /**
- * Which anagrams of a search's letters are on Discoveries, and which rows of
+ * Which anagrams of a search's letters are on Discover, and which rows of
  * the complete list they are.
  *
  * A hit belongs to the letters when its sorted letters are the search's. A row
  * is a hit when it has the same spelling key: the search collapses words that
  * share letters into one row ("door sit" stands for "its odor" too), so a
  * published anagram can sit behind a row that spells it another way, and the
- * row then names the Discoveries spelling.
+ * row then names the Discover spelling.
  */
 import { SECTIONS, inOrder, type PublicHit, type Shelf } from '../hits/build.ts';
 import { sortedLetters, spellingKey } from '../votes/core.ts';
@@ -24,7 +24,7 @@ export type RowDiscovery = {
   hit: PublicHit;
   /** The section's label: Greatest Hits, Interesting or A stretch. */
   label: string;
-  /** The row spells the hit differently, so the label names the Discoveries spelling. */
+  /** The row spells the hit differently, so the label names the Discover spelling. */
   respelled: boolean;
 };
 

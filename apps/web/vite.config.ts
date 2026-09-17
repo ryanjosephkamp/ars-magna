@@ -106,7 +106,7 @@ export default defineConfig({
     // The dictionary artifacts in public/dict are content-hashed and served
     // pre-compressed; never inline them.
     assetsInlineLimit: 0,
-    // Three pages: the search, Discoveries, and how Discoveries works.
+    // Three pages: the search, Discover, and how Discover works.
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),

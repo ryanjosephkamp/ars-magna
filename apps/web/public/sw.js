@@ -39,7 +39,7 @@ const HOW_SHELL = '/how.html';
 
 /**
  * Which page a navigation belongs to: the gallery and its per-hit pages, how
- * Discoveries works, or the search.
+ * Discover works, or the search.
  *
  * Cloudflare Pages serves `/hits` and `/how` from the `.html` files, and those
  * extensionless addresses are what the site links to, so both spellings have to

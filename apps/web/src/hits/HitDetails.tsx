@@ -8,7 +8,7 @@ const LABEL = 'mb-1.5 font-mono text-[11px] tracking-[0.08em] text-ink-faint upp
 const OUT = 'text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent';
 
 /**
- * What an opened row on Discoveries shows: what the input is and where to read
+ * What an opened row on Discover shows: what the input is and where to read
  * more about it, what each word means (the sense this anagram reads it in
  * first, when the hit has one), and the other orders the words read in.
  * The definitions are fetched when the row opens, from the same shards the

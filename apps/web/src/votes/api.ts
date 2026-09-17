@@ -57,7 +57,7 @@ export type Env = {
   ASSETS?: { fetch(request: Request): Promise<Response> };
 };
 
-/** What is on Discoveries: the hit ids that take votes, and their promotion keys, which take no promotions. */
+/** What is on Discover: the hit ids that take votes, and their promotion keys, which take no promotions. */
 export type Published = { ids: ReadonlySet<string>; keys: ReadonlySet<string> };
 
 export type Deps = {
@@ -160,7 +160,7 @@ export async function postVote(request: Request, env: Env, deps: Deps): Promise<
     return refuse(403, 'no-pass', 'The check before voting has expired. Vote again to renew it.');
   }
   if (!(await deps.published(request, env)).ids.has(hitId)) {
-    return refuse(404, 'unknown-hit', 'That anagram is not on Discoveries.');
+    return refuse(404, 'unknown-hit', 'That anagram is not on Discover.');
   }
   const connection = await connectionKey(env.IP_HASH_SECRET, ipOf(request), now);
   if (!(await withinLimit(env.DISCOVERIES_DB, `vote:${connection}`, hourBucket(now), LIMITS.vote))) {
@@ -219,9 +219,9 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   }
   const key = promotionKey(words);
   // Taking a promotion back always works; making one does not for an anagram
-  // already on Discoveries, or one that is blocked.
+  // already on Discover, or one that is blocked.
   if (on && (await deps.published(request, env)).keys.has(key)) {
-    return refuse(409, 'published', 'That anagram is on Discoveries already. Vote for it instead.');
+    return refuse(409, 'published', 'That anagram is on Discover already. Vote for it instead.');
   }
   if (on && (await deps.blockedKeys(request, env)).has(key)) {
     return refuse(403, 'blocked', 'That anagram cannot be promoted.');

@@ -7,7 +7,7 @@ let loading: Promise<PublicHit[]> | null = null;
 /**
  * The published hits, fetched once per page load. A failed fetch is
  * forgotten, so the next search asks again rather than a network blip hiding
- * Discoveries for the rest of the visit.
+ * Discover for the rest of the visit.
  */
 function loadHits(): Promise<PublicHit[]> {
   if (!loading) {

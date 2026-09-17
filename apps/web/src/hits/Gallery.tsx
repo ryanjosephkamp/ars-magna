@@ -44,7 +44,7 @@ const JUMP_GAP = 16;
 const LINK = 'text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent';
 
 /**
- * Discoveries: the anagrams worth keeping, in three sections (Greatest Hits,
+ * Discover: the anagrams worth keeping, in three sections (Greatest Hits,
  * Interesting and A stretch), one per row, in the same typographic register as
  * the search results. The list is small enough to hold in memory whole, so
  * filtering is instant and there is no paging: each section shows its first
@@ -243,13 +243,13 @@ export function Gallery() {
       <SiteHeader page="/hits" />
       <main className="mx-auto max-w-3xl px-6 pt-16 pb-24 sm:pt-24">
         <header className="mb-12">
-          <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">Discoveries</h1>
+          <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">Discover</h1>
           <p className="mt-2 max-w-prose text-sm text-ink-soft">
             Anagrams worth keeping: every letter of a name, a company, a title or a place, rearranged into
             something that says something about it.{' '}
             <span className="text-ink-faint">Some are classics and some the engine turned up; each was judged and kept by hand.</span>{' '}
             <a href="/how" className={LINK}>
-              How Discoveries works
+              How Discover works
             </a>
           </p>
         </header>

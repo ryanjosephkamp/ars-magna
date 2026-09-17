@@ -5,7 +5,7 @@ export type WordDetail = {
   /** Every spelling of the anagram class this word belongs to, including itself. */
   readonly spellings: readonly string[];
   readonly info: WordInfo;
-  /** The sense the word reads in, in one anagram on Discoveries; shown before the dictionary's. */
+  /** The sense the word reads in, in one anagram on Discover; shown before the dictionary's. */
   readonly sense?: string;
 };
 

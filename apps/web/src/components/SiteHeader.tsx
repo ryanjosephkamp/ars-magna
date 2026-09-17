@@ -19,7 +19,7 @@ const SUBMIT = 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=
 
 const LINKS: readonly { href: string; label: string; external?: boolean }[] = [
   { href: '/', label: 'Search' },
-  { href: '/hits', label: 'Discoveries' },
+  { href: '/hits', label: 'Discover' },
   { href: '/how', label: 'How it works' },
   { href: SUBMIT, label: 'Submit', external: true },
 ];

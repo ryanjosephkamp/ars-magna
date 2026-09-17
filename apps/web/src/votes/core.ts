@@ -1,5 +1,5 @@
 /**
- * Votes and promotions on Discoveries: the rules the page and the API share.
+ * Votes and promotions on Discover: the rules the page and the API share.
  *
  * No DOM and no Workers types, so Pages Functions, the browser and the tests
  * run the same code. Web Crypto (`crypto.subtle`) is the one platform API it
@@ -36,7 +36,7 @@ export const MAX_WORDS = 64;
 /** The most characters of the input a promotion keeps. */
 export const MAX_INPUT = 500;
 
-/** Letters in alphabetical order: the shape Discoveries keys a hit's letters by. */
+/** Letters in alphabetical order: the shape Discover keys a hit's letters by. */
 export function sortedLetters(letters: string): string {
   return [...letters].sort().join('');
 }

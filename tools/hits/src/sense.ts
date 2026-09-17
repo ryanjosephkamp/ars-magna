@@ -3,7 +3,7 @@
  * `pnpm hits:sense id word --clear`
  *
  * Set or clear the sense one of a hit's words reads in, in that anagram. The
- * Discoveries page shows it first, above the dictionary's senses, which stay
+ * Discover page shows it first, above the dictionary's senses, which stay
  * in their own order: `ai` is a sloth first everywhere else. A sense is
  * written only where the dictionary's first sense would not explain the
  * reading, or the word has no definition.

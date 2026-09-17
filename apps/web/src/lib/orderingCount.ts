@@ -1,7 +1,7 @@
 /**
  * How many distinct orders a set of words reads in, apart from the orders
  * themselves, which `orderings.ts` ranks with the engine's scoring. Kept on
- * its own so a page that has no engine, such as Discoveries, can count.
+ * its own so a page that has no engine, such as Discover, can count.
  */
 
 /** Above this the count is reported as "more than", not as a figure. */

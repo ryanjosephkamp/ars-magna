@@ -7,7 +7,7 @@ session. This file holds only what is specific to Claude Code.
 
 - `~/.claude/plans/ars-magna-roadmap-2026-09.md` is the live plan: phases A to H in the order they run, the
   decisions D1–D22 the operator accepted on 2026-09-15, and the English OpenList track.
-- `~/.claude/plans/ars-magna-voting.md` holds votes and promotions on Discoveries: the operator's ground
+- `~/.claude/plans/ars-magna-voting.md` holds votes and promotions on Discover: the operator's ground
   rules, recommendations R1–R13, phases V1–V4 with their status, and follow-ups. Its V3 and V4 now run as
   the roadmap's phases C, E and F.
   - It is published as the artifact "Ars Magna Voting Plan":
@@ -15,7 +15,7 @@ session. This file holds only what is specific to Claude Code.
 - `~/.claude/plans/flickering-sprouting-scott.md` is the Greatest Hits plan: phases A to I and N1 to N7, with
   the yield table.
   - All are done apart from N7 step 2 (keeping review desk decisions across devices), which is undecided.
-  - Its N6 Collection page shipped as Discoveries.
+  - Its N6 Collection page shipped as Discover.
 
 Session handoffs keep their files in `/Users/noir/Documents/ars-magna/handoff/<date>/`, outside the
 repository: the manual Artifact's HTML source, test scripts and screenshots.
@@ -72,7 +72,7 @@ include slurs and insults made from the letters.
 
 ## Greatest Hits audit
 
-The audit of the site's Discoveries page is the private artifact "Ars Magna Greatest Hits Audit":
+The audit of the site's Discover page is the private artifact "Ars Magna Greatest Hits Audit":
 https://claude.ai/code/artifact/449fac53-c4cf-4877-9273-f91d13226ca6. The `greatest-hits-audit` skill
 (`.claude/skills/`) publishes `.cache/desk/audit-artifact.html` from `pnpm hits:desk --audit --artifact`
 to that URL, as `docs/prompts/publish-audit.md` describes.
