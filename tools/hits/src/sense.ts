@@ -45,6 +45,39 @@ export function sensesProblem(hit: Pick<Hit, 'id' | 'words' | 'senses'>): string
   return `${hit.id} has a sense for ${foreign.join(', ')}, which ${foreign.length === 1 ? 'is not one of its words' : 'are not among its words'}: ${hit.words.join(' ')}`;
 }
 
+/** A sense the judge proposed that could not be kept, and why. */
+export type SkippedSense = { word: string; reason: string };
+
+/**
+ * The senses a judge's verdict proposes for a phrase, read strictly. Keys that
+ * are not words of the phrase come back as `foreign`: a verdict naming one was
+ * written for another row, and ingest refuses it whole. A sense that breaks
+ * the sentence rule is `skipped`, and the verdict keeps its place, as with
+ * what an input is. The kept senses follow the order the words read in.
+ */
+export function readJudgeSenses(value: unknown, words: readonly string[]): { senses: Record<string, string>; foreign: string[]; skipped: SkippedSense[] } {
+  const senses: Record<string, string> = {};
+  const foreign: string[] = [];
+  const skipped: SkippedSense[] = [];
+  if (value === undefined || value === null) return { senses, foreign, skipped };
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { senses, foreign, skipped: [{ word: '', reason: 'senses is not an object keyed by word' }] };
+  }
+  const given = value as Record<string, unknown>;
+  for (const word of Object.keys(given)) {
+    if (!words.includes(word)) foreign.push(word);
+  }
+  for (const word of new Set(words)) {
+    if (!Object.hasOwn(given, word)) continue;
+    const raw = given[word];
+    const text = typeof raw === 'string' ? tidySentence(raw) : '';
+    const problem = typeof raw === 'string' ? senseProblem(text) : 'not a sentence';
+    if (problem) skipped.push({ word, reason: problem });
+    else senses[word] = text;
+  }
+  return { senses, foreign, skipped };
+}
+
 export type SenseArgs = { id: string; word: string; text: string | null };
 
 export function parseSenseArgs(argv: readonly string[]): SenseArgs {

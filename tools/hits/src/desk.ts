@@ -52,9 +52,9 @@ export async function aboutPattern(): Promise<string> {
 /** The rule for a sense, read from the hit schema so the page checks a sentence the way the schema will. */
 export async function senseRule(): Promise<SenseRule> {
   const schema = JSON.parse(await readFile(resolve(SCHEMA_DIR, 'hit.schema.json'), 'utf8')) as {
-    properties: { senses: { additionalProperties: { pattern: string; maxLength: number } } };
+    $defs: { senses: { additionalProperties: { pattern: string; maxLength: number } } };
   };
-  const { pattern, maxLength } = schema.properties.senses.additionalProperties;
+  const { pattern, maxLength } = schema.$defs.senses.additionalProperties;
   return { pattern, max: maxLength };
 }
 

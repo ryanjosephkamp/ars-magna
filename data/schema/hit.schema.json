@@ -77,18 +77,22 @@
       "description": "The input's English Wikipedia article. A copy of the candidate's wikipedia."
     },
     "senses": {
+      "$ref": "#/$defs/senses",
+      "description": "The sense a word reads in, in this anagram, keyed by one of the hit's own words. Written only where the dictionary's first sense would not explain the reading, or the word has no definition. The tools check that each key is one of the hit's words."
+    }
+  },
+  "$defs": {
+    "senses": {
       "type": "object",
+      "description": "Senses keyed by word: one sentence of at most 120 characters each.",
       "minProperties": 1,
       "propertyNames": { "type": "string", "pattern": "^[a-z]+$" },
       "additionalProperties": {
         "type": "string",
         "maxLength": 120,
         "pattern": "^\\S[^\\r\\n\\u2028\\u2029]*\\.[\"'”’)\\]]?$"
-      },
-      "description": "The sense a word reads in, in this anagram, keyed by one of the hit's own words: one sentence of at most 120 characters. Written only where the dictionary's first sense would not explain the reading, or the word has no definition. The tools check that each key is one of the hit's words."
-    }
-  },
-  "$defs": {
+      }
+    },
     "judgementV1": {
       "type": "object",
       "additionalProperties": false,
@@ -124,6 +128,10 @@
           "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
         },
         "justification": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "senses": {
+          "$ref": "#/$defs/senses",
+          "description": "The senses the judge proposed for words of the phrase whose first dictionary sense would not explain the reading."
+        },
         "rationale": { "type": "string", "minLength": 1 },
         "judged_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" }
       },

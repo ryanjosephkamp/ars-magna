@@ -35,6 +35,8 @@ import { execFileSync } from 'node:child_process';
 import { aboutProblem, candidateOf, syncAbout, tidySentence } from './about.ts';
 import { checkAnagram, sameLetters } from './check.ts';
 import { alphagram, candidateId, hitId } from './ids.ts';
+import { firstGlosses } from './glosses.ts';
+import { readJudgeSenses } from './sense.ts';
 import { parseIssueForm } from './submission.ts';
 import { isV2Verdict, rubric, type Verdict, type VerdictV1, type VerdictV2 } from './judge.ts';
 import type { Prefiltered } from './prefilter.ts';
@@ -230,7 +232,11 @@ export function validateVerdicts(
       rejected.push({ id: String(v.id), reason: 'not in this batch' });
       continue;
     }
-    const problem = isV2Verdict(v) ? problemV2(v) : problemV1(v);
+    // A sense for a word the phrase does not contain means the line was written for another row.
+    const foreign = isV2Verdict(v) ? readJudgeSenses(v.senses, batch.get(v.id)!.words).foreign : [];
+    const problem =
+      (isV2Verdict(v) ? problemV2(v) : problemV1(v)) ??
+      (foreign.length > 0 ? `senses name ${foreign.join(', ')}, not ${foreign.length === 1 ? 'a word' : 'words'} of this phrase` : null);
     if (problem) {
       rejected.push({ id: v.id, reason: problem });
       continue;
@@ -260,7 +266,12 @@ export function judgedAt(v: Pick<Verdict, 'judged_at'>, queueDay: string): strin
   return typeof v.judged_at === 'string' && DAY.test(v.judged_at) ? v.judged_at.slice(0, 10) : queueDay;
 }
 
-export function toJudgement(v: Verdict, model: string, version: string, queueDay: string): Judgement {
+/**
+ * A verdict as a judge entry on a hit. With `words`, the phrase's words, a v2
+ * entry keeps the senses the judge proposed for them that follow the rule;
+ * without, those whose keys are words at all.
+ */
+export function toJudgement(v: Verdict, model: string, version: string, queueDay: string, words?: readonly string[]): Judgement {
   const date = judgedAt(v, queueDay);
   if (isV2Verdict(v)) {
     const judgement: JudgementV2 = {
@@ -274,6 +285,9 @@ export function toJudgement(v: Verdict, model: string, version: string, queueDay
       judged_at: date,
     };
     if (hasText(v.justification)) judgement.justification = v.justification.trim();
+    const keys = v.senses && typeof v.senses === 'object' && !Array.isArray(v.senses) ? Object.keys(v.senses).filter((k) => /^[a-z]+$/.test(k)) : [];
+    const { senses } = readJudgeSenses(v.senses, words ?? keys);
+    if (Object.keys(senses).length > 0) judgement.senses = senses;
     return judgement;
   }
   return {
@@ -324,6 +338,7 @@ export function hitFromRow(
   status: Hit['status'],
   tags: string[],
   justification?: string,
+  senses?: Readonly<Record<string, string>>,
 ): Hit {
   const hit: Hit = {
     id: row.id,
@@ -341,6 +356,12 @@ export function hitFromRow(
     status,
   };
   if (justification) hit.justification = justification;
+  // The judge's senses, in the order the words read, for the words the row has.
+  const ordered = [...new Set(row.words)].flatMap((w) => {
+    const sense = senses?.[w];
+    return sense === undefined ? [] : [[w, sense] as const];
+  });
+  if (ordered.length > 0) hit.senses = Object.fromEntries(ordered);
   const known = options.about?.get(row.candidate_id);
   if (known?.about) hit.about = known.about;
   if (known?.wikipedia) hit.wikipedia = known.wikipedia;
@@ -376,7 +397,7 @@ export function assessBatch(
   const byId = new Map<string, Judgement[]>();
   for (const v of verdicts) {
     const list = byId.get(v.id) ?? [];
-    list.push(toJudgement(v, options.model, options.version, options.queueDay));
+    list.push(toJudgement(v, options.model, options.version, options.queueDay, batch.get(v.id)!.words));
     byId.set(v.id, list);
   }
 
@@ -405,10 +426,13 @@ export function assessBatch(
     const subjects = options.subjects?.get(candidate);
     for (const e of shelved.accepted) {
       const placement = assess(e.scores) as 'interesting' | 'stretch';
-      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'accepted', tagsFor(e.best, false, subjects), e.best.justification), placement });
+      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'accepted', tagsFor(e.best, false, subjects), e.best.justification, e.best.senses), placement });
     }
     for (const e of shelved.alternates) {
-      placed.push({ hit: hitFromRow(e.row, e.judge, options, 'proposed', tagsFor(e.best, true, subjects), e.best.justification), placement: 'alternate' });
+      placed.push({
+        hit: hitFromRow(e.row, e.judge, options, 'proposed', tagsFor(e.best, true, subjects), e.best.justification, e.best.senses),
+        placement: 'alternate',
+      });
     }
     for (const e of shelved.near) {
       near.push({ id: e.row.id, input: e.row.input, display: e.row.display, ...e.scores, rationale: e.best.rationale });
@@ -455,7 +479,7 @@ export function promoteOnly(
       refused.push({ id, reason: 'already in data/hits.jsonl; change it with pnpm hits:set' });
       continue;
     }
-    const judge = verdicts.filter((v) => v.id === id).map((v) => toJudgement(v, options.model, options.version, options.queueDay));
+    const judge = verdicts.filter((v) => v.id === id).map((v) => toJudgement(v, options.model, options.version, options.queueDay, row.words));
     const best = bestJudgement(judge);
     if (!best) {
       refused.push({ id, reason: 'no valid verdict in this queue' });
@@ -468,7 +492,7 @@ export function promoteOnly(
       continue;
     }
     const tags = v2 ? tagsFor(v2, false, options.subjects?.get(row.candidate_id)) : [];
-    hits.push(hitFromRow(row, judge, options, status, tags, justification));
+    hits.push(hitFromRow(row, judge, options, status, tags, justification, v2?.senses));
   }
   return { hits, refused };
 }
@@ -549,6 +573,10 @@ export function renderReport(r: {
   about?: readonly AboutLine[];
   /** Sentences the judge wrote that break the rule, left off. */
   aboutSkipped?: readonly Rejection[];
+  /** Each word's first dictionary gloss, or null, for the senses section. */
+  glosses?: ReadonlyMap<string, string | null>;
+  /** Senses the judge proposed for the new hits that break the rule, left off. */
+  sensesSkipped?: readonly Rejection[];
 }): string {
   const head = [
     `# ${r.heading ?? `Ingest ${r.date}`}`,
@@ -626,9 +654,37 @@ export function renderReport(r: {
         ]
       : []),
     ...renderAbout(r.about ?? [], r.aboutSkipped ?? []),
+    ...renderSenses(added.map((p) => p.hit), r.glosses ?? new Map(), r.sensesSkipped ?? []),
     ...renderRequests(r.requests ?? [], r.openRequests ?? []),
     ...rejected,
   ].join('\n');
+}
+
+/**
+ * The report's Senses section: under each new hit, the sense the judge wrote
+ * for a word and the dictionary's first gloss it is read over, so the merge
+ * that accepts the hit accepts its senses knowingly.
+ */
+export function renderSenses(hits: readonly Hit[], glosses: ReadonlyMap<string, string | null>, skipped: readonly Rejection[]): string[] {
+  const withSenses = hits.filter((h) => h.senses && Object.keys(h.senses).length > 0);
+  if (withSenses.length === 0 && skipped.length === 0) return [];
+  return [
+    '## Senses',
+    '',
+    ...(withSenses.length
+      ? [
+          'The sense a word reads in, in this anagram, where the dictionary\'s first sense would not explain it; Discoveries shows it first. ' +
+            'Merging accepts these; change one with `pnpm hits:sense <id> <word> "One sentence."`, or remove it with `--clear`.',
+          '',
+          ...withSenses.flatMap((h) => [
+            `- \`${h.id}\`: ${cell(h.input)} → ${cell(h.display)}`,
+            ...Object.entries(h.senses!).map(([word, sense]) => `  - ${word}: ${cell(sense)} (dictionary: ${cell(glosses.get(word) ?? 'no definition')})`),
+          ]),
+          '',
+        ]
+      : []),
+    ...(skipped.length ? ['Left off, breaking the rule:', '', ...skipped.map((x) => `- ${x.id}: ${x.reason}`), ''] : []),
+  ];
 }
 
 /** The report's About section: what each input is, as its hits now say it. */
@@ -765,6 +821,14 @@ async function main(): Promise<void> {
   } else {
     added = await appendJsonl(HITS_PATH, fresh, hitValidator);
   }
+  // The senses the new hits carry, with the first gloss each is read over, and any the judge wrote that break the rule.
+  const glosses = await firstGlosses(added.flatMap((h) => Object.keys(h.senses ?? {})));
+  const addedById = new Set(added.map((h) => h.id));
+  const sensesSkipped = verified.flatMap((v) =>
+    isV2Verdict(v) && addedById.has(v.id)
+      ? readJudgeSenses(v.senses, batch.get(v.id)!.words).skipped.map((s) => ({ id: v.id, reason: `senses${s.word ? ` ${s.word}` : ''}: ${s.reason}` }))
+      : [],
+  );
   const reached = new Map(abouts.written.map((line) => [line.candidate, line]));
   for (const id of [...added.filter((h) => h.about).map((h) => candidateOf(h.id)), ...synced.changed.map(candidateOf)]) {
     const c = byCandidate.get(id);
@@ -820,6 +884,8 @@ async function main(): Promise<void> {
     openRequests: merged.next,
     about: [...reached.values()],
     aboutSkipped: abouts.skipped,
+    glosses,
+    sensesSkipped,
   });
   await writeFile(resolve(dir, INGEST_REPORT), report);
   console.log(report);

@@ -85,6 +85,8 @@ export type JudgementV2 = {
   tone: Tone[];
   subjects: string[];
   justification?: string;
+  /** The senses the judge proposed, keyed by word of the phrase. */
+  senses?: Record<string, string>;
   rationale: string;
   judged_at: string;
 };

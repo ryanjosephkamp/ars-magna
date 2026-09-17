@@ -53,6 +53,8 @@ export type DeskHit = DeskPlace & {
   words: string[];
   /** The sense a word reads in, in this anagram, keyed by the word; empty when it has none. */
   senses: Record<string, string>;
+  /** The senses the best v2 judge proposed, keyed by word; empty when it proposed none. */
+  judgeSenses: Record<string, string>;
   tags: string[];
   added: string;
   relation: number | null;
@@ -137,7 +139,7 @@ export function deskQueue(queue: QueueInput, hits: readonly Hit[], date: string)
   // With no such hit, the routine's model.
   const fallback = recordedModel(ok, byId) ?? 'claude-sonnet-5';
   const judgements = new Map<string, Judgement[]>();
-  for (const v of ok) judgements.set(v.id, [...(judgements.get(v.id) ?? []), toJudgement(v, fallback, 'v2', date)]);
+  for (const v of ok) judgements.set(v.id, [...(judgements.get(v.id) ?? []), toJudgement(v, fallback, 'v2', date, rows.get(v.id)!.words)]);
 
   const order = new Map<string, number>();
   for (const r of queue.rows) if (!order.has(r.candidate_id)) order.set(r.candidate_id, order.size);
@@ -215,6 +217,7 @@ export function deskData(input: {
         wikipedia: h.wikipedia ?? '',
         words: [...h.words],
         senses: { ...h.senses },
+        judgeSenses: best && isV2(best) ? { ...best.senses } : {},
         tags: [...h.tags],
         added: h.added,
         relation: scores?.relation ?? null,
