@@ -447,22 +447,33 @@
   function senseField(hit, word) {
     var key = 'sense:' + hit.id + ':' + word;
     var was = hit.senses[word] || '';
+    var judged = hit.judgeSenses[word] || '';
     var pending = find(key);
     var field = h('input', { type: 'text', 'aria-label': 'Sense of ' + word + ' in ' + hit.display, placeholder: 'Only where the dictionary does not fit' });
     field.value = pending ? pending.text : was;
     var gloss = DATA.glosses[word];
     var problem = h('p', { class: 'problem', role: 'status' });
+    /* Where the judge proposed a sense: said under the field while it holds that sense, quoted while it holds another. */
+    var byJudge = h('div', { class: 'small' });
+    function showJudge() {
+      var now = field.value.replace(/\s+/g, ' ').trim();
+      byJudge.textContent = !judged ? '' : now === judged ? 'Proposed by the judge.' : 'The judge proposed: ' + judged;
+      byJudge.hidden = !judged;
+    }
     field.addEventListener('change', function () {
       var text = field.value.replace(/\s+/g, ' ').trim();
       var bad = text && text !== was ? senseProblemIn(text) : '';
       problem.textContent = bad;
       if (text === was || bad) drop(key);
       else upsert({ kind: 'sense', id: hit.id, word: word, text: text });
+      showJudge();
       markRow(field, hit.id);
     });
+    showJudge();
     return h('div', {},
       h('label', {}, h('span', { class: 'sense-word' }, word), field),
       h('div', { class: 'small' }, 'Dictionary: ' + (gloss || 'no definition')),
+      byJudge,
       problem);
   }
 

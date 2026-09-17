@@ -5,7 +5,7 @@ You are judging candidate anagrams. Each candidate has three parts:
 
 - an **input**: a person, company, product, title, place or phrase;
 - its **category**;
-- an **anagram**: a rearrangement of exactly the input's letters into real English words.
+- an **anagram**: a rearrangement of exactly the input's letters into real English words, listed under **words** with each word's first dictionary sense, or `no definition`.
 
 The letters are already verified; do not re-check them. Your job is to say whether the anagram has anything to do with the input, and how much.
 
@@ -25,6 +25,7 @@ For each candidate give:
 - **subjects**: zero or more short labels for what the input is. Use lowercase, with hyphens for spaces. Examples: `actor`, `scientist`, `band`, `film`, `novel`, `city`, `airline`, `tech-company`.
 - **justification**: required for relation 3 and above; leave it out below 3. One plain sentence, under 30 words, that explains the link to a reader who does not know the reference.
 - **rationale**: one line, under 25 words, on why you gave that relation score.
+- **senses**, optional, relation 3 and above only: the sense a word of the anagram reads in, where the first dictionary sense listed under **words** would not explain how this anagram uses it, or where it reads `no definition`. Slang, an abbreviation or initialism, a name, a rare sense. One sentence per word, under 120 characters, ending with a full stop, keyed by the word exactly as it is listed. Never for a word the anagram does not contain, never to restate a sense that already fits, and never a fact about the input, which is what `about` is for. Leave a word out whenever you are not sure what it means. Most anagrams need none.
 - **about**, optional: one factual sentence saying what the input is, for a reader who has never heard of it. Each input's first line in the batch shows its `about`; give one only where that reads `(empty)`, and only once for that input, on any one of its lines. Under 200 characters, on one line, ending with a full stop. State facts only, with no opinion and no joke. Never write one about a private person, and leave it out whenever you are not sure of the facts.
 - **request**, optional and rare: a word the vocabulary is missing. Give it only when a real, widely used English word would have made this input work and the anagram in front of you had to reach for something worse without it. Name the word, a one-sentence gloss, a source you are confident exists, and one line on why. At most one per batch, and none at all in most batches. It is a proposal an operator reads, not a change; do not let it affect the scores you give.
 
@@ -40,6 +41,8 @@ Rules:
 ```
 
 A line for an input whose `about` reads `(empty)` may add `"about": "<one factual sentence>"`.
+
+A line whose anagram uses a word in a sense its listed first sense would not explain may add `"senses": {"<word>": "<one sentence>"}`, with one key per such word; for "i da ai doomer", `"senses": {"da": "Short for the, as in casual speech.", "ai": "Artificial intelligence."}`.
 
 A line carrying a word request adds one field, and is otherwise the same:
 

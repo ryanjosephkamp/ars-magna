@@ -18,6 +18,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { firstGlosses } from './glosses.ts';
 import type { Prefiltered } from './prefilter.ts';
 import { JUDGE_OUTPUT, SCREENED, flag, pickQueue, readJudgedRows } from './queue.ts';
 import { applyScreen, screenInputFiles } from './screen.ts';
@@ -66,6 +67,13 @@ export type VerdictV2 = {
    * verdict its place.
    */
   about?: unknown;
+  /**
+   * The sense a word of the phrase reads in, keyed by the word, for a word
+   * whose first gloss in the batch would not explain the reading or that has
+   * none. Unchecked here: ingest refuses a verdict that names a word the
+   * phrase does not contain, and leaves off a sense that breaks the rule.
+   */
+  senses?: unknown;
 };
 
 export type Verdict = VerdictV1 | VerdictV2;
@@ -110,6 +118,9 @@ export function batches(rows: readonly Prefiltered[], size: number): Prefiltered
  * A batch as the judge reads it: the rubric, then each row. With `about`
  * (each input's sentence, by candidate id), an input's first row also says
  * what it is, or `(empty)`, so the judge knows where a sentence is wanted.
+ * With `glosses` (each word's first dictionary gloss, or null), every row
+ * lists its words with that gloss or `no definition`, so the judge can see
+ * where the reading differs and a sense is wanted.
  */
 export function renderBatch(
   rows: readonly Prefiltered[],
@@ -117,13 +128,17 @@ export function renderBatch(
   n: number,
   of: number,
   about?: ReadonlyMap<string, string>,
+  glosses?: ReadonlyMap<string, string | null>,
 ): string {
   const seen = new Set<string>();
   const lines = rows.map((r) => {
     const first = !seen.has(r.candidate_id);
     seen.add(r.candidate_id);
     const said = about && first ? `\n  about: ${about.get(r.candidate_id) ?? '(empty)'}` : '';
-    return `- id: ${r.id}\n  input: ${r.input}\n  category: ${r.category}${said}\n  anagram: ${r.display}`;
+    const words = glosses
+      ? `\n  words:${[...new Set(r.words)].map((w) => `\n    ${w}: ${glosses.get(w) ?? 'no definition'}`).join('')}`
+      : '';
+    return `- id: ${r.id}\n  input: ${r.input}\n  category: ${r.category}${said}\n  anagram: ${r.display}${words}`;
   });
   return `${rubricText}\n\n## Batch ${n} of ${of}: ${rows.length} candidates\n\n${lines.join('\n')}\n`;
 }
@@ -217,11 +232,13 @@ async function main(): Promise<void> {
   const about = new Map(
     (await readJsonl(CANDIDATES_PATH, await candidateSchema())).flatMap((c) => (c.about ? [[c.id, c.about] as const] : [])),
   );
+  // Each word's first gloss, read off the site's definition shards; no engine needed.
+  const glosses = await firstGlosses(rows.flatMap((r) => r.words));
 
   if (via === 'file') {
     for (let i = 0; i < split.length; i++) {
       const path = resolve(dir, `judge-input-${i + 1}.md`);
-      await writeFile(path, renderBatch(split[i]!, rubricText, i + 1, split.length, about));
+      await writeFile(path, renderBatch(split[i]!, rubricText, i + 1, split.length, about, glosses));
       console.log(`wrote ${path} (${split[i]!.length} candidates)`);
     }
     console.log(
@@ -238,7 +255,7 @@ async function main(): Promise<void> {
   const lines: string[] = [];
   for (const judge of judges) {
     for (let i = 0; i < split.length; i++) {
-      const prompt = renderBatch(split[i]!, rubricText, i + 1, split.length, about);
+      const prompt = renderBatch(split[i]!, rubricText, i + 1, split.length, about, glosses);
       console.log(`${judge.model}: batch ${i + 1} of ${split.length}…`);
       const answer = await judge.ask(prompt);
       for (const verdict of parseVerdicts(answer)) {

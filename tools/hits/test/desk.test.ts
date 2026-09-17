@@ -129,8 +129,8 @@ describe('the page as an Artifact', () => {
 describe('the Greatest Hits audit', () => {
   it('is titled for the audit, carries hits but no queues or candidates, and parses', async () => {
     const hits = await readJsonl(HITS_PATH, await hitSchema());
-    const data = deskData({
-      mode: 'audit',
+    const input = {
+      mode: 'audit' as const,
       hits,
       candidates: [],
       queues: [],
@@ -143,7 +143,8 @@ describe('the Greatest Hits audit', () => {
       applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
       deepRun: '',
       deepPerInput: null,
-    });
+    };
+    const data = deskData(input);
     const html = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), data, await readFile(COMPOSE_SOURCE, 'utf8'));
     expect(html).toContain('<title>Ars Magna Greatest Hits Audit</title>');
     expect(html).toContain('<h1>Greatest Hits audit</h1>');
@@ -162,6 +163,12 @@ describe('the Greatest Hits audit', () => {
     expect(embedded.glosses).not.toHaveProperty('unused');
     expect(Object.keys(embedded.glosses)).toHaveLength(new Set(hits.flatMap((x) => x.words)).size);
     expect(embedded.senseRule.max).toBe(120);
+    // What the judge proposed comes with each hit, so the field can say so.
+    expect(dario.judgeSenses).toEqual({});
+    const word = hits[0]!.words[0]!;
+    const v2 = { model: 'claude-sonnet-5', rubric_version: 'v2', relation: 5, reads: 3, tone: [], subjects: [], justification: 'A link.', senses: { [word]: 'A reading.' }, rationale: 'r', judged_at: '2026-09-17' };
+    const judged = deskData({ ...input, hits: [{ ...hits[0]!, judge: [v2] }] });
+    expect(judged.hits[0]!.judgeSenses).toEqual({ [word]: 'A reading.' });
     expect(new RegExp(embedded.senseRule.pattern, 'u').test('Artificial intelligence.')).toBe(true);
     expect(new RegExp(embedded.senseRule.pattern, 'u').test('no full stop')).toBe(false);
     for (const script of [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)) expect(() => new Script(script)).not.toThrow();

@@ -216,7 +216,10 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
    justification, then the alternates, then the near misses. Its **About** section lists every sentence
    saying what an input is that reached a hit in this run: the ones the judge wrote, marked with the model,
    and the ones the input already had (from Wikidata, by way of the nightly fetch). Merging accepts them;
-   change one with `pnpm hits:describe <candidate> "One factual sentence."` on the branch.
+   change one with `pnpm hits:describe <candidate> "One factual sentence."` on the branch. Its **Senses**
+   section lists, under each new hit, the sense the judge wrote for a word and the dictionary's first gloss
+   it is read over (see "Senses on Discoveries"). Merging accepts those too; change one with
+   `pnpm hits:sense <id> <word> "One sentence."`, or remove it with `--clear`, on the branch.
 2. Check out the branch and change only what you disagree with, one command per status:
 
    ```bash
@@ -441,9 +444,14 @@ hit's own words. A sense is a reading of the word, never a fact about the input,
 (see "What an input is"). A site addition's gloss already serves as its definition. The schema refuses a
 sentence that breaks the rule, and the command and the tests refuse a sense for a word the hit does not have.
 
-**Who writes one.** You, with the command below or in the review desk or the audit. From roadmap phase S2 the
-judge proposes senses for the hits it shelves, and phase S3 is one reviewed pass over the published hits.
-Nothing else writes a sense, and every one reaches the site through a pull request you merge.
+**Who writes one.** Three ways, and nothing else writes a sense; every one reaches the site through a pull
+request you merge:
+
+| Source | How |
+|---|---|
+| the judge | Every row of a judge batch lists its words, each with its first dictionary gloss or `no definition`. For a phrase of relation 3 and above, the judge may give `senses` for the words whose listed gloss would not explain the reading. Ingest refuses a verdict whose senses name a word its phrase does not contain, since that line was written for another row, and leaves off a sense that breaks the rule, keeping the verdict. The rest go on the hit and its judge entry, and the routine's pull request lists them under Senses. |
+| you | `pnpm hits:sense`, or Senses of the words in the review desk or the audit, where a sense the judge wrote says so under its field. |
+| one reviewed pass | Roadmap phase S3, over the hits already published, in one pull request that lists every sense. |
 
 **Set or clear one:**
 
@@ -460,7 +468,9 @@ order, so the diff is the hit's one line.
 **In the desk and the audit.** Each hit's row has **Senses of the words**: one field per word, holding its
 sense, with the dictionary's first gloss beneath it (`Dictionary: a heavy Burmese knife`, or
 `Dictionary: no definition`), so you can see where the reading differs. Writing in a field sets a sense and
-emptying one clears it; each becomes a `pnpm hits:sense` command. A near miss has no fields until it is a hit.
+emptying one clears it; each becomes a `pnpm hits:sense` command. Under a field, "Proposed by the judge."
+marks a sense the judge wrote, and "The judge proposed:" quotes one you have changed. A near miss has no
+fields until it is a hit; promoted with `hits:ingest --only`, it takes the judge's senses from its verdict.
 
 **Where senses are kept.** `data/hits.jsonl` holds them on the hit as an object keyed by word, and the site's
 `hits.json` carries it on the hits that have one. The dataset publishes `senses` as a list of `word` and
@@ -566,7 +576,8 @@ on a laptop, with the engine check turned back on.
    input, listing the numbers of the phrases with any link to it, read phrase by phrase rather than kept
    or dropped by script. An older queue without screen files skips this step.
 3. `pnpm hits:judge --date=<folder>` checks the screen answers, writes the kept phrases to
-   `screened.jsonl`, and writes `judge-input-N.md` files into the folder: the rubric, then the candidates.
+   `screened.jsonl`, and writes `judge-input-N.md` files into the folder: the rubric, then the candidates,
+   each with its words and their first dictionary glosses.
 4. Have a Claude session answer every judge file into `judge-output.jsonl`, one JSON line per candidate,
    forming each verdict itself rather than giving groups of rows a default score by script. With
    `ANTHROPIC_API_KEY` set in your shell, `pnpm hits:judge --date=<folder> --via=api` writes the judge's

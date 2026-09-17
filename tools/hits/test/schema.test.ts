@@ -158,6 +158,11 @@ describe('schemas', () => {
     expect(sensesProblem(ok)).toBeNull();
     expect(sensesProblem(hit({ senses: { attic: 'Not a word of this hit.' } }))).toMatch(/attic, which is not one of its words: dirty room/);
     expect(sensesProblem(hit({}))).toBeNull();
+    // A v2 judge entry records the senses it proposed, under the same rule.
+    const v2 = { model: 'm', rubric_version: 'v2', relation: 4, reads: 3, tone: [], subjects: [], justification: 'A link.', rationale: 'r', judged_at: '2026-09-17' };
+    expect(hv(hit({ judge: [{ ...v2, senses: { room: 'A space to move in.' } } as never] })), JSON.stringify(hv.errors)).toBe(true);
+    expect(hv(hit({ judge: [{ ...v2, senses: { room: 'No full stop' } } as never] }))).toBe(false);
+    expect(hv(hit({ judge: [{ ...v2, senses: {} } as never] }))).toBe(false);
   });
 
   it('validate every committed line of both data files', async () => {

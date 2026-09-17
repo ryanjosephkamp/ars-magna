@@ -18,6 +18,7 @@ You are screening and judging candidate anagrams for the Ars Magna Greatest Hits
 - Never edit `data/hits.jsonl` by hand; only `pnpm hits:ingest` writes it.
 - Never change a candidate's status yourself.
 - The rubric lets a verdict carry `about`: one factual sentence saying what an input is, only for an input the batch shows as `(empty)`. It is never an opinion, never about a private person, and never replaces a sentence an input already has; leave it out whenever you are not sure of the facts. Ingest keeps it on the input and its hits, and the report lists it for the person who merges.
+- The rubric lets a verdict carry `senses`: the sense a word of the anagram reads in, only where the first dictionary sense the batch lists would not explain the reading or reads `no definition`. A sense is a reading, never a fact about the input, and never invented for a word you do not know; ingest refuses a verdict whose senses name a word its anagram does not contain.
 - The rubric lets a verdict carry a `request`: a word you believe the vocabulary is missing. It is rare and optional, and it is a proposal for a person to read, never a change you make. Never add a word to `data/vocabulary/additions.jsonl`, never run `pnpm vocab:add`, and never let a request change the scores you give. If you cannot name a source you are sure of, leave it out; an invented source is worse than no request.
 - Do not push to `main`.
 - Do not schedule follow-ups, reminders or later check-ins. When the pull request is open, you are done; a person reviews it.
