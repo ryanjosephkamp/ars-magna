@@ -42,17 +42,35 @@ export type Config = { name: string; file: string; rows: Hit[] };
  * row. `shelf` is derived from the status and the judges; `justification` is
  * the hit's own sentence, or the best v2 judge's when the hit has none;
  * `about` and `wikipedia` say what the input is.
+ *
+ * `senses` is a list of `{word, sense}` in the order the words read, where the
+ * hit file holds an object keyed by word. Keyed by word, a reader infers one
+ * struct field per distinct word across the whole dataset, and its type
+ * changes whenever a new word gets a sense; a list keeps one type for good.
  */
-export type PublishedRow = Omit<Hit, 'submitter' | 'justification' | 'about' | 'wikipedia'> & {
+export type PublishedSense = { word: string; sense: string };
+
+export type PublishedRow = Omit<Hit, 'submitter' | 'justification' | 'about' | 'wikipedia' | 'senses'> & {
   submitter: string | null;
   justification: string | null;
   about: string | null;
   wikipedia: string | null;
+  senses: PublishedSense[] | null;
   shelf: Shelf;
 };
 
+/** A hit's senses as a published row lists them, in reading order; null when it has none. */
+export function publishedSenses(hit: Pick<Hit, 'words' | 'senses'>): PublishedSense[] | null {
+  const senses = hit.senses ?? {};
+  const listed = [...new Set(hit.words)].flatMap((word) => {
+    const sense = senses[word];
+    return sense === undefined ? [] : [{ word, sense }];
+  });
+  return listed.length > 0 ? listed : null;
+}
+
 export function publishRow(hit: Hit): PublishedRow {
-  const { submitter, justification, about, wikipedia, ...rest } = hit;
+  const { submitter, justification, about, wikipedia, senses: _senses, ...rest } = hit;
   const judged = hit.judge
     .filter(isV2)
     .filter((j) => j.justification)
@@ -63,6 +81,7 @@ export function publishRow(hit: Hit): PublishedRow {
     justification: justification ?? judged?.justification ?? null,
     about: about ?? null,
     wikipedia: wikipedia ?? null,
+    senses: publishedSenses(hit),
     shelf: shelfOf(hit),
   };
 }

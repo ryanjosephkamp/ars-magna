@@ -75,6 +75,17 @@
       "type": "string",
       "pattern": "^https://en\\.wikipedia\\.org/wiki/\\S+$",
       "description": "The input's English Wikipedia article. A copy of the candidate's wikipedia."
+    },
+    "senses": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "type": "string", "pattern": "^[a-z]+$" },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 120,
+        "pattern": "^\\S[^\\r\\n\\u2028\\u2029]*\\.[\"'”’)\\]]?$"
+      },
+      "description": "The sense a word reads in, in this anagram, keyed by one of the hit's own words: one sentence of at most 120 characters. Written only where the dictionary's first sense would not explain the reading, or the word has no definition. The tools check that each key is one of the hit's words."
     }
   },
   "$defs": {

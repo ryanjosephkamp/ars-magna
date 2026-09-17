@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildDataset, configs, publishRow, publishable } from '../src/publish.ts';
+import { buildDataset, configs, publishRow, publishable, type PublishedSense } from '../src/publish.ts';
 import { hitSchema, type Hit } from '../src/schema.ts';
 
 const hit = (over: Partial<Hit>): Hit => ({
@@ -25,7 +25,7 @@ const hit = (over: Partial<Hit>): Hit => ({
 
 const hits: Hit[] = [
   hit({}),
-  hit({ id: 'starwars:titles:stars-war', input: 'Star Wars', category: 'titles', words: ['stars', 'war'], display: 'stars war', letters: 'aarrsstw', status: 'featured' }),
+  hit({ id: 'starwars:titles:stars-war', input: 'Star Wars', category: 'titles', words: ['stars', 'war'], display: 'stars war', letters: 'aarrsstw', status: 'featured', senses: { stars: 'Celebrities, as in film stars.' } }),
   hit({ id: 'kindle:products:linked', input: 'Kindle', category: 'products', words: ['linked'], display: 'linked', letters: 'deikln', status: 'proposed' }),
   hit({ id: 'listen:phrases:silent', input: 'listen', words: ['silent'], display: 'silent', letters: 'eilnst', status: 'retired' }),
 ];
@@ -55,6 +55,20 @@ describe('publish', () => {
     expect(full).toMatchObject({ about: 'A dormitory is a building of shared bedrooms.', wikipedia: 'https://en.wikipedia.org/wiki/Dormitory' });
     // The datasets loader reads the first rows for a schema, so order matters as much as presence.
     expect(Object.keys(full)).toEqual(Object.keys(bare));
+  });
+
+  it('publishes senses as a list in reading order, null where the hit has none, with the keys in one order', () => {
+    const bare = publishRow(hit({}));
+    const full = publishRow(hit({ words: ['room', 'dirty'], display: 'room dirty', senses: { dirty: 'Messy.', room: 'Space.' } }));
+    expect(bare.senses).toBeNull();
+    // Keyed by word, a dataset reader would infer a column per word; a list keeps one type.
+    expect(full.senses).toEqual([
+      { word: 'room', sense: 'Space.' },
+      { word: 'dirty', sense: 'Messy.' },
+    ]);
+    expect(Object.keys(full)).toEqual(Object.keys(bare));
+    expect(Object.keys(bare).slice(-3)).toEqual(['wikipedia', 'senses', 'shelf']);
+    expect(full).not.toHaveProperty('senses.dirty');
   });
 
   it('publishes the shelf and the justification, falling back to the best v2 judge', () => {
@@ -95,8 +109,8 @@ describe('publish', () => {
     // Every published row carries every field: a dataset reader infers one
     // schema for the file and chokes on a key some rows lack.
     for (const row of all) {
-      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'about', 'wikipedia', 'shelf']));
-      const { submitter, justification, about, wikipedia, shelf, ...rest } = row;
+      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'about', 'wikipedia', 'senses', 'shelf']));
+      const { submitter, justification, about, wikipedia, senses, shelf, ...rest } = row;
       expect(['greatest', 'interesting', 'stretch']).toContain(shelf);
       // The published extras aside, the row is still a valid hit.
       const back = {
@@ -105,10 +119,12 @@ describe('publish', () => {
         ...(justification === null ? {} : { justification }),
         ...(about === null ? {} : { about }),
         ...(wikipedia === null ? {} : { wikipedia }),
+        ...(senses === null ? {} : { senses: Object.fromEntries((senses as PublishedSense[]).map((s) => [s.word, s.sense])) }),
       };
       expect(validate(back)).toBe(true);
     }
     expect(all.map((r) => r['submitter'])).toEqual([null, null]);
+    expect(all.map((r) => r['senses'])).toEqual([null, [{ word: 'stars', sense: 'Celebrities, as in film stars.' }]]);
     expect(await readFile(join(out, 'products.jsonl'), 'utf8')).toBe('');
 
     const card = await readFile(join(out, 'README.md'), 'utf8');

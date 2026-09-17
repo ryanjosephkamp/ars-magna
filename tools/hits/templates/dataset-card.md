@@ -49,6 +49,7 @@ from datasets import load_dataset
 | `justification` | One plain sentence explaining why the anagram fits its input, for a reader who does not know the reference; `null` when there is none yet. |
 | `about` | One factual sentence saying what the input is, from Wikidata's English description or written for the dataset; `null` when there is none yet. |
 | `wikipedia` | The input's English Wikipedia article; `null` when it has none or none is known. |
+| `senses` | The sense a word reads in, in this anagram, as a list of `word` and `sense` in reading order: one sentence each, only for a word whose first dictionary sense would not explain the reading or that has no definition; `null` when no word needs one. |
 | `shelf` | `greatest` (Greatest Hits, chosen by hand), `interesting` (a clear link), or `stretch` (a loose one). |
 | `submitter` | Who found it, when it was submitted rather than mined; `null` for a mined hit. |
 | `added` | The date it entered the list. |

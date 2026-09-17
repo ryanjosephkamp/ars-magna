@@ -120,6 +120,8 @@ export type Hit = {
   about?: string;
   /** A copy of its candidate's `wikipedia`. */
   wikipedia?: string;
+  /** The sense a word reads in, in this anagram, keyed by one of the hit's own words. */
+  senses?: Record<string, string>;
 };
 
 let candidateValidator: ValidateFunction<Candidate> | null = null;

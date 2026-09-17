@@ -17,6 +17,7 @@ import {
   type Hit,
 } from '../src/schema.ts';
 import { alphagram, candidateId, hitId } from '../src/ids.ts';
+import { sensesProblem } from '../src/sense.ts';
 
 const candidate = (over: Partial<Candidate> = {}): Candidate => ({
   id: 'dormitory:phrases',
@@ -141,6 +142,24 @@ describe('schemas', () => {
     expect(hv(hit({ wikipedia: 'https://fr.wikipedia.org/wiki/Dortoir' }))).toBe(false);
   });
 
+  it('accept a sense for a word of a hit, and refuse one that breaks the rule', async () => {
+    const hv = await hitSchema();
+    const ok = hit({ senses: { room: 'Space enough to move in, as in room to breathe.' } });
+    expect(hv(ok), JSON.stringify(hv.errors)).toBe(true);
+    expect(hv(hit({ senses: { room: `${'x'.repeat(119)}.` } }))).toBe(true);
+    expect(hv(hit({ senses: { room: `${'x'.repeat(120)}.` } }))).toBe(false);
+    expect(hv(hit({ senses: { room: 'No full stop' } }))).toBe(false);
+    expect(hv(hit({ senses: { room: 'Two\nlines.' } }))).toBe(false);
+    expect(hv(hit({ senses: { Room: 'A capital.' } }))).toBe(false);
+    expect(hv(hit({ senses: { room2: 'A digit.' } }))).toBe(false);
+    expect(hv(hit({ senses: {} }))).toBe(false);
+    expect(hv(hit({ senses: { room: 3 } as never }))).toBe(false);
+    // The schema cannot see the words, so the key's word is checked in code.
+    expect(sensesProblem(ok)).toBeNull();
+    expect(sensesProblem(hit({ senses: { attic: 'Not a word of this hit.' } }))).toMatch(/attic, which is not one of its words: dirty room/);
+    expect(sensesProblem(hit({}))).toBeNull();
+  });
+
   it('validate every committed line of both data files', async () => {
     const candidates = await readJsonl(CANDIDATES_PATH, await candidateSchema());
     const hits = await readJsonl(HITS_PATH, await hitSchema());
@@ -152,6 +171,7 @@ describe('schemas', () => {
       expect(h.letters).toBe(alphagram(h.input));
       expect(alphagram(h.words.join(''))).toBe(h.letters);
       expect(h.display.split(' ').sort()).toEqual([...h.words].sort());
+      expect(sensesProblem(h)).toBeNull();
     }
   });
 

@@ -110,6 +110,25 @@ describe('commands', () => {
     expect(commands).toEqual(["pnpm hits:describe funeral:phrases 'A funeral is a ceremony for the dead.'"]);
   });
 
+  it('set or clear the sense of a word after what inputs are and before tags, the last decision for each word winning', () => {
+    const { commands } = composeCommands(
+      [
+        { kind: 'tag', id: 'darioamodei:people:ai-da-doomer-i', add: ['tone:pun'], remove: [] },
+        { kind: 'sense', id: 'darioamodei:people:ai-da-doomer-i', word: 'da', text: 'First.' },
+        { kind: 'sense', id: 'darioamodei:people:ai-da-doomer-i', word: 'ai', text: '' },
+        { kind: 'describe', id: 'darioamodei:people', text: 'Dario Amodei is a CEO and co-founder of Anthropic.' },
+        { kind: 'sense', id: 'darioamodei:people:ai-da-doomer-i', word: 'da', text: 'Short for the, as in casual speech.' },
+      ],
+      today,
+    );
+    expect(commands).toEqual([
+      "pnpm hits:describe darioamodei:people 'Dario Amodei is a CEO and co-founder of Anthropic.'",
+      'pnpm hits:sense darioamodei:people:ai-da-doomer-i ai --clear',
+      "pnpm hits:sense darioamodei:people:ai-da-doomer-i da 'Short for the, as in casual speech.'",
+      'pnpm hits:tag darioamodei:people:ai-da-doomer-i +tone:pun',
+    ]);
+  });
+
   it('let a later decision about the same thing replace an earlier one', () => {
     const { commands } = composeCommands(
       [
