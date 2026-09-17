@@ -23,7 +23,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { artifactFragment, deskData, renderDesk, type DeskMode, type QueueInput } from './desk/build.ts';
+import { artifactFragment, deskData, renderDesk, type DeskMode, type QueueInput, type SenseRule } from './desk/build.ts';
+import { firstGlosses } from './glosses.ts';
 import { parseVerdicts } from './judge.ts';
 import { JUDGE_OUTPUT, flag, queueDates, queueDir, readJudgedRows } from './queue.ts';
 import { CANDIDATES_PATH, HITS_PATH, REPO_ROOT, SCHEMA_DIR, candidateSchema, hitSchema, readJsonl, today } from './schema.ts';
@@ -46,6 +47,15 @@ export async function aboutPattern(): Promise<string> {
     properties: { about: { pattern: string } };
   };
   return schema.properties.about.pattern;
+}
+
+/** The rule for a sense, read from the hit schema so the page checks a sentence the way the schema will. */
+export async function senseRule(): Promise<SenseRule> {
+  const schema = JSON.parse(await readFile(resolve(SCHEMA_DIR, 'hit.schema.json'), 'utf8')) as {
+    properties: { senses: { additionalProperties: { pattern: string; maxLength: number } } };
+  };
+  const { pattern, maxLength } = schema.properties.senses.additionalProperties;
+  return { pattern, max: maxLength };
 }
 
 /** The newest `count` queues that have verdicts, newest first. */
@@ -81,6 +91,9 @@ export async function buildDesk(options: {
     today: today(),
     tagPattern: (await tagPattern()).source,
     aboutPattern: await aboutPattern(),
+    senseRule: await senseRule(),
+    // Each word's first gloss, the hint beside its sense, read off the site's definition shards.
+    glosses: await firstGlosses(hits.flatMap((h) => h.words)),
     applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
     deepRun: await readFile(DEEP_RUN_PROMPT, 'utf8'),
     deepPerInput: PRESETS.deep.perInput,

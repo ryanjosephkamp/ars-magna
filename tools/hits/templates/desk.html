@@ -119,6 +119,8 @@
   td textarea { min-width: 17rem; min-height: 3.6rem; font-size: 0.8125rem; }
   td input[type='text'] { min-width: 13rem; font-size: 0.8125rem; }
   .control { display: grid; gap: 0.35rem; }
+  .sense-word { display: block; margin: 0.5rem 0 0.2rem; font: 1rem/1.3 var(--font-display); color: var(--ink); }
+  .senses input[type='text'] { width: 100%; }
   fieldset { border: 0; padding: 0; margin: 0 0 0.75rem; }
   .check { display: flex; gap: 0.5rem; align-items: center; margin: 0.4rem 0; }
 
@@ -234,6 +236,7 @@
   var STORE = AUDIT ? 'ars-magna-audit' : 'ars-magna-desk';
   var TAG = new RegExp(DATA.tagPattern);
   var ABOUT = new RegExp(DATA.aboutPattern, 'u');
+  var SENSE = new RegExp(DATA.senseRule.pattern, 'u');
   var STATUSES = ['featured', 'accepted', 'proposed', 'retired'];
   var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'accepted', proposed: 'proposed', retired: 'retired' };
   var SHELF_LABEL = { greatest: 'Greatest Hits', interesting: 'Interesting', stretch: 'A stretch' };
@@ -294,6 +297,7 @@
   function keyOf(d) {
     switch (d.kind) {
       case 'status': case 'justify': case 'describe': case 'tag': case 'order': case 'note': case 'shelf': return d.kind + ':' + d.id;
+      case 'sense': return 'sense:' + d.id + ':' + d.word;
       case 'promote': return 'promote:' + d.id;
       case 'seed': return 'seed:' + candidateIdOf(d.input, d.category);
       case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/));
@@ -325,6 +329,7 @@
       case 'status': return d.id + ' to ' + STATUS_LABEL[d.status];
       case 'justify': return d.id + ': new justification';
       case 'describe': return d.id + ': what the input is';
+      case 'sense': return d.id + ': ' + (d.text ? 'sense of ' : 'clear the sense of ') + d.word;
       case 'tag': return d.id + ': ' + d.add.map(function (t) { return '+' + t; }).concat(d.remove.map(function (t) { return '-' + t; })).join(' ');
       case 'promote': return d.id + ' from ' + d.queue + ', ' + d.status;
       case 'order': return d.id + ' reads "' + d.words.join(' ') + '"' + (d.hit || find('promote:' + d.id) ? '' : ', once it is promoted');
@@ -408,6 +413,57 @@
       h('label', {}, h('span', { class: 'label' }, 'About the input'), area),
       problem,
       wikipedia ? h('div', { class: 'small' }, 'Wikipedia: ', h('a', { href: wikipedia, target: '_blank', rel: 'noopener noreferrer' }, articleTitle(wikipedia))) : null);
+  }
+
+  /* Why a sentence cannot be a sense, checked as the schema checks it; empty when it can. */
+  function senseProblemIn(text) {
+    var length = Array.from(text).length;
+    if (length > DATA.senseRule.max) return 'This sense is ' + length + ' characters; keep it to ' + DATA.senseRule.max + '.';
+    if (!SENSE.test(text)) return 'Write one sentence on one line, ending with a full stop.';
+    return '';
+  }
+
+  /*
+   * The sense each word of a hit reads in, in this anagram, written only where
+   * the dictionary's first sense, shown under the field, would not explain the
+   * reading or there is none. One decision per word: an emptied field clears
+   * the sense the hit has, and a field put back as it was makes no decision.
+   * Closed until opened, unless the hit has a sense or one is pending.
+   */
+  function senseControl(hit) {
+    var words = hit.words.filter(function (w, i) { return hit.words.indexOf(w) === i; });
+    var shown = Object.keys(hit.senses).length > 0 || words.some(function (w) { return find('sense:' + hit.id + ':' + w); });
+    var box = h('div', { class: 'senses', hidden: !shown },
+      h('span', { class: 'label' }, 'Senses in this anagram'),
+      words.map(function (word) { return senseField(hit, word); }));
+    var open = h('button', { class: 'link', type: 'button', hidden: shown, onclick: function () {
+      open.hidden = true;
+      box.hidden = false;
+      box.querySelector('input').focus();
+    } }, 'Senses of the words');
+    return h('div', {}, open, box);
+  }
+
+  function senseField(hit, word) {
+    var key = 'sense:' + hit.id + ':' + word;
+    var was = hit.senses[word] || '';
+    var pending = find(key);
+    var field = h('input', { type: 'text', 'aria-label': 'Sense of ' + word + ' in ' + hit.display, placeholder: 'Only where the dictionary does not fit' });
+    field.value = pending ? pending.text : was;
+    var gloss = DATA.glosses[word];
+    var problem = h('p', { class: 'problem', role: 'status' });
+    field.addEventListener('change', function () {
+      var text = field.value.replace(/\s+/g, ' ').trim();
+      var bad = text && text !== was ? senseProblemIn(text) : '';
+      problem.textContent = bad;
+      if (text === was || bad) drop(key);
+      else upsert({ kind: 'sense', id: hit.id, word: word, text: text });
+      markRow(field, hit.id);
+    });
+    return h('div', {},
+      h('label', {}, h('span', { class: 'sense-word' }, word), field),
+      h('div', { class: 'small' }, 'Dictionary: ' + (gloss || 'no definition')),
+      problem);
   }
 
   /* An article's title from its address, as Wikipedia shows it. */
@@ -604,7 +660,7 @@
       });
       markRow(tags, hit.id);
     });
-    return h('div', { class: 'control' }, status, text, aboutControl(hit.id, hit.about, hit.wikipedia, hit.display), tags, problem, noteControl(hit.id, hit.display, true));
+    return h('div', { class: 'control' }, status, text, aboutControl(hit.id, hit.about, hit.wikipedia, hit.display), senseControl(hit), tags, problem, noteControl(hit.id, hit.display, true));
   }
 
   function nearControls(row, queue) {
@@ -919,7 +975,7 @@
       h('h2', {}, 'The Discoveries page'),
       h('p', { class: 'small' }, 'Every anagram the site shows, ' + total + ' in all, each labelled with the section it is in now: ' + greatest.length +
         ' in Greatest Hits, ' + interesting.length + ' in Interesting and ' + stretch.length + ' in A stretch. A prompt copied without changes changes nothing. ' +
-        'Change a label to move an anagram to another section or off the page, and edit a justification or what its input is, reorder the words or add a note as in the review desk.'),
+        'Change a label to move an anagram to another section or off the page, and edit a justification, what its input is or the sense a word reads in, reorder the words or add a note as in the review desk.'),
       h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show)),
       list);
     draw();
@@ -993,7 +1049,7 @@
     if (!count) {
       aside.append(h('p', { class: 'empty' }, AUDIT
         ? 'Nothing changed yet. Every anagram keeps its label until you change it here.'
-        : 'Nothing decided yet. Change a status, edit a justification or what an input is, reorder the words, add a note or promote a near miss, and it appears here.'));
+        : 'Nothing decided yet. Change a status, edit a justification, what an input is or the sense a word reads in, reorder the words, add a note or promote a near miss, and it appears here.'));
     } else {
       aside.append(
         h('ul', { class: 'decisions' }, state.decisions.map(function (d) {

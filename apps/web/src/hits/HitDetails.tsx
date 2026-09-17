@@ -9,7 +9,8 @@ const OUT = 'text-ink-soft underline decoration-rule-strong underline-offset-4 t
 
 /**
  * What an opened row on Discoveries shows: what the input is and where to read
- * more about it, what each word means, and the other orders the words read in.
+ * more about it, what each word means (the sense this anagram reads it in
+ * first, when the hit has one), and the other orders the words read in.
  * The definitions are fetched when the row opens, from the same shards the
  * search page reads; the orderings came with the list, ranked when the site was
  * built, so the page never needs the engine.
@@ -22,12 +23,19 @@ export function HitDetails({ hit, definitions, id }: { hit: PublicHit; definitio
     // A word used twice is explained once.
     const words = [...new Set(hit.words)];
     void definitions.lookupAll(words).then((infos) => {
-      if (live) setDetails(words.map((word, i) => ({ word, spellings: [word], info: infos[i]! })));
+      if (live) {
+        setDetails(
+          words.map((word, i) => {
+            const sense = hit.senses?.[word];
+            return { word, spellings: [word], info: infos[i]!, ...(sense === undefined ? {} : { sense }) };
+          }),
+        );
+      }
     });
     return () => {
       live = false;
     };
-  }, [definitions, hit.words]);
+  }, [definitions, hit.words, hit.senses]);
 
   const count = countOrderings(hit.words);
 

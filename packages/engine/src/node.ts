@@ -13,12 +13,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { EngineCore } from './engineCore.ts';
+import { DICT_DIR, fileFetch } from './files.ts';
 import type { Response as EngineResponse, Tier } from './protocol.ts';
 
+export { DEFS_DIR, DICT_DIR, REPO_ROOT, fileFetch } from './files.ts';
+
 const here = dirname(fileURLToPath(import.meta.url));
-export const REPO_ROOT = resolve(here, '../../..');
-export const DICT_DIR = resolve(REPO_ROOT, 'apps/web/public/dict');
-export const DEFS_DIR = resolve(REPO_ROOT, 'apps/web/public/defs');
 const WASM_PATH = resolve(here, 'wasm/anagram_bg.wasm');
 
 class Port {
@@ -40,19 +40,6 @@ class Port {
     }
     throw new Error(`engine sent no ${kind}`);
   }
-}
-
-/** Serves a public folder off disk with the signature of `fetch`. */
-export function fileFetch(root: string, prefix: string | RegExp): typeof fetch {
-  return (async (input: RequestInfo | URL) => {
-    const url = typeof input === 'string' ? input : input.toString();
-    try {
-      const body = await readFile(resolve(root, url.replace(prefix, '')));
-      return new Response(body as unknown as BodyInit, { status: 200 });
-    } catch {
-      return new Response(null, { status: 404 });
-    }
-  }) as typeof fetch;
 }
 
 export type SolveOptions = {

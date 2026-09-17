@@ -47,6 +47,9 @@ When you know an anagram that belongs in the dataset.
    pnpm hits:set --status=accepted dormitory:phrases:dirty-room
    ```
 
+   If a word reads in a sense the dictionary does not give first, such as slang or an abbreviation, set that
+   sense now with `pnpm hits:sense` (see "Senses on Discoveries").
+
 4. Run the four suites (`pnpm test` validates every line of both data files), commit, push, and open a
    pull request. Merge when CI is green; Publish hits and Deploy take it from there.
 
@@ -264,7 +267,8 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
      (`+tone:pun -subject:actor`). For a near miss, accept it or add it as proposed, with a justification.
      On either, **About the input** holds the sentence saying what the input is, with its Wikipedia article
      beneath when it has one. The sentence belongs to the input, so every row of that input shows the same
-     change; it can be rewritten here but not removed.
+     change; it can be rewritten here but not removed. On a hit, **Senses of the words** holds the sense each
+     word reads in, in that anagram, with the dictionary's first gloss beneath (see "Senses on Discoveries").
      On any row of more than one word, **Reorder words** lets you tap the words in the order they should
      read; a near miss takes that order once it is promoted. **Add a note** on any row tells the agent
      something about that hit alone: why it deserves promoting, what its justification should say, or what
@@ -308,6 +312,7 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 | status | `pnpm hits:set --status=featured id…` |
 | justification | `pnpm hits:justify id "One plain sentence."` |
 | about the input | `pnpm hits:describe <candidate> "One factual sentence."`, after the justifications |
+| sense of a word | `pnpm hits:sense id word "One sentence."`, or `pnpm hits:sense id word --clear` for an emptied field, after what inputs are |
 | tags | `pnpm hits:tag id +tone:pun -subject:actor` |
 | accept a near miss | `pnpm hits:ingest --date=<queue> --model=<judge> --only=id,… --status=accepted`; a row with no justification goes in as `proposed`, then `hits:justify` and `hits:set` |
 | word order | `pnpm hits:order id room dirty`, after the ingest that writes a promoted near miss |
@@ -315,8 +320,8 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 | seed | appends the lines to `data/candidates.jsonl` |
 | deep run | `pnpm hits:requeue …`, then `hits:enumerate --preset=deep`, `hits:prefilter --per-input=all` and `hits:screen` |
 
-`hits:justify`, `hits:describe`, `hits:tag` and `hits:order` refuse an unknown id, an empty or over-long sentence, a tag the
-schema does not allow, and words that are not the hit's own, and write nothing then. `hits:order` changes
+`hits:justify`, `hits:describe`, `hits:sense`, `hits:tag` and `hits:order` refuse an unknown id, an empty or over-long
+sentence, a tag the schema does not allow, and words that are not the hit's own, and write nothing then. `hits:order` changes
 only how the words read: the id, and so the hit's page address, stays the same. `hits:ingest --only` refuses
 a row that is not in the queue, is already a hit, or has no valid verdict. An agent runs these only on what
 the operator named, and writes a justification only when a note asks for one.
@@ -353,8 +358,8 @@ the audit handles what the page already shows.
    Within each, the anagrams the judge suggested for Greatest Hits come first, then the strongest links.
    Filter by text or category, or show only the suggestions or what you have changed.
 3. Change a row's label to move it to another section or **Remove from the page** (`retired`), and edit its
-   justification, what its input is, tags or word order, or add a note, as in the review desk. Every row starts on its current
-   label, so a prompt copied without changes changes nothing.
+   justification, what its input is, the senses of its words, tags or word order, or add a note, as in the
+   review desk. Every row starts on its current label, so a prompt copied without changes changes nothing.
 4. Press **Copy prompt** and paste it into an agent session on the repository. It applies the changes on a
    new branch named `greatest-hits-audit-<date>` and opens a pull request. The page changes when you merge it.
 
@@ -420,6 +425,46 @@ without writing:
    `--wikidata`. It lists every input it left unmatched, with the reason.
 3. Writes a sentence and a link for every placed candidate with an item and no sentence, and copies them to
    the hits. A sentence that exists, from any source, is never replaced.
+
+## Senses on Discoveries
+
+An opened row on Discoveries lists each word of the anagram with the dictionary's senses, in the dictionary's
+order, and that order never changes: the three-toed sloth is the right first sense of `ai` everywhere but one
+anagram. Where the first sense would not explain how an anagram reads a word, the hit carries its own sense for
+that word, and the row shows it first, labelled In this anagram, with the dictionary's senses beneath. A word
+with neither shows what it always has. Search results keep the dictionary as it is.
+
+**The rule.** Write a sense only where the dictionary's first sense would not explain the reading, or where the
+word has no definition: slang, an abbreviation or initialism, a name, a rare sense. Never restate a first sense
+that already fits. One sentence on one line, at most 120 characters, ending with a full stop, for one of the
+hit's own words. A sense is a reading of the word, never a fact about the input, which is what `about` is for
+(see "What an input is"). A site addition's gloss already serves as its definition. The schema refuses a
+sentence that breaks the rule, and the command and the tests refuse a sense for a word the hit does not have.
+
+**Who writes one.** You, with the command below or in the review desk or the audit. From roadmap phase S2 the
+judge proposes senses for the hits it shelves, and phase S3 is one reviewed pass over the published hits.
+Nothing else writes a sense, and every one reaches the site through a pull request you merge.
+
+**Set or clear one:**
+
+```bash
+pnpm hits:sense darioamodei:people:ai-da-doomer-i da "Short for the, as in casual speech."
+pnpm hits:sense darioamodei:people:ai-da-doomer-i da --clear
+```
+
+It takes the hit id, one of its words, and the sentence or `--clear`; a word used twice in a hit has one sense.
+It refuses an unknown id, a word that is not the hit's, `--clear` given with a sentence, and a sentence that is
+empty, over 120 characters or without a full stop, and writes nothing then. The file is rewritten in its
+order, so the diff is the hit's one line.
+
+**In the desk and the audit.** Each hit's row has **Senses of the words**: one field per word, holding its
+sense, with the dictionary's first gloss beneath it (`Dictionary: a heavy Burmese knife`, or
+`Dictionary: no definition`), so you can see where the reading differs. Writing in a field sets a sense and
+emptying one clears it; each becomes a `pnpm hits:sense` command. A near miss has no fields until it is a hit.
+
+**Where senses are kept.** `data/hits.jsonl` holds them on the hit as an object keyed by word, and the site's
+`hits.json` carries it on the hits that have one. The dataset publishes `senses` as a list of `word` and
+`sense` in reading order, or `null`, so the column keeps one type however many words get a sense.
 
 ## Votes on Discoveries
 

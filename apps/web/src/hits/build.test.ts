@@ -69,6 +69,16 @@ describe('gallery build', () => {
     expect(withDefaults({ ...older, orderings: ['room dirty'] }).orderings).toEqual(['room dirty']);
   });
 
+  it('carries a hit\'s senses when it has one, and leaves the field out when it has none', () => {
+    const senses = { da: 'Short for the, as in casual speech.', ai: 'Artificial intelligence.' };
+    expect(toPublic(record({ words: ['i', 'da', 'ai', 'doomer'], senses })).senses).toEqual(senses);
+    expect(toPublic(record({}))).not.toHaveProperty('senses');
+    expect(toPublic(record({ senses: {} }))).not.toHaveProperty('senses');
+    // A list cached from before senses existed reads as having none.
+    const { orderings: _o, ...older } = toPublic(record({}));
+    expect(withDefaults(older)).not.toHaveProperty('senses');
+  });
+
   it('searches Google for the input as a reader would type it', () => {
     expect(googleUrl('Dolly Parton')).toBe('https://www.google.com/search?q=Dolly%20Parton');
     expect(googleUrl("(What's the Story) Morning Glory?")).toBe('https://www.google.com/search?q=(What\'s%20the%20Story)%20Morning%20Glory%3F');

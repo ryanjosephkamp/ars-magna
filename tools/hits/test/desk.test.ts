@@ -9,7 +9,7 @@ import { Script } from 'node:vm';
 
 import { composeCommands, type Decision } from '../src/desk/compose.ts';
 import { artifactFragment, deskData, deskQueue, embedJson, inlineCompose, renderDesk, type QueueInput } from '../src/desk/build.ts';
-import { APPLY_DESK_PROMPT, COMPOSE_SOURCE, DEEP_RUN_PROMPT, DESK_TEMPLATE, aboutPattern, judgedQueues } from '../src/desk.ts';
+import { APPLY_DESK_PROMPT, COMPOSE_SOURCE, DEEP_RUN_PROMPT, DESK_TEMPLATE, aboutPattern, judgedQueues, senseRule } from '../src/desk.ts';
 import type { VerdictV2 } from '../src/judge.ts';
 import type { Prefiltered } from '../src/prefilter.ts';
 import { CANDIDATES_PATH, HITS_PATH, candidateSchema, hitSchema, readJsonl, type Hit } from '../src/schema.ts';
@@ -138,6 +138,8 @@ describe('the Greatest Hits audit', () => {
       today: '2026-09-14',
       tagPattern: (await tagPattern()).source,
       aboutPattern: await aboutPattern(),
+      senseRule: await senseRule(),
+      glosses: new Map([['da', 'a heavy Burmese knife'], ['ai', 'the three-toed sloth of South America'], ['unused', 'not a word of any hit']]),
       applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
       deepRun: '',
       deepPerInput: null,
@@ -153,6 +155,15 @@ describe('the Greatest Hits audit', () => {
     expect(Object.keys(embedded.hits[0])).toEqual(expect.arrayContaining(['about', 'wikipedia']));
     expect(new RegExp(embedded.aboutPattern, 'u').test('A dormitory is a building of shared bedrooms.')).toBe(true);
     expect(new RegExp(embedded.aboutPattern, 'u').test('no full stop')).toBe(false);
+    // Each word's field shows its sense and the dictionary's first gloss, and the page checks a sense as the schema does.
+    const dario = embedded.hits.find((x: { id: string }) => x.id === 'darioamodei:people:ai-da-doomer-i');
+    expect(dario).toMatchObject({ words: ['i', 'da', 'ai', 'doomer'], senses: { da: 'Short for the, as in casual speech.', ai: 'Artificial intelligence.' } });
+    expect(embedded.glosses).toMatchObject({ da: 'a heavy Burmese knife', ai: 'the three-toed sloth of South America', i: null });
+    expect(embedded.glosses).not.toHaveProperty('unused');
+    expect(Object.keys(embedded.glosses)).toHaveLength(new Set(hits.flatMap((x) => x.words)).size);
+    expect(embedded.senseRule.max).toBe(120);
+    expect(new RegExp(embedded.senseRule.pattern, 'u').test('Artificial intelligence.')).toBe(true);
+    expect(new RegExp(embedded.senseRule.pattern, 'u').test('no full stop')).toBe(false);
     for (const script of [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!)) expect(() => new Script(script)).not.toThrow();
     // The review desk keeps its own title.
     const desk = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), { ...data, mode: 'desk' }, await readFile(COMPOSE_SOURCE, 'utf8'));
@@ -185,6 +196,8 @@ describe('the page', () => {
       today: '2026-09-14',
       tagPattern: (await tagPattern()).source,
       aboutPattern: await aboutPattern(),
+      senseRule: await senseRule(),
+      glosses: new Map(),
       applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
       deepRun: await readFile(DEEP_RUN_PROMPT, 'utf8'),
       deepPerInput: 300,
@@ -210,6 +223,8 @@ describe('the page', () => {
       { kind: 'note', id: hits[0]!.id, display: hits[0]!.display, text: 'Say why it is plain.\nKeep it short.', hit: true },
       { kind: 'shelf', id: hits[1]!.id, shelf: 'stretch', judged: 'interesting', tags: [] },
       { kind: 'describe', id: hits[1]!.id.split(':').slice(0, 2).join(':'), text: "It's a place." },
+      { kind: 'sense', id: hits[0]!.id, word: hits[0]!.words[0]!, text: "It's the reading." },
+      { kind: 'sense', id: hits[1]!.id, word: hits[1]!.words[0]!, text: '' },
     ];
     const inPage = (context['composeCommands'] as typeof composeCommands)(decisions, '2026-09-14');
     expect(JSON.stringify(inPage)).toBe(JSON.stringify(composeCommands(decisions, '2026-09-14')));

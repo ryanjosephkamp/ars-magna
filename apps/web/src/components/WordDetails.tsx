@@ -5,6 +5,8 @@ export type WordDetail = {
   /** Every spelling of the anagram class this word belongs to, including itself. */
   readonly spellings: readonly string[];
   readonly info: WordInfo;
+  /** The sense the word reads in, in one anagram on Discoveries; shown before the dictionary's. */
+  readonly sense?: string;
 };
 
 const POS_LABEL: Record<string, string> = {
@@ -35,7 +37,7 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
 
   return (
     <dl className="space-y-2.5">
-      {details.map(({ word, spellings, info }) => {
+      {details.map(({ word, spellings, info, sense: reading }) => {
         const others = spellings.filter((s) => s !== word);
         const explain = shouldExplain(info);
 
@@ -43,6 +45,14 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
           <div key={word} className="sm:flex sm:gap-3">
             <dt className="font-display shrink-0 text-base text-ink sm:w-32">{word}</dt>
             <dd className="min-w-0 flex-1">
+              {/* The reading this anagram uses, where the dictionary's first
+                  sense would not explain it. The dictionary keeps its own order
+                  beneath: this is one hit's sense, not the word's. */}
+              {reading !== undefined && (
+                <p className="text-ink">
+                  <span className="font-mono text-[10px] tracking-wide text-ink-faint">In this anagram</span> {reading}
+                </p>
+              )}
               {info.senses.length > 0 ? (
                 <ul className="space-y-0.5">
                   {info.senses.map((sense, i) => (

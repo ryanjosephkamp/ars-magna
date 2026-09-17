@@ -40,6 +40,8 @@ export type HitRecord = {
   about?: string;
   /** The input's English Wikipedia article. */
   wikipedia?: string;
+  /** The sense a word reads in, in this anagram, keyed by the word. */
+  senses?: Record<string, string>;
 };
 
 /** What ships in /hits.json: one compact row per published hit. */
@@ -62,6 +64,12 @@ export type PublicHit = {
   about: string | null;
   /** The input's English Wikipedia article, or null. */
   wikipedia: string | null;
+  /**
+   * The sense a word reads in, in this anagram, keyed by the word, where the
+   * dictionary's first sense would not explain the reading. Left out when the
+   * hit has none, which is most of them.
+   */
+  senses?: Record<string, string>;
   /**
    * The words' best orders as phrases, the hit's own first, at most eight;
    * empty when the words read only one way. Worked out at build time with the
@@ -142,6 +150,7 @@ export function toPublic(hit: HitRecord): PublicHit {
     tags: hit.tags.filter((t) => !t.startsWith('note:') && !t.startsWith('shelf:')),
     about: hit.about ?? null,
     wikipedia: hit.wikipedia ?? null,
+    ...(hit.senses && Object.keys(hit.senses).length > 0 ? { senses: hit.senses } : {}),
     orderings: [],
   };
 }

@@ -15,8 +15,8 @@ Code) adds only what is specific to that harness and never restates a rule from 
 - Nothing enters the published dataset without a person's merge. A hit is published when a person
   merges the pull request that makes it `accepted`, whether the judge routine shelved it or
   `pnpm hits:set` set it. Greatest Hits (`featured`) changes only when the operator promotes a hit by
-  name. An agent runs `hits:set`, `hits:justify`, `hits:describe`, `hits:tag`, `hits:order`, `hits:input` and `hits:judged-at` only on the ids,
-  statuses, sentences, tags, word orders, inputs and queues the operator named, whether in a message or in a prompt the review desk
+  name. An agent runs `hits:set`, `hits:justify`, `hits:describe`, `hits:sense`, `hits:tag`, `hits:order`, `hits:input` and `hits:judged-at` only on the ids,
+  statuses, sentences, senses, tags, word orders, inputs and queues the operator named, whether in a message or in a prompt the review desk
   filled. When the operator's note on a hit in that prompt asks for a justification, the agent writes it
   and lists it in the pull request, whose merge approves it.
 - The commit author email is the GitHub no-reply address
@@ -65,6 +65,7 @@ pnpm hits:fetch --reclassify         # ask Wikidata again: unclassified candidat
 pnpm hits:set --status=accepted|featured|proposed|retired id…
 pnpm hits:justify id "One plain sentence."   # set a hit's justification
 pnpm hits:describe candidate "One factual sentence."   # set what an input is, on it and its hits (--wikidata=Q…, --wikipedia=…)
+pnpm hits:sense id word "One sentence."        # set the sense a hit's word reads in on Discoveries (--clear removes it)
 pnpm hits:tag id +tone:pun -subject:actor     # add and remove a hit's tags
 pnpm hits:order id room dirty                 # set the order a hit's words read in
 pnpm hits:input id "Big Brother"              # set how a hit's input reads, letters unchanged
@@ -93,7 +94,7 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
 
 - Push to `main`, merge a pull request, or rewrite a branch someone else pushed.
 - Edit `data/hits.jsonl` by hand, or change an existing line of `data/candidates.jsonl`. The tools
-  write them: `hits:ingest`, `hits:set`, `hits:justify`, `hits:describe`, `hits:tag`, `hits:order`, `hits:input`, `hits:judged-at`, `hits:fetch`, and the MCP tool
+  write them: `hits:ingest`, `hits:set`, `hits:justify`, `hits:describe`, `hits:sense`, `hits:tag`, `hits:order`, `hits:input`, `hits:judged-at`, `hits:fetch`, and the MCP tool
   `propose_hit`. Appending new
   `manual` candidates by hand is allowed.
 - Create, change, pause or delete a schedule (the Actions crons, the judge routine, a scheduled task)

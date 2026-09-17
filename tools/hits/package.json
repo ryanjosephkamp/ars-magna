@@ -18,6 +18,7 @@
     "desk": "node --experimental-strip-types src/desk.ts",
     "justify": "node --experimental-strip-types src/justify.ts",
     "describe": "node --experimental-strip-types src/describe.ts",
+    "sense": "node --experimental-strip-types src/sense.ts",
     "tag": "node --experimental-strip-types src/tag.ts",
     "order": "node --experimental-strip-types src/order.ts",
     "input": "node --experimental-strip-types src/input.ts",

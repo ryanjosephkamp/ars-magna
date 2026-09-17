@@ -49,6 +49,10 @@ export type DeskHit = DeskPlace & {
   about: string;
   /** The input's English Wikipedia article; empty when it has none. */
   wikipedia: string;
+  /** The words in reading order. */
+  words: string[];
+  /** The sense a word reads in, in this anagram, keyed by the word; empty when it has none. */
+  senses: Record<string, string>;
   tags: string[];
   added: string;
   relation: number | null;
@@ -81,6 +85,10 @@ export type DeskData = {
   tagPattern: string;
   /** The hit schema's pattern for what an input is, for the same reason. */
   aboutPattern: string;
+  /** The hit schema's rule for a sense: its pattern and its length in characters. */
+  senseRule: SenseRule;
+  /** The first dictionary gloss of every word of every hit, or null for a word with none: the hint beside each sense. */
+  glosses: Record<string, string | null>;
   /** docs/prompts/apply-desk.md as it is on disk. */
   applyDesk: string;
   /** docs/prompts/deep-run.md as it is on disk. */
@@ -88,6 +96,8 @@ export type DeskData = {
   /** The deep preset's bound per input, the Deep run tab's default; null for none. */
   deepPerInput: number | null;
 };
+
+export type SenseRule = { pattern: string; max: number };
 
 /** A judged queue as the desk reads it. */
 export type QueueInput = { name: string; rows: Prefiltered[]; verdicts: Verdict[] };
@@ -179,6 +189,8 @@ export function deskData(input: {
   today: string;
   tagPattern: string;
   aboutPattern: string;
+  senseRule: SenseRule;
+  glosses: ReadonlyMap<string, string | null>;
   applyDesk: string;
   deepRun: string;
   deepPerInput: number | null;
@@ -201,6 +213,8 @@ export function deskData(input: {
         justification: h.justification ?? '',
         about: h.about ?? '',
         wikipedia: h.wikipedia ?? '',
+        words: [...h.words],
+        senses: { ...h.senses },
         tags: [...h.tags],
         added: h.added,
         relation: scores?.relation ?? null,
@@ -220,6 +234,11 @@ export function deskData(input: {
     queues: input.queues.map((q) => deskQueue(q, input.hits, input.today)),
     tagPattern: input.tagPattern,
     aboutPattern: input.aboutPattern,
+    senseRule: input.senseRule,
+    // Only the words the hits use, so a test can pass a wider map.
+    glosses: Object.fromEntries(
+      [...new Set(input.hits.flatMap((h) => h.words))].sort().map((word) => [word, input.glosses.get(word) ?? null]),
+    ),
     applyDesk: input.applyDesk,
     deepRun: input.deepRun,
     deepPerInput: input.deepPerInput,

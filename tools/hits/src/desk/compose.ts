@@ -15,6 +15,8 @@ export type StatusDecision = { kind: 'status'; id: string; status: StatusName };
 export type JustifyDecision = { kind: 'justify'; id: string; text: string };
 /** What an input is: one sentence for every hit of it, so `id` is the candidate id. */
 export type DescribeDecision = { kind: 'describe'; id: string; text: string };
+/** The sense one word of a hit reads in, in that anagram; empty text clears it. */
+export type SenseDecision = { kind: 'sense'; id: string; word: string; text: string };
 export type TagDecision = { kind: 'tag'; id: string; add: string[]; remove: string[] };
 /**
  * A row of a judged queue that is not in data/hits.jsonl, put there by name.
@@ -53,6 +55,7 @@ export type Decision =
   | StatusDecision
   | JustifyDecision
   | DescribeDecision
+  | SenseDecision
   | TagDecision
   | PromoteDecision
   | OrderDecision
@@ -171,7 +174,7 @@ function lastBy<T extends Decision>(decisions: readonly Decision[], kind: T['kin
 /**
  * The commands for a set of decisions, grouped so each runs after what it
  * needs: seeds and requeues, a deep run, rows promoted from a queue, word
- * orders, then justifications, what inputs are, tags, shelves and statuses, then hits added by hand. A
+ * orders, then justifications, what inputs are, senses, tags, shelves and statuses, then hits added by hand. A
  * later decision about the same thing replaces an earlier one. The notes on
  * rows come out as a list for the prompt, each with the row's chosen order.
  */
@@ -264,6 +267,11 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   // After ingest and the justifications, so a promoted near miss has its hit line to take the sentence.
   for (const d of lastBy<DescribeDecision>(decisions, 'describe', (x) => x.id)) {
     commands.push(`pnpm hits:describe ${d.id} ${shellQuote(d.text)}`);
+  }
+
+  for (const d of lastBy<SenseDecision>(decisions, 'sense', (x) => `${x.id} ${x.word}`)) {
+    const text = d.text.trim();
+    commands.push(`pnpm hits:sense ${d.id} ${d.word} ${text ? shellQuote(text) : '--clear'}`);
   }
 
   for (const t of lastBy<TagDecision>(decisions, 'tag', (d) => d.id)) {
