@@ -66,6 +66,7 @@ pnpm hits:set --status=accepted|featured|proposed|retired id…
 pnpm hits:justify id "One plain sentence."   # set a hit's justification
 pnpm hits:describe candidate "One factual sentence."   # set what an input is, on it and its hits (--wikidata=Q…, --wikipedia=…)
 pnpm hits:sense id word "One sentence."        # set the sense a hit's word reads in on Discoveries (--clear removes it)
+pnpm hits:glosses                             # list published hits' words with their first dictionary gloss (--all for every hit)
 pnpm hits:tag id +tone:pun -subject:actor     # add and remove a hit's tags
 pnpm hits:order id room dirty                 # set the order a hit's words read in
 pnpm hits:input id "Big Brother"              # set how a hit's input reads, letters unchanged

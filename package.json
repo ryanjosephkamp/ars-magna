@@ -37,6 +37,7 @@
     "hits:justify": "pnpm --filter @ars-magna/hits run justify",
     "hits:describe": "pnpm --filter @ars-magna/hits run describe",
     "hits:sense": "pnpm --filter @ars-magna/hits run sense",
+    "hits:glosses": "pnpm --filter @ars-magna/hits run glosses",
     "hits:tag": "pnpm --filter @ars-magna/hits run tag",
     "hits:order": "pnpm --filter @ars-magna/hits run order",
     "hits:input": "pnpm --filter @ars-magna/hits run input",
