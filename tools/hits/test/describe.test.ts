@@ -10,7 +10,11 @@ import { candidateOf } from '../src/about.ts';
 import { applyAbout, changeFor, changeFromWikidata, parseDescribeArgs } from '../src/describe.ts';
 import { CANDIDATES_PATH, HITS_PATH, candidateSchema, hitSchema, readJsonl, writeJsonl, type Candidate, type Hit } from '../src/schema.ts';
 
-/** Every hit of the first input that has more than one, its candidate, a classic with no candidate line, and a few others. */
+/**
+ * Every hit of the first input that has more than one, with its candidate; a few other inputs' hits with
+ * theirs; and one input whose candidate line is left out, as the classics seeded before candidates had none.
+ * Neither file carries a sentence or a link to start with.
+ */
 async function sampleFiles() {
   const cv = await candidateSchema();
   const hv = await hitSchema();
@@ -20,10 +24,12 @@ async function sampleFiles() {
   const counts = new Map<string, number>();
   for (const h of allHits) counts.set(candidateOf(h.id), (counts.get(candidateOf(h.id)) ?? 0) + 1);
   const input = [...counts].find(([id, n]) => n > 1 && ids.has(id))![0];
-  const orphan = allHits.find((h) => !ids.has(candidateOf(h.id)))!;
-  const picked = [...allHits.filter((h) => candidateOf(h.id) === input), orphan, ...allHits.filter((h) => candidateOf(h.id) !== input).slice(0, 3)];
+  const others = allHits.filter((h) => candidateOf(h.id) !== input && ids.has(candidateOf(h.id)));
+  const orphan = others[0]!;
+  const picked = [...allHits.filter((h) => candidateOf(h.id) === input), ...others.slice(0, 4)];
   const hits: Hit[] = [...new Map(picked.map((h) => [h.id, h])).values()];
   const keep = new Set(hits.map((h) => candidateOf(h.id)));
+  keep.delete(candidateOf(orphan.id));
   const candidates: Candidate[] = allCandidates.filter((c) => keep.has(c.id)).map(({ about: _a, wikipedia: _w, ...c }) => c);
   const dir = await mkdtemp(join(tmpdir(), 'ars-magna-describe-'));
   const paths = { candidates: join(dir, 'candidates.jsonl'), hits: join(dir, 'hits.jsonl') };
