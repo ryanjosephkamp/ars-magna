@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { countOrderings, nextOrdering, orderings } from './orderings.ts';
+import { TAG_BIT } from '@ars-magna/engine';
+
+import { HIT_ORDERINGS, countOrderings, hitOrderings, nextOrdering, orderings } from './orderings.ts';
 
 const phrases = (rows: string[][]) => rows.map((row) => row.join(' '));
 
@@ -37,6 +39,19 @@ describe('countOrderings', () => {
     for (const words of cases) {
       expect(orderings(words, 10_000)).toHaveLength(countOrderings(words));
     }
+  });
+});
+
+describe('a published hit\'s orderings', () => {
+  it('lead with the hit\'s own order, rank the rest, stop at eight, and are none for words that read one way', () => {
+    // Its own reading order first, even where another would score higher.
+    expect(hitOrderings(['loser', 'natural'], [TAG_BIT.noun, TAG_BIT.adj | TAG_BIT.noun])).toEqual(['loser natural', 'natural loser']);
+    const four = hitOrderings(['i', 'da', 'ai', 'doomer'], [0, 0, 0, 0]);
+    expect(four).toHaveLength(HIT_ORDERINGS);
+    expect(four[0]).toBe('i da ai doomer');
+    expect(new Set(four).size).toBe(HIT_ORDERINGS);
+    expect(hitOrderings(['married'], [TAG_BIT.verb])).toEqual([]);
+    expect(hitOrderings(['pa', 'pa'], [0, 0])).toEqual([]);
   });
 });
 

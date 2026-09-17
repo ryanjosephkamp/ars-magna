@@ -62,6 +62,12 @@ export type PublicHit = {
   about: string | null;
   /** The input's English Wikipedia article, or null. */
   wikipedia: string | null;
+  /**
+   * The words' best orders as phrases, the hit's own first, at most eight;
+   * empty when the words read only one way. Worked out at build time with the
+   * engine, so the page ranks them without one.
+   */
+  orderings: string[];
 };
 
 export const CATEGORIES: readonly Category[] = ['people', 'companies', 'products', 'titles', 'places', 'phrases'];
@@ -109,6 +115,7 @@ export function shelfOf(hit: Pick<HitRecord, 'status' | 'judge'> & { tags?: read
   return relation >= 4 ? 'interesting' : 'stretch';
 }
 
+/** A published hit as the site ships it. Its `orderings` start empty: the build, which has the engine, fills them in. */
 export function toPublic(hit: HitRecord): PublicHit {
   const v1 = hit.judge.filter((j) => j.total !== undefined).sort((a, b) => b.total! - a.total!)[0];
   const v2 = hit.judge
@@ -135,7 +142,21 @@ export function toPublic(hit: HitRecord): PublicHit {
     tags: hit.tags.filter((t) => !t.startsWith('note:') && !t.startsWith('shelf:')),
     about: hit.about ?? null,
     wikipedia: hit.wikipedia ?? null,
+    orderings: [],
   };
+}
+
+/**
+ * A row of `hits.json` as the page can rely on it. A copy the service worker
+ * kept from before a field existed lacks it, and the page should still open.
+ */
+export function withDefaults(hit: Partial<PublicHit> & Pick<PublicHit, 'id' | 'words'>): PublicHit {
+  return { about: null, wikipedia: null, orderings: [], ...hit } as PublicHit;
+}
+
+/** A search for the input itself, as a reader would type it. */
+export function googleUrl(input: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(input)}`;
 }
 
 export type Order = 'votes' | 'newest' | 'alphabetical';
@@ -221,7 +242,8 @@ function escapeHtml(text: string): string {
  */
 export function hitPage(hit: PublicHit, origin: string): string {
   const title = `${hit.input} → ${hit.display}`;
-  const description = hit.justification || `An anagram of ${hit.input}: ${hit.display}. One of the Ars Magna discoveries.`;
+  // What the input is, when the hit says, for a preview read by someone who may not know it.
+  const description = hit.about || hit.justification || `An anagram of ${hit.input}: ${hit.display}. One of the Ars Magna discoveries.`;
   const url = `${origin}/hits/${hit.slug}/`;
   const target = `/hits#${hit.slug}`;
   return `<!doctype html>

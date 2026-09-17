@@ -26,6 +26,13 @@ describe.skipIf(!built)('checkAnagram', () => {
     engine = await Engine.boot();
   });
 
+  it('gives each word its part-of-speech mask, in order, as the site build ranks orderings with them', async () => {
+    const masks = await engine.masks(['natural', 'loser']);
+    expect(masks).toHaveLength(2);
+    expect(masks.every((m) => Number.isInteger(m) && m > 0)).toBe(true);
+    expect(await engine.masks([])).toEqual([]);
+  });
+
   it('accepts a real anagram and names what is wrong otherwise', async () => {
     expect(await checkAnagram(engine, 'dormitory', ['dirty', 'room'], 'common')).toEqual({ ok: true });
     expect(await checkAnagram(engine, 'Dormitory!', ['room', 'dirty'], 'standard')).toEqual({ ok: true });

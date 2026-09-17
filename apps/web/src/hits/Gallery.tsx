@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { Definitions } from '../lib/definitions.ts';
 import { useCopy } from '../lib/useCopy.ts';
 import { CheckToast } from '../components/CheckToast.tsx';
 import { VoteButton } from '../components/CountButton.tsx';
@@ -16,11 +17,13 @@ import {
   pickOfTheDay,
   sectionAt,
   sectionOpen,
+  withDefaults,
   type Category,
   type Order,
   type PublicHit,
   type Shelf,
 } from './build.ts';
+import { HitDetails } from './HitDetails.tsx';
 import { usePass } from '../state/usePass.ts';
 import { useVotes } from './useVotes.ts';
 
@@ -56,6 +59,9 @@ export function Gallery() {
   const [selected, setSelected] = useState<string | null>(() => window.location.hash.slice(1) || null);
   // Which hit's share actions are open: one at a time, by id.
   const [sharing, setSharing] = useState<string | null>(null);
+  // Which row is opened to its details: one at a time, by id, and none to start with.
+  const [opened, setOpened] = useState<string | null>(null);
+  const definitions = useMemo(() => new Definitions('/defs'), []);
   // Show all (true) and Show fewer (false), by section; a section the reader has not chosen for is folded,
   // unless a link points into it.
   const [unfolded, setUnfolded] = useState<Partial<Record<Shelf, boolean>>>({});
@@ -83,7 +89,7 @@ export function Gallery() {
   useEffect(() => {
     fetch('/hits.json')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((body: { hits: PublicHit[] }) => setLoaded({ state: 'ready', hits: body.hits }))
+      .then((body: { hits: PublicHit[] }) => setLoaded({ state: 'ready', hits: body.hits.map(withDefaults) }))
       .catch(() => setLoaded({ state: 'failed' }));
   }, []);
 
@@ -225,6 +231,7 @@ export function Gallery() {
   const shareUrl = (hit: PublicHit) => `${window.location.origin}/hits/${hit.slug}/`;
   const shareable = (hit: PublicHit) => ({ input: hit.input, phrase: hit.display, url: shareUrl(hit), total: null });
   const toggleShare = (id: string) => setSharing((open) => (open === id ? null : id));
+  const toggleOpened = (id: string) => setOpened((current) => (current === id ? null : id));
   const jumpTo = (shelf: Shelf) => document.getElementById(`section-${shelf}`)?.scrollIntoView({ block: 'start' });
   const chooseOrder = (next: Order) => {
     setOrder(next);
@@ -412,6 +419,8 @@ export function Gallery() {
                       <ol id={listId} className="border-t border-rule-strong">
                         {rows.map((hit, index) => {
                           const isSelected = hit.slug === selected;
+                          const isOpened = opened === hit.id;
+                          const detailsId = `details-${hit.slug}`;
                           return (
                             <li
                               key={hit.id}
@@ -421,11 +430,19 @@ export function Gallery() {
                               className={`group border-b border-rule py-4 ${isSelected ? 'bg-accent-wash/40' : ''}`}
                             >
                               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                                <p className="font-display text-2xl leading-snug text-ink">
+                                {/* The anagram opens the row, as a result does on the search page. The negative margin
+                                    keeps the words where they were while giving the hover wash some room. */}
+                                <button
+                                  type="button"
+                                  aria-expanded={isOpened}
+                                  aria-controls={isOpened ? detailsId : undefined}
+                                  onClick={() => toggleOpened(hit.id)}
+                                  className="-mx-1.5 rounded-[3px] px-1.5 text-left font-display text-2xl leading-snug text-ink transition-colors duration-150 hover:bg-sunken focus-visible:bg-sunken"
+                                >
                                   <span className="text-ink-faint">{hit.input}</span>
                                   <span className="mx-3 text-rule-strong">→</span>
                                   {hit.display}
-                                </p>
+                                </button>
                                 <span className="flex shrink-0 items-center gap-3 font-mono text-[11px]">
                                   <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
                                   <VoteButton hit={hit} votes={votes} reserve />
@@ -436,6 +453,7 @@ export function Gallery() {
                                 </span>
                               </div>
                               {hit.justification && <p className="mt-1 max-w-prose text-sm text-ink-soft">{hit.justification}</p>}
+                              {isOpened && <HitDetails hit={hit} definitions={definitions} id={detailsId} />}
                               {sharing === hit.id && (
                                 <div className="mt-2">
                                   <ShareActions item={shareable(hit)} id={hit.id} copied={copied} onCopy={copy} />
