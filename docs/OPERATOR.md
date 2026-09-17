@@ -451,7 +451,7 @@ request you merge:
 |---|---|
 | the judge | Every row of a judge batch lists its words, each with its first dictionary gloss or `no definition`. For a phrase of relation 3 and above, the judge may give `senses` for the words whose listed gloss would not explain the reading. Ingest refuses a verdict whose senses name a word its phrase does not contain, since that line was written for another row, and leaves off a sense that breaks the rule, keeping the verdict. The rest go on the hit and its judge entry, and the routine's pull request lists them under Senses. |
 | you | `pnpm hits:sense`, or Senses of the words in the review desk or the audit, where a sense the judge wrote says so under its field. |
-| one reviewed pass | Roadmap phase S3, over the hits already published, in one pull request that lists every sense. |
+| one reviewed pass | Roadmap phase S3 (2026-09-17): every published hit's words read against their first gloss, and 134 senses set with the command, in one pull request that lists every one. |
 
 **Set or clear one:**
 
@@ -460,7 +460,14 @@ pnpm hits:sense darioamodei:people:ai-da-doomer-i da "Short for the, as in casua
 pnpm hits:sense darioamodei:people:ai-da-doomer-i da --clear
 ```
 
-It takes the hit id, one of its words, and the sentence or `--clear`; a word used twice in a hit has one sense.
+To see where a sense might be wanted, list every published hit's words with their first dictionary gloss, or
+`no definition`, and the senses already set (`--all` includes hits that are not published). It writes nothing:
+
+```bash
+pnpm hits:glosses
+```
+
+`hits:sense` takes the hit id, one of its words, and the sentence or `--clear`; a word used twice in a hit has one sense.
 It refuses an unknown id, a word that is not the hit's, `--clear` given with a sentence, and a sentence that is
 empty, over 120 characters or without a full stop, and writes nothing then. The file is rewritten in its
 order, so the diff is the hit's one line.
