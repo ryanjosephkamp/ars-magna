@@ -66,6 +66,12 @@ pub struct SolveOptions {
     pub max_words: u8,
     /// Words that must appear in every result.
     pub must_include: Vec<String>,
+    /// Spellings taken out of the vocabulary for this query alone. A class whose
+    /// every spelling is excluded is dropped; a class with other spellings keeps
+    /// them and never shows an excluded one. Since the search runs on classes,
+    /// every count stays exact. A word the dictionary does not carry excludes
+    /// nothing.
+    pub exclude: Vec<String>,
     /// Stop after this many results. 0 means "no cap".
     pub limit: usize,
     /// Abort after this many DFS nodes, so a pathological query cannot hang.
@@ -80,6 +86,7 @@ impl Default for SolveOptions {
             short_words: None,
             max_words: UNLIMITED_WORDS,
             must_include: Vec::new(),
+            exclude: Vec::new(),
             limit: 10_000,
             max_nodes: 50_000_000,
         }
@@ -95,6 +102,8 @@ pub enum SolveError {
     /// One letter occurs more than 127 times, which is more than a count
     /// byte can hold. Carries the offending letter.
     TooManyRepeats(char),
+    /// A word is both in `must_include` and in `exclude`.
+    IncludedAndExcluded(String),
 }
 
 impl std::fmt::Display for SolveError {
@@ -103,6 +112,7 @@ impl std::fmt::Display for SolveError {
             SolveError::UnknownWord(w) => write!(f, "{w:?} is not in this dictionary tier"),
             SolveError::NotASubset(w) => write!(f, "{w:?} does not fit in the input letters"),
             SolveError::TooManyRepeats(c) => write!(f, "{c:?} appears more than 127 times"),
+            SolveError::IncludedAndExcluded(w) => write!(f, "{w:?} is both included and excluded"),
         }
     }
 }
@@ -168,7 +178,10 @@ impl Candidates {
     /// of its spellings, and that spelling is in the query's tier. The list is
     /// resolved to class indices up front: `find_class` is a hash probe, and
     /// the sweep visits every class in the dictionary.
-    pub fn build(dict: &Dict, target: Counts, options: &SolveOptions) -> Candidates {
+    ///
+    /// A class none of whose spellings in the tier survive `excluded` (word
+    /// indices) is left out, so it is as if the dictionary never had it.
+    pub fn build(dict: &Dict, target: Counts, options: &SolveOptions, excluded: &HashSet<u32>) -> Candidates {
         let mut counts = Vec::new();
         let mut len = Vec::new();
         let mut class = Vec::new();
@@ -190,6 +203,11 @@ impl Candidates {
                 continue;
             }
             if !dict.class_in_tier(index, options.tier) {
+                continue;
+            }
+            // Checked last, and only for a query that excludes anything: every
+            // class that reaches here fits the letters, which is few of them.
+            if !excluded.is_empty() && dict.class_words(index, options.tier).all(|w| excluded.contains(&w)) {
                 continue;
             }
             counts.push(sig.counts);
@@ -285,6 +303,8 @@ impl Memo {
 pub struct Search {
     candidates: Candidates,
     forced: Forced,
+    /// Word indices `exclude` took out of the vocabulary for this query.
+    excluded: HashSet<u32>,
     remaining: Counts,
     options: SolveOptions,
     /// The input contained no letters at all.
@@ -321,6 +341,12 @@ impl Search {
             }
         };
 
+        let excluded: HashSet<u32> = options
+            .exclude
+            .iter()
+            .filter_map(|word| dict.index_of(&crate::counts::normalize(word)))
+            .collect();
+
         let mut forced = Forced {
             classes: Vec::new(),
             words: Vec::new(),
@@ -329,6 +355,9 @@ impl Search {
 
         for word in &options.must_include {
             let word = crate::counts::normalize(word);
+            if dict.index_of(&word).is_some_and(|i| excluded.contains(&i)) {
+                return Err(SolveError::IncludedAndExcluded(word));
+            }
             let class = dict
                 .find_class(&word, options.tier)
                 .ok_or_else(|| SolveError::UnknownWord(word.clone()))?;
@@ -349,11 +378,12 @@ impl Search {
             forced.words.push(word_index);
         }
 
-        let candidates = Candidates::build(dict, remaining, &options);
+        let candidates = Candidates::build(dict, remaining, &options, &excluded);
 
         Ok(Search {
             candidates,
             forced,
+            excluded,
             remaining,
             options,
             empty_input,
@@ -505,7 +535,7 @@ impl Search {
                     }
                 }
                 dict.class_words(c as usize, tier)
-                    .next()
+                    .find(|w| !self.excluded.contains(w))
                     .map(|w| dict.word(w).to_owned())
                     .unwrap_or_default()
             })
@@ -1429,5 +1459,84 @@ mod tests {
         assert_eq!(dict.admitted(), 0);
         let addition = dict.words.iter().position(|w| w == "zz").unwrap() as u32;
         assert!(!dict.in_tier(addition, Tier::Common));
+    }
+
+    /// "dormitory" over a dictionary where two classes have two spellings each:
+    /// {room, moor} and {dirty, tydir}.
+    fn dorm_dict() -> Dict {
+        Dict::from_words(["dormitory", "dirty", "tydir", "room", "moor", "rid", "moo", "try", "torrid", "yom", "dim", "roty", "or"]).unwrap()
+    }
+
+    fn excluding(words: &[&str]) -> SolveOptions {
+        SolveOptions {
+            exclude: words.iter().map(|w| w.to_string()).collect(),
+            ..options(None)
+        }
+    }
+
+    /// The count, checked against enumeration, and the rows as sorted words.
+    fn counted(dict: &Dict, input: &str, options: SolveOptions) -> (u128, Vec<Vec<String>>) {
+        let search = Search::prepare(dict, input, options.clone()).unwrap();
+        let (total, saturated, _) = search.count(&mut Memo::new(), u64::MAX);
+        assert!(!saturated);
+        let rows = spelled(dict, input, options);
+        assert_eq!(total, rows.len() as u128, "the count and the enumeration disagree");
+        (total, rows)
+    }
+
+    #[test]
+    fn an_excluded_spelling_is_hidden_and_its_class_kept_while_it_has_others() {
+        let dict = dorm_dict();
+        let (all, _) = counted(&dict, "dormitory", options(None));
+
+        // Excluding `room` leaves `moor` to spell the class: the same results,
+        // the same count, and `room` never shown.
+        let (total, rows) = counted(&dict, "dormitory", excluding(&["room"]));
+        assert_eq!(total, all);
+        assert!(rows.iter().all(|r| !r.contains(&"room".to_string())));
+        assert!(rows.contains(&vec!["dirty".to_string(), "moor".to_string()]));
+    }
+
+    #[test]
+    fn a_class_with_every_spelling_excluded_is_dropped_and_the_count_stays_exact() {
+        let dict = dorm_dict();
+        let (all, every) = counted(&dict, "dormitory", options(None));
+        let using = every.iter().filter(|r| r.iter().any(|w| w == "moor" || w == "room")).count() as u128;
+        assert!(using > 0);
+
+        let (total, rows) = counted(&dict, "dormitory", excluding(&["room", "moor"]));
+        assert_eq!(total, all - using);
+        assert!(rows.iter().all(|r| r.iter().all(|w| w != "room" && w != "moor")));
+
+        // The other two-spelling class, the same way.
+        let with_dirty = every.iter().filter(|r| r.iter().any(|w| w == "dirty" || w == "tydir")).count() as u128;
+        let (without_dirty, _) = counted(&dict, "dormitory", excluding(&["dirty", "tydir"]));
+        assert_eq!(without_dirty, all - with_dirty);
+    }
+
+    #[test]
+    fn excluding_a_word_the_dictionary_lacks_changes_nothing() {
+        let dict = dorm_dict();
+        let plain = classes(&dict, "dormitory", options(None));
+        assert_eq!(classes(&dict, "dormitory", excluding(&["zebra", "", "Room!"])).len(), plain.len());
+        // An unnormalized spelling of a word it has is that word.
+        let (_, rows) = counted(&dict, "dormitory", excluding(&["ROOM"]));
+        assert!(rows.iter().all(|r| !r.contains(&"room".to_string())));
+    }
+
+    #[test]
+    fn a_word_both_included_and_excluded_is_refused() {
+        let dict = dorm_dict();
+        let options = SolveOptions { must_include: vec!["room".to_string()], ..excluding(&["room"]) };
+        assert_eq!(
+            Search::prepare(&dict, "dormitory", options).err(),
+            Some(SolveError::IncludedAndExcluded("room".to_string()))
+        );
+        // Another spelling of the same class may be included: it is the word the
+        // reader asked for, and only `room` is gone.
+        let other = SolveOptions { must_include: vec!["moor".to_string()], ..excluding(&["room"]) };
+        let (total, rows) = counted(&dict, "dormitory", other);
+        assert!(total > 0);
+        assert!(rows.iter().all(|r| r.contains(&"moor".to_string())));
     }
 }

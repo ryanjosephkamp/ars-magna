@@ -134,7 +134,7 @@ describe.skipIf(!built)('artifact fetching', () => {
     await core.handle({
       k: 'solve',
       id: 2,
-      query: { input: 'listen', tier: 'full', minWordLen: 2, maxWords: 2, mustInclude: [] },
+      query: { input: 'listen', tier: 'full', minWordLen: 2, maxWords: 2, mustInclude: [], mustExclude: [] },
       first: 50,
     });
 

@@ -7,6 +7,7 @@ import {
   type Tier,
   type DictCounts,
 } from '@ars-magna/engine';
+import { inBoth, inBothSentence } from '../lib/urlState.ts';
 
 const TIER_LABEL: Record<Tier, string> = {
   common: 'Common',
@@ -58,10 +59,22 @@ export function Controls({ query, counts, onChange, invalidWord }: Props) {
         onChange={(maxWords) => onChange({ maxWords })}
       />
 
-      <MustInclude
-        value={query.mustInclude.join(' ')}
+      <WordsField
+        label="Must include"
+        ariaLabel="Must include these words"
+        value={query.mustInclude}
+        other={query.mustExclude}
         invalid={invalidWord}
         onChange={(words) => onChange({ mustInclude: words })}
+      />
+
+      <WordsField
+        label="Must exclude"
+        ariaLabel="Must exclude these words"
+        value={query.mustExclude}
+        other={query.mustInclude}
+        invalid={null}
+        onChange={(words) => onChange({ mustExclude: words })}
       />
     </div>
   );
@@ -171,29 +184,43 @@ function NumberPicker({
 }
 
 /**
- * The highest-leverage control on the page: pinning a word is how you steer
- * eleven million results toward the one you want, so it gets a real field
- * rather than being buried behind a disclosure.
+ * Must include and Must exclude. Pinning a word is how you steer eleven
+ * million results toward the one you want, and excluding one is how you steer
+ * them away, so each gets a real field rather than being buried behind a
+ * disclosure.
+ *
+ * A word the other field already holds is refused where it was typed: the
+ * field keeps the draft and says why, and the search does not change.
  */
-function MustInclude({
+function WordsField({
+  label,
+  ariaLabel,
   value,
+  other,
   invalid,
   onChange,
 }: {
-  value: string;
+  label: string;
+  ariaLabel: string;
+  value: readonly string[];
+  /** The other field's words. */
+  other: readonly string[];
   invalid: string | null;
   onChange(words: string[]): void;
 }) {
   const id = useId();
-  const [draft, setDraft] = useState(value);
-  const committed = useRef(value);
+  const joined = value.join(' ');
+  const [draft, setDraft] = useState(joined);
+  const [refused, setRefused] = useState<string | null>(null);
+  const committed = useRef(joined);
 
   useEffect(() => {
-    if (value !== committed.current) {
-      committed.current = value;
-      setDraft(value);
+    if (joined !== committed.current) {
+      committed.current = joined;
+      setDraft(joined);
+      setRefused(null);
     }
-  }, [value]);
+  }, [joined]);
 
   // One word, or several separated by spaces or commas: the search keeps every
   // one of them, as Show them under a filter of several words asks it to.
@@ -202,18 +229,27 @@ function MustInclude({
       .split(/[\s,]+/)
       .map(normalizeLetters)
       .filter((word) => word.length > 0);
+    const both = inBoth(words, other);
+    if (both !== null) {
+      setRefused(inBothSentence(both));
+      return;
+    }
+    setRefused(null);
     committed.current = words.join(' ');
     onChange(words);
   };
 
-  const bad = invalid !== null && draft.length > 0;
+  const message = refused ?? (invalid !== null && draft.length > 0 ? invalid : null);
 
   return (
-    <Field label="Must include">
+    <Field label={label}>
       <input
         id={id}
         value={draft}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setRefused(null);
+        }}
         onBlur={() => commit(draft)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') commit(draft);
@@ -223,19 +259,19 @@ function MustInclude({
           }
         }}
         placeholder="a word"
-        aria-label="Must include these words"
-        aria-invalid={bad}
-        aria-describedby={bad ? `${id}-error` : undefined}
+        aria-label={ariaLabel}
+        aria-invalid={message !== null}
+        aria-describedby={message !== null ? `${id}-error` : undefined}
         autoComplete="off"
         spellCheck={false}
         className={`h-[34px] w-32 rounded-[3px] border bg-surface px-2 text-sm transition-colors
                     duration-150 placeholder:text-ink-faint ${
-                      bad ? 'border-accent text-accent' : 'border-rule hover:border-rule-strong'
+                      message !== null ? 'border-accent text-accent' : 'border-rule hover:border-rule-strong'
                     }`}
       />
-      {bad && (
-        <span id={`${id}-error`} className="text-xs text-accent">
-          {invalid}
+      {message !== null && (
+        <span id={`${id}-error`} className="max-w-48 text-xs text-accent">
+          {message}
         </span>
       )}
     </Field>

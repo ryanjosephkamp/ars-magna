@@ -62,6 +62,7 @@ fn options(
     min_word_len: u8,
     max_words: u8,
     must_include: Vec<String>,
+    exclude: Vec<String>,
     max_nodes: f64,
 ) -> SolveOptions {
     SolveOptions {
@@ -70,6 +71,7 @@ fn options(
         short_words: None,
         max_words: max_words.max(1),
         must_include,
+        exclude,
         limit: 0,
         max_nodes: max_nodes as u64,
     }
@@ -167,13 +169,14 @@ impl Engine {
         min_word_len: u8,
         max_words: u8,
         must_include: Vec<String>,
+        must_exclude: Vec<String>,
         max_nodes: f64,
     ) -> Result<usize, JsError> {
         let tier = tier_from(tier);
         let search = Search::prepare(
             &self.dict,
             input,
-            options(tier, min_word_len, max_words, must_include, max_nodes),
+            options(tier, min_word_len, max_words, must_include, must_exclude, max_nodes),
         )
         .map_err(|e| JsError::new(&e.to_string()))?;
         let candidates = search.candidate_count();
@@ -203,12 +206,13 @@ impl Engine {
         min_word_len: u8,
         max_words: u8,
         must_include: Vec<String>,
+        must_exclude: Vec<String>,
         max_nodes: f64,
     ) -> Result<String, JsError> {
         let search = Search::prepare(
             &self.dict,
             input,
-            options(tier_from(tier), min_word_len, max_words, must_include, max_nodes),
+            options(tier_from(tier), min_word_len, max_words, must_include, must_exclude, max_nodes),
         )
         .map_err(|e| JsError::new(&e.to_string()))?;
         let mut memo = Memo::new();

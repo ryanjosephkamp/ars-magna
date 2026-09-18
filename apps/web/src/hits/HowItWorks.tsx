@@ -116,6 +116,10 @@ export function HowItWorks() {
             public list of words this site has added, each with its meaning and where it came from.
             The vocabulary is always something you can look up rather than guess at.
           </p>
+          <p className="mt-3 max-w-prose text-sm text-ink-soft">
+            On the search page, Must exclude takes a word out of the dictionary for that search alone and leaves its other spellings, so
+            every count is still exact.
+          </p>
         </section>
 
         <SiteFooter />

@@ -378,6 +378,46 @@ describe.skipIf(!built)('EngineCore', () => {
     expect([...page.rows[1]!].sort().join(' ')).toBe(expected);
   });
 
+  it('takes Must exclude words out of the dictionary for one query, and counts exactly', async () => {
+    const everything = async () => {
+      port.reset();
+      await core.handle({ k: 'collect', id: 100, limit: 100_000 });
+      const collected = port.last('collected')!;
+      expect(collected.complete).toBe(true);
+      return collected.rows;
+    };
+    expect((await solve('Demis Hassabis', {}, 0)).last('count')!.total).toBe('15202');
+
+    // `ai` is the only spelling of its class at Standard, so the class goes,
+    // and with it every result that used it: an exact count, and no `ai`.
+    const ai = await solve('Demis Hassabis', { mustExclude: ['AI'] }, 0);
+    expect(ai.last('count')!.total).toBe('14312');
+    const withoutAi = await everything();
+    expect(withoutAi).toHaveLength(14_312);
+    expect(withoutAi.some((r) => r.includes('ai'))).toBe(false);
+
+    // `is` shares its class with `si`, which spells it instead: every result
+    // stays, and none shows `is`.
+    const is = await solve('Demis Hassabis', { mustExclude: ['is'] }, 0);
+    expect(is.last('count')!.total).toBe('15202');
+    const withoutIs = await everything();
+    expect(withoutIs).toHaveLength(15_202);
+    expect(withoutIs.some((r) => r.includes('is'))).toBe(false);
+    expect(withoutIs.some((r) => r.includes('si'))).toBe(true);
+
+    // A count on its own excludes the same way.
+    port.reset();
+    await core.handle({ k: 'count', id: 102, query: { ...DEFAULT_QUERY, input: 'Demis Hassabis', mustExclude: ['ai'] } });
+    expect(port.last('count')!.total).toBe('14312');
+
+    // Excluding a word the dictionary lacks changes nothing.
+    expect((await solve('Demis Hassabis', { mustExclude: ['zzqx'] }, 0)).last('count')!.total).toBe('15202');
+
+    // A word in both fields is refused rather than searched.
+    const both = await solve('Demis Hassabis', { mustInclude: ['ai'], mustExclude: ['ai'] }, 0);
+    expect(both.last('error')!.message).toContain('both included and excluded');
+  });
+
   it('pins every result to a must-include word', async () => {
     const p = await solve('astronomer', { minWordLen: 3, mustInclude: ['moon'] }, 100);
     const rows = rowsOf(p);

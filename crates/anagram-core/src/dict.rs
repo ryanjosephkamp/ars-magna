@@ -319,12 +319,18 @@ impl Dict {
     pub fn admit(&mut self, words: &[String]) -> usize {
         let mut found = 0;
         for word in words {
-            if let Ok(index) = self.words.binary_search_by(|w| w.as_str().cmp(word.as_str())) {
-                self.extra.insert(index as u32);
+            if let Some(index) = self.index_of(word) {
+                self.extra.insert(index);
                 found += 1;
             }
         }
         found
+    }
+
+    /// The index of `word` in the shipped list, whatever its tier. The list is
+    /// sorted, so this is a binary search.
+    pub fn index_of(&self, word: &str) -> Option<u32> {
+        self.words.binary_search_by(|w| w.as_str().cmp(word)).ok().map(|i| i as u32)
     }
 
     /// How many words are admitted beyond their tiers.

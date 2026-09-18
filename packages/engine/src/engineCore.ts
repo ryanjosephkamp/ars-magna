@@ -235,6 +235,7 @@ export class EngineCore {
       query.minWordLen,
       query.maxWords,
       query.mustInclude.map(normalizeLetters),
+      query.mustExclude.map(normalizeLetters),
       maxNodes,
     );
 
@@ -270,6 +271,7 @@ export class EngineCore {
       query.minWordLen,
       query.maxWords,
       query.mustInclude.map(normalizeLetters),
+      query.mustExclude.map(normalizeLetters),
       maxNodes,
     );
     this.#port.post({ k: 'count', id, total, candidates: 0 });

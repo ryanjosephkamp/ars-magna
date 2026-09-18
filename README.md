@@ -83,6 +83,11 @@ result instead, with those words as Must include, so the line leads with the who
 `11 of 15,202 contain “shamed”`. Show them, or Enter in the filter box, switches the list to
 them; nothing switches it while you type.
 
+Must exclude works the other way, in the engine rather than on the loaded rows: it takes a
+word out of the dictionary for that one search. A class of anagrams whose every spelling is
+excluded drops out, and one with other spellings keeps them and hides the excluded one, so
+the count is still exact. A word cannot be in Must include and Must exclude at once.
+
 ## Offline
 
 Everything happens on your own machine — the search, the dictionary, the definitions —

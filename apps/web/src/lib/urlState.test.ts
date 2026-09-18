@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_QUERY, UNLIMITED_WORDS, type Query } from '@ars-magna/engine';
-import { cleanPhrase, decodeQuery, encodeQuery, encodeShared, keptPhrases, splitQuery } from './urlState.ts';
+import { cleanPhrase, decodeQuery, encodeQuery, encodeShared, inBoth, inBothSentence, keptPhrases, splitQuery } from './urlState.ts';
 
 describe('urlState accent folding', () => {
   it('folds an accented must-include word the way the engine will', () => {
@@ -27,9 +27,10 @@ describe('urlState', () => {
         minWordLen: 4,
         maxWords: 2,
         mustInclude: ['room'],
+        mustExclude: ['dirt', 'or'],
       }),
     );
-    expect(encoded).toBe('q=dormitory&t=full&m=4&w=2&i=room');
+    expect(encoded).toBe('q=dormitory&t=full&m=4&w=2&i=room&x=dirt%2Cor');
   });
 
   it('keeps spaces readable in a shared link', () => {
@@ -46,6 +47,8 @@ describe('urlState', () => {
       query({ input: 'Ars Magna', tier: 'common' }),
       query({ input: 'astronomer', minWordLen: 4, maxWords: 2 }),
       query({ input: 'astronomer', mustInclude: ['moon'] }),
+      query({ input: 'Demis Hassabis', mustExclude: ['ai'] }),
+      query({ input: 'Demis Hassabis', mustInclude: ['shamed'], mustExclude: ['ai', 'is'] }),
       query({ input: "O'Brien-Smith 42", tier: 'full', minWordLen: 1, maxWords: UNLIMITED_WORDS }),
       query({ input: 'ünïcodé & symbols #%?', tier: 'full' }),
       query({ input: '' }),
@@ -106,7 +109,31 @@ describe('splitQuery', () => {
       minWordLen: 3,
       maxWords: 4,
       mustInclude: ['cat'],
+      mustExclude: [],
     });
+  });
+
+  it('reads Must exclude beside Must include, folded the way the engine folds it', () => {
+    expect(decodeQuery('#q=Demis%20Hassabis&x=ai').mustExclude).toEqual(['ai']);
+    expect(decodeQuery('#x=AI,%20Is,,123').mustExclude).toEqual(['ai', 'is']);
+    expect(decodeQuery('#x=caf%C3%A9').mustExclude).toEqual(['cafe']);
+    expect(decodeQuery('#q=x').mustExclude).toEqual([]);
+  });
+
+  it('never opens a link on a word both included and excluded: Must include keeps it', () => {
+    const decoded = decodeQuery('#q=Demis%20Hassabis&i=shamed,ai&x=ai,is');
+    expect(decoded.mustInclude).toEqual(['shamed', 'ai']);
+    expect(decoded.mustExclude).toEqual(['is']);
+  });
+
+  it('names the first word in both fields', () => {
+    expect(inBoth(['shamed', 'ai'], ['is', 'ai'])).toBe('ai');
+    expect(inBoth(['shamed'], ['ai'])).toBeNull();
+    expect(inBoth([], [])).toBeNull();
+  });
+
+  it('refuses a word in both fields with one sentence', () => {
+    expect(inBothSentence('ai')).toBe('No anagram can both contain and leave out “ai”.');
   });
 
   it('spreading the filters cannot shadow a newer input', () => {
