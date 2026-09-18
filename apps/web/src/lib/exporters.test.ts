@@ -244,33 +244,34 @@ describe('the Build page’s export', () => {
   it('writes the boxes, the checks and every figure as plain text', () => {
     const txt = buildTxt(report());
     expect(txt).toContain('Ars Magna — Build');
-    expect(txt).toContain('Text            Dormitory');
-    expect(txt).toContain('Anagram         dirty room');
-    expect(txt).toContain('Letters match   Yes');
-    expect(txt).toContain('Words known     Yes · every word is in Standard');
-    expect(txt).toContain('Rarest letter   y');
-    expect(txt).toContain('Each letter     d 1 · i 1 · m 1 · o 2 · r 2 · t 1 · y 1');
-    expect(txt).toContain('Average length  4.5');
-    expect(txt).toContain('Every anagram   116 in Standard');
+    expect(txt).toContain('Text                Dormitory');
+    expect(txt).toContain('Anagram             dirty room');
+    expect(txt).toContain('Letters match       Yes');
+    expect(txt).toContain('Words known         Yes · every word is in Standard');
+    expect(txt).toContain('Rarest in English   y · 1.97%');
+    expect(txt).toContain('Most used           o r · 2');
+    expect(txt).toContain('Each letter         d 1 · i 1 · m 1 · o 2 · r 2 · t 1 · y 1');
+    expect(txt).toContain('Average length      4.5');
+    expect(txt).toContain('Every anagram       116 in Standard');
     expect(txt).toContain('TEXT AGAINST ANAGRAM');
-    expect(txt).toContain('Words           1 / 2');
-    expect(txt).toContain('adjective       0 / 1');
-    expect(txt).toContain('Reads           +5 / +9');
-    expect(txt).toContain('Dictionary      Standard');
-    expect(txt).toContain('Parts of speech 1 adjective · 1 noun');
-    expect(txt).toContain('Shared words    none');
+    expect(txt).toContain('Words               1 / 2');
+    expect(txt).toContain('adjective           0 / 1');
+    expect(txt).toContain('Reads               +5 / +9');
+    expect(txt).toContain('Dictionary          Standard');
+    expect(txt).toContain('Parts of speech     1 adjective · 1 noun');
+    expect(txt).toContain('Shared words        none');
     expect(txt).toContain('Generated 2026-09-18T05:00:00.000Z by Ars Magna');
     expect(txt.endsWith('\n')).toBe(true);
   });
 
   it('says a floor is a floor, and leaves out what is not there', () => {
     const floor = buildTxt(report({ total: '>5000000', comparison: null, skipped: { text: ['4'], anagram: [] } }));
-    expect(floor).toContain('Every anagram   more than 5,000,000 in Standard');
-    expect(floor).toContain('Skipped         4');
+    expect(floor).toContain('Every anagram       more than 5,000,000 in Standard');
+    expect(floor).toContain('Skipped             4');
     expect(floor).not.toContain('TEXT AGAINST ANAGRAM');
-    expect(buildTxt(report({ total: null }))).toContain('Every anagram   —');
+    expect(buildTxt(report({ total: null }))).toContain('Every anagram       —');
     const note = 'The text is too long to count here; the page stops counting after 4 seconds.';
-    expect(buildTxt(report({ total: null, countNote: note }))).toContain(`Every anagram   ${note}`);
+    expect(buildTxt(report({ total: null, countNote: note }))).toContain(`Every anagram       ${note}`);
     expect(JSON.parse(buildJson(report({ total: null, countNote: note })))).toMatchObject({ total: null, totalIsFloor: false, countNote: note });
   });
 
@@ -285,7 +286,8 @@ describe('the Build page’s export', () => {
       generatedAt: '2026-09-18T05:00:00.000Z',
       generatedBy: 'Ars Magna',
     });
-    expect(parsed.letters.text.rarest).toBe('y');
+    expect(parsed.letters.text.rarest).toEqual({ letters: ['y'], percent: 1.97 });
+    expect(parsed.letters.text.mostUsed).toEqual({ letters: ['o', 'r'], count: 2 });
     expect(parsed.words.anagram.count).toBe(2);
     expect(parsed.comparison.words).toEqual({ text: 1, anagram: 2 });
     expect(JSON.parse(buildJson(report({ total: '>5000000' })))).toMatchObject({ total: '5000000', totalIsFloor: true });

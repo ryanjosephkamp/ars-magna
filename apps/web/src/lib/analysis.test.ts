@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TAG_BIT, scoreOrder } from '@ars-magna/engine';
-import { BANDS, bandOf, comparison, letterFigures, partsOf, wordFigures } from './analysis.ts';
+import { BANDS, bandOf, comparison, letterFigures, letterRows, mostUsedLine, partsOf, rarestLine, wordFigures } from './analysis.ts';
 
 /** The masks and frequency bytes the real dictionary gives these words. */
 const MASK = {
@@ -19,12 +19,43 @@ describe('the letters', () => {
     expect(letterFigures('').count).toBe(0);
   });
 
-  it('names the letter that is rarest in English, counting y as a consonant', () => {
-    expect(letterFigures('dimoorrty').rarest).toBe('y');
-    expect(letterFigures('quiz').rarest).toBe('z');
-    expect(letterFigures('jazz').rarest).toBe('z');
-    expect(letterFigures('aeiou').rarest).toBe('u');
+  it('names the letters that are rarest in English, ties and all, counting y as a consonant', () => {
+    expect(letterFigures('dimoorrty').rarest).toEqual({ letters: ['y'], percent: 1.97 });
+    expect(letterFigures('quiz').rarest).toEqual({ letters: ['z'], percent: 0.074 });
+    expect(letterFigures('aeiou').rarest).toEqual({ letters: ['u'], percent: 2.76 });
+    // j and x share a figure in the table: neither wins.
+    expect(letterFigures('jinx').rarest).toEqual({ letters: ['j', 'x'], percent: 0.15 });
+    // l is the rarest in English of h, e, l and o, whatever the text does with it.
+    expect(letterFigures('hello').rarest).toEqual({ letters: ['l'], percent: 4.03 });
     expect(letterFigures('').rarest).toBeNull();
+  });
+
+  it('names the letters used most, ties and all, with the count', () => {
+    expect(letterFigures('hello').mostUsed).toEqual({ letters: ['l'], count: 2 });
+    expect(letterFigures('dormitory').mostUsed).toEqual({ letters: ['o', 'r'], count: 2 });
+    expect(letterFigures('listen').mostUsed).toEqual({ letters: ['e', 'i', 'l', 'n', 's', 't'], count: 1 });
+    expect(letterFigures('').mostUsed).toBeNull();
+  });
+
+  it('reads the two letter lines as the page and the export show them', () => {
+    expect(rarestLine(letterFigures('jinx'))).toBe('j x · 0.15%');
+    expect(rarestLine(letterFigures('hello'))).toBe('l · 4.03%');
+    expect(mostUsedLine(letterFigures('hello'))).toBe('l · 2');
+    expect(mostUsedLine(letterFigures('dormitory'))).toBe('o r · 2');
+    expect(rarestLine(letterFigures(''))).toBe('—');
+    expect(mostUsedLine(letterFigures(''))).toBe('—');
+  });
+
+  it('gives both charts the same rows, every letter of either side, and one scale', () => {
+    // dormitory against "dirty rooms": the anagram has an s the text lacks.
+    const { rows, most } = letterRows(letterFigures('dormitory'), letterFigures('dirtyrooms'));
+    expect(rows.map((r) => r.letter)).toEqual(['d', 'i', 'm', 'o', 'r', 's', 't', 'y']);
+    expect(rows.find((r) => r.letter === 's')).toEqual({ letter: 's', text: 0, anagram: 1 });
+    expect(rows.find((r) => r.letter === 'o')).toEqual({ letter: 'o', text: 2, anagram: 2 });
+    expect(most).toBe(2);
+    // The scale is the larger side's: three a on the right against one on the left.
+    expect(letterRows(letterFigures('ab'), letterFigures('aaab')).most).toBe(3);
+    expect(letterRows(letterFigures(''), letterFigures(''))).toEqual({ rows: [], most: 0 });
   });
 
   it('lists every letter present, alphabetical, with its count', () => {
