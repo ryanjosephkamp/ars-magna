@@ -1,0 +1,6 @@
+{"id":"evilstick:products:stick-vile","candidate_id":"evilstick:products","input":"Evilstick","category":"products","words":["vile","stick"],"display":"vile stick","letters":"ceiiklstv","prefilter_score":15.58,"tier":"common"}
+{"id":"evilstick:products:ticks-vile","candidate_id":"evilstick:products","input":"Evilstick","category":"products","words":["vile","ticks"],"display":"vile ticks","letters":"ceiiklstv","prefilter_score":13.88,"tier":"common"}
+{"id":"evilstick:products:evil-ticks","candidate_id":"evilstick:products","input":"Evilstick","category":"products","words":["ticks","evil"],"display":"ticks evil","letters":"ceiiklstv","prefilter_score":13.04,"tier":"common"}
+{"id":"maxdowman:people:mad-max-now","candidate_id":"maxdowman:people","input":"Max Dowman","category":"people","words":["mad","max","now"],"display":"mad max now","letters":"aadmmnowx","prefilter_score":16.94,"tier":"common"}
+{"id":"maxdowman:people:mad-max-won","candidate_id":"maxdowman:people","input":"Max Dowman","category":"people","words":["mad","max","won"],"display":"mad max won","letters":"aadmmnowx","prefilter_score":16.53,"tier":"common"}
+{"id":"maxdowman:people:mad-max-own","candidate_id":"maxdowman:people","input":"Max Dowman","category":"people","words":["mad","max","own"],"display":"mad max own","letters":"aadmmnowx","prefilter_score":16.39,"tier":"common"}
