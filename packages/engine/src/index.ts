@@ -45,6 +45,8 @@ export class ArsMagnaClient {
   #baseUrl = '/dict';
   #nextId = 1;
   #activeQuery = 0;
+  /** The latest `count` asked for; an answer to any earlier one is dropped. */
+  #activeCount = 0;
   /** The query the worker is busy with, or 0 once it has answered. */
   #inFlight = 0;
   #handlers = new Map<number, SolveHandlers>();
@@ -130,6 +132,22 @@ export class ArsMagnaClient {
   page(offset: number, len: number): void {
     if (this.#activeQuery === 0) return;
     this.#send({ k: 'page', id: this.#nextId++, offset, len });
+  }
+
+  /**
+   * The total for `query`, without results and without touching the list the
+   * active search is paging through. Resolves with null when a later `count`
+   * replaced this one before it was answered, the way a superseded query's
+   * results are dropped.
+   */
+  async count(query: Query, maxNodes?: number): Promise<string | null> {
+    let asked = 0;
+    const total = await this.#ask<string>((id) => {
+      asked = id;
+      this.#activeCount = id;
+      return maxNodes === undefined ? { k: 'count', id, query } : { k: 'count', id, query, maxNodes };
+    });
+    return asked === this.#activeCount ? total : null;
   }
 
   /** The solution at `index`, fetched by unranking rather than enumeration. */
@@ -239,6 +257,7 @@ export class ArsMagnaClient {
       else if (message.k === 'spellings') oneShot.resolve(message.words as never);
       else if (message.k === 'lookup') oneShot.resolve(message.found as never);
       else if (message.k === 'masks') oneShot.resolve(message.masks as never);
+      else if (message.k === 'count') oneShot.resolve(message.total as never);
       else if (message.k === 'batch') oneShot.resolve((message.rows[0] ?? null) as never);
       else if (message.k === 'collected')
         oneShot.resolve({ rows: message.rows, complete: message.complete } as never);

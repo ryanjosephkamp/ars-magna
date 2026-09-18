@@ -340,6 +340,44 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(p.last('batch')!.done).toBe(true);
   });
 
+  it('counts a query on its own, leaving the list it is paging through where it was', async () => {
+    const p = await solve('Demis Hassabis', {}, 250);
+    expect(p.last('count')!.total).toBe('15202');
+    const count = async (id: number, mustInclude: string[], maxNodes?: number) => {
+      port.reset();
+      await core.handle({ k: 'count', id, query: { ...DEFAULT_QUERY, input: 'Demis Hassabis', mustInclude }, ...(maxNodes ? { maxNodes } : {}) });
+      return port.messages;
+    };
+
+    // The operator's case: eleven anagrams contain `shamed`.
+    expect(await count(90, ['shamed'])).toEqual([{ k: 'count', id: 90, total: '11', candidates: 0 }]);
+    // The same answer a search with Must include gives.
+    const pinned = await solve('Demis Hassabis', { mustInclude: ['shamed'] }, 50);
+    expect(pinned.last('count')!.total).toBe('11');
+    expect(rowsOf(pinned)).toHaveLength(11);
+    // A word that fits the letters but is in no anagram of them.
+    expect((await count(91, ['amebiasis']))[0]).toMatchObject({ k: 'count', total: '0' });
+    // A floor when the budget runs out, as a search's count is.
+    expect(((await count(92, ['shamed'], 1))[0] as { total: string }).total.startsWith('>')).toBe(true);
+    // Refusals come back as the search's do.
+    expect((await count(93, ['zzzzz']))[0]).toMatchObject({ k: 'error', id: 93, code: 'UNKNOWN_WORD' });
+    expect((await count(94, ['elephant']))[0]).toMatchObject({ k: 'error', id: 94, code: 'NOT_A_SUBSET' });
+
+    // The session is still the search without Must include: the next page and
+    // an unranked result come from its 15,202, not from the counts.
+    await solve('Demis Hassabis', {}, 250);
+    port.reset();
+    await core.handle({ k: 'random', id: 95, index: '251' });
+    const expected = [...port.last('batch')!.rows[0]!].sort().join(' ');
+    await count(96, ['shamed']);
+    port.reset();
+    await core.handle({ k: 'page', id: 97, offset: 250, len: 5 });
+    const page = port.last('batch')!;
+    expect(page.id).toBe(2);
+    expect(page.rows).toHaveLength(5);
+    expect([...page.rows[1]!].sort().join(' ')).toBe(expected);
+  });
+
   it('pins every result to a must-include word', async () => {
     const p = await solve('astronomer', { minWordLen: 3, mustInclude: ['moon'] }, 100);
     const rows = rowsOf(p);

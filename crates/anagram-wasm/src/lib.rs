@@ -55,6 +55,35 @@ fn pack(rows: &[Vec<String>]) -> String {
     out
 }
 
+/// The options every query shares: nothing capped but the node budget, and no
+/// short words admitted below the minimum length.
+fn options(
+    tier: Tier,
+    min_word_len: u8,
+    max_words: u8,
+    must_include: Vec<String>,
+    max_nodes: f64,
+) -> SolveOptions {
+    SolveOptions {
+        tier,
+        min_word_len: min_word_len.max(1),
+        short_words: None,
+        max_words: max_words.max(1),
+        must_include,
+        limit: 0,
+        max_nodes: max_nodes as u64,
+    }
+}
+
+/// A total as the worker sends it: digits, with `>` in front when it is a floor.
+fn total_text(total: u128, floor: bool) -> String {
+    if floor {
+        format!(">{total}")
+    } else {
+        total.to_string()
+    }
+}
+
 #[wasm_bindgen]
 pub struct Engine {
     dict: Dict,
@@ -141,18 +170,12 @@ impl Engine {
         max_nodes: f64,
     ) -> Result<usize, JsError> {
         let tier = tier_from(tier);
-        let options = SolveOptions {
-            tier,
-            min_word_len: min_word_len.max(1),
-            short_words: None,
-            max_words: max_words.max(1),
-            must_include,
-            limit: 0,
-            max_nodes: max_nodes as u64,
-        };
-
-        let search = Search::prepare(&self.dict, input, options)
-            .map_err(|e| JsError::new(&e.to_string()))?;
+        let search = Search::prepare(
+            &self.dict,
+            input,
+            options(tier, min_word_len, max_words, must_include, max_nodes),
+        )
+        .map_err(|e| JsError::new(&e.to_string()))?;
         let candidates = search.candidate_count();
 
         self.session = Some(Session {
@@ -162,6 +185,35 @@ impl Engine {
             cursor: None,
         });
         Ok(candidates)
+    }
+
+    /// Count a query without making it the session.
+    ///
+    /// The search page asks this while the reader types a filter: how many of
+    /// every result contain these words. Preparing it through [`Engine::begin`]
+    /// would replace the list the reader is scrolling, so it gets a search and
+    /// a memo of its own, dropped when the count is done. Same format as
+    /// [`Engine::count`], `>` and all.
+    #[wasm_bindgen(js_name = countQuery)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn count_query(
+        &self,
+        input: &str,
+        tier: &str,
+        min_word_len: u8,
+        max_words: u8,
+        must_include: Vec<String>,
+        max_nodes: f64,
+    ) -> Result<String, JsError> {
+        let search = Search::prepare(
+            &self.dict,
+            input,
+            options(tier_from(tier), min_word_len, max_words, must_include, max_nodes),
+        )
+        .map_err(|e| JsError::new(&e.to_string()))?;
+        let mut memo = Memo::new();
+        let (total, saturated, stats) = search.count(&mut memo, max_nodes as u64);
+        Ok(total_text(total, saturated || stats.truncated))
     }
 
     /// Solution count as a decimal string.
@@ -183,11 +235,7 @@ impl Engine {
             .ok_or_else(|| JsError::new("no active query"))?;
         let (total, saturated, stats) =
             session.search.count(&mut session.memo, node_budget as u64);
-        Ok(if saturated || stats.truncated {
-            format!(">{total}")
-        } else {
-            total.to_string()
-        })
+        Ok(total_text(total, saturated || stats.truncated))
     }
 
     /// Solutions `offset..offset + len` in canonical order.

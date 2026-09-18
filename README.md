@@ -78,7 +78,10 @@ The result list can be filtered by substring and sorted by word count, alphabeti
 by longest word. Both act on what has been loaded rather than on the whole answer space,
 since sorting results the engine never enumerated is not a thing that can be done. The
 status line says which it is, and offers to load everything when the total is small enough
-for that to be honest.
+for that to be honest. A filter that is one or more dictionary words is counted across every
+result instead, with those words as Must include, so the line leads with the whole answer:
+`11 of 15,202 contain “shamed”`. Show them, or Enter in the filter box, switches the list to
+them; nothing switches it while you type.
 
 ## Offline
 

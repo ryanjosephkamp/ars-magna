@@ -154,6 +154,36 @@ describe('ArsMagnaClient', () => {
     expect(worker.sent.filter((m) => m.k === 'solve')).toHaveLength(2);
   });
 
+  it('answers a count on its own, and drops the answer to a count a later one replaced', async () => {
+    const { client, worker } = connect();
+    ready(worker, 0);
+
+    let batches = 0;
+    const solveId = client.solve(QUERY, { onBatch: () => batches++ });
+
+    // The reader types `sham`, then `shamed`, before the first count is answered.
+    const sham = client.count({ ...QUERY, mustInclude: ['sham'] });
+    const shamed = client.count({ ...QUERY, mustInclude: ['shamed'] });
+    const [first, second] = worker.sent.filter((m) => m.k === 'count');
+    expect(first).toMatchObject({ k: 'count', query: { mustInclude: ['sham'] } });
+    expect(second).toMatchObject({ k: 'count', query: { mustInclude: ['shamed'] } });
+    expect(first).not.toHaveProperty('maxNodes');
+
+    worker.reply({ k: 'count', id: first!.id, total: '40', candidates: 0 });
+    worker.reply({ k: 'count', id: second!.id, total: '11', candidates: 0 });
+    await expect(sham).resolves.toBeNull();
+    await expect(shamed).resolves.toBe('11');
+
+    // Neither count is the search: the list keeps its own id and its batches.
+    worker.reply({ k: 'batch', id: solveId, offset: 0, rows: [['x']], done: true, truncated: false });
+    expect(batches).toBe(1);
+
+    // A count the engine refuses rejects, and says why.
+    const refused = client.count({ ...QUERY, mustInclude: ['zz'] });
+    worker.reply({ k: 'error', id: worker.sent.at(-1)!.id, code: 'UNKNOWN_WORD', message: '"zz" is not in this dictionary tier' });
+    await expect(refused).rejects.toThrow('not in this dictionary tier');
+  });
+
   it('still routes ordinary per-request errors to their own handler', () => {
     const { client, worker } = connect();
     ready(worker, 0);

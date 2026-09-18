@@ -4,12 +4,15 @@
  * The filter works on the rows in memory. When those are every result, it
  * covers everything. When they are not, there are two better answers than
  * filtering a fraction and saying so: a short list simply loads the rest, and
- * a filter that is one or more dictionary words can become Must include, which
- * asks the engine for every anagram containing them, however many there are.
+ * a filter that is one or more dictionary words is counted across every result
+ * with those words as Must include, so the line leads with how many of the
+ * whole list contain them (`11 of 15,202 contain “shamed”`), and Show them
+ * switches the list to them. The count leaves the list alone, and nothing
+ * switches it while the reader types: `sham` is a word on the way to `shamed`.
  * A filter that is part of a word, or a phrase fragment, stays on the loaded
  * rows and is labelled that way.
  */
-import { formatCount } from '@ars-magna/engine';
+import { formatCount, type Query } from '@ars-magna/engine';
 
 /** Below this exact total, a typed filter loads the rest of the list. A number the operator may tune. */
 export const AUTO_LOAD_LIMIT = 5_000;
@@ -19,7 +22,7 @@ export type FilterScope =
   | { kind: 'all' }
   /** The list is short enough to load the rest now, after which the filter covers everything. */
   | { kind: 'load-rest' }
-  /** The filter is dictionary words: offer to search every result for anagrams containing them. */
+  /** The filter is dictionary words that fit: count every result containing them, and offer to show those. */
   | { kind: 'must-include'; words: string[] }
   /** The filter covers the loaded rows only, and says so. */
   | { kind: 'loaded' };
@@ -86,8 +89,31 @@ function quoted(words: readonly string[]): string {
   return each.length <= 1 ? (each[0] ?? '') : `${each.slice(0, -1).join(', ')} and ${each.at(-1)}`;
 }
 
-/** The offer's label: `Search all 12,345 for anagrams containing “room”`, or `Search them all …` when the total is a floor. */
-export function searchAllLabel(total: string, words: readonly string[]): string {
-  const how = total.startsWith('>') ? 'them all' : `all ${formatCount(total)}`;
-  return `Search ${how} for anagrams containing ${quoted(words)}`;
+/**
+ * The query whose total is how many results contain the filter's words: the
+ * search as it stands, with the words added to Must include.
+ */
+export function containingQuery(query: Query, words: readonly string[]): Query {
+  return { ...query, mustInclude: [...query.mustInclude, ...words] };
+}
+
+/**
+ * What a count is for, so an answer is only ever shown against the filter and
+ * the search it was asked for. Two filters, or two searches, that would ask the
+ * engine the same question share a key.
+ */
+export function containingKey(query: Query, words: readonly string[]): string {
+  const { input, tier, minWordLen, maxWords, mustInclude } = containingQuery(query, words);
+  return JSON.stringify([input, tier, minWordLen, maxWords, mustInclude]);
+}
+
+/**
+ * The status line once the engine has counted: `11 of 15,202 contain “shamed”`,
+ * `1 of 15,202 contains “shamed”`, or, for a true zero, `None of 15,202 contain
+ * “shamed”`. Either figure may be a floor (`>` in front), which reads `more than`.
+ */
+export function containingLabel(count: string, total: string, words: readonly string[]): string {
+  const of = `of ${formatCount(total)}`;
+  if (count === '0') return `None ${of} contain ${quoted(words)}`;
+  return `${formatCount(count)} ${of} ${count === '1' ? 'contains' : 'contain'} ${quoted(words)}`;
 }

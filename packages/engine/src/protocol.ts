@@ -85,6 +85,17 @@ export type Request =
   | { readonly k: 'page'; readonly id: number; readonly offset: number; readonly len: number }
   | {
       /**
+       * The total for a query, and nothing else: no results, and the session
+       * the list pages through is left as it was. Answered with `count`. The
+       * search page asks it for a filter's words while the reader types.
+       */
+      readonly k: 'count';
+      readonly id: number;
+      readonly query: Query;
+      readonly maxNodes?: number;
+    }
+  | {
+      /**
        * Materialize up to `limit` results in one go, for export. Separate from
        * `page` because it is not part of the browsing session: it must not move
        * the paging cursor or be mistaken for the visible list.

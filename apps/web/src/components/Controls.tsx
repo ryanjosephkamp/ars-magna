@@ -196,7 +196,7 @@ function MustInclude({
   }, [value]);
 
   // One word, or several separated by spaces or commas: the search keeps every
-  // one of them, as "Search all … for anagrams containing" asks it to.
+  // one of them, as Show them under a filter of several words asks it to.
   const commit = (next: string) => {
     const words = next
       .split(/[\s,]+/)

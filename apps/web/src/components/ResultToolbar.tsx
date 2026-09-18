@@ -21,8 +21,12 @@ type Props = {
   onLoadAll(): void;
   onExport(format: ExportFormat): void;
   exporting: ExportFormat | null;
-  /** The filter is dictionary words and the list is partial: search every result for them instead. */
-  searchAll: { label: string; onSearch(): void } | null;
+  /**
+   * The filter is dictionary words and the list is partial. `label` says how
+   * many of every result contain them, once the engine has counted; `onShow`
+   * switches the list to them through Must include, and is null when none do.
+   */
+  containing: { label: string | null; onShow: (() => void) | null } | null;
 };
 
 /**
@@ -32,8 +36,8 @@ type Props = {
  * there is no sorting eleven million results that were never enumerated. Rather
  * than hide that, the status line states exactly what the operation covered and
  * offers to load the rest when the total is small enough to make that real. A
- * filter that is dictionary words is offered as a search of every result
- * instead (see `lib/filterScope.ts`).
+ * filter that is dictionary words is counted across every result instead, and
+ * the line leads with that count (see `lib/filterScope.ts`).
  */
 export function ResultToolbar({
   filter,
@@ -48,7 +52,7 @@ export function ResultToolbar({
   onLoadAll,
   onExport,
   exporting,
-  searchAll,
+  containing,
 }: Props) {
   const filterId = useId();
   const sortId = useId();
@@ -70,7 +74,11 @@ export function ResultToolbar({
             id={filterId}
             value={filter}
             onChange={(event) => onFilterChange(event.target.value)}
-            onKeyDown={(event) => event.key === 'Escape' && onFilterChange('')}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') onFilterChange('');
+              // Enter asks for what Show them shows, even before the count is in.
+              if (event.key === 'Enter') containing?.onShow?.();
+            }}
             placeholder="a word or phrase"
             autoComplete="off"
             spellCheck={false}
@@ -128,41 +136,49 @@ export function ResultToolbar({
       </div>
 
       <p className="mt-2.5 font-mono text-[11px] text-ink-faint" aria-live="polite">
-        {filtering ? (
+        {containing?.label ? (
           <>
-            {shown.toLocaleString()} of {loaded.toLocaleString()} loaded match
+            {containing.label}
+            {containing.onShow && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={containing.onShow}
+                  className="text-left underline decoration-rule-strong underline-offset-4 transition-colors
+                             duration-150 hover:text-accent hover:decoration-accent"
+                >
+                  Show them
+                </button>
+              </>
+            )}
           </>
         ) : (
-          <>{loaded.toLocaleString()} loaded</>
-        )}
-        {partial && <> · of {total}</>}
-        {searchAll && !loadingAll && (
           <>
-            {' · '}
-            <button
-              type="button"
-              onClick={searchAll.onSearch}
-              className="text-left underline decoration-rule-strong underline-offset-4 transition-colors
-                         duration-150 hover:text-accent hover:decoration-accent"
-            >
-              {searchAll.label}
-            </button>
+            {filtering ? (
+              <>
+                {shown.toLocaleString()} of {loaded.toLocaleString()} loaded match
+              </>
+            ) : (
+              <>{loaded.toLocaleString()} loaded</>
+            )}
+            {partial && <> · of {total}</>}
+            {canLoadAll && !loadingAll && !containing && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={onLoadAll}
+                  className="text-left underline decoration-rule-strong underline-offset-4 transition-colors
+                             duration-150 hover:text-accent hover:decoration-accent"
+                >
+                  load all to filter and sort across everything
+                </button>
+              </>
+            )}
+            {loadingAll && <> · loading the rest…</>}
           </>
         )}
-        {canLoadAll && !loadingAll && !searchAll && (
-          <>
-            {' · '}
-            <button
-              type="button"
-              onClick={onLoadAll}
-              className="text-left underline decoration-rule-strong underline-offset-4 transition-colors
-                         duration-150 hover:text-accent hover:decoration-accent"
-            >
-              load all to filter and sort across everything
-            </button>
-          </>
-        )}
-        {loadingAll && <> · loading the rest…</>}
       </p>
     </div>
   );

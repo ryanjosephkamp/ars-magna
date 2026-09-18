@@ -16,7 +16,7 @@ import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
 import { applyView, type SortMode } from './lib/resultView.ts';
-import { filterScope, filterWords, searchAllLabel } from './lib/filterScope.ts';
+import { containingKey, containingLabel, containingQuery, filterScope, filterWords } from './lib/filterScope.ts';
 import { discoveredFor } from './lib/inDiscoveries.ts';
 import { InDiscoveries } from './components/InDiscoveries.tsx';
 import { CheckToast } from './components/CheckToast.tsx';
@@ -74,7 +74,7 @@ export function App() {
   const letters = folded.letters;
 
   const {
-    engine, searching, error, candidates, countedLetters, loadMore, collect, at, surpriseMe, spellings, masks, has,
+    engine, searching, error, candidates, countedLetters, loadMore, collect, at, surpriseMe, spellings, masks, has, countOf,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
@@ -266,18 +266,38 @@ export function App() {
     void loadAll();
   }, [scope.kind, loadingAll, query, loadAll]);
 
-  const searchAll = useMemo(
-    () =>
-      scope.kind === 'must-include'
-        ? {
-            label: searchAllLabel(total, scope.words),
-            onSearch: () => patch({ mustInclude: [...query.mustInclude, ...scope.words] }),
-          }
-        : null,
-    // `scope` is rebuilt every render; its words, as text, are what matter.
+  // A filter of dictionary words on a partial list is counted across every
+  // result, with the words as Must include, and the line leads with that
+  // count. The list stays as it is until the reader asks for them: Show them,
+  // or Enter in the filter box. A count asked for an older filter or search is
+  // never shown against this one.
+  const containingWords = scope.kind === 'must-include' ? scope.words : null;
+  const countKey = containingWords ? containingKey(query, containingWords) : null;
+  const [containCount, setContainCount] = useState<{ key: string; count: string } | null>(null);
+  useEffect(() => {
+    if (!containingWords || !countKey) return;
+    let live = true;
+    void countOf(containingQuery(query, containingWords)).then((count) => {
+      if (live && count !== null) setContainCount({ key: countKey, count });
+    });
+    return () => {
+      live = false;
+    };
+    // The key holds the query and the words; they change only when it does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scope.kind, scope.kind === 'must-include' ? scope.words.join(' ') : '', total, query.mustInclude, patch],
-  );
+  }, [countKey, countOf]);
+
+  const containing = useMemo(() => {
+    if (!containingWords) return null;
+    const count = containCount?.key === countKey ? containCount.count : null;
+    return {
+      label: count === null ? null : containingLabel(count, total, containingWords),
+      // Nothing to show when none contain them.
+      onShow: count === '0' ? null : () => patch({ mustInclude: containingQuery(query, containingWords).mustInclude }),
+    };
+    // `containingWords` is rebuilt every render; `countKey` holds what it says.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countKey, containCount, total, query, patch]);
 
   const exportAs = useCallback(
     async (format: ExportFormat) => {
@@ -452,7 +472,7 @@ export function App() {
                     onLoadAll={() => void loadAll()}
                     onExport={(format) => void exportAs(format)}
                     exporting={exporting}
-                    searchAll={searchAll}
+                    containing={containing}
                   />
                   <ResultList
                     rows={visibleRows}

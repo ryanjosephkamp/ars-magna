@@ -131,6 +131,8 @@ export class EngineCore {
           return this.#solve(request.id, request.query, request.first, request.maxNodes);
         case 'page':
           return this.#page(request.offset, request.len);
+        case 'count':
+          return this.#count(request.id, request.query, request.maxNodes);
         case 'collect':
           return this.#collect(request.id, request.limit);
         case 'random':
@@ -254,6 +256,23 @@ export class EngineCore {
       id,
       stats: { candidates, elapsedMs: Math.round(performance.now() - started) },
     });
+  }
+
+  /**
+   * A query's total alone. The engine prepares it apart from the session, so
+   * the list the reader is paging through, its cursor and its memo are all
+   * untouched. `candidates` is reported as 0: nothing here predicts a search.
+   */
+  #count(id: number, query: Query, maxNodes = DEFAULT_MAX_NODES): void {
+    const total = this.#require().countQuery(
+      normalizeLetters(query.input),
+      query.tier,
+      query.minWordLen,
+      query.maxWords,
+      query.mustInclude.map(normalizeLetters),
+      maxNodes,
+    );
+    this.#port.post({ k: 'count', id, total, candidates: 0 });
   }
 
   #page(offset: number, len: number): void {
