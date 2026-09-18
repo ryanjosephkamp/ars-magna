@@ -1,26 +1,26 @@
-import { formatCount, type Tier } from '@ars-magna/engine';
+import type { Tier } from '@ars-magna/engine';
 
 import {
   BAND_LABEL,
   TAG_LABEL,
-  TIER_LABEL,
   signedScore,
   type Comparison,
   type LetterFigures,
   type WordFigures,
 } from '../lib/analysis.ts';
+import { countLine, type TextCount } from '../lib/textCount.ts';
 
 const LABEL = 'text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase';
 const FIGURE = 'font-mono text-[13px] tabular-nums text-ink';
 
 const number = (n: number) => n.toLocaleString('en-US');
 
-/** One labelled line: what it is, and the figure. */
-function Figure({ label, children }: { label: string; children: React.ReactNode }) {
+/** One labelled line: what it is, and the figure, or a sentence where there is none. */
+function Figure({ label, prose = false, children }: { label: string; prose?: boolean; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[8.5rem_1fr] items-baseline gap-3 border-b border-rule py-1.5">
       <dt className="text-sm text-ink-soft">{label}</dt>
-      <dd className={FIGURE}>{children}</dd>
+      <dd className={prose ? 'text-sm text-ink-soft' : FIGURE}>{children}</dd>
     </div>
   );
 }
@@ -86,10 +86,8 @@ type Props = {
   /** The two sides against each other; null until both boxes have letters. */
   comparison: Comparison | null;
   tier: Tier;
-  /** The engine's count of every anagram the text has at `tier`: a decimal string, `>`-prefixed for a floor; null while counting or when it could not be had. */
-  total: string | null;
-  /** Set while the count is still running. */
-  counting: boolean;
+  /** How many anagrams the text has at `tier`, as far as the count got. */
+  count: TextCount;
 };
 
 /**
@@ -97,7 +95,7 @@ type Props = {
  * text alone, how many anagrams the site finds. Everything is type — labelled
  * lines and hairline bars — as PRODUCT.md's line for this page requires.
  */
-export function Analysis({ text, anagram, comparison: side, tier, total, counting }: Props) {
+export function Analysis({ text, anagram, comparison: side, tier, count }: Props) {
   return (
     <section aria-labelledby="analysis-title" className="mt-12 border-t border-rule pt-6">
       <h2 id="analysis-title" className={LABEL}>
@@ -110,14 +108,8 @@ export function Analysis({ text, anagram, comparison: side, tier, total, countin
       </div>
 
       <dl className="mt-8">
-        <Figure label="Every anagram of the text">
-          {text.letters.count === 0
-            ? '—'
-            : counting
-              ? 'Counting…'
-              : total === null
-                ? 'Not counted'
-                : `${formatCount(total)} in ${TIER_LABEL[tier]}`}
+        <Figure label="Every anagram of the text" prose={count.kind === 'too-long'}>
+          {countLine(count, tier)}
         </Figure>
       </dl>
 

@@ -184,6 +184,34 @@ describe('ArsMagnaClient', () => {
     await expect(refused).rejects.toThrow('not in this dictionary tier');
   });
 
+  it('does not make a new search wait behind a count that is still running', async () => {
+    const { client, workers } = connectRespawning();
+    const [first] = workers;
+    ready(first!, 0);
+
+    // A search that has finished, then a filter's count on it.
+    const searchId = client.solve(QUERY, {});
+    first!.reply({ k: 'solved', id: searchId, stats: { candidates: 9, elapsedMs: 1 } });
+    expect(client.busy).toBe(false);
+    const filter = client.count({ ...QUERY, mustInclude: ['a'] });
+
+    // The reader changes the text before the count is answered.
+    client.solve({ ...QUERY, input: 'listen' }, {});
+    expect(first!.terminated).toBe(true);
+    await expect(filter).rejects.toThrow('cancelled');
+    expect(workers[1]!.sent.map((m) => m.k)).toEqual(['init', 'solve']);
+
+    // Once a count is answered, the worker is idle again and is kept.
+    const second = workers[1]!;
+    ready(second, second.sent[0]!.id);
+    second.reply({ k: 'solved', id: second.sent[1]!.id, stats: { candidates: 9, elapsedMs: 1 } });
+    const answered = client.count({ ...QUERY, mustInclude: ['lens'] });
+    second.reply({ k: 'count', id: second.sent.at(-1)!.id, total: '2', candidates: 0 });
+    await expect(answered).resolves.toBe('2');
+    client.solve({ ...QUERY, input: 'silent' }, {});
+    expect(workers).toHaveLength(2);
+  });
+
   it('still routes ordinary per-request errors to their own handler', () => {
     const { client, worker } = connect();
     ready(worker, 0);

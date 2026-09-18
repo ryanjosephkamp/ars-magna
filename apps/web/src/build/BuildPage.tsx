@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { DEFAULT_QUERY, type Tier } from '@ars-magna/engine';
+import type { Tier } from '@ars-magna/engine';
 
 import { CheckToast } from '../components/CheckToast.tsx';
 import { TierPicker } from '../components/Controls.tsx';
@@ -9,10 +9,12 @@ import { comparison, letterFigures, wordFigures } from '../lib/analysis.ts';
 import { lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } from '../lib/checks.ts';
 import { buildFileStem, buildJson, buildTxt, download, type BuildReport } from '../lib/exporters.ts';
 import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.ts';
+import { countLine, exportTotal } from '../lib/textCount.ts';
 import { decodeBuild, syncBuildUrl } from '../lib/urlState.ts';
 import { useDictionary } from '../state/useDictionary.ts';
 import { usePass } from '../state/usePass.ts';
 import { usePublishedHits } from '../state/usePublishedHits.ts';
+import { useTextCount } from '../state/useTextCount.ts';
 import { Analysis } from './Analysis.tsx';
 import { Submit } from './Submit.tsx';
 import { Tray } from './Tray.tsx';
@@ -72,7 +74,8 @@ export function BuildPage() {
     words: { text: analysis.text.words, anagram: analysis.anagram.words },
     skipped: { text: l.text.skipped, anagram: l.anagram.skipped },
     comparison: analysis.comparison,
-    total,
+    total: exportTotal(textCount),
+    countNote: textCount.kind === 'too-long' ? countLine(textCount, tier) : null,
     generatedAt: new Date(),
   });
 
@@ -107,28 +110,8 @@ export function BuildPage() {
   }, [anagram]);
 
   // How many anagrams the text itself has, at the chosen tier: the site's own
-  // number, asked once the text has stayed put for a moment. A count that runs
-  // out of its budget comes back as a floor, and reads as `more than`.
-  const countKey = `${l.text.letters}|${tier}`;
-  const [counted, setCounted] = useState<{ key: string; total: string | null } | null>(null);
-  useEffect(() => {
-    if (l.text.letters.length === 0 || dictionary.status.state !== 'ready') return;
-    let live = true;
-    const timer = setTimeout(() => {
-      void dictionary
-        .count({ ...DEFAULT_QUERY, input: text, mustInclude: [], mustExclude: [], tier })
-        .then((total) => {
-          if (live && total !== null) setCounted({ key: countKey, total });
-        });
-    }, 500);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-    // The key holds the letters and the tier; the text's spelling cannot change them.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countKey, dictionary.status.state]);
-  const total = counted?.key === countKey ? counted.total : null;
+  // number, in a worker of its own and within a time limit.
+  const textCount = useTextCount(text, l.text.letters, tier, dictionary.status.state);
 
   useEffect(() => syncBuildUrl({ text, anagram, tier }), [text, anagram, tier]);
 
@@ -262,8 +245,7 @@ export function BuildPage() {
           anagram={analysis.anagram}
           comparison={analysis.comparison}
           tier={tier}
-          total={total}
-          counting={l.text.letters.length > 0 && total === null && dictionary.status.state === 'ready'}
+          count={textCount}
         />
 
         <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-3 print:hidden">

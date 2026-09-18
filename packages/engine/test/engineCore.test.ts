@@ -75,6 +75,19 @@ describe.skipIf(!built)('EngineCore', () => {
     await core.handle({ k: 'init', id: 1, baseUrl: '/dict' });
   });
 
+  it('holds a request that arrives while the dictionary loads until it has loaded', async () => {
+    // A replacement worker is sent `init` and the next request back to back.
+    const fresh = new Collector();
+    const replacement = new EngineCore(fresh, { wasmInput: await readFile(wasmPath), fetchImpl: fileFetch });
+    const loading = replacement.handle({ k: 'init', id: 1, baseUrl: '/dict' });
+    const counting = replacement.handle({ k: 'count', id: 2, query: { ...DEFAULT_QUERY, input: 'dormitory' } });
+    const looking = replacement.handle({ k: 'lookup', id: 3, word: 'dormitory', tier: 'standard' });
+    await Promise.all([loading, counting, looking]);
+    expect(fresh.all('error')).toEqual([]);
+    expect(fresh.messages.map((m) => m.k)).toEqual(['ready', 'count', 'lookup']);
+    expect(fresh.last('count')?.total).toBe('116');
+  });
+
   it('loads the dictionary and reports its counts', () => {
     const ready = port.last('ready');
     expect(ready).toBeDefined();

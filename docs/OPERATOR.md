@@ -581,6 +581,7 @@ form ("Add a hit by hand") stays open as a second way in, and the page links to 
 | the words check | the search's own engine and dictionary, loaded once the page is on screen, asked which tier each word is in |
 | a submission | `POST /api/promote` with `via: "typed"`: a row in the promotions table (see "Votes on Discover") |
 | the analysis | `apps/web/src/lib/analysis.ts`, from the dictionary's own part-of-speech masks and frequency bytes |
+| the text's count | `apps/web/src/state/useTextCount.ts`, a second worker started for each count and stopped when it ends; its time limit and budgets in `apps/web/src/lib/textCount.ts` |
 
 **The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
 apostrophes, hyphens and punctuation carry no letters, and digits, symbols and letters of other scripts are
@@ -590,9 +591,19 @@ for one no tier has.
 
 **The analysis** beneath the boxes counts the letters and the words of each side, names the parts of speech
 the dictionary gives each word and how common it is, and, for the text alone, states how many anagrams the
-text has at the chosen tier. That count is the engine's, with a tenth of a search's node budget
-(`BUILD_COUNT_NODES` in `apps/web/src/state/useDictionary.ts`, a number you may tune); a count that runs out
-of it reads `more than N`, as a search's does. Nothing in the analysis is stored or sent anywhere.
+text has at the chosen tier. Nothing in the analysis is stored or sent anywhere.
+
+**The count.** That number is the engine's, counted in a second worker of its own, so the word checks
+never wait behind it. That worker holds its own copy of the dictionary (about 70 MB measured in Chrome,
+near 100 MB once a count has run), so it is started for each count, from the copy the page's first worker cached,
+and stopped when the count ends. The engine cannot stop a count from inside, so the moment the text or
+the dictionary changes, a count still running is abandoned by stopping its worker. A count runs for at
+most `BUILD_COUNT_LIMIT_MS` (4,000 milliseconds, in `apps/web/src/lib/textCount.ts`, a number you may
+tune). It counts with a small node budget first and a budget four times larger each time one runs out,
+so when the time is up the line reads `more than N` from the last budget that finished. A text so long
+that no budget found a single anagram in that time reads `The text is too long to count here; the page
+stops counting after 4 seconds.` Texts of about 20 letters count exactly in well under a second; the
+time limit starts to matter at about 25.
 
 **A submission** is the reader's promotion of that anagram, with a note: a category (required), and, when
 given, what the input is (the rule in "What an input is"; the API refuses one that breaks it), why it is good

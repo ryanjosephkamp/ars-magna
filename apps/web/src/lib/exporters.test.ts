@@ -236,6 +236,7 @@ describe('the Build page’s export', () => {
     skipped: { text: [], anagram: [] },
     comparison: comparison(text, anagram),
     total: '116',
+    countNote: null,
     generatedAt: new Date('2026-09-18T05:00:00.000Z'),
     ...over,
   });
@@ -268,6 +269,9 @@ describe('the Build page’s export', () => {
     expect(floor).toContain('Skipped         4');
     expect(floor).not.toContain('TEXT AGAINST ANAGRAM');
     expect(buildTxt(report({ total: null }))).toContain('Every anagram   —');
+    const note = 'The text is too long to count here; the page stops counting after 4 seconds.';
+    expect(buildTxt(report({ total: null, countNote: note }))).toContain(`Every anagram   ${note}`);
+    expect(JSON.parse(buildJson(report({ total: null, countNote: note })))).toMatchObject({ total: null, totalIsFloor: false, countNote: note });
   });
 
   it('writes the same figures as data', () => {
