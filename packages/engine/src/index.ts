@@ -178,6 +178,11 @@ export class ArsMagnaClient {
     return this.#ask<number[]>((id) => ({ k: 'masks', id, words }));
   }
 
+  /** Each word's frequency byte, in order: `(zipf + 1) * 24`, or 0 where the dictionary has none. */
+  zipf(words: readonly string[]): Promise<number[]> {
+    return this.#ask<number[]>((id) => ({ k: 'zipf', id, words }));
+  }
+
   #ask<T>(build: (id: number) => Request): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const id = this.#nextId++;
@@ -258,6 +263,7 @@ export class ArsMagnaClient {
       else if (message.k === 'lookup') oneShot.resolve(message.found as never);
       else if (message.k === 'masks') oneShot.resolve(message.masks as never);
       else if (message.k === 'count') oneShot.resolve(message.total as never);
+      else if (message.k === 'zipf') oneShot.resolve(message.zipf as never);
       else if (message.k === 'batch') oneShot.resolve((message.rows[0] ?? null) as never);
       else if (message.k === 'collected')
         oneShot.resolve({ rows: message.rows, complete: message.complete } as never);

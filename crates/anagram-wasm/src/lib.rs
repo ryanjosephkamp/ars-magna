@@ -364,6 +364,18 @@ impl Engine {
             .collect()
     }
 
+    /// The frequency byte of each word in a space-separated list, in order, as
+    /// the dictionary carries it: `(zipf + 1) * 24`, and 0 where the build had
+    /// no frequency for the word. One call per list, like `posMasks`.
+    #[wasm_bindgen(js_name = zipfOf)]
+    pub fn zipf_of(&self, words: &str) -> Vec<u8> {
+        words
+            .split(' ')
+            .filter(|w| !w.is_empty())
+            .map(|w| self.dict.index_of(w).map_or(0, |i| self.dict.zipf[i as usize]))
+            .collect()
+    }
+
     /// Whether a word exists at a tier — used to validate "must include" chips.
     #[wasm_bindgen]
     pub fn has(&self, word: &str, tier: &str) -> bool {

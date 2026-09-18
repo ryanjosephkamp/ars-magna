@@ -143,6 +143,8 @@ export class EngineCore {
           return this.#lookup(request.id, request.word, request.tier);
         case 'masks':
           return this.#masks(request.id, request.words);
+        case 'zipf':
+          return this.#zipf(request.id, request.words);
       }
     } catch (error) {
       this.#fail(request.id, error);
@@ -373,6 +375,12 @@ export class EngineCore {
     const masks =
       words.length === 0 ? [] : Array.from(this.#require().posMasks(words.join(' ')));
     this.#port.post({ k: 'masks', id, masks });
+  }
+
+  /** Each word's frequency byte: how common the dictionary says it is. */
+  #zipf(id: number, words: readonly string[]): void {
+    const zipf = words.length === 0 ? [] : Array.from(this.#require().zipfOf(words.join(' ')));
+    this.#port.post({ k: 'zipf', id, zipf });
   }
 
   get manifest(): Manifest | null {

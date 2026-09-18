@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_QUERY, type Tier } from '@ars-magna/engine';
 
 import { CheckToast } from '../components/CheckToast.tsx';
@@ -10,6 +10,7 @@ import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.
 import { useDictionary } from '../state/useDictionary.ts';
 import { usePass } from '../state/usePass.ts';
 import { usePublishedHits } from '../state/usePublishedHits.ts';
+import { Analysis } from './Analysis.tsx';
 import { Submit } from './Submit.tsx';
 import { Tray } from './Tray.tsx';
 
@@ -38,7 +39,9 @@ export function BuildPage() {
   const l = useMemo(() => ledger(text, anagram), [text, anagram]);
   const marks = useMemo(() => readBack(text, anagram), [text, anagram]);
   const words = useMemo(() => wordsOf(anagram), [anagram]);
-  const dictionary = useDictionary(words);
+  const textWords = useMemo(() => wordsOf(text), [text]);
+  const looked = useMemo(() => [...textWords, ...words], [textWords, words]);
+  const dictionary = useDictionary(looked);
   const pass = usePass();
   const published = usePublishedHits(true, '');
 
@@ -74,6 +77,30 @@ export function BuildPage() {
     if (box && pendingCaret.current !== null) box.setSelectionRange(pendingCaret.current, pendingCaret.current);
     pendingCaret.current = null;
   }, [anagram]);
+
+  // How many anagrams the text itself has, at the chosen tier: the site's own
+  // number, asked once the text has stayed put for a moment. A count that runs
+  // out of its budget comes back as a floor, and reads as `more than`.
+  const countKey = `${l.text.letters}|${tier}`;
+  const [counted, setCounted] = useState<{ key: string; total: string | null } | null>(null);
+  useEffect(() => {
+    if (l.text.letters.length === 0 || dictionary.status.state !== 'ready') return;
+    let live = true;
+    const timer = setTimeout(() => {
+      void dictionary
+        .count({ ...DEFAULT_QUERY, input: text, mustInclude: [], mustExclude: [], tier })
+        .then((total) => {
+          if (live && total !== null) setCounted({ key: countKey, total });
+        });
+    }, 500);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // The key holds the letters and the tier; the text's spelling cannot change them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countKey, dictionary.status.state]);
+  const total = counted?.key === countKey ? counted.total : null;
 
   const textLine = lettersLine(l.text);
   const anagramVerdict = verdict(l);
@@ -178,6 +205,15 @@ export function BuildPage() {
             </div>
           </dl>
         </section>
+
+        <Analysis
+          text={{ letters: l.text.letters, words: textWords }}
+          anagram={{ letters: l.anagram.letters, words }}
+          factsOf={dictionary.factsOf}
+          tier={tier}
+          total={total}
+          counting={l.text.letters.length > 0 && total === null && dictionary.status.state === 'ready'}
+        />
 
         {l.match && (
           <Submit
