@@ -418,6 +418,26 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(both.last('error')!.message).toContain('both included and excluded');
   });
 
+  it('gives each word its frequency byte, and zero for one the dictionary lacks', async () => {
+    port.reset();
+    const words = ['the', 'room', 'dirty', 'dormitory', 'onsen', 'doomer', 'oradio'];
+    await core.handle({ k: 'zipf', id: 110, words });
+    const zipf = port.last('zipf')!.zipf;
+    expect(zipf).toHaveLength(words.length);
+    // The byte is (zipf + 1) * 24, so a commoner word carries a bigger one.
+    const [the, room, dirty, dormitory, onsen, doomer, oradio] = zipf as number[];
+    expect(the!).toBeGreaterThan(room!);
+    expect(room!).toBeGreaterThan(dirty!);
+    expect(dirty!).toBeGreaterThan(dormitory!);
+    expect(dormitory!).toBeGreaterThan(onsen!);
+    // A site addition has no frequency at all, and nor has a word that is not a word.
+    expect([doomer, oradio]).toEqual([0, 0]);
+
+    port.reset();
+    await core.handle({ k: 'zipf', id: 111, words: [] });
+    expect(port.last('zipf')!.zipf).toEqual([]);
+  });
+
   it('pins every result to a must-include word', async () => {
     const p = await solve('astronomer', { minWordLen: 3, mustInclude: ['moon'] }, 100);
     const rows = rowsOf(p);

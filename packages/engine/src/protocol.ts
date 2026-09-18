@@ -113,7 +113,16 @@ export type Request =
   | { readonly k: 'random'; readonly id: number; readonly index: string }
   | { readonly k: 'spellings'; readonly id: number; readonly word: string; readonly tier: Tier }
   | { readonly k: 'lookup'; readonly id: number; readonly word: string; readonly tier: Tier }
-  | { readonly k: 'masks'; readonly id: number; readonly words: readonly string[] };
+  | { readonly k: 'masks'; readonly id: number; readonly words: readonly string[] }
+  | {
+      /**
+       * Each word's frequency byte, as the dictionary carries it. The Build
+       * page reads it to say how common a word is.
+       */
+      readonly k: 'zipf';
+      readonly id: number;
+      readonly words: readonly string[];
+    };
 
 // ----------------------------------------------------------------- responses
 
@@ -167,6 +176,7 @@ export type Response =
   | { readonly k: 'spellings'; readonly id: number; readonly words: readonly string[] }
   | { readonly k: 'lookup'; readonly id: number; readonly found: boolean }
   | { readonly k: 'masks'; readonly id: number; readonly masks: readonly number[] }
+  | { readonly k: 'zipf'; readonly id: number; readonly zipf: readonly number[] }
   | {
       readonly k: 'collected';
       readonly id: number;

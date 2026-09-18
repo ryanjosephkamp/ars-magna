@@ -580,12 +580,19 @@ form ("Add a hit by hand") stays open as a second way in, and the page links to 
 | the page | `apps/web/build.html` and `apps/web/src/build/`; the letter tray and its arithmetic in `apps/web/src/lib/ledger.ts`, the two checks in `apps/web/src/lib/checks.ts` |
 | the words check | the search's own engine and dictionary, loaded once the page is on screen, asked which tier each word is in |
 | a submission | `POST /api/promote` with `via: "typed"`: a row in the promotions table (see "Votes on Discover") |
+| the analysis | `apps/web/src/lib/analysis.ts`, from the dictionary's own part-of-speech masks and frequency bytes |
 
 **The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
 apostrophes, hyphens and punctuation carry no letters, and digits, symbols and letters of other scripts are
 listed as skipped. *Words known* reads each word between spaces against the tier the reader picks, and names a
 word it lacks: `doomer is in Extended, not Standard` for a word a wider tier has, `qzx is not in the dictionary`
 for one no tier has.
+
+**The analysis** beneath the boxes counts the letters and the words of each side, names the parts of speech
+the dictionary gives each word and how common it is, and, for the text alone, states how many anagrams the
+text has at the chosen tier. That count is the engine's, with a tenth of a search's node budget
+(`BUILD_COUNT_NODES` in `apps/web/src/state/useDictionary.ts`, a number you may tune); a count that runs out
+of it reads `more than N`, as a search's does. Nothing in the analysis is stored or sent anywhere.
 
 **A submission** is the reader's promotion of that anagram, with a note: a category (required), and, when
 given, what the input is (the rule in "What an input is"; the API refuses one that breaks it), why it is good

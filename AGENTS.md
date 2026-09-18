@@ -37,7 +37,7 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `packages/engine` | worker protocol, `fold.ts` (accent folding), `node.ts` (engine under Node), `definitions.ts` |
 | `packages/mcp` | MCP server (stdio): solve, count, nth, explain_word, propose_hit |
 | `apps/web` | the site; `hits.html` is the Discover page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl`; `build.html` is the Build page (`src/build/`) |
-| `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts`, and Build's `ledger.ts` and `checks.ts` |
+| `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts`, and Build's `ledger.ts`, `checks.ts` and `analysis.ts` |
 | `apps/web/src/votes`, `apps/web/functions/api` | votes on Discover, promotions from search and submissions from Build: the logic the pages and the API share, with its tests, and the Cloudflare Pages Functions that serve `/api/` |
 | `apps/web/migrations`, `apps/web/wrangler.toml` | the votes and promotions database's schema, and the Pages project's configuration: the D1 binding `DISCOVERIES_DB` and the `VOTES_OPEN` and `PROMOTIONS_OPEN` switches |
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
