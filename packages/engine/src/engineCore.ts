@@ -116,6 +116,8 @@ export class EngineCore {
   #engine: Engine | null = null;
   #manifest: Manifest | null = null;
   #session: Session | null = null;
+  /** The dictionary load under way, which every other request waits for. */
+  #loading: Promise<void> | null = null;
 
   constructor(port: Port, options: CoreOptions = {}) {
     this.#port = port;
@@ -123,10 +125,18 @@ export class EngineCore {
   }
 
   async handle(request: Request): Promise<void> {
+    // A worker that replaces a killed one is sent its dictionary and the next
+    // request back to back, and the load awaits the network and the cache, so
+    // the request would arrive to no engine and fail with "engine is not
+    // initialized". It waits for the load instead; requests keep their order.
+    if (request.k !== 'init' && this.#loading) await this.#loading;
     try {
       switch (request.k) {
-        case 'init':
-          return await this.#init(request.id, request.baseUrl);
+        case 'init': {
+          const loading = this.#init(request.id, request.baseUrl);
+          this.#loading = loading.catch(() => {});
+          return await loading;
+        }
         case 'solve':
           return this.#solve(request.id, request.query, request.first, request.maxNodes);
         case 'page':

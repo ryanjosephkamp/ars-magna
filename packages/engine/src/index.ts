@@ -47,6 +47,8 @@ export class ArsMagnaClient {
   #activeQuery = 0;
   /** The latest `count` asked for; an answer to any earlier one is dropped. */
   #activeCount = 0;
+  /** Counts asked for and not yet answered, superseded ones included: the worker runs each in turn. */
+  #counting = new Set<number>();
   /** The query the worker is busy with, or 0 once it has answered. */
   #inFlight = 0;
   #handlers = new Map<number, SolveHandlers>();
@@ -118,7 +120,9 @@ export class ArsMagnaClient {
     // replaced. The dictionary reloads from Cache Storage, which costs a few
     // hundred milliseconds — only ever paid when the previous search had not
     // finished within the typing debounce, which is exactly when it matters.
-    if (this.#inFlight !== 0 && this.#respawn) this.#restart();
+    // A count still running (a filter's, which cannot be stopped either) makes
+    // the worker just as busy: the new search must not wait behind it.
+    if ((this.#inFlight !== 0 || this.#counting.size > 0) && this.#respawn) this.#restart();
 
     const id = this.#nextId++;
     this.#activeQuery = id;
@@ -142,12 +146,17 @@ export class ArsMagnaClient {
    */
   async count(query: Query, maxNodes?: number): Promise<string | null> {
     let asked = 0;
-    const total = await this.#ask<string>((id) => {
-      asked = id;
-      this.#activeCount = id;
-      return maxNodes === undefined ? { k: 'count', id, query } : { k: 'count', id, query, maxNodes };
-    });
-    return asked === this.#activeCount ? total : null;
+    try {
+      const total = await this.#ask<string>((id) => {
+        asked = id;
+        this.#activeCount = id;
+        this.#counting.add(id);
+        return maxNodes === undefined ? { k: 'count', id, query } : { k: 'count', id, query, maxNodes };
+      });
+      return asked === this.#activeCount ? total : null;
+    } finally {
+      this.#counting.delete(asked);
+    }
   }
 
   /** The solution at `index`, fetched by unranking rather than enumeration. */
@@ -215,6 +224,7 @@ export class ArsMagnaClient {
     // not be left waiting for an onDone that will never come.
     this.#handlers.clear();
     this.#inFlight = 0;
+    this.#counting.clear();
 
     this.#worker = this.#respawn!();
     this.#worker.onmessage = (event: MessageEvent<Response>) => this.#receive(event.data);

@@ -178,6 +178,8 @@ export type BuildReport = {
   readonly comparison: Comparison | null;
   /** The engine's count of every anagram of the text at `tier`; a `>` prefix is a floor. Null when it was not had. */
   readonly total: string | null;
+  /** What the page said instead of a figure, when the text was too long to count; null otherwise. */
+  readonly countNote: string | null;
   readonly generatedAt: Date;
 };
 
@@ -225,7 +227,7 @@ export function buildTxt(report: BuildReport): string {
     '',
     pad(
       'Every anagram',
-      report.total === null ? '—' : `${formatCount(report.total)} in ${TIER_LABEL[report.tier]}`,
+      report.total === null ? (report.countNote ?? '—') : `${formatCount(report.total)} in ${TIER_LABEL[report.tier]}`,
     ),
   ];
   if (report.comparison) {

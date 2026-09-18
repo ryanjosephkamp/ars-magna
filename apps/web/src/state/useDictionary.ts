@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArsMagnaClient, TIERS, type EngineStatus, type Query, type Tier } from '@ars-magna/engine';
+import { ArsMagnaClient, TIERS, type EngineStatus, type Tier } from '@ars-magna/engine';
 
 import type { TierOf } from '../lib/checks.ts';
-
-/**
- * A search's own count is unbounded; Build's is a courtesy figure beside the
- * boxes, so it gets a tenth of the node budget. A count that runs out of it
- * comes back as a floor, which the page says out loud as `more than`.
- */
-export const BUILD_COUNT_NODES = 5_000_000;
 
 /** What the dictionary knows about one word. */
 export type WordFacts = {
@@ -26,18 +19,15 @@ export type Dictionary = {
   tierOf: TierOf;
   /** What the dictionary knows about a word, or undefined until it has been asked. */
   factsOf(word: string): WordFacts | undefined;
-  /**
-   * How many anagrams `query` has, without disturbing anything else. Null when
-   * a later count replaced this one or the engine could not say.
-   */
-  count(query: Query): Promise<string | null>;
 };
 
 /**
  * The dictionary for a page that searches nothing: the search's own worker and
  * dictionary cache, booted in an effect so the page is on screen first. Each
  * of `words` is looked up once a visit — its tier, its parts of speech and how
- * common it is — and the answers are kept.
+ * common it is — and the answers are kept. Nothing slow runs in this worker:
+ * the text's count has one of its own (`useTextCount`), so a lookup never
+ * waits behind it.
  */
 export function useDictionary(words: readonly string[]): Dictionary {
   const clientRef = useRef<ArsMagnaClient | null>(null);
@@ -98,15 +88,5 @@ export function useDictionary(words: readonly string[]): Dictionary {
   const tierOf = useCallback<TierOf>((word) => facts.current.get(word)?.tier, [version]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
-  const count = useCallback(async (query: Query): Promise<string | null> => {
-    const client = clientRef.current;
-    if (!client) return null;
-    try {
-      return await client.count(query, BUILD_COUNT_NODES);
-    } catch {
-      return null;
-    }
-  }, []);
-
-  return { status, tierOf, factsOf, count };
+  return { status, tierOf, factsOf };
 }
