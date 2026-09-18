@@ -37,11 +37,7 @@ const HITS_LINKS: Link[] = [
     href: 'https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits',
     note: 'on Hugging Face',
   },
-  {
-    label: 'Submit',
-    href: 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=submit-anagram.yml',
-    note: 'found a good one?',
-  },
+  { label: 'Build', href: '/build', note: 'found a good one?' },
 ];
 
 const AUTHOR_LINKS: Link[] = [

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import * as pipelineAbout from '../../../../tools/hits/src/about.ts';
+import { CATEGORIES as PIPELINE_CATEGORIES } from '../../../../tools/hits/src/ids.ts';
+
 import {
+  ABOUT_MAX,
+  ABOUT_PATTERN,
+  CATEGORIES,
+  aboutProblem,
+  isCategory,
+  tidyNote,
   HIT_ID_PATTERN,
   KEY_PATTERN,
   MAX_LETTERS,
@@ -206,5 +215,41 @@ describe('the check before voting', () => {
 
     // The hook undoes the press by this path on any failure, the limit included.
     expect(withVote(pressed, 'dormitory:phrases:dirty-room', false)).toEqual(start);
+  });
+});
+
+describe('a submission’s note', () => {
+  it('keeps the rule for what an input is, and the categories, exactly as the pipeline has them', () => {
+    expect(ABOUT_MAX).toBe(pipelineAbout.ABOUT_MAX);
+    expect(ABOUT_PATTERN.source).toBe(pipelineAbout.ABOUT_PATTERN.source);
+    expect(ABOUT_PATTERN.flags).toBe(pipelineAbout.ABOUT_PATTERN.flags);
+    expect(CATEGORIES).toEqual(PIPELINE_CATEGORIES);
+    expect(isCategory('places')).toBe(true);
+    expect(isCategory('Places')).toBe(false);
+  });
+
+  it('agrees with the pipeline about which sentences pass', () => {
+    const cases = [
+      'A dormitory is a building of shared bedrooms, as at a school or college.',
+      'Dolly Parton was an American singer-songwriter (1946–2026).',
+      'It was called “the big one.”',
+      'no full stop',
+      ' Leading space.',
+      `${'A'.repeat(199)}.`,
+      `${'A'.repeat(200)}.`,
+    ];
+    for (const text of cases) {
+      expect(aboutProblem(text) === null, text).toBe(pipelineAbout.aboutProblem(text) === null);
+    }
+  });
+
+  it('says what is wrong in words for the reader', () => {
+    expect(aboutProblem('no full stop')).toBe('Write what the input is as one sentence ending with a full stop.');
+    expect(aboutProblem(`${'A'.repeat(214)}.`)).toBe('Keep what the input is to 200 characters; this is 215.');
+    expect(aboutProblem('Fine.')).toBeNull();
+  });
+
+  it('tidies a note onto one line', () => {
+    expect(tidyNote('  One line,\n\tthen   another. ')).toBe('One line, then another.');
   });
 });

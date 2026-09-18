@@ -7,7 +7,9 @@
  *   POST /api/pass                       {voter, token}: the Turnstile check, once a visit; returns a signed pass
  *   POST /api/vote                       {hit_id, on, voter, pass}: casts or takes back a vote; returns the count
  *   GET  /api/promotions?letters=&voter= one set of letters' promotion counts, and which this voter promoted
- *   POST /api/promote                    {input, words, tier, on, voter, pass}: makes or takes back a promotion
+ *   POST /api/promote                    {input, words, tier, on, voter, pass}: makes or takes back a promotion;
+ *                                        with via "typed", category and optional about, why, credit and missing,
+ *                                        a submission from the Build page
  *
  * Votes attach to published hit ids only; promotions to any other anagram. A
  * POST must be JSON, which a page on another site cannot send here without a
@@ -18,19 +20,25 @@ import { normalizeLetters } from '@ars-magna/engine/fold';
 import {
   HIT_ID_PATTERN,
   LIMITS,
+  MAX_CREDIT,
   MAX_INPUT,
   MAX_LETTERS,
+  MAX_TYPED_LETTERS,
+  MAX_WHY,
   MAX_WORDS,
   PASS_TTL_MS,
   VOTER_PATTERN,
   WORD_PATTERN,
+  aboutProblem,
   connectionKey,
   hourBucket,
+  isCategory,
   isTier,
   promotable,
   promotionKey,
   signPass,
   sortedLetters,
+  tidyNote,
   verifyPass,
 } from './core.ts';
 import {
@@ -42,6 +50,7 @@ import {
   setVote,
   withinLimit,
   type D1Database,
+  type SubmissionFields,
 } from './store.ts';
 
 export type Env = {
@@ -183,9 +192,44 @@ export async function getPromotions(request: Request, env: Env): Promise<Respons
   return json({ open: promotionsOpen(env), counts, mine } satisfies PromotionsBody);
 }
 
+/** An optional note: absent, null or a string, tidied. Anything else is not a note. */
+function note(value: unknown): string | null {
+  if (value === undefined || value === null) return '';
+  return typeof value === 'string' ? tidyNote(value) : null;
+}
+
+/**
+ * A submission's note, checked: the category, what the input is, why it is
+ * good, the credit and the word requests. A refusal when any breaks its rule.
+ */
+function submission(body: Record<string, unknown>, words: readonly string[]): Omit<SubmissionFields, 'input' | 'words' | 'tier'> | Response {
+  const category = body['category'];
+  const about = note(body['about']);
+  const why = note(body['why']);
+  const credit = note(body['credit']);
+  const missing = body['missing'] ?? [];
+  if (
+    !isCategory(category) ||
+    about === null ||
+    why === null ||
+    credit === null ||
+    !Array.isArray(missing) ||
+    !missing.every((w): w is string => typeof w === 'string' && words.includes(w))
+  ) {
+    return refuse(400, 'bad-request', 'Send JSON with an input, its words, a tier, a category, a voter id and on.');
+  }
+  const problem = about.length > 0 ? aboutProblem(about) : null;
+  if (problem) return refuse(400, 'about', problem);
+  if ([...why].length > MAX_WHY) return refuse(400, 'too-long-note', `Keep why it is good to ${MAX_WHY} characters.`);
+  if ([...credit].length > MAX_CREDIT) return refuse(400, 'too-long-note', `Keep the credit to ${MAX_CREDIT} characters.`);
+  return { via: 'typed', category, about, why, credit, missing: [...new Set(missing)] };
+}
+
 export async function postPromote(request: Request, env: Env, deps: Deps): Promise<Response> {
-  if (!promotionsOpen(env)) return refuse(503, 'closed', 'Promotions are paused.');
   const body = await readJson(request);
+  const via = body?.['via'] ?? 'result';
+  const typed = via === 'typed';
+  if (!promotionsOpen(env)) return refuse(503, 'closed', typed ? 'Submissions are paused.' : 'Promotions are paused.');
   const input = body?.['input'];
   const words = body?.['words'];
   const tier = body?.['tier'];
@@ -193,6 +237,8 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   const on = body?.['on'];
   const pass = body?.['pass'];
   if (
+    !body ||
+    (via !== 'result' && !typed) ||
     typeof input !== 'string' ||
     input.trim().length === 0 ||
     input.length > MAX_INPUT ||
@@ -207,12 +253,19 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   ) {
     return refuse(400, 'bad-request', 'Send JSON with an input, its words, a tier, a voter id and on.');
   }
-  if (normalizeLetters(input).length > MAX_LETTERS) {
+  const letters = normalizeLetters(input).length;
+  if (letters > MAX_LETTERS) {
     return refuse(400, 'too-long', 'That input has more letters than a promotion can hold.');
+  }
+  if (typed && on && letters > MAX_TYPED_LETTERS) {
+    return refuse(400, 'too-long', `A submission holds at most ${MAX_TYPED_LETTERS} letters.`);
   }
   if (!promotable(input, words)) {
     return refuse(400, 'not-an-anagram', 'Those words do not use exactly the letters of the input.');
   }
+  // Taking a submission back needs no note; making one needs a good one.
+  const noted = typed && on ? submission(body, words) : null;
+  if (noted instanceof Response) return noted;
   const now = deps.now();
   if (typeof pass !== 'string' || !(await verifyPass(env.IP_HASH_SECRET, voter, pass, now))) {
     return refuse(403, 'no-pass', 'The check has expired. Press again to renew it.');
@@ -226,11 +279,13 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   if (on && (await deps.blockedKeys(request, env)).has(key)) {
     return refuse(403, 'blocked', 'That anagram cannot be promoted.');
   }
+  // A submission is a promotion, and counts against the same hourly limit.
   const connection = await connectionKey(env.IP_HASH_SECRET, ipOf(request), now);
   if (!(await withinLimit(env.DISCOVERIES_DB, `promote:${connection}`, hourBucket(now), LIMITS.promote))) {
     return refuse(429, 'too-many', 'Too many promotions from this connection this hour. Try again later.');
   }
-  const count = await setPromotion(env.DISCOVERIES_DB, key, voter, on, { input, words, tier, via: 'result' }, new Date(now).toISOString());
+  const fields = noted ? { input, words, tier, ...noted } : { input, words, tier, via: 'result' as const };
+  const count = await setPromotion(env.DISCOVERIES_DB, key, voter, on, fields, new Date(now).toISOString());
   return json({ key, on, count });
 }
 

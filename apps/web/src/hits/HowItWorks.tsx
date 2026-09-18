@@ -76,14 +76,33 @@ export function HowItWorks() {
           </div>
         </section>
 
+        <section aria-labelledby="build-title" className="mt-14">
+          <h2 id="build-title" className="font-display text-3xl tracking-[-0.01em] text-ink">
+            Build
+          </h2>
+          <div className="mt-4 flex max-w-prose flex-col gap-3 text-sm text-ink-soft">
+            <p>
+              <a href="/build" className="underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent">
+                Build
+              </a>{' '}
+              is where you make an anagram by hand. Type a text and an anagram of it: the page shows which letters are left, checks that the
+              letters match and that every word is in the dictionary you choose, and lets you send the anagram to Discover.
+            </p>
+            <p>
+              A submission counts as your promotion of that anagram and goes to the same review. It keeps the text, the words, the dictionary,
+              the category you chose and, when you give them, what the input is, why it is good and how to credit you.
+            </p>
+          </div>
+        </section>
+
         <section aria-labelledby="check-title" className="mt-14">
           <h2 id="check-title" className="font-display text-3xl tracking-[-0.01em] text-ink">
             The check before voting
           </h2>
           <p className="mt-4 max-w-prose text-sm text-ink-soft">
-            Before the first vote or promotion of a visit, Cloudflare Turnstile checks that the browser is not an automated one. Most of the
-            time it asks nothing; now and then it asks for a click. A connection can vote {LIMITS.vote} times an hour and promote{' '}
-            {LIMITS.promote} times an hour.
+            Before the first vote, promotion or submission of a visit, Cloudflare Turnstile checks that the browser is not an automated one.
+            Most of the time it asks nothing; now and then it asks for a click. A connection can vote {LIMITS.vote} times an hour and promote{' '}
+            {LIMITS.promote} times an hour. A submission counts as a promotion.
           </p>
         </section>
 
@@ -95,7 +114,8 @@ export function HowItWorks() {
             <li>A random id your browser makes and keeps, sent with each vote and promotion.</li>
             <li>
               Which anagrams that id voted for or promoted, and when. A promotion also keeps the text searched, the words in the order shown,
-              and the dictionary used. Only the number of promotions an anagram has is ever published.
+              and the dictionary used. A submission also keeps its category and, when you give them, what the input is, why it is good and a
+              credit. Only the number of promotions an anagram has is ever published.
             </li>
             <li>
               To stop floods of votes, a code made from your connection’s address, a secret and the day. It changes every day and cannot be

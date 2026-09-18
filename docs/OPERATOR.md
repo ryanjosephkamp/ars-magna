@@ -65,7 +65,7 @@ is public: the word, what it means, and where it is attested.
 **What may be added.** A gloss — one sentence a reader can read — and a public trace: a Wiktionary
 or Urban Dictionary entry, a citation, or an explicit note saying the word is a coinage. Never a
 private person's name. The list is capped at 2,000 words; if it ever approaches that, the question
-has become whether to move the pin instead. No tool admits a word: the routine and the Submit page
+has become whether to move the pin instead. No tool admits a word: the routine and Build submissions
 propose, and a word joins the dictionary when you merge the pull request that adds it.
 
 1. Propose it. The command appends one line through the schema and refuses a word the pinned list
@@ -128,7 +128,7 @@ the pull request that adds it. The list is `data/vocabulary/requests.jsonl`.
 | Source | Where it comes from |
 |---|---|
 | `judge` | A model judging a queue proposed it. `hits:ingest` collects these, and the routine's pull request lists them. |
-| `submission` | A reader's anagram was refused because the word is in no tier. The issue is labelled `word-request`. |
+| `submission` | A reader's anagram was refused because the word is in no tier. The issue is labelled `word-request`. A submission from the Build page records such a word in its `missing` column instead (see "Build"). |
 | `anchor` | A seeded anchor word the engine could not find. As often a typo as a real word. |
 
 **A gloss or trace a model proposed is unverified.** Check the source exists and says what it is
@@ -396,7 +396,7 @@ opinion and no joke, and never about a private person. The schemas refuse anythi
 |---|---|
 | Wikidata | `hits:fetch` writes one for each new trending input from its item's English description ("American singer-songwriter (1946–2026)" becomes "Dolly Parton was an American singer-songwriter (1946–2026)."), and the link from its English Wikipedia article. The sentence is built mechanically, so read it. |
 | the judge | Each input's first row in a judge batch shows its sentence or `(empty)`; for an empty one the judge may write one. Ingest keeps the first that follows the rule, and the routine's pull request lists it under About. |
-| a submission | The issue form's "What the input is", or `about` on the MCP tool `propose_hit`, for an input that has none. |
+| a submission | The issue form's "What the input is", or `about` on the MCP tool `propose_hit`, for an input that has none. A Build submission's "What the input is" is kept on the promotion (`about`, see "Build") until the review (roadmap phase F) carries it to the candidate. |
 | you | `pnpm hits:describe`, or About the input in the review desk or the audit. |
 
 **Set or change one:**
@@ -489,13 +489,14 @@ Readers vote for anagrams on Discover and promote the ones that are not there ye
 anagram already in a section: one per browser per anagram, taken back by pressing Vote again, never a vote
 against. Most votes, the page's usual order, ranks each section by them; votes never move an anagram from one
 section to another. A promotion is for any other anagram in a search, on the same terms, and asks for it to
-be considered for a section. Nothing reviews promotions yet (roadmap phase F), so for now they are only
-counted. The search page shows both: a Discover block above the complete list, and Vote or Promote on
-every row. The rules as readers see them are at https://ars-magna.pages.dev/how.
+be considered for a section; a submission from the Build page is a promotion with a note (see "Build").
+Nothing reviews promotions yet (roadmap phase F), so for now they are only counted. The search page shows
+both: a Discover block above the complete list, and Vote or Promote on every row. The rules as readers see
+them are at https://ars-magna.pages.dev/how.
 
 | Piece | Where |
 |---|---|
-| the API | Cloudflare Pages Functions in `apps/web/functions/api/`: `GET /api/votes`, `POST /api/pass` (the check before a visit's first vote or promotion), `POST /api/vote`, `GET /api/promotions?letters=`, `POST /api/promote`. The logic and its tests are in `apps/web/src/votes/`. |
+| the API | Cloudflare Pages Functions in `apps/web/functions/api/`: `GET /api/votes`, `POST /api/pass` (the check before a visit's first vote, promotion or submission), `POST /api/vote`, `GET /api/promotions?letters=`, `POST /api/promote` (promotions from search and submissions from Build). The logic and its tests are in `apps/web/src/votes/`. |
 | the data | the D1 database `ars-magna-discoveries`, bound as `DISCOVERIES_DB` in `apps/web/wrangler.toml`: tables `votes`, `vote_counts`, `promotions`, `promotion_counts` and `rate_limits` |
 | the schema | `apps/web/migrations/`, applied by Deploy before each upload |
 | the check | the Turnstile widget `Ars Magna votes` for `ars-magna.pages.dev`; its site key is in `apps/web/src/votes/state.ts` |
@@ -512,8 +513,9 @@ published anagram can sit behind a row that spells it another way: for `Doritos`
 
 **The promotions table.** One row per browser per anagram: `key` (the letters sorted, a colon, the words
 sorted and joined with hyphens: `aaeeglmnnt:elegant-man`), `voter`, `input` as the reader typed it, `words` in
-the order they saw, the `tier` they searched, `via` (`result` from a search; `typed` is kept for the Submit
-page), `category`, `why`, `credit` and `missing` (empty until the Submit page), and `created_at`.
+the order they saw, the `tier` they searched, `via` (`result` from a search, `typed` from Build), and
+`created_at`. A submission from Build also fills `category`, `about` (what the input is, a column added by
+migration `0003`), `why`, `credit` and `missing` (its word requests); the rest leave them empty.
 `promotion_counts` holds each key's count, recounted with every change. A promotion of an anagram already on
 Discover is refused, and the search page shows Vote for it instead.
 
@@ -564,8 +566,50 @@ pnpm dlx wrangler@4.121.0 d1 migrations apply ars-magna-discoveries --local
 pnpm dlx wrangler@4.121.0 pages dev dist
 ```
 
-Then open http://localhost:8788/hits, and http://localhost:8788/#q=A%20gentleman for the search page's
-Discover block and Promote.
+Then open http://localhost:8788/hits, http://localhost:8788/#q=A%20gentleman for the search page's
+Discover block and Promote, and http://localhost:8788/build for a submission.
+
+## Build
+
+The Build page, https://ars-magna.pages.dev/build, is where a reader makes an anagram by hand: a text, an
+anagram of it, and two checks. When the letters match, the reader can submit it to Discover. The GitHub issue
+form ("Add a hit by hand") stays open as a second way in, and the page links to it.
+
+| Piece | Where |
+|---|---|
+| the page | `apps/web/build.html` and `apps/web/src/build/`; the letter tray and its arithmetic in `apps/web/src/lib/ledger.ts`, the two checks in `apps/web/src/lib/checks.ts` |
+| the words check | the search's own engine and dictionary, loaded once the page is on screen, asked which tier each word is in |
+| a submission | `POST /api/promote` with `via: "typed"`: a row in the promotions table (see "Votes on Discover") |
+
+**The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
+apostrophes, hyphens and punctuation carry no letters, and digits, symbols and letters of other scripts are
+listed as skipped. *Words known* reads each word between spaces against the tier the reader picks, and names a
+word it lacks: `doomer is in Extended, not Standard` for a word a wider tier has, `qzx is not in the dictionary`
+for one no tier has.
+
+**A submission** is the reader's promotion of that anagram, with a note: a category (required), and, when
+given, what the input is (the rule in "What an input is"; the API refuses one that breaks it), why it is good
+(up to 500 characters) and a credit (up to 60). It records the narrowest tier that holds every word the
+dictionary has. A word in no tier at all goes in `missing`, and the page tells the reader "qzx is not in the
+dictionary; it will be reviewed as a word request too." A word that only a wider tier has is not a word request,
+since the vocabulary already has it. A submission counts once per browser like any promotion: a second one
+replaces the note, and pressing Promote on the same anagram in a search takes it back.
+
+- **The limits.** A submission's text holds at most 80 letters (`MAX_TYPED_LETTERS` in
+  `apps/web/src/votes/core.ts`, a number you may tune); the page itself has no cap. It passes the same
+  Turnstile check as votes and counts against the promotions' hourly limit.
+- **An anagram already on Discover** shows a link to it instead of the form, and the API refuses it.
+- **Pausing.** `PROMOTIONS_OPEN = "false"` pauses submissions with promotions; the page says `Submissions are
+  paused.`
+
+**Read the submissions.** Read-only, from `apps/web`:
+
+```bash
+pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT key, input, words, tier, category, about, why, credit, missing, created_at FROM promotions WHERE via = 'typed' ORDER BY created_at DESC LIMIT 20"
+```
+
+Until the review lands (roadmap phase F), a submission is only kept and counted. Nothing on the site shows its
+note, and nothing reaches `data/` from it.
 
 ## Judge a queue by hand
 

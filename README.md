@@ -88,6 +88,16 @@ word out of the dictionary for that one search. A class of anagrams whose every 
 excluded drops out, and one with other spellings keeps them and hides the excluded one, so
 the count is still exact. A word cannot be in Must include and Must exclude at once.
 
+## Build
+
+`/build` is for making an anagram by hand. Type a text and the letter tray lists its letters
+with their counts; type an anagram and the tray counts down, a letter used too often turns
+red, and one line says what is wrong (`2 extra a · 1 missing t`). Tapping a letter in the
+tray adds it at the caret. Two checks follow: *Letters match*, and *Words known*, which asks
+the same engine and dictionary as the search, at the tier you choose, and names each word it
+lacks. When the letters match, the anagram can be submitted to Discover: a promotion with a
+category and an optional note, kept for the review.
+
 ## Offline
 
 Everything happens on your own machine — the search, the dictionary, the definitions —

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { foldChar, foldLetters, normalizeLetters } from '../src/fold.ts';
+import { foldChar, foldLetters, isSkipped, normalizeLetters } from '../src/fold.ts';
 import { FOLD_RANGES, FOLD_TABLE } from '../src/foldTable.ts';
 
 /** `[input, letters, skipped]` — mirrored in the Rust unit tests. */
@@ -80,5 +80,13 @@ describe('foldLetters', () => {
   it('does not count spaces or punctuation as skipped', () => {
     expect(foldLetters('  d o r m i t o r y  ').skipped).toBe(0);
     expect(foldLetters("Dor-mit'ory").skipped).toBe(0);
+  });
+
+  it('says which single characters are skipped, as foldLetters counts them', () => {
+    for (const char of ['4', '½', 'Ж', '中', '\u{263A}']) expect(isSkipped(char), char).toBe(true);
+    for (const char of ['a', 'Z', 'é', 'ß', ' ', "'", '-', '.', ',', '&', '’', '—']) expect(isSkipped(char), char).toBe(false);
+    for (const [input, , skipped] of FOLD_CASES) {
+      expect([...input].filter(isSkipped).length, input).toBe(skipped);
+    }
   });
 });

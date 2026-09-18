@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { LIMITS, PASS_TTL_MS, verifyPass } from './core.ts';
+import { LIMITS, MAX_TYPED_LETTERS, PASS_TTL_MS, verifyPass } from './core.ts';
 import {
   TURNSTILE_VERIFY,
   getPromotions,
@@ -227,6 +227,7 @@ describe('POST /api/promote and GET /api/promotions', () => {
         credit: null,
         missing: null,
         created_at: '2026-09-15T12:00:00.000Z',
+        about: null,
       },
     ]);
     expect(JSON.stringify(t.db.sqlite.prepare('SELECT * FROM rate_limits').all())).not.toContain(IP);
@@ -298,5 +299,127 @@ describe('POST /api/promote and GET /api/promotions', () => {
       throw new Error('boom');
     }, 'Promotions are not available right now.');
     expect(await response.json()).toEqual({ error: 'unavailable', message: 'Promotions are not available right now.' });
+  });
+});
+
+describe('POST /api/promote with via "typed": a submission from the Build page', () => {
+  const SUBMITTED = {
+    ...PROMOTED,
+    via: 'typed',
+    category: 'phrases',
+    about: '  A gentleman is a courteous man,\n as the phrase has it. ',
+    why: 'It says the same thing twice.',
+    credit: 'Ryan',
+    missing: [],
+  };
+  const rows = (t: ReturnType<typeof setup>) => t.db.sqlite.prepare('SELECT * FROM promotions ORDER BY key, voter').all() as Record<string, unknown>[];
+
+  it('keeps the note beside the promotion, tidied, and counts it as one promotion', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    const response = await t.promote({ ...SUBMITTED, voter: ALICE, pass: alice, on: true });
+    expect(await response.json()).toEqual({ key: PROMOTED_KEY, on: true, count: 1 });
+    expect(rows(t)).toEqual([
+      {
+        key: PROMOTED_KEY,
+        voter: ALICE,
+        input: 'A gentleman',
+        words: 'entangle am',
+        tier: 'standard',
+        via: 'typed',
+        category: 'phrases',
+        why: 'It says the same thing twice.',
+        credit: 'Ryan',
+        missing: null,
+        created_at: '2026-09-15T12:00:00.000Z',
+        about: 'A gentleman is a courteous man, as the phrase has it.',
+      },
+    ]);
+    expect(JSON.stringify(t.db.sqlite.prepare('SELECT * FROM rate_limits').all())).not.toContain(IP);
+  });
+
+  it('keeps empty notes as null and word requests as words', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    await t.promote({ ...SUBMITTED, about: '   ', why: undefined, credit: null, missing: ['am', 'am'], voter: ALICE, pass: alice, on: true });
+    expect(rows(t)[0]).toMatchObject({ via: 'typed', about: null, why: null, credit: null, missing: 'am' });
+  });
+
+  it('adds the note to the same voter’s promotion from a search, and replaces it on a second submission', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    const bob = await t.passFor(BOB);
+    await t.promote({ ...PROMOTED, voter: ALICE, pass: alice, on: true });
+    await t.promote({ ...PROMOTED, voter: BOB, pass: bob, on: true });
+    t.advance(60_000);
+    const noted = await t.promote({ ...SUBMITTED, voter: ALICE, pass: alice, on: true });
+    expect(((await noted.json()) as { count: number }).count).toBe(2);
+    await t.promote({ ...SUBMITTED, why: 'Better said.', credit: '', voter: ALICE, pass: alice, on: true });
+    const [alicesRow, bobsRow] = rows(t);
+    expect(alicesRow).toMatchObject({ voter: ALICE, via: 'typed', why: 'Better said.', credit: null, created_at: '2026-09-15T12:00:00.000Z' });
+    expect(bobsRow).toMatchObject({ voter: BOB, via: 'result', why: null });
+    expect(await t.promotions('aaeeglmnnt', ALICE)).toEqual({ open: true, counts: { [PROMOTED_KEY]: 2 }, mine: [PROMOTED_KEY] });
+
+    // Taking it back, from Build or from a search, takes the note with it.
+    expect(((await (await t.promote({ ...PROMOTED, voter: ALICE, pass: alice, on: false })).json()) as { count: number }).count).toBe(1);
+    expect(rows(t).map((r) => r['voter'])).toEqual([BOB]);
+  });
+
+  it('refuses a note that breaks its rules, with a sentence for the reader', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    const refusal = async (over: Record<string, unknown>) => {
+      const response = await t.promote({ ...SUBMITTED, voter: ALICE, pass: alice, on: true, ...over });
+      return [response.status, await response.json()];
+    };
+    const request = { error: 'bad-request', message: 'Send JSON with an input, its words, a tier, a category, a voter id and on.' };
+    expect(await refusal({ category: undefined })).toEqual([400, request]);
+    expect(await refusal({ category: 'animals' })).toEqual([400, request]);
+    expect(await refusal({ why: 42 })).toEqual([400, request]);
+    expect(await refusal({ missing: ['zebra'] })).toEqual([400, request]);
+    expect(await refusal({ missing: 'am' })).toEqual([400, request]);
+    expect(await refusal({ via: 'mailed' })).toEqual([400, { error: 'bad-request', message: 'Send JSON with an input, its words, a tier, a voter id and on.' }]);
+    expect(await refusal({ about: 'a gentleman' })).toEqual([400, { error: 'about', message: 'Write what the input is as one sentence ending with a full stop.' }]);
+    expect(await refusal({ about: `${'A'.repeat(210)}.` })).toEqual([400, { error: 'about', message: 'Keep what the input is to 200 characters; this is 211.' }]);
+    expect(await refusal({ why: 'w'.repeat(501) })).toEqual([400, { error: 'too-long-note', message: 'Keep why it is good to 500 characters.' }]);
+    expect(await refusal({ credit: 'c'.repeat(61) })).toEqual([400, { error: 'too-long-note', message: 'Keep the credit to 60 characters.' }]);
+    expect(rows(t)).toEqual([]);
+  });
+
+  it('holds at most 80 letters, though a search can promote more', async () => {
+    expect(MAX_TYPED_LETTERS).toBe(80);
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    const long = { input: 'ab'.repeat(41), words: ['ab'.repeat(20), 'ab'.repeat(21)], tier: 'extended' };
+    const refused = await t.promote({ ...SUBMITTED, ...long, voter: ALICE, pass: alice, on: true });
+    expect([refused.status, await refused.json()]).toEqual([400, { error: 'too-long', message: 'A submission holds at most 80 letters.' }]);
+    expect((await t.promote({ ...long, voter: ALICE, pass: alice, on: true })).status).toBe(200);
+    const eighty = { input: 'ab'.repeat(40), words: ['ab'.repeat(20), 'ab'.repeat(20)], tier: 'extended' };
+    expect((await t.promote({ ...SUBMITTED, ...eighty, voter: ALICE, pass: alice, on: true })).status).toBe(200);
+  });
+
+  it('refuses what a promotion refuses: not an anagram, no pass, on Discover already', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    expect((await t.promote({ ...SUBMITTED, words: ['entangle', 'ma', 'a'], voter: ALICE, pass: alice, on: true })).status).toBe(400);
+    expect((await t.promote({ ...SUBMITTED, voter: ALICE, on: true })).status).toBe(403);
+    const published = await t.promote({ ...SUBMITTED, words: ['elegant', 'man'], voter: ALICE, pass: alice, on: true });
+    expect([published.status, await published.json()]).toEqual([409, { error: 'published', message: 'That anagram is on Discover already. Vote for it instead.' }]);
+  });
+
+  it('pauses with promotions and says so in its own words', async () => {
+    const t = setup({ promotionsOpen: 'false' });
+    const alice = await t.passFor(ALICE);
+    const paused = await t.promote({ ...SUBMITTED, voter: ALICE, pass: alice, on: true });
+    expect([paused.status, await paused.json()]).toEqual([503, { error: 'closed', message: 'Submissions are paused.' }]);
+  });
+
+  it('counts against the hourly limit promotions share', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    for (let i = 0; i < LIMITS.promote; i++) {
+      expect((await t.promote({ ...PROMOTED, voter: ALICE, pass: alice, on: i % 2 === 0 })).status).toBe(200);
+    }
+    expect((await t.promote({ ...SUBMITTED, voter: ALICE, pass: alice, on: true })).status).toBe(429);
   });
 });
