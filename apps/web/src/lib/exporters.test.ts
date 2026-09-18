@@ -13,7 +13,7 @@ import {
   type BuildReport,
   type ExportInput,
 } from './exporters.ts';
-import { comparison, letterFigures, wordFigures } from './analysis.ts';
+import { commonnessByWord, comparison, letterFigures, wordFigures, wordLengthRows } from './analysis.ts';
 
 const query = (overrides: Partial<Query> = {}): Query => ({
   input: 'dormitory',
@@ -237,8 +237,52 @@ describe('the Build page’s export', () => {
     comparison: comparison(text, anagram),
     total: '116',
     countNote: null,
+    wordLengths: wordLengthRows(text.words, anagram.words).rows,
+    commonness: { text: commonnessByWord(text.words, text.zipf), anagram: commonnessByWord(anagram.words, anagram.zipf) },
+    byDictionary: { common: '97', standard: '116', full: '116', extended: '116' },
+    byDictionaryNote: null,
     generatedAt: new Date('2026-09-18T05:00:00.000Z'),
     ...over,
+  });
+
+  it('writes the four new figures: against English, word lengths, each word and every dictionary', () => {
+    const txt = buildTxt(report());
+    // dormitory has 9 letters: English would put 0.4 d and 0.7 o in 9.
+    expect(txt).toContain('Against English     d 1 / 0.4 · i 1 / 0.6 · m 1 / 0.2 · o 2 / 0.7 · r 2 / 0.5 · t 1 / 0.8 · y 1 / 0.2');
+    expect(txt).toContain('Word lengths        9 letters: 1');
+    expect(txt).toContain('Word lengths        4 letters: 1 · 5 letters: 1');
+    expect(txt).toContain('Each word           dormitory uncommon');
+    expect(txt).toContain('Each word           dirty common · room everyday');
+    expect(txt).toContain('By dictionary       Common 97 · Standard 116 · Full 116 · Extended 116');
+    expect(buildTxt(report({ wordLengths: wordLengthRows(['dormitory'], ['i', 'da', 'ai']).rows }))).toContain(
+      'Word lengths        1 letter: 1 · 2 letters: 2',
+    );
+    const stopped = buildTxt(
+      report({
+        byDictionary: { common: '>1065799', standard: null, full: null, extended: null },
+        byDictionaryNote: 'Each count stops after 4 seconds; “more than” means it stopped first.',
+      }),
+    );
+    expect(stopped).toContain('By dictionary       Common more than 1,065,799 · Standard — · Full — · Extended —');
+    expect(stopped).toContain('                    Each count stops after 4 seconds; “more than” means it stopped first.');
+
+    const parsed = JSON.parse(buildJson(report({ byDictionary: { common: '>1065799', standard: '116', full: null, extended: '116' } })));
+    expect(parsed.byDictionary).toEqual({
+      common: { total: '1065799', isFloor: true },
+      standard: { total: '116', isFloor: false },
+      full: null,
+      extended: { total: '116', isFloor: false },
+    });
+    expect(parsed.english.text[3]).toEqual({ letter: 'o', count: 2, expected: 0.7 });
+    expect(parsed.wordLengths).toEqual([
+      { length: 4, text: 0, anagram: 1 },
+      { length: 5, text: 0, anagram: 1 },
+      { length: 6, text: 0, anagram: 0 },
+      { length: 7, text: 0, anagram: 0 },
+      { length: 8, text: 0, anagram: 0 },
+      { length: 9, text: 1, anagram: 0 },
+    ]);
+    expect(parsed.commonness.anagram[1]).toMatchObject({ word: 'room', band: 'everyday', zipf: 158 });
   });
 
   it('writes the boxes, the checks and every figure as plain text', () => {

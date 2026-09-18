@@ -5,17 +5,17 @@ import { CheckToast } from '../components/CheckToast.tsx';
 import { TierPicker } from '../components/Controls.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
-import { comparison, letterFigures, wordFigures } from '../lib/analysis.ts';
+import { commonnessByWord, comparison, letterFigures, wordFigures, wordLengthRows } from '../lib/analysis.ts';
 import { lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } from '../lib/checks.ts';
 import { buildFileStem, buildJson, buildTxt, download, type BuildReport } from '../lib/exporters.ts';
 import { holdsLetter } from '../lib/letterChart.ts';
 import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.ts';
-import { countLine, exportTotal } from '../lib/textCount.ts';
+import { countLine, exportTotal, limitNote, stoppedAny } from '../lib/textCount.ts';
 import { decodeBuild, syncBuildUrl } from '../lib/urlState.ts';
 import { useDictionary } from '../state/useDictionary.ts';
 import { usePass } from '../state/usePass.ts';
 import { usePublishedHits } from '../state/usePublishedHits.ts';
-import { useTextCount } from '../state/useTextCount.ts';
+import { useTextCounts } from '../state/useTextCount.ts';
 import { Analysis } from './Analysis.tsx';
 import { Submit } from './Submit.tsx';
 import { Tray } from './Tray.tsx';
@@ -94,6 +94,15 @@ export function BuildPage() {
     comparison: analysis.comparison,
     total: exportTotal(textCount),
     countNote: textCount.kind === 'too-long' ? countLine(textCount, tier) : null,
+    wordLengths: analysis.lengths.rows,
+    commonness: { text: analysis.text.commonness, anagram: analysis.anagram.commonness },
+    byDictionary: {
+      common: exportTotal(counts.common),
+      standard: exportTotal(counts.standard),
+      full: exportTotal(counts.full),
+      extended: exportTotal(counts.extended),
+    },
+    byDictionaryNote: stoppedAny(Object.values(counts)) ? limitNote() : null,
     generatedAt: new Date(),
   });
 
@@ -127,9 +136,10 @@ export function BuildPage() {
     pendingCaret.current = null;
   }, [anagram]);
 
-  // How many anagrams the text itself has, at the chosen tier: the site's own
-  // number, in a worker of its own and within a time limit.
-  const textCount = useTextCount(text, l.text.letters, tier, dictionary.status.state);
+  // How many anagrams the text itself has in each dictionary, the chosen one
+  // first: the site's own number, in a worker of its own and within a time limit.
+  const counts = useTextCounts(text, l.text.letters, tier, dictionary.status.state);
+  const textCount = counts[tier];
 
   useEffect(() => syncBuildUrl({ text, anagram, tier }), [text, anagram, tier]);
 
@@ -145,8 +155,19 @@ export function BuildPage() {
     const left = facts(textWords);
     const right = facts(words);
     return {
-      text: { letters: letterFigures(l.text.letters), words: wordFigures(left.words, left.masks, left.zipf), known: left.known },
-      anagram: { letters: letterFigures(l.anagram.letters), words: wordFigures(right.words, right.masks, right.zipf), known: right.known },
+      text: {
+        letters: letterFigures(l.text.letters),
+        words: wordFigures(left.words, left.masks, left.zipf),
+        known: left.known,
+        commonness: commonnessByWord(left.words, left.zipf),
+      },
+      anagram: {
+        letters: letterFigures(l.anagram.letters),
+        words: wordFigures(right.words, right.masks, right.zipf),
+        known: right.known,
+        commonness: commonnessByWord(right.words, right.zipf),
+      },
+      lengths: wordLengthRows(left.words, right.words),
       comparison:
         l.text.letters.length > 0 && l.anagram.letters.length > 0 ? comparison(left, right) : null,
     };
@@ -274,7 +295,8 @@ export function BuildPage() {
           anagram={analysis.anagram}
           comparison={analysis.comparison}
           tier={tier}
-          count={textCount}
+          counts={counts}
+          lengths={analysis.lengths}
           selected={selected}
           onSelect={setPicked}
         />

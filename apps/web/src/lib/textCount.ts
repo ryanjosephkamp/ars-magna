@@ -11,7 +11,7 @@
  * worker is killed. Pure apart from the timer, so the tests drive it with a
  * stand-in for the engine.
  */
-import { formatCount, type Tier } from '@ars-magna/engine';
+import { TIERS, formatCount, type Tier } from '@ars-magna/engine';
 
 import { TIER_LABEL } from './analysis.ts';
 
@@ -103,4 +103,42 @@ export function countLine(count: TextCount, tier: Tier, limitMs = BUILD_COUNT_LI
 /** The count as the exports carry it: the engine's form, `>` for a floor, or null when there is no figure. */
 export function exportTotal(count: TextCount): string | null {
   return count.kind === 'exact' ? count.total : count.kind === 'floor' ? `>${count.total}` : null;
+}
+
+/** The four dictionaries in the order they are counted: the one chosen first, so its line fills first, then the rest narrowest first. */
+export function tierOrder(chosen: Tier): Tier[] {
+  return [chosen, ...TIERS.filter((tier) => tier !== chosen)];
+}
+
+/**
+ * One dictionary's figure in the count by dictionary, where the label already
+ * names it: `116`, `more than 1,065,799`, or a sentence when the time ran out
+ * before a single anagram.
+ */
+export function tierLine(count: TextCount): string {
+  switch (count.kind) {
+    case 'exact':
+      return formatCount(count.total);
+    case 'floor':
+      return `more than ${formatCount(count.total)}`;
+    case 'too-long':
+      return 'Too long to count here.';
+    case 'none':
+      return '—';
+    case 'counting':
+      return 'Counting…';
+    case 'failed':
+      return 'Not counted';
+  }
+}
+
+/** Whether any count stopped at the time limit, so the page says how long it gives each. */
+export function stoppedAny(counts: readonly TextCount[]): boolean {
+  return counts.some((c) => c.kind === 'too-long' || c.kind === 'floor');
+}
+
+/** The sentence under the count by dictionary when a count stopped at the limit. */
+export function limitNote(limitMs = BUILD_COUNT_LIMIT_MS): string {
+  const seconds = limitMs / 1000;
+  return `Each count stops after ${seconds} ${seconds === 1 ? 'second' : 'seconds'}; “more than” means it stopped first.`;
 }

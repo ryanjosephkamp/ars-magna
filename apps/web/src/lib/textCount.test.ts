@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BUILD_COUNT_LIMIT_MS, COUNT_STEPS, climb, countLine, exportTotal, readTotal } from './textCount.ts';
+import { BUILD_COUNT_LIMIT_MS, COUNT_STEPS, climb, countLine, exportTotal, limitNote, readTotal, stoppedAny, tierLine, tierOrder } from './textCount.ts';
 
 /**
  * A clock the test moves by hand: `wait` resolves once `advance` has passed
@@ -131,5 +131,26 @@ describe('the line', () => {
     expect(exportTotal({ kind: 'floor', total: '5000' })).toBe('>5000');
     expect(exportTotal({ kind: 'too-long' })).toBeNull();
     expect(exportTotal({ kind: 'counting' })).toBeNull();
+  });
+});
+
+describe('every dictionary', () => {
+  it('counts the chosen dictionary first, then the rest narrowest first', () => {
+    expect(tierOrder('standard')).toEqual(['standard', 'common', 'full', 'extended']);
+    expect(tierOrder('extended')).toEqual(['extended', 'common', 'standard', 'full']);
+  });
+
+  it('gives each dictionary its figure alone, the label naming the dictionary', () => {
+    expect(tierLine({ kind: 'exact', total: '116' })).toBe('116');
+    expect(tierLine({ kind: 'floor', total: '1065799' })).toBe('more than 1,065,799');
+    expect(tierLine({ kind: 'too-long' })).toBe('Too long to count here.');
+    expect(tierLine({ kind: 'counting' })).toBe('Counting…');
+  });
+
+  it('says how long each count may take only when one stopped', () => {
+    expect(stoppedAny([{ kind: 'exact', total: '1' }, { kind: 'counting' }])).toBe(false);
+    expect(stoppedAny([{ kind: 'exact', total: '1' }, { kind: 'floor', total: '9' }])).toBe(true);
+    expect(stoppedAny([{ kind: 'too-long' }])).toBe(true);
+    expect(limitNote()).toBe('Each count stops after 4 seconds; “more than” means it stopped first.');
   });
 });

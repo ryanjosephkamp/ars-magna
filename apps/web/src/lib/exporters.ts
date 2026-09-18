@@ -12,17 +12,24 @@
  * download instead.
  */
 import { formatCount, type Query, type Tier } from '@ars-magna/engine';
+import { TIERS } from '@ars-magna/engine';
+
 import {
   BAND_LABEL,
+  LETTER_FREQUENCY,
   TAG_LABEL,
   TIER_LABEL,
+  letterRows,
   mostUsedLine,
   rarestLine,
   signedScore,
   type Comparison,
+  type LengthRow,
   type LetterFigures,
+  type WordCommonness,
   type WordFigures,
 } from './analysis.ts';
+import { englishCount, englishFigure } from './letterChart.ts';
 import { createZip } from './zip.ts';
 
 /** Ceiling on rows in any export. ~100k lines is a 2–3 MB text file. */
@@ -190,6 +197,14 @@ export type BuildReport = {
   readonly total: string | null;
   /** What the page said instead of a figure, when the text was too long to count; null otherwise. */
   readonly countNote: string | null;
+  /** How many words of each length each side has, from the shortest to the longest either has. */
+  readonly wordLengths: readonly LengthRow[];
+  /** Each side's distinct words on the commonness scale. */
+  readonly commonness: { readonly text: readonly WordCommonness[]; readonly anagram: readonly WordCommonness[] };
+  /** Every anagram of the text in each dictionary, in the engine's form (`>` for a floor), null where there is no figure. */
+  readonly byDictionary: Readonly<Record<Tier, string | null>>;
+  /** The sentence the page shows when a count stopped at its time limit; null otherwise. */
+  readonly byDictionaryNote: string | null;
   readonly generatedAt: Date;
 };
 
@@ -203,19 +218,37 @@ const parts = (figures: WordFigures): string =>
 const commonness = (figures: WordFigures): string =>
   figures.commonness.map((b) => `${b.count} ${BAND_LABEL[b.band]}`).join(' · ') || '—';
 
-function side(title: string, letters: LetterFigures, words: WordFigures, skipped: readonly string[]): string[] {
+/** Each letter either side has, with this side's count and what English would put in as many letters. */
+function english(report: BuildReport, which: 'text' | 'anagram'): { letter: string; count: number; expected: number }[] {
+  const total = report.letters[which].count;
+  if (total === 0) return [];
+  return letterRows(report.letters.text, report.letters.anagram).rows.map((r) => ({
+    letter: r.letter,
+    count: r[which],
+    expected: Math.round(englishCount(r.letter, total, LETTER_FREQUENCY) * 10) / 10,
+  }));
+}
+
+function side(report: BuildReport, which: 'text' | 'anagram'): string[] {
+  const letters = report.letters[which];
+  const words = report.words[which];
+  const skipped = report.skipped[which];
+  const lengths = report.wordLengths.filter((r) => r[which] > 0);
   return [
-    title,
+    which === 'text' ? 'TEXT' : 'ANAGRAM',
     pad('Letters', String(letters.count)),
     pad('Distinct', String(letters.distinct)),
     pad('Vowels', String(letters.vowels)),
     pad('Rarest in English', rarestLine(letters)),
     pad('Most used', mostUsedLine(letters)),
     pad('Each letter', letters.histogram.map((l) => `${l.letter} ${l.count}`).join(' · ') || '—'),
+    pad('Against English', english(report, which).map((e) => `${e.letter} ${e.count} / ${englishFigure(e.expected)}`).join(' · ') || '—'),
     pad('Words', String(words.count)),
     pad('Average length', words.count === 0 ? '—' : words.averageLength.toFixed(1)),
+    pad('Word lengths', lengths.map((r) => `${r.length} ${r.length === 1 ? 'letter' : 'letters'}: ${r[which]}`).join(' · ') || '—'),
     pad('Parts of speech', parts(words)),
     pad('Commonness', commonness(words)),
+    pad('Each word', report.commonness[which].map((w) => `${w.word} ${BAND_LABEL[w.band]}`).join(' · ') || '—'),
     ...(skipped.length > 0 ? [pad('Skipped', skipped.join(' '))] : []),
   ];
 }
@@ -233,14 +266,22 @@ export function buildTxt(report: BuildReport): string {
     pad('Words known', report.checks.wordsKnown),
     ...(report.verdict ? [pad('Letters', report.verdict)] : []),
     '',
-    ...side('TEXT', report.letters.text, report.words.text, report.skipped.text),
+    ...side(report, 'text'),
     '',
-    ...side('ANAGRAM', report.letters.anagram, report.words.anagram, report.skipped.anagram),
+    ...side(report, 'anagram'),
     '',
     pad(
       'Every anagram',
       report.total === null ? (report.countNote ?? '—') : `${formatCount(report.total)} in ${TIER_LABEL[report.tier]}`,
     ),
+    pad(
+      'By dictionary',
+      TIERS.map((t) => {
+        const total = report.byDictionary[t];
+        return `${TIER_LABEL[t]} ${total === null ? '—' : formatCount(total)}`;
+      }).join(' · '),
+    ),
+    ...(report.byDictionaryNote ? [pad('', report.byDictionaryNote)] : []),
   ];
   if (report.comparison) {
     const c = report.comparison;
@@ -265,6 +306,13 @@ export function buildJson(report: BuildReport): string {
       ...rest,
       total: report.total === null ? null : report.total.replace('>', ''),
       totalIsFloor: report.total !== null && report.total.startsWith('>'),
+      byDictionary: Object.fromEntries(
+        TIERS.map((t) => {
+          const total = report.byDictionary[t];
+          return [t, total === null ? null : { total: total.replace('>', ''), isFloor: total.startsWith('>') }];
+        }),
+      ),
+      english: { text: english(report, 'text'), anagram: english(report, 'anagram') },
       generatedAt: generatedAt.toISOString(),
       generatedBy: 'Ars Magna',
       dictionary: SOURCE,

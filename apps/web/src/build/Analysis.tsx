@@ -1,20 +1,26 @@
 import { useState } from 'react';
-import type { Tier } from '@ars-magna/engine';
+import { TIERS, type Tier } from '@ars-magna/engine';
 
 import {
+  BAND_EDGES,
   BAND_LABEL,
+  LETTER_FREQUENCY,
   TAG_LABEL,
+  TIER_LABEL,
   letterRows,
   mostUsedLine,
   rarestLine,
   signedScore,
   type Comparison,
   type LetterFigures,
+  type LengthRow,
   type LetterRow,
+  type WordCommonness,
   type WordFigures,
 } from '../lib/analysis.ts';
-import { countStep, figureWidth, letterFigure, letterName, moveFocus } from '../lib/letterChart.ts';
-import { countLine, type TextCount } from '../lib/textCount.ts';
+import { countStep, englishCount, figureWidth, letterFigure, letterName, letterScale, moveFocus } from '../lib/letterChart.ts';
+import { limitNote, stoppedAny, tierLine } from '../lib/textCount.ts';
+import type { TierCounts } from '../state/useTextCount.ts';
 
 const LABEL = 'text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase';
 const FIGURE = 'font-mono text-[13px] tabular-nums text-ink';
@@ -31,8 +37,8 @@ function Figure({ label, prose = false, children }: { label: string; prose?: boo
   );
 }
 
-/** One side's figures, and whether the dictionary has answered for every word of it. */
-export type SideFigures = { letters: LetterFigures; words: WordFigures; known: boolean };
+/** One side's figures, whether the dictionary has answered for every word of it, and each word's place on the commonness scale. */
+export type SideFigures = { letters: LetterFigures; words: WordFigures; known: boolean; commonness: readonly WordCommonness[] };
 
 /** The labelled lines each side shows, in order, and what each reads for one side. */
 const LINES: readonly { readonly label: string; readonly value: (side: SideFigures) => string }[] = [
@@ -67,33 +73,80 @@ const CELL = 'border-b border-rule py-1.5 pr-3';
 
 /** The ramp's five steps as whole class names, so the build keeps them; index 0 is a letter with no bar. */
 const STEP_FILL = ['', 'bg-count-1', 'bg-count-2', 'bg-count-3', 'bg-count-4', 'bg-count-5'] as const;
+const fillFor = (count: number, most: number): string => STEP_FILL[countStep(count, most)] ?? '';
 
-/** What both charts share: their rows, their scale and the room their figures need. */
-type ChartShape = { rows: readonly LetterRow[]; most: number; width: number };
+/**
+ * What both letter charts share: their rows, the largest count (which sets
+ * each bar's darkness), the scale (counts and English ticks alike), each
+ * side's letters, and the room their figures need.
+ */
+type ChartShape = { rows: readonly LetterRow[]; most: number; scale: number; totals: { text: number; anagram: number }; width: number };
 
 /** The letter the reader has selected, and how to change it; null clears it. */
 type Selection = { selected: string | null; onSelect(letter: string | null): void };
 
+/** Where each chart starts in the shared grid, row by row, and how wide the words of the last one run. */
+type Layout = { letters: number; lengths: number; words: number; wordWidth: number };
+
+const words = (n: number) => `${number(n)} ${n === 1 ? 'word' : 'words'}`;
+
+/**
+ * A bar on its hairline track: `length` is its share of the track, `tick`
+ * where English would put the letter, and `dot` a word's place on the
+ * commonness scale, with `edges` marking where the bands meet.
+ */
+function Bar({ length = 0, fill = '', tick = null, dot = null, edges = [] }: { length?: number; fill?: string; tick?: number | null; dot?: number | null; edges?: readonly number[] }) {
+  return (
+    <span className="relative h-1.5" aria-hidden="true">
+      <span className="absolute inset-x-0 top-1/2 h-px bg-rule" />
+      {edges.map((edge) => (
+        <span key={edge} className="absolute -top-px h-2 w-px bg-rule-strong" style={{ left: `${edge * 100}%` }} />
+      ))}
+      {length > 0 && <span className={`absolute inset-y-0 left-0 rounded-r-[2px] transition-colors duration-150 ${fill}`} style={{ width: `${length * 100}%` }} />}
+      {tick !== null && (
+        // Taller than the bar and ringed in the ground colour, so it reads over a bar of full ink.
+        <span className="absolute -top-[3px] h-3 w-0.5 -translate-x-1/2 bg-ink-soft ring-1 ring-ground" style={{ left: `${Math.min(tick, 1) * 100}%` }} />
+      )}
+      {dot !== null && <span className="absolute -top-px size-2 -translate-x-1/2 rounded-full bg-ink-soft" style={{ left: `${dot * 100}%` }} />}
+    </span>
+  );
+}
+
+/**
+ * A chart's name: beside its first row in the first column at desktop width,
+ * where the text's side names it for both, and above the chart on a phone,
+ * where each side names only a chart it has.
+ */
+function Caption({ index, at, own, children }: { index: 0 | 1; at: number; own: boolean; children: React.ReactNode }) {
+  const shown = index === 1 ? 'sm:hidden' : own ? '' : 'hidden sm:block';
+  return (
+    <p className={`${LABEL} col-span-2 mt-6 sm:col-span-1 sm:col-start-1 sm:mt-3 sm:h-6 sm:leading-6 ${AT_ROW} ${shown}`} style={row(at)}>
+      {children}
+    </p>
+  );
+}
+
 /**
  * One side's letter chart: a bar per letter either side has, as long as its
  * count and as dark as the ramp makes that count, on the scale both charts
- * share. Every bar is a button that selects its letter, and the chart is a
- * vertical toolbar, one Tab stop, with the arrow keys moving within it. A
- * bar's figure (`2 of 5 · 40%`) replaces its count on hover and focus, and
- * stays while its letter is selected, so a phone, which has no hover, shows it.
+ * share, with a tick where English would put that letter in as many letters.
+ * Every bar is a button that selects its letter, and the chart is a vertical
+ * toolbar, one Tab stop, with the arrow keys moving within it. A bar's figure
+ * (`2 of 5 · 40%`) replaces its count on hover and focus, and stays while its
+ * letter is selected, so a phone, which has no hover, shows it.
  */
 function LetterChart({
   index,
   title,
-  total,
   chart,
   first,
   className,
   selected,
   onSelect,
-}: { index: 0 | 1; title: string; total: number; chart: ChartShape; first: number; className: string } & Selection) {
+}: { index: 0 | 1; title: string; chart: ChartShape; first: number; className: string } & Selection) {
   const [focused, setFocused] = useState<string | null>(null);
   const letters = chart.rows.map((r) => r.letter);
+  const total = index === 0 ? chart.totals.text : chart.totals.anagram;
   // The bar the Tab key lands on: the one last focused, else the selected letter, else the first.
   const stop = [focused, selected].find((l) => l !== null && letters.includes(l)) ?? letters[0];
   return (
@@ -102,13 +155,14 @@ function LetterChart({
         const count = index === 0 ? r.text : r.anagram;
         const on = r.letter === selected;
         const figure = letterFigure(count, total);
+        const english = englishCount(r.letter, total, LETTER_FREQUENCY);
         const tone = on ? 'text-accent' : count === 0 ? 'text-ink-faint' : 'text-ink-soft';
         return (
           <button
             key={r.letter}
             type="button"
             aria-pressed={on}
-            aria-label={letterName(r.letter, count, total)}
+            aria-label={letterName(r.letter, count, total, english)}
             tabIndex={r.letter === stop ? 0 : -1}
             onFocus={() => setFocused(r.letter)}
             onClick={() => onSelect(on ? null : r.letter)}
@@ -123,15 +177,11 @@ function LetterChart({
             style={{ ...row(first + j), gridTemplateColumns: `1rem minmax(0, 1fr) ${chart.width}ch` }}
           >
             <span className={`${tone} ${on ? 'underline decoration-2 underline-offset-[3px]' : ''}`}>{r.letter}</span>
-            <span className="relative h-1.5">
-              <span className="absolute inset-x-0 top-1/2 h-px bg-rule" />
-              {count > 0 && (
-                <span
-                  className={`absolute inset-y-0 left-0 rounded-r-[2px] transition-colors duration-150 ${on ? 'bg-accent' : STEP_FILL[countStep(count, chart.most)]}`}
-                  style={{ width: `${(count / chart.most) * 100}%` }}
-                />
-              )}
-            </span>
+            <Bar
+              length={chart.scale > 0 ? count / chart.scale : 0}
+              fill={on ? 'bg-accent' : fillFor(count, chart.most)}
+              tick={chart.scale > 0 ? english / chart.scale : null}
+            />
             <span className={`whitespace-nowrap tabular-nums ${tone}`}>
               {on ? (
                 figure
@@ -150,15 +200,94 @@ function LetterChart({
 }
 
 /**
- * One side of the shared grid: its title, its labelled lines and its letter
- * chart. At desktop width the two sides' cells sit in the same rows, so a line
- * is as tall as its taller half and both charts start level; the labels show
- * once, in the first column. On a phone the sides stack, each with its own.
+ * One side's word lengths: a bar per length from the shortest word on either
+ * side to the longest, darker for more words, on the scale both sides share.
  */
-function Side({ index, title, side, chart, selected, onSelect }: { index: 0 | 1; title: string; side: SideFigures; chart: ChartShape } & Selection) {
+function LengthChart({ index, title, lengths, first, className }: { index: 0 | 1; title: string; lengths: { rows: readonly LengthRow[]; most: number }; first: number; className: string }) {
+  const width = Math.max(...lengths.rows.map((r) => words(Math.max(r.text, r.anagram)).length));
+  return (
+    <ul className="contents" aria-label={`Word lengths in the ${title.toLowerCase()}`}>
+      {lengths.rows.map((r, j) => {
+        const n = index === 0 ? r.text : r.anagram;
+        return (
+          <li
+            key={r.length}
+            className={`col-span-2 grid h-6 items-center gap-2 font-mono text-[11px] sm:col-span-1 ${className} ${j === 0 ? 'mt-3' : ''}`}
+            style={{ ...row(first + j), gridTemplateColumns: `2ch minmax(0, 1fr) ${width}ch` }}
+          >
+            <span className="sr-only">{`${words(n)} of ${r.length} ${r.length === 1 ? 'letter' : 'letters'}`}</span>
+            <span aria-hidden="true" className={`text-right ${n === 0 ? 'text-ink-faint' : 'text-ink-soft'}`}>
+              {r.length}
+            </span>
+            <Bar length={lengths.most > 0 ? n / lengths.most : 0} fill={fillFor(n, lengths.most)} />
+            <span aria-hidden="true" className={`whitespace-nowrap tabular-nums ${n === 0 ? 'text-ink-faint' : 'text-ink-soft'}`}>
+              {words(n)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * One side's words, each placed on the commonness scale from rare to
+ * everyday, with the band it falls in; faint marks show where the bands meet.
+ */
+function WordChart({ title, side, first, width, className }: { title: string; side: SideFigures; first: number; width: number; className: string }) {
+  const columns = { gridTemplateColumns: `${width}ch minmax(0, 1fr) 12ch` };
+  if (!side.known) {
+    return (
+      <p className={`col-span-2 mt-3 h-6 font-mono text-[11px] leading-6 text-ink-soft sm:col-span-1 ${className}`} style={row(first)}>
+        Checking…
+      </p>
+    );
+  }
+  return (
+    <ul className="contents" aria-label={`How common each word of the ${title.toLowerCase()} is`}>
+      {side.commonness.map((w, j) => (
+        <li
+          key={w.word}
+          className={`col-span-2 grid min-h-6 items-center gap-2 font-mono text-[11px] sm:col-span-1 ${className} ${j === 0 ? 'mt-3' : ''}`}
+          style={{ ...row(first + j), ...columns }}
+        >
+          <span className="break-all text-ink-soft">{w.word}</span>
+          <Bar dot={w.position} edges={BAND_EDGES} />
+          <span className={`whitespace-nowrap ${w.band === 'unknown' ? 'text-ink-faint' : 'text-ink-soft'}`}>{BAND_LABEL[w.band]}</span>
+        </li>
+      ))}
+      <li aria-hidden="true" className={`col-span-2 grid h-5 items-start gap-2 font-mono text-[10px] text-ink-faint sm:col-span-1 ${className}`} style={{ ...row(first + side.commonness.length), ...columns }}>
+        <span />
+        <span className="flex justify-between">
+          <span>rare</span>
+          <span>everyday</span>
+        </span>
+      </li>
+    </ul>
+  );
+}
+
+/**
+ * One side of the shared grid: its title, its labelled lines and its three
+ * charts. At desktop width the two sides' cells sit in the same rows, so a
+ * line is as tall as its taller half and the charts start level; the labels
+ * and the charts' names show once, in the first column. On a phone the sides
+ * stack, each with its own.
+ */
+function Side({
+  index,
+  title,
+  side,
+  chart,
+  lengths,
+  layout,
+  selected,
+  onSelect,
+}: { index: 0 | 1; title: string; side: SideFigures; chart: ChartShape; lengths: { rows: readonly LengthRow[]; most: number }; layout: Layout } & Selection) {
   const column = COLUMN[index];
   // The first half is 0.75rem wider, for the gap its cells hold; the second has no gap after it.
   const pad = index === 1 ? 'sm:pr-0' : '';
+  const cell = `pr-3 ${column} ${AT_ROW} ${pad}`;
   return (
     <>
       <h3 className={`${LABEL} col-span-2 border-b border-rule-strong py-1.5 font-mono sm:col-span-1 sm:row-start-1 ${column} ${index === 1 ? 'mt-8 sm:mt-0' : ''}`}>
@@ -176,18 +305,26 @@ function Side({ index, title, side, chart, selected, onSelect }: { index: 0 | 1;
           </div>
         ))}
       </dl>
-      {side.letters.count > 0 && (
-        <LetterChart
-          index={index}
-          title={title}
-          total={side.letters.count}
-          chart={chart}
-          first={LINES.length + 2}
-          className={`pr-3 ${column} ${AT_ROW} ${pad}`}
-          selected={selected}
-          onSelect={onSelect}
-        />
+      {chart.rows.length > 0 && (index === 0 || side.letters.count > 0) && (
+        <Caption index={index} at={layout.letters} own={side.letters.count > 0}>
+          Each letter
+        </Caption>
       )}
+      {side.letters.count > 0 && (
+        <LetterChart index={index} title={title} chart={chart} first={layout.letters} className={cell} selected={selected} onSelect={onSelect} />
+      )}
+      {lengths.rows.length > 0 && (index === 0 || side.words.count > 0) && (
+        <Caption index={index} at={layout.lengths} own={side.words.count > 0}>
+          Word lengths
+        </Caption>
+      )}
+      {side.words.count > 0 && <LengthChart index={index} title={title} lengths={lengths} first={layout.lengths} className={cell} />}
+      {lengths.rows.length > 0 && (index === 0 || side.words.count > 0) && (
+        <Caption index={index} at={layout.words} own={side.words.count > 0}>
+          Each word
+        </Caption>
+      )}
+      {side.words.count > 0 && <WordChart title={title} side={side} first={layout.words} width={layout.wordWidth} className={cell} />}
     </>
   );
 }
@@ -198,19 +335,31 @@ type Props = {
   /** The two sides against each other; null until both boxes have letters. */
   comparison: Comparison | null;
   tier: Tier;
-  /** How many anagrams the text has at `tier`, as far as the count got. */
-  count: TextCount;
+  /** How many anagrams the text has in each dictionary, as far as each count got. */
+  counts: TierCounts;
+  /** The rows both word-length charts share, and their scale. */
+  lengths: { rows: readonly LengthRow[]; most: number };
 } & Selection;
 
 /**
  * What the two boxes hold, in figures: the letters, the words and, for the
- * text alone, how many anagrams the site finds. Everything is type — labelled
- * lines and thin bars, darker for a larger count — as PRODUCT.md's lines for
- * this page require; the accent marks only the letter the reader selects.
+ * text alone, how many anagrams the site finds in each dictionary. Everything
+ * is type — labelled lines and thin bars, darker for a larger count — as
+ * PRODUCT.md's lines for this page require; the accent marks only the letter
+ * the reader selects.
  */
-export function Analysis({ text, anagram, comparison: side, tier, count, selected, onSelect }: Props) {
+export function Analysis({ text, anagram, comparison: side, tier, counts, lengths, selected, onSelect }: Props) {
   const { rows, most } = letterRows(text.letters, anagram.letters);
-  const chart = { rows, most, width: figureWidth(rows, { text: text.letters.count, anagram: anagram.letters.count }) };
+  const totals = { text: text.letters.count, anagram: anagram.letters.count };
+  const chart = { rows, most, totals, scale: letterScale(rows, totals, LETTER_FREQUENCY), width: figureWidth(rows, totals) };
+  const letters = LINES.length + 2;
+  const layout: Layout = {
+    letters,
+    lengths: letters + rows.length,
+    words: letters + rows.length + lengths.rows.length,
+    wordWidth: Math.min(16, Math.max(4, ...[...text.commonness, ...anagram.commonness].map((w) => w.word.length))),
+  };
+  const stopped = stoppedAny(TIERS.map((t) => counts[t]));
   return (
     <section aria-labelledby="analysis-title" className="mt-12 border-t border-rule pt-6">
       <h2 id="analysis-title" className={LABEL}>
@@ -221,19 +370,38 @@ export function Analysis({ text, anagram, comparison: side, tier, count, selecte
           the gaps inside the cells so a line's rule runs unbroken across both sides. */}
       <div className="mt-4 grid grid-cols-[9.25rem_minmax(0,1fr)] sm:grid-cols-[9.25rem_calc((100%_-_10rem)/2_+_0.75rem)_minmax(0,1fr)]">
         <span aria-hidden="true" className="hidden border-b border-rule-strong sm:col-start-1 sm:row-start-1 sm:block" />
-        <Side index={0} title="Text" side={text} chart={chart} selected={selected} onSelect={onSelect} />
-        <Side index={1} title="Anagram" side={anagram} chart={chart} selected={selected} onSelect={onSelect} />
+        <Side index={0} title="Text" side={text} chart={chart} lengths={lengths} layout={layout} selected={selected} onSelect={onSelect} />
+        <Side index={1} title="Anagram" side={anagram} chart={chart} lengths={lengths} layout={layout} selected={selected} onSelect={onSelect} />
       </div>
       {rows.length > 0 && (
-        <p className="mt-3 text-xs text-ink-faint print:hidden">
-          Select a letter to mark it across the page; select it again, or press Escape, to clear it.
+        <p className="mt-4 max-w-prose text-xs text-ink-faint print:hidden">
+          A tick shows how many of each letter English would use in as many letters. Select a letter to mark it across the page;
+          select it again, or press Escape, to clear it.
         </p>
       )}
 
       <dl className="mt-8">
-        <Figure label="Every anagram of the text" prose={count.kind === 'too-long'}>
-          {countLine(count, tier)}
-        </Figure>
+        <div className="grid grid-cols-[8.5rem_1fr] items-baseline gap-3 border-b border-rule py-1.5">
+          <dt className="text-sm text-ink-soft">Every anagram of the text</dt>
+          <dd>
+            <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1">
+              {TIERS.map((t) => {
+                const line = tierLine(counts[t]);
+                const prose = counts[t].kind === 'too-long';
+                return (
+                  <div key={t} className="contents">
+                    <dt className={`text-sm ${t === tier ? 'font-medium text-ink' : 'text-ink-soft'}`}>
+                      {TIER_LABEL[t]}
+                      {t === tier && <span className="sr-only">, the dictionary chosen</span>}
+                    </dt>
+                    <dd className={prose ? 'text-sm text-ink-soft' : `${FIGURE} ${t === tier ? '' : 'text-ink-soft'}`}>{line}</dd>
+                  </div>
+                );
+              })}
+            </dl>
+            {stopped && <p className="mt-1.5 text-xs text-ink-faint">{limitNote()}</p>}
+          </dd>
+        </div>
       </dl>
 
       {side && (
