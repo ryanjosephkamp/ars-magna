@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { TAG_BIT, scoreOrder } from '@ars-magna/engine';
-import { BANDS, bandOf, comparison, letterFigures, letterRows, mostUsedLine, partsOf, rarestLine, wordFigures } from './analysis.ts';
+import {
+  BANDS,
+  BAND_EDGES,
+  bandOf,
+  commonnessByWord,
+  comparison,
+  letterFigures,
+  letterRows,
+  mostUsedLine,
+  partsOf,
+  rarestLine,
+  wordFigures,
+  wordLengthRows,
+  zipfPosition,
+} from './analysis.ts';
 
 /** The masks and frequency bytes the real dictionary gives these words. */
 const MASK = {
@@ -161,5 +175,41 @@ describe('the comparison', () => {
     ).shared;
     expect(shared).toEqual(['the', 'room']);
     expect(comparison(text, anagram).shared).toEqual([]);
+  });
+});
+
+describe('word lengths', () => {
+  it('runs from the shortest word on either side to the longest, with 0 for a length neither uses', () => {
+    const { rows, most } = wordLengthRows(['dormitory'], ['dirty', 'room']);
+    expect(rows.map((r) => r.length)).toEqual([4, 5, 6, 7, 8, 9]);
+    expect(rows[0]).toEqual({ length: 4, text: 0, anagram: 1 });
+    expect(rows.at(-1)).toEqual({ length: 9, text: 1, anagram: 0 });
+    expect(rows[2]).toEqual({ length: 6, text: 0, anagram: 0 });
+    expect(most).toBe(1);
+    // One scale for both: three two-letter words on the right.
+    expect(wordLengthRows(['ab'], ['ab', 'cd', 'ef']).most).toBe(3);
+    expect(wordLengthRows([], [])).toEqual({ rows: [], most: 0 });
+  });
+});
+
+describe('commonness word by word', () => {
+  it('places each distinct word, in the order typed, from rare at 0 to everyday at 1', () => {
+    const words = commonnessByWord(['the', 'dirty', 'room', 'the', 'doomer'], [204, 139, 158, 204, 0]);
+    expect(words.map((w) => [w.word, w.band])).toEqual([
+      ['the', 'everyday'],
+      ['dirty', 'common'],
+      ['room', 'everyday'],
+      ['doomer', 'unknown'],
+    ]);
+    expect(words[0]!.position).toBeCloseTo(0.9375);
+    expect(words[3]!.position).toBeNull();
+  });
+
+  it('keeps the scale fixed, whatever the text, with the band edges on it', () => {
+    expect(zipfPosition(24)).toBe(0);
+    expect(zipfPosition(216)).toBe(1);
+    expect(zipfPosition(240)).toBe(1);
+    expect(zipfPosition(120)).toBe(0.5);
+    expect(BAND_EDGES).toEqual([0.375, 0.5, 0.625]);
   });
 });

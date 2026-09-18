@@ -581,7 +581,7 @@ form ("Add a hit by hand") stays open as a second way in, and the page links to 
 | the words check | the search's own engine and dictionary, loaded once the page is on screen, asked which tier each word is in |
 | a submission | `POST /api/promote` with `via: "typed"`: a row in the promotions table (see "Votes on Discover") |
 | the analysis | `apps/web/src/lib/analysis.ts`, from the dictionary's own part-of-speech masks and frequency bytes |
-| the text's count | `apps/web/src/state/useTextCount.ts`, a second worker started for each count and stopped when it ends; its time limit and budgets in `apps/web/src/lib/textCount.ts` |
+| the text's count | `apps/web/src/state/useTextCount.ts` (`useTextCounts`), a second worker started to count the four dictionaries and stopped when the last ends; its time limit and budgets in `apps/web/src/lib/textCount.ts` |
 
 **The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
 apostrophes, hyphens and punctuation carry no letters, and digits, symbols and letters of other scripts are
@@ -600,19 +600,27 @@ sides stack, each with its own labels. Each bar's darkness follows its count, in
 (`--color-count-1` to `--color-count-5` in `apps/web/src/styles.css`, the step chosen in
 `apps/web/src/lib/letterChart.ts`); hovering or focusing a bar shows its figure (`2 of 5 · 40%`), and selecting
 one marks that letter in the accent, underlined, in both charts, the tray and both read-back lines, until it is
-selected again or Escape is pressed. Nothing in the analysis is stored or sent anywhere.
+selected again or Escape is pressed. A tick on each letter's bar marks how many of that letter English would use
+in as many letters (the table in `lib/analysis.ts`). Beneath the letters, **Word lengths** has a bar per length from
+the shortest word on either side to the longest, and **Each word** places every distinct word on a fixed scale from
+rare to everyday by its frequency byte, with faint marks where the bands meet. Nothing in the analysis is stored or
+sent anywhere.
 
-**The count.** That number is the engine's, counted in a second worker of its own, so the word checks
-never wait behind it. That worker holds its own copy of the dictionary (about 70 MB measured in Chrome,
-near 100 MB once a count has run), so it is started for each count, from the copy the page's first worker cached,
-and stopped when the count ends. The engine cannot stop a count from inside, so the moment the text or
-the dictionary changes, a count still running is abandoned by stopping its worker. A count runs for at
-most `BUILD_COUNT_LIMIT_MS` (4,000 milliseconds, in `apps/web/src/lib/textCount.ts`, a number you may
+**The count.** The text's anagrams are counted in all four dictionaries, one at a time, the chosen one first, and
+shown as four lines, Common to Extended, with the chosen one set darker. Each is the engine's number, counted in a
+second worker of its own, so the word checks never wait behind it; changing the dictionary counts nothing again.
+That worker holds its own copy of the dictionary (about 70 MB measured in Chrome, near 100 MB once a count has
+run), so it is started when the counting begins, from the copy the page's first worker cached, and stopped when
+the last count ends. The engine cannot stop a count from inside, so the moment the text
+changes, a count still running is abandoned by stopping its worker, and a count that reaches its limit is
+stopped the same way, a fresh worker taking the next dictionary. Each count runs for at most
+`BUILD_COUNT_LIMIT_MS` (4,000 milliseconds, in `apps/web/src/lib/textCount.ts`, a number you may
 tune). It counts with a small node budget first and a budget four times larger each time one runs out,
-so when the time is up the line reads `more than N` from the last budget that finished. A text so long
-that no budget found a single anagram in that time reads `The text is too long to count here; the page
-stops counting after 4 seconds.` Texts of about 20 letters count exactly in well under a second; the
-time limit starts to matter at about 25.
+so when the time is up the line reads `more than N` from the last budget that finished. A dictionary in
+which no budget found a single anagram in that time reads `Too long to count here.`, and whenever a count
+stopped at the limit the page adds `Each count stops after 4 seconds; “more than” means it stopped first.`
+A long text takes up to four times the limit to fill all four lines. Texts of about 20 letters count
+exactly in well under a second; the time limit starts to matter at about 25.
 
 **A submission** is the reader's promotion of that anagram, with a note: a category (required), and, when
 given, what the input is (the rule in "What an input is"; the API refuses one that breaks it), why it is good

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { countStep, figureWidth, holdsLetter, letterFigure, letterName, moveFocus, share } from './letterChart.ts';
+import { LETTER_FREQUENCY } from './analysis.ts';
+import { countStep, englishCount, englishFigure, figureWidth, holdsLetter, letterFigure, letterName, letterScale, moveFocus, share } from './letterChart.ts';
 
 describe('the step a count takes', () => {
   it('puts one use at the lightest step and the largest count at full ink', () => {
@@ -74,5 +75,28 @@ describe('an occurrence of the selected letter', () => {
     expect(holdsLetter('ß', 's')).toBe(true);
     expect(holdsLetter("'", 's')).toBe(false);
     expect(holdsLetter('e', null)).toBe(false);
+  });
+});
+
+describe('against English', () => {
+  it('says how many of a letter English would put in as many letters', () => {
+    // dormitory, 9 letters: o is 7.51% of English letters.
+    expect(englishFigure(englishCount('o', 9, LETTER_FREQUENCY))).toBe('0.7');
+    expect(englishFigure(englishCount('e', 194, LETTER_FREQUENCY))).toBe('24.6');
+    expect(englishCount('z', 0, LETTER_FREQUENCY)).toBe(0);
+  });
+
+  it('names what the tick marks for a screen reader', () => {
+    expect(letterName('o', 2, 9, englishCount('o', 9, LETTER_FREQUENCY))).toBe('o, 2 of 9 letters, 22%, English would have 0.7');
+  });
+
+  it('widens the shared scale when English would use a letter more than either side does', () => {
+    const rows = [
+      { letter: 'e', text: 1, anagram: 1 },
+      { letter: 'z', text: 1, anagram: 1 },
+    ];
+    // Twenty letters: English would put 2.5 e in them, more than the one either side has.
+    expect(letterScale(rows, { text: 20, anagram: 20 }, LETTER_FREQUENCY)).toBeCloseTo(2.54);
+    expect(letterScale([{ letter: 'o', text: 2, anagram: 2 }], { text: 9, anagram: 9 }, LETTER_FREQUENCY)).toBe(2);
   });
 });

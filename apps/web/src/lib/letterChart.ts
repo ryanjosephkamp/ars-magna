@@ -38,9 +38,13 @@ export function letterFigure(count: number, total: number): string {
   return `${number(count)} of ${number(total)} · ${share(count, total)}`;
 }
 
-/** The bar's name for a screen reader: `l, 2 of 5 letters, 40%`. */
-export function letterName(letter: string, count: number, total: number): string {
-  return `${letter}, ${number(count)} of ${number(total)} ${total === 1 ? 'letter' : 'letters'}, ${share(count, total)}`;
+/**
+ * The bar's name for a screen reader: `l, 2 of 5 letters, 40%`, and, when the
+ * English expectation is given, what the tick marks: `English would have 0.2`.
+ */
+export function letterName(letter: string, count: number, total: number, english?: number): string {
+  const figure = `${letter}, ${number(count)} of ${number(total)} ${total === 1 ? 'letter' : 'letters'}, ${share(count, total)}`;
+  return english === undefined ? figure : `${figure}, English would have ${englishFigure(english)}`;
 }
 
 /**
@@ -84,4 +88,42 @@ export function moveFocus(key: string, at: number, length: number): number | nul
  */
 export function holdsLetter(char: string, letter: string | null): boolean {
   return letter !== null && foldChar(char).includes(letter);
+}
+
+/**
+ * How many of `letter` English would put in `total` letters: its share of
+ * English letters (`LETTER_FREQUENCY`) times the side's letters. The chart
+ * marks it with a tick on the bar, so a letter used more or less than English
+ * would use it stands out.
+ */
+export function englishCount(letter: string, total: number, frequency: Readonly<Record<string, number>>): number {
+  return (total * (frequency[letter] ?? 0)) / 100;
+}
+
+/** `0.7`: an English expectation to one decimal, as the export and a screen reader give it. */
+export function englishFigure(expected: number): string {
+  return expected.toFixed(1);
+}
+
+/**
+ * The scale both letter charts share, now with the English ticks on it: the
+ * largest count on either side, or the largest English expectation when that
+ * is larger, so every bar and every tick fits the same track.
+ */
+export function letterScale(
+  rows: readonly { readonly letter: string; readonly text: number; readonly anagram: number }[],
+  totals: { readonly text: number; readonly anagram: number },
+  frequency: Readonly<Record<string, number>>,
+): number {
+  let top = 0;
+  for (const r of rows) {
+    top = Math.max(
+      top,
+      r.text,
+      r.anagram,
+      totals.text > 0 ? englishCount(r.letter, totals.text, frequency) : 0,
+      totals.anagram > 0 ? englishCount(r.letter, totals.anagram, frequency) : 0,
+    );
+  }
+  return top;
 }

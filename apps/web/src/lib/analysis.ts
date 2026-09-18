@@ -138,6 +138,61 @@ export function partsOf(mask: number): Tag[] {
   return TAGS.filter((tag) => tag !== 'unknown' && (mask & TAG_BIT[tag]) !== 0);
 }
 
+/** One line of the word-length charts: a length, and how many words of it each side has. */
+export type LengthRow = { readonly length: number; readonly text: number; readonly anagram: number };
+
+/**
+ * The rows both word-length charts share: every length from the shortest word
+ * on either side to the longest, so a length neither uses reads as 0, and how
+ * many words of it each side has. `most` is the largest count on either side,
+ * so both charts share one scale.
+ */
+export function wordLengthRows(text: readonly string[], anagram: readonly string[]): { rows: LengthRow[]; most: number } {
+  const tally = (words: readonly string[]) => {
+    const m = new Map<number, number>();
+    for (const w of words) m.set(w.length, (m.get(w.length) ?? 0) + 1);
+    return m;
+  };
+  const left = tally(text);
+  const right = tally(anagram);
+  const lengths = [...left.keys(), ...right.keys()];
+  if (lengths.length === 0) return { rows: [], most: 0 };
+  const rows: LengthRow[] = [];
+  for (let n = Math.min(...lengths); n <= Math.max(...lengths); n++) rows.push({ length: n, text: left.get(n) ?? 0, anagram: right.get(n) ?? 0 });
+  return { rows, most: rows.reduce((top, r) => Math.max(top, r.text, r.anagram), 0) };
+}
+
+/**
+ * The commonness scale word by word: the dictionary's frequency byte from
+ * zipf 0 (24) to zipf 8 (216), so rare words sit to the left and everyday ones
+ * to the right, whatever the text.
+ */
+export const ZIPF_SCALE = { low: 24, high: 216 } as const;
+
+/** Where a frequency byte sits on that scale, 0 to 1. */
+export function zipfPosition(zipfByte: number): number {
+  return Math.min(1, Math.max(0, (zipfByte - ZIPF_SCALE.low) / (ZIPF_SCALE.high - ZIPF_SCALE.low)));
+}
+
+/** Where the bands meet on the scale (uncommon, common, everyday), for the chart's faint marks. */
+export const BAND_EDGES: readonly number[] = [96, 120, 144].map(zipfPosition);
+
+/** One word on the commonness scale: its band, its frequency byte, and where it sits; no place without a frequency. */
+export type WordCommonness = { readonly word: string; readonly band: Band; readonly zipf: number; readonly position: number | null };
+
+/** Each distinct word, in the order typed, placed on the commonness scale. `zipf` is each word's byte, in order. */
+export function commonnessByWord(words: readonly string[], zipf: readonly number[]): WordCommonness[] {
+  const seen = new Set<string>();
+  const out: WordCommonness[] = [];
+  words.forEach((word, i) => {
+    if (seen.has(word)) return;
+    seen.add(word);
+    const byte = zipf[i] ?? 0;
+    out.push({ word, band: bandOf(byte), zipf: byte, position: byte > 0 ? zipfPosition(byte) : null });
+  });
+  return out;
+}
+
 export type WordFigures = {
   readonly count: number;
   /** Mean word length, to one decimal. */

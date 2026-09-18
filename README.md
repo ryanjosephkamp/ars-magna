@@ -103,10 +103,12 @@ across the two: letters, distinct letters, vowels, the letters among them rarest
 letters used most, and a bar per letter, darker the more the letter is used, with every letter
 either side has on the same line left and right. Selecting a letter's bar marks that letter in
 the accent everywhere on the page: both charts, the letters to tap, and both boxes' read-back
-lines. Then words, their average length, the parts of speech the dictionary gives
-them and how common they are, in bands over its frequency byte. For the text alone it states the
-site's own number, every anagram the text has at the chosen tier, counted in a worker of its own
-for at most four seconds, which reads `more than` when the time runs out first. With both boxes
+lines. A tick on each bar marks how many of that letter English would use in as many letters.
+Then words, their average length, their lengths as bars, the parts of speech the dictionary gives
+them, and how common they are, in bands over its frequency byte and word by word on a scale from
+rare to everyday. For the text alone it states the site's own number, every anagram the text has
+in each of the four dictionaries, the chosen one first, each counted in a worker of its own for at
+most four seconds, which reads `more than` when the time runs out first. With both boxes
 filled, the two are set side by side, with the ordering score each reads at and the words they
 share. Everything there is type: labelled lines and thin bars, never a tile or a card.
 
