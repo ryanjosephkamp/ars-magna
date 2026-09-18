@@ -25,7 +25,7 @@ export function SiteHeader({ page }: { page: Page }) {
   const wordmark = page !== '/';
 
   return (
-    <header className="border-b border-rule">
+    <header className="border-b border-rule print:hidden">
       <div
         className={`mx-auto flex max-w-3xl flex-col gap-2 px-6 py-4 sm:flex-row sm:items-baseline ${
           wordmark ? 'sm:justify-between' : 'sm:justify-end'

@@ -3,12 +3,17 @@ import { DEFAULT_QUERY, type Query } from '@ars-magna/engine';
 import { crc32, createZip } from './zip.ts';
 import {
   buildBlob,
+  buildFileStem,
+  buildJson,
+  buildTxt,
   fileStem,
   toCsv,
   toJson,
   toTxt,
+  type BuildReport,
   type ExportInput,
 } from './exporters.ts';
+import { comparison, letterFigures, wordFigures } from './analysis.ts';
 
 const query = (overrides: Partial<Query> = {}): Query => ({
   input: 'dormitory',
@@ -211,5 +216,79 @@ describe('buildBlob', () => {
     for (const name of ['README.txt', 'anagrams.txt', 'anagrams.json', 'anagrams.csv']) {
       expect(text).toContain(name);
     }
+  });
+});
+
+describe('the Build page’s export', () => {
+  const NOUN = 1 << 6;
+  const side = (words: string[], masks: number[], zipf: number[]) => ({ words, masks, zipf });
+  const text = side(['dormitory'], [NOUN], [100]);
+  const anagram = side(['dirty', 'room'], [1 << 4, NOUN], [139, 158]);
+
+  const report = (over: Partial<BuildReport> = {}): BuildReport => ({
+    text: 'Dormitory',
+    anagram: 'dirty room',
+    tier: 'standard',
+    checks: { lettersMatch: 'Yes', wordsKnown: 'Yes · every word is in Standard' },
+    verdict: 'All 9 letters used',
+    letters: { text: letterFigures('dormitory'), anagram: letterFigures('dirtyroom') },
+    words: { text: wordFigures(text.words, text.masks, text.zipf), anagram: wordFigures(anagram.words, anagram.masks, anagram.zipf) },
+    skipped: { text: [], anagram: [] },
+    comparison: comparison(text, anagram),
+    total: '116',
+    generatedAt: new Date('2026-09-18T05:00:00.000Z'),
+    ...over,
+  });
+
+  it('writes the boxes, the checks and every figure as plain text', () => {
+    const txt = buildTxt(report());
+    expect(txt).toContain('Ars Magna — Build');
+    expect(txt).toContain('Text            Dormitory');
+    expect(txt).toContain('Anagram         dirty room');
+    expect(txt).toContain('Letters match   Yes');
+    expect(txt).toContain('Words known     Yes · every word is in Standard');
+    expect(txt).toContain('Rarest letter   y');
+    expect(txt).toContain('Each letter     d 1 · i 1 · m 1 · o 2 · r 2 · t 1 · y 1');
+    expect(txt).toContain('Average length  4.5');
+    expect(txt).toContain('Every anagram   116 in Standard');
+    expect(txt).toContain('TEXT AGAINST ANAGRAM');
+    expect(txt).toContain('Words           1 / 2');
+    expect(txt).toContain('adjective       0 / 1');
+    expect(txt).toContain('Reads           +5 / +9');
+    expect(txt).toContain('Dictionary      Standard');
+    expect(txt).toContain('Parts of speech 1 adjective · 1 noun');
+    expect(txt).toContain('Shared words    none');
+    expect(txt).toContain('Generated 2026-09-18T05:00:00.000Z by Ars Magna');
+    expect(txt.endsWith('\n')).toBe(true);
+  });
+
+  it('says a floor is a floor, and leaves out what is not there', () => {
+    const floor = buildTxt(report({ total: '>5000000', comparison: null, skipped: { text: ['4'], anagram: [] } }));
+    expect(floor).toContain('Every anagram   more than 5,000,000 in Standard');
+    expect(floor).toContain('Skipped         4');
+    expect(floor).not.toContain('TEXT AGAINST ANAGRAM');
+    expect(buildTxt(report({ total: null }))).toContain('Every anagram   —');
+  });
+
+  it('writes the same figures as data', () => {
+    const parsed = JSON.parse(buildJson(report()));
+    expect(parsed).toMatchObject({
+      text: 'Dormitory',
+      anagram: 'dirty room',
+      tier: 'standard',
+      total: '116',
+      totalIsFloor: false,
+      generatedAt: '2026-09-18T05:00:00.000Z',
+      generatedBy: 'Ars Magna',
+    });
+    expect(parsed.letters.text.rarest).toBe('y');
+    expect(parsed.words.anagram.count).toBe(2);
+    expect(parsed.comparison.words).toEqual({ text: 1, anagram: 2 });
+    expect(JSON.parse(buildJson(report({ total: '>5000000' })))).toMatchObject({ total: '5000000', totalIsFloor: true });
+  });
+
+  it('names the file after the text', () => {
+    expect(buildFileStem('Dario Amodei')).toBe('ars-magna-build-dario-amodei');
+    expect(buildFileStem('  ')).toBe('ars-magna-build');
   });
 });

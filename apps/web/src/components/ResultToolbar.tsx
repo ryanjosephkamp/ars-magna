@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { SORT_LABEL, SORT_MODES, isSortMode, type SortMode } from '../lib/resultView.ts';
+import { buildHref } from '../lib/urlState.ts';
 import type { ExportFormat } from '../lib/exporters.ts';
 
 const FORMATS: ExportFormat[] = ['txt', 'json', 'csv', 'zip'];
@@ -21,6 +22,8 @@ type Props = {
   onLoadAll(): void;
   onExport(format: ExportFormat): void;
   exporting: ExportFormat | null;
+  /** The text searched, for the link to Build. */
+  input: string;
   /**
    * The filter is dictionary words and the list is partial. `label` says how
    * many of every result contain them, once the engine has counted; `onShow`
@@ -53,6 +56,7 @@ export function ResultToolbar({
   onExport,
   exporting,
   containing,
+  input,
 }: Props) {
   const filterId = useId();
   const sortId = useId();
@@ -132,6 +136,17 @@ export function ResultToolbar({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase">Build</span>
+          <a
+            href={buildHref(input)}
+            className="h-[34px] rounded-[3px] border border-rule bg-surface px-2.5 py-1.5 text-sm text-ink-soft
+                       transition-colors duration-150 hover:border-accent hover:bg-accent-wash hover:text-accent"
+          >
+            Build your own
+          </a>
         </div>
       </div>
 

@@ -5,8 +5,11 @@ import { CheckToast } from '../components/CheckToast.tsx';
 import { TierPicker } from '../components/Controls.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
+import { comparison, letterFigures, wordFigures } from '../lib/analysis.ts';
 import { lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } from '../lib/checks.ts';
+import { buildFileStem, buildJson, buildTxt, download, type BuildReport } from '../lib/exporters.ts';
 import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.ts';
+import { decodeBuild, syncBuildUrl } from '../lib/urlState.ts';
 import { useDictionary } from '../state/useDictionary.ts';
 import { usePass } from '../state/usePass.ts';
 import { usePublishedHits } from '../state/usePublishedHits.ts';
@@ -27,9 +30,13 @@ const BOX =
  */
 export function BuildPage() {
   const id = useId();
-  const [text, setText] = useState('');
-  const [anagram, setAnagram] = useState('');
-  const [tier, setTier] = useState<Tier>(DEFAULT_QUERY.tier);
+  // The address is the source of truth on first paint, so a shared link opens
+  // on exactly the check it was copied from, and a row's Build link arrives
+  // with its text already in the box.
+  const opened = useMemo(() => decodeBuild(window.location.hash), []);
+  const [text, setText] = useState(opened.text);
+  const [anagram, setAnagram] = useState(opened.anagram);
+  const [tier, setTier] = useState<Tier>(opened.tier);
   const anagramRef = useRef<HTMLTextAreaElement>(null);
   /** Where the caret last was in the anagram box, for a letter pressed while the box is not focused. */
   const caret = useRef({ start: 0, end: 0 });
@@ -54,6 +61,27 @@ export function BuildPage() {
         : wordsKnownLabel(known, tier);
   const matchLabel = lettersMatchLabel(l);
   const checked = known.kind === 'known' || known.kind === 'unknown';
+
+  const report = (): BuildReport => ({
+    text,
+    anagram,
+    tier,
+    checks: { lettersMatch: matchLabel, wordsKnown: knownLabel },
+    verdict: anagramVerdict,
+    letters: { text: analysis.text.letters, anagram: analysis.anagram.letters },
+    words: { text: analysis.text.words, anagram: analysis.anagram.words },
+    skipped: { text: l.text.skipped, anagram: l.anagram.skipped },
+    comparison: analysis.comparison,
+    total,
+    generatedAt: new Date(),
+  });
+
+  const exportAs = (format: 'txt' | 'json') => {
+    const built = report();
+    const body = format === 'txt' ? buildTxt(built) : buildJson(built);
+    const type = format === 'txt' ? 'text/plain;charset=utf-8' : 'application/json;charset=utf-8';
+    download(new Blob([body], { type }), `${buildFileStem(text)}.${format}`);
+  };
 
   const remember = () => {
     const box = anagramRef.current;
@@ -102,6 +130,27 @@ export function BuildPage() {
   }, [countKey, dictionary.status.state]);
   const total = counted?.key === countKey ? counted.total : null;
 
+  useEffect(() => syncBuildUrl({ text, anagram, tier }), [text, anagram, tier]);
+
+  // Every figure the analysis shows, worked out once for the page and the
+  // export: the page hands the dictionary's answers to the pure module.
+  const analysis = useMemo(() => {
+    const facts = (list: readonly string[]) => ({
+      words: list,
+      masks: list.map((word) => dictionary.factsOf(word)?.mask ?? 0),
+      zipf: list.map((word) => dictionary.factsOf(word)?.zipf ?? 0),
+      known: list.every((word) => dictionary.factsOf(word) !== undefined),
+    });
+    const left = facts(textWords);
+    const right = facts(words);
+    return {
+      text: { letters: letterFigures(l.text.letters), words: wordFigures(left.words, left.masks, left.zipf), known: left.known },
+      anagram: { letters: letterFigures(l.anagram.letters), words: wordFigures(right.words, right.masks, right.zipf), known: right.known },
+      comparison:
+        l.text.letters.length > 0 && l.anagram.letters.length > 0 ? comparison(left, right) : null,
+    };
+  }, [l, textWords, words, dictionary.factsOf]);
+
   const textLine = lettersLine(l.text);
   const anagramVerdict = verdict(l);
   const skippedInAnagram = l.anagram.skipped.length;
@@ -112,7 +161,7 @@ export function BuildPage() {
       <main className="mx-auto max-w-3xl px-6 pt-16 pb-24 sm:pt-24">
         <header className="mb-12">
           <h1 className="font-display text-5xl tracking-[-0.02em] text-ink sm:text-6xl">Build an anagram</h1>
-          <p className="mt-2 max-w-prose text-sm text-ink-soft">
+          <p className="mt-2 max-w-prose text-sm text-ink-soft print:hidden">
             Type a text, then rearrange its letters into an anagram below. The page checks that every letter is used once and that every
             word is in the dictionary.
           </p>
@@ -139,7 +188,7 @@ export function BuildPage() {
           </p>
         </section>
 
-        <section aria-labelledby={`${id}-letters`} className="mt-8 flex flex-col gap-1.5">
+        <section aria-labelledby={`${id}-letters`} className="mt-8 flex flex-col gap-1.5 print:hidden">
           <h2 id={`${id}-letters`} className={LABEL}>
             Letters <span className="font-mono tracking-normal normal-case">· tap one to add it</span>
           </h2>
@@ -171,7 +220,9 @@ export function BuildPage() {
             className={BOX}
           />
           {anagram.trim().length > 0 && (
-            <p className="font-display text-xl leading-snug break-words whitespace-pre-wrap text-ink-soft" aria-hidden="true">
+            // On paper the box above already shows the anagram, and the verdict
+            // says in words what the red marks say here.
+            <p className="font-display text-xl leading-snug break-words whitespace-pre-wrap text-ink-soft print:hidden" aria-hidden="true">
               {marks.map((m, i) => (
                 <span key={i} className={m.extra ? 'text-accent' : undefined}>
                   {m.char}
@@ -191,7 +242,7 @@ export function BuildPage() {
         </section>
 
         <section aria-label="Checks" className="mt-10 flex flex-col gap-5 border-t border-rule pt-6">
-          <div className="self-start">
+          <div className="self-start print:hidden">
             <TierPicker value={tier} counts={dictionary.status.state === 'ready' ? dictionary.status.counts : null} onChange={setTier} />
           </div>
           <dl className="flex flex-col gap-2 text-sm" aria-live="polite">
@@ -207,13 +258,41 @@ export function BuildPage() {
         </section>
 
         <Analysis
-          text={{ letters: l.text.letters, words: textWords }}
-          anagram={{ letters: l.anagram.letters, words }}
-          factsOf={dictionary.factsOf}
+          text={analysis.text}
+          anagram={analysis.anagram}
+          comparison={analysis.comparison}
           tier={tier}
           total={total}
           counting={l.text.letters.length > 0 && total === null && dictionary.status.state === 'ready'}
         />
+
+        <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-3 print:hidden">
+          <div className="flex flex-col gap-1.5">
+            <span className={LABEL}>Export</span>
+            <div className="flex divide-x divide-rule overflow-hidden rounded-[3px] border border-rule bg-surface">
+              {(['txt', 'json'] as const).map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  onClick={() => exportAs(format)}
+                  aria-label={`Export the analysis as ${format.toUpperCase()}`}
+                  className="px-2.5 py-1.5 font-mono text-[11px] tracking-wide text-ink-soft uppercase transition-colors
+                             duration-150 hover:bg-accent-wash hover:text-accent"
+                >
+                  {format}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="pb-1.5 text-sm text-ink-soft underline decoration-rule-strong underline-offset-4 transition-colors
+                       duration-150 hover:text-accent hover:decoration-accent"
+          >
+            Print
+          </button>
+        </div>
 
         {l.match && (
           <Submit
@@ -227,7 +306,7 @@ export function BuildPage() {
           />
         )}
 
-        <p className="mt-12 max-w-prose text-sm text-ink-soft">
+        <p className="mt-12 max-w-prose text-sm text-ink-soft print:hidden">
           You can also send an anagram as{' '}
           <a
             href={ISSUE_FORM}

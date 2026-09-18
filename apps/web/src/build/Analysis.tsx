@@ -1,38 +1,14 @@
-import { useMemo } from 'react';
 import { formatCount, type Tier } from '@ars-magna/engine';
 
 import {
-  comparison,
-  letterFigures,
-  wordFigures,
-  type Band,
+  BAND_LABEL,
+  TAG_LABEL,
+  TIER_LABEL,
+  signedScore,
+  type Comparison,
   type LetterFigures,
   type WordFigures,
 } from '../lib/analysis.ts';
-import type { WordFacts } from '../state/useDictionary.ts';
-
-/** Parts of speech spelled out, as the word panel on a result spells them. */
-const TAG_LABEL: Record<string, string> = {
-  det: 'determiner',
-  pron: 'pronoun',
-  prep: 'preposition',
-  conj: 'conjunction',
-  adj: 'adjective',
-  adv: 'adverb',
-  noun: 'noun',
-  verb: 'verb',
-  interj: 'interjection',
-};
-
-const BAND_LABEL: Record<Band, string> = {
-  everyday: 'everyday',
-  common: 'common',
-  uncommon: 'uncommon',
-  rare: 'rare',
-  unknown: 'no frequency',
-};
-
-const TIER_LABEL: Record<Tier, string> = { common: 'Common', standard: 'Standard', full: 'Full', extended: 'Extended' };
 
 const LABEL = 'text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase';
 const FIGURE = 'font-mono text-[13px] tabular-nums text-ink';
@@ -101,11 +77,14 @@ function Side({
   );
 }
 
+/** One side's figures, and whether the dictionary has answered for every word of it. */
+export type SideFigures = { letters: LetterFigures; words: WordFigures; known: boolean };
+
 type Props = {
-  /** The text's letters, folded, and its words. */
-  text: { letters: string; words: readonly string[] };
-  anagram: { letters: string; words: readonly string[] };
-  factsOf(word: string): WordFacts | undefined;
+  text: SideFigures;
+  anagram: SideFigures;
+  /** The two sides against each other; null until both boxes have letters. */
+  comparison: Comparison | null;
   tier: Tier;
   /** The engine's count of every anagram the text has at `tier`: a decimal string, `>`-prefixed for a floor; null while counting or when it could not be had. */
   total: string | null;
@@ -118,21 +97,7 @@ type Props = {
  * text alone, how many anagrams the site finds. Everything is type — labelled
  * lines and hairline bars — as PRODUCT.md's line for this page requires.
  */
-export function Analysis({ text, anagram, factsOf, tier, total, counting }: Props) {
-  const facts = (words: readonly string[]) => ({
-    masks: words.map((w) => factsOf(w)?.mask ?? 0),
-    zipf: words.map((w) => factsOf(w)?.zipf ?? 0),
-    known: words.every((w) => factsOf(w) !== undefined),
-  });
-
-  const left = useMemo(() => facts(text.words), [text.words, factsOf]);
-  const right = useMemo(() => facts(anagram.words), [anagram.words, factsOf]);
-  const both = text.letters.length > 0 && anagram.letters.length > 0;
-  const side = comparison(
-    { words: text.words, masks: left.masks, zipf: left.zipf },
-    { words: anagram.words, masks: right.masks, zipf: right.zipf },
-  );
-
+export function Analysis({ text, anagram, comparison: side, tier, total, counting }: Props) {
   return (
     <section aria-labelledby="analysis-title" className="mt-12 border-t border-rule pt-6">
       <h2 id="analysis-title" className={LABEL}>
@@ -140,23 +105,13 @@ export function Analysis({ text, anagram, factsOf, tier, total, counting }: Prop
       </h2>
 
       <div className="mt-4 grid gap-x-10 gap-y-8 sm:grid-cols-2">
-        <Side
-          title="Text"
-          letters={letterFigures(text.letters)}
-          words={wordFigures(text.words, left.masks, left.zipf)}
-          known={left.known}
-        />
-        <Side
-          title="Anagram"
-          letters={letterFigures(anagram.letters)}
-          words={wordFigures(anagram.words, right.masks, right.zipf)}
-          known={right.known}
-        />
+        <Side title="Text" letters={text.letters} words={text.words} known={text.known} />
+        <Side title="Anagram" letters={anagram.letters} words={anagram.words} known={anagram.known} />
       </div>
 
       <dl className="mt-8">
         <Figure label="Every anagram of the text">
-          {text.letters.length === 0
+          {text.letters.count === 0
             ? '—'
             : counting
               ? 'Counting…'
@@ -166,7 +121,7 @@ export function Analysis({ text, anagram, factsOf, tier, total, counting }: Prop
         </Figure>
       </dl>
 
-      {both && (
+      {side && (
         <div className="mt-8">
           <h3 className={LABEL}>Text against anagram</h3>
           <dl className="mt-2">
@@ -179,7 +134,7 @@ export function Analysis({ text, anagram, factsOf, tier, total, counting }: Prop
             {side.parts.map((part) => (
               <Pair key={part.tag} label={TAG_LABEL[part.tag] ?? part.tag} text={number(part.text)} anagram={number(part.anagram)} />
             ))}
-            <Pair label="Reads" text={signed(side.reads.text)} anagram={signed(side.reads.anagram)} />
+            <Pair label="Reads" text={signedScore(side.reads.text)} anagram={signedScore(side.reads.anagram)} />
           </dl>
           <dl className="mt-0">
             <Figure label="Shared words">{side.shared.length === 0 ? 'none' : side.shared.join(' · ')}</Figure>
@@ -203,7 +158,3 @@ function Pair({ label, text, anagram }: { label: string; text: string; anagram: 
   );
 }
 
-/** A score reads with its sign, so `+7` and `-2` are not mistaken for counts. */
-function signed(score: number): string {
-  return score > 0 ? `+${score}` : String(score);
-}

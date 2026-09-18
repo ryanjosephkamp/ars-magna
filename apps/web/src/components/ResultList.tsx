@@ -12,6 +12,7 @@ import type { Row } from '../state/resultBuffer.ts';
 import { countOrderings, nextOrdering, orderings } from '../lib/orderings.ts';
 import { displayOrder, type Chosen } from '../lib/chosen.ts';
 import type { Shareable } from '../lib/share.ts';
+import { buildHref } from '../lib/urlState.ts';
 import { discoveryFor, type Discovered, type RowDiscovery } from '../lib/inDiscoveries.ts';
 import type { Votes } from '../hits/useVotes.ts';
 import type { Promotions } from '../state/usePromotions.ts';
@@ -382,6 +383,8 @@ function ResultRow({
             onClick={() => onTogglePin(phrase)}
           />
           <RowAction label="Share" active={sharing} onClick={() => setSharing((open) => !open)} />
+          {/* Build opens with this row already in its boxes, to take apart by hand. */}
+          <RowLink label="Build" href={buildHref(share.input, phrase)} />
           {discovery ? (
             <PublishedAction discovery={discovery} votes={votes} />
           ) : (
@@ -486,6 +489,19 @@ function PromoteAction({ words, input, promotions }: { words: readonly string[];
  * They stay visible below `md`, though: there is no hover on a touch screen, so
  * hiding them there would make copy and pin unreachable rather than discreet.
  */
+/** A row action that is a link rather than a button: same type, same reveal on hover. */
+function RowLink({ label, href }: { label: string; href: string }) {
+  return (
+    <a
+      href={href}
+      className="font-mono text-[11px] text-ink-faint transition-opacity duration-150 hover:text-accent
+                 focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+    >
+      {label}
+    </a>
+  );
+}
+
 function RowAction({
   label,
   active,

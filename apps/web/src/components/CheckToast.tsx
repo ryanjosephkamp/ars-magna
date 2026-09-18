@@ -7,7 +7,7 @@ import type { Pass } from '../state/usePass.ts';
  */
 export function CheckToast({ pass }: { pass: Pass }) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[var(--z-toast)] flex flex-col items-center gap-2 px-4 pb-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[var(--z-toast)] flex flex-col items-center gap-2 px-4 pb-4 print:hidden">
       <div className={pass.challenge ? 'pointer-events-auto rounded-[3px] border border-rule-strong bg-surface px-4 py-3 text-sm text-ink-soft' : ''}>
         {pass.challenge && <p className="mb-2 max-w-xs">Cloudflare checks this browser once before its first vote or promotion of a visit.</p>}
         <div ref={pass.checkRef} className="pointer-events-auto" />

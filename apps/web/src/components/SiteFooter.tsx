@@ -95,7 +95,7 @@ export function SiteFooter({
   candidates?: number;
 }) {
   return (
-    <footer className="mt-20 border-t border-rule-strong pt-8">
+    <footer className="mt-20 border-t border-rule-strong pt-8 print:hidden">
       <div className="flex flex-col gap-7">
         <Group title="Discover" links={HITS_LINKS} />
         <Group title="The words" links={DICTIONARY_LINKS} />

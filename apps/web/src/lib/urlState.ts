@@ -181,6 +181,57 @@ export function keptPhrases(hash: string, input: string): string[] {
   return out;
 }
 
+// ------------------------------------------------------------------- Build
+
+/** The Build page's own parameters, by the same rules: `t` the text, `a` the anagram, `d` the dictionary. */
+const BUILD_KEY = { text: 't', anagram: 'a', tier: 'd' } as const;
+
+export type BuildState = {
+  readonly text: string;
+  readonly anagram: string;
+  readonly tier: Tier;
+};
+
+export const BUILD_DEFAULT: BuildState = { text: '', anagram: '', tier: DEFAULT_QUERY.tier };
+
+/** Only what differs from an empty page, so a shared check is a short link. */
+export function encodeBuild(state: BuildState): string {
+  const params = new URLSearchParams();
+  if (state.text.trim().length > 0) params.set(BUILD_KEY.text, state.text);
+  if (state.anagram.trim().length > 0) params.set(BUILD_KEY.anagram, state.anagram);
+  if (state.tier !== BUILD_DEFAULT.tier) params.set(BUILD_KEY.tier, state.tier);
+  return params.toString().replace(/\+/g, '%20');
+}
+
+export function decodeBuild(hash: string): BuildState {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const rawTier = params.get(BUILD_KEY.tier);
+  return {
+    text: params.get(BUILD_KEY.text) ?? '',
+    anagram: params.get(BUILD_KEY.anagram) ?? '',
+    tier: TIERS.includes(rawTier as Tier) ? (rawTier as Tier) : BUILD_DEFAULT.tier,
+  };
+}
+
+/** Write the boxes to the address bar without adding a history entry, as the search does. */
+export function syncBuildUrl(state: BuildState): void {
+  const encoded = encodeBuild(state);
+  const next = `${window.location.pathname}${window.location.search}${encoded ? `#${encoded}` : ''}`;
+  if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    window.history.replaceState(null, '', next);
+  }
+}
+
+/**
+ * Where Build opens with these boxes filled: what a search result row, a
+ * Discover row and the search toolbar link to. Relative, since every one of
+ * them is on this site.
+ */
+export function buildHref(text: string, anagram = ''): string {
+  const encoded = encodeBuild({ ...BUILD_DEFAULT, text, anagram });
+  return `/build${encoded ? `#${encoded}` : ''}`;
+}
+
 /** The full URL for one anagram of the current query, kept at the top in this order. */
 export function shareRowUrl(query: Query, phrase: string): string {
   const encoded = encodeShared(query, [phrase]);

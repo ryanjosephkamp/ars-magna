@@ -609,6 +609,13 @@ replaces the note, and pressing Promote on the same anagram in a search takes it
 - **Pausing.** `PROMOTIONS_OPEN = "false"` pauses submissions with promotions; the page says `Submissions are
   paused.`
 
+**Print, export and links.** The page carries both boxes in its address (`/build#t=…&a=…`, with `d=` for a
+dictionary other than Standard), so a check can be shared or kept. `Print` opens the browser's own print
+dialog, where every platform offers Save as PDF; a print stylesheet drops the header, the footer, the tray,
+the dictionary picker and the form, and leaves the boxes, the checks and the analysis. `Export` writes the
+analysis as TXT or JSON. Every search result row and every Discover row links to Build with that row already
+in its boxes, and the search toolbar links with the text alone.
+
 **Read the submissions.** Read-only, from `apps/web`:
 
 ```bash
