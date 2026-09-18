@@ -596,7 +596,11 @@ letter charts start level, and the charts list every letter either side has, wit
 lacks it. `Rarest in English` names the letters present that are least common in English, from the table in
 `lib/analysis.ts`, with their share (`j x · 0.15%`: j and x tie there); `Most used` names the letters the side
 uses most, with the count (`o r · 2` for dormitory). Both list every letter that ties. On a phone the two
-sides stack, each with its own labels. Nothing in the analysis is stored or sent anywhere.
+sides stack, each with its own labels. Each bar's darkness follows its count, in five steps of the ink's grey
+(`--color-count-1` to `--color-count-5` in `apps/web/src/styles.css`, the step chosen in
+`apps/web/src/lib/letterChart.ts`); hovering or focusing a bar shows its figure (`2 of 5 · 40%`), and selecting
+one marks that letter in the accent, underlined, in both charts, the tray and both read-back lines, until it is
+selected again or Escape is pressed. Nothing in the analysis is stored or sent anywhere.
 
 **The count.** That number is the engine's, counted in a second worker of its own, so the word checks
 never wait behind it. That worker holds its own copy of the dictionary (about 70 MB measured in Chrome,

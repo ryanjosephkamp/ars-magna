@@ -8,6 +8,7 @@ import { SiteHeader } from '../components/SiteHeader.tsx';
 import { comparison, letterFigures, wordFigures } from '../lib/analysis.ts';
 import { lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } from '../lib/checks.ts';
 import { buildFileStem, buildJson, buildTxt, download, type BuildReport } from '../lib/exporters.ts';
+import { holdsLetter } from '../lib/letterChart.ts';
 import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.ts';
 import { countLine, exportTotal } from '../lib/textCount.ts';
 import { decodeBuild, syncBuildUrl } from '../lib/urlState.ts';
@@ -22,6 +23,11 @@ import { Tray } from './Tray.tsx';
 const ISSUE_FORM = 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=submit-anagram.yml';
 
 const LABEL = 'text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase';
+/** A read-back line under a box: what was typed, in type, where single letters can be marked. */
+const READ_BACK = 'font-display text-xl leading-snug break-words whitespace-pre-wrap text-ink-soft print:hidden';
+/** The letter the reader has selected, wherever it is marked: the accent, and an underline that does not depend on colour. */
+const MARKED = 'text-accent underline decoration-2 underline-offset-4';
+
 const BOX =
   'font-display field-sizing-content min-h-[3.25rem] w-full resize-none border-0 border-b border-rule bg-transparent pb-2 text-3xl leading-tight tracking-tight text-ink outline-none transition-colors duration-150 placeholder:text-ink-faint focus:border-accent sm:text-4xl';
 
@@ -46,6 +52,18 @@ export function BuildPage() {
   const pendingCaret = useRef<number | null>(null);
 
   const l = useMemo(() => ledger(text, anagram), [text, anagram]);
+  // The letter selected in a chart, marked in both charts, the tray and both
+  // read-back lines. It lapses when neither box has it any more.
+  const [picked, setPicked] = useState<string | null>(null);
+  const selected = picked !== null && l.tray.some((t) => t.letter === picked) ? picked : null;
+  useEffect(() => {
+    if (selected === null) return;
+    const clear = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPicked(null);
+    };
+    document.addEventListener('keydown', clear);
+    return () => document.removeEventListener('keydown', clear);
+  }, [selected]);
   const marks = useMemo(() => readBack(text, anagram), [text, anagram]);
   const words = useMemo(() => wordsOf(anagram), [anagram]);
   const textWords = useMemo(() => wordsOf(text), [text]);
@@ -166,6 +184,17 @@ export function BuildPage() {
             spellCheck={false}
             className={BOX}
           />
+          {l.text.letters.length > 0 && (
+            // The box itself cannot colour one letter, so the text is read back
+            // beneath it, always, so selecting a letter never moves the page.
+            <p className={READ_BACK} aria-hidden="true">
+              {[...text].map((char, i) => (
+                <span key={i} className={holdsLetter(char, selected) ? MARKED : undefined}>
+                  {char}
+                </span>
+              ))}
+            </p>
+          )}
           <p className="font-mono text-xs text-ink-faint" aria-live="polite">
             {textLine || <span className="opacity-0">·</span>}
           </p>
@@ -175,7 +204,7 @@ export function BuildPage() {
           <h2 id={`${id}-letters`} className={LABEL}>
             Letters <span className="font-mono tracking-normal normal-case">· tap one to add it</span>
           </h2>
-          <Tray tray={l.tray} onInsert={insert} />
+          <Tray tray={l.tray} selected={selected} onInsert={insert} />
         </section>
 
         <section aria-label="Anagram" className="mt-8 flex flex-col gap-2">
@@ -205,9 +234,9 @@ export function BuildPage() {
           {anagram.trim().length > 0 && (
             // On paper the box above already shows the anagram, and the verdict
             // says in words what the red marks say here.
-            <p className="font-display text-xl leading-snug break-words whitespace-pre-wrap text-ink-soft print:hidden" aria-hidden="true">
+            <p className={READ_BACK} aria-hidden="true">
               {marks.map((m, i) => (
-                <span key={i} className={m.extra ? 'text-accent' : undefined}>
+                <span key={i} className={holdsLetter(m.char, selected) ? MARKED : m.extra ? 'text-accent' : undefined}>
                   {m.char}
                 </span>
               ))}
@@ -246,6 +275,8 @@ export function BuildPage() {
           comparison={analysis.comparison}
           tier={tier}
           count={textCount}
+          selected={selected}
+          onSelect={setPicked}
         />
 
         <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-3 print:hidden">

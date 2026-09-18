@@ -5,9 +5,10 @@ import type { TrayLetter } from '../lib/ledger.ts';
  * the display face and its count in mono beside it, no boxes. A letter the
  * anagram has used up fades; one it has used too often, or one the text never
  * had, turns the accent and shows the excess. Pressing a letter adds it to the
- * anagram at the caret.
+ * anagram at the caret. The letter selected in a chart takes the accent and
+ * an underline, which an overused letter, in the accent alone, never has.
  */
-export function Tray({ tray, onInsert }: { tray: readonly TrayLetter[]; onInsert(letter: string): void }) {
+export function Tray({ tray, selected, onInsert }: { tray: readonly TrayLetter[]; selected: string | null; onInsert(letter: string): void }) {
   if (tray.length === 0) {
     return <p className="py-1.5 font-mono text-xs text-ink-faint">—</p>;
   }
@@ -15,7 +16,8 @@ export function Tray({ tray, onInsert }: { tray: readonly TrayLetter[]; onInsert
     <ul className="-mx-1.5 flex flex-wrap items-baseline" aria-label="Letters of the text">
       {tray.map(({ letter, left }) => {
         const over = left < 0;
-        const tone = over ? 'text-accent' : left === 0 ? 'text-ink-faint' : 'text-ink';
+        const marked = letter === selected;
+        const tone = over || marked ? 'text-accent' : left === 0 ? 'text-ink-faint' : 'text-ink';
         return (
           <li key={letter}>
             <button
@@ -29,7 +31,7 @@ export function Tray({ tray, onInsert }: { tray: readonly TrayLetter[]; onInsert
               className={`flex items-baseline gap-1 rounded-[2px] px-1.5 py-1 transition-colors duration-150
                           hover:bg-accent-wash ${tone}`}
             >
-              <span className="font-display text-2xl leading-none">{letter}</span>
+              <span className={`font-display text-2xl leading-none ${marked ? 'underline decoration-2 underline-offset-4' : ''}`}>{letter}</span>
               <span className="font-mono text-[11px] tabular-nums">{over ? `+${-left}` : left}</span>
             </button>
           </li>

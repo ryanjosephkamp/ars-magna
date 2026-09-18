@@ -32,6 +32,16 @@
   --color-accent-hover: oklch(0.45 0.19 27);
   --color-accent-wash: oklch(0.965 0.018 27);
 
+  /* Build's letter charts: darkness carries a count, in the ink's own grey, so
+     the accent stays free for the reader's selection. One use is step 1, the
+     largest count step 5, full ink. Against the ground: 3.2, 5.2, 8.5, 13.0
+     and 17.7 to 1, each a clear graphic mark; 0.11 or more apart in lightness. */
+  --color-count-1: oklch(0.64 0 0);
+  --color-count-2: oklch(0.525 0 0);
+  --color-count-3: oklch(0.41 0 0);
+  --color-count-4: oklch(0.3 0 0);
+  --color-count-5: oklch(0.19 0 0);
+
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
@@ -143,6 +153,8 @@
     --color-ink-faint: #444;
     --color-rule: #bbb;
     --color-rule-strong: #888;
+    /* The largest count prints as the page's black; the lighter steps print as they are. */
+    --color-count-5: #000;
     /* The one accent stays, so an extra letter still reads as the problem. */
   }
 

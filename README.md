@@ -100,13 +100,15 @@ category and an optional note, kept for the review.
 
 Beneath the boxes, an analysis of both sides in figures, on one grid so each line sits level
 across the two: letters, distinct letters, vowels, the letters among them rarest in English, the
-letters used most, and a hairline bar per letter, with every letter either side has on the same
-line left and right; then words, their average length, the parts of speech the dictionary gives
+letters used most, and a bar per letter, darker the more the letter is used, with every letter
+either side has on the same line left and right. Selecting a letter's bar marks that letter in
+the accent everywhere on the page: both charts, the letters to tap, and both boxes' read-back
+lines. Then words, their average length, the parts of speech the dictionary gives
 them and how common they are, in bands over its frequency byte. For the text alone it states the
 site's own number, every anagram the text has at the chosen tier, counted in a worker of its own
 for at most four seconds, which reads `more than` when the time runs out first. With both boxes
 filled, the two are set side by side, with the ordering score each reads at and the words they
-share. Everything there is type: labelled lines and hairline bars, never a tile or a chart.
+share. Everything there is type: labelled lines and thin bars, never a tile or a card.
 
 Both boxes live in the address (`/build#t=…&a=…`), so a check is a link, and every search result row, every
 Discover row and the search toolbar link to Build with that row in place. `Export` writes the analysis as TXT
