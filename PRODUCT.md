@@ -60,8 +60,9 @@ it ends properly.
   ad-choked, cramped, results dumped as undifferentiated blue text.
 - **Dashboard chrome.** No stat tiles, no cards, no sparklines. There is one
   number on this page and it is the result count. On Build, every figure is set
-  in type: counts, labelled lines and hairline bars in the mono register, never
-  a tile or a card.
+  in type: counts, labelled lines and thin bars in the mono register, never
+  a tile or a card. On Build, darkness may carry a count and the accent marks
+  the reader's selection; still no tiles, cards or sparklines.
 - **Word-game cuteness.** No tile graphics, no confetti, no Scrabble-rack skeuomorphism.
 
 ## Design Principles
