@@ -92,6 +92,10 @@ export function HowItWorks() {
               A submission counts as your promotion of that anagram and goes to the same review. It keeps the text, the words, the dictionary,
               the category you chose and, when you give them, what the input is, why it is good and how to credit you.
             </p>
+            <p>
+              The address carries both boxes, so a check can be shared as a link, and the page can be printed or its figures exported. Every
+              search result and every anagram here opens in Build with its own words in place.
+            </p>
           </div>
         </section>
 

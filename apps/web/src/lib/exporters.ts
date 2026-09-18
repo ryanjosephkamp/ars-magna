@@ -11,7 +11,8 @@
  * pure data with no header. Its truncation is disclosed at the point of
  * download instead.
  */
-import type { Query } from '@ars-magna/engine';
+import { formatCount, type Query, type Tier } from '@ars-magna/engine';
+import { BAND_LABEL, TAG_LABEL, TIER_LABEL, signedScore, type Comparison, type LetterFigures, type WordFigures } from './analysis.ts';
 import { createZip } from './zip.ts';
 
 /** Ceiling on rows in any export. ~100k lines is a 2–3 MB text file. */
@@ -157,6 +158,116 @@ export function buildBlob(format: ExportFormat, input: ExportInput): Blob {
         input.generatedAt,
       );
   }
+}
+
+// ------------------------------------------------------------------- Build
+
+/** What the Build page exports: the two boxes, the checks and every figure of the analysis. */
+export type BuildReport = {
+  readonly text: string;
+  readonly anagram: string;
+  readonly tier: Tier;
+  /** Exactly what the two check lines read. */
+  readonly checks: { readonly lettersMatch: string; readonly wordsKnown: string };
+  readonly verdict: string;
+  readonly letters: { readonly text: LetterFigures; readonly anagram: LetterFigures };
+  readonly words: { readonly text: WordFigures; readonly anagram: WordFigures };
+  /** The characters each box carried that no letter came of.  */
+  readonly skipped: { readonly text: readonly string[]; readonly anagram: readonly string[] };
+  /** The two sides against each other, once both boxes have letters. */
+  readonly comparison: Comparison | null;
+  /** The engine's count of every anagram of the text at `tier`; a `>` prefix is a floor. Null when it was not had. */
+  readonly total: string | null;
+  readonly generatedAt: Date;
+};
+
+const pad = (label: string, value: string): string => `${label.padEnd(16)}${value}`;
+
+const parts = (figures: WordFigures): string =>
+  [...figures.parts.map((p) => `${p.count} ${TAG_LABEL[p.tag]}`), ...(figures.unknown > 0 ? [`${figures.unknown} unknown`] : [])].join(' · ') ||
+  '—';
+
+const commonness = (figures: WordFigures): string =>
+  figures.commonness.map((b) => `${b.count} ${BAND_LABEL[b.band]}`).join(' · ') || '—';
+
+function side(title: string, letters: LetterFigures, words: WordFigures, skipped: readonly string[]): string[] {
+  return [
+    title,
+    pad('Letters', String(letters.count)),
+    pad('Distinct', String(letters.distinct)),
+    pad('Vowels', String(letters.vowels)),
+    pad('Rarest letter', letters.rarest ?? '—'),
+    pad('Each letter', letters.histogram.map((l) => `${l.letter} ${l.count}`).join(' · ') || '—'),
+    pad('Words', String(words.count)),
+    pad('Average length', words.count === 0 ? '—' : words.averageLength.toFixed(1)),
+    pad('Parts of speech', parts(words)),
+    pad('Commonness', commonness(words)),
+    ...(skipped.length > 0 ? [pad('Skipped', skipped.join(' '))] : []),
+  ];
+}
+
+/** The analysis as a page of plain text, in the order the page shows it. */
+export function buildTxt(report: BuildReport): string {
+  const lines: string[] = [
+    'Ars Magna — Build',
+    '',
+    pad('Text', report.text.trim() || '—'),
+    pad('Anagram', report.anagram.trim() || '—'),
+    pad('Dictionary', TIER_LABEL[report.tier]),
+    '',
+    pad('Letters match', report.checks.lettersMatch),
+    pad('Words known', report.checks.wordsKnown),
+    ...(report.verdict ? [pad('Letters', report.verdict)] : []),
+    '',
+    ...side('TEXT', report.letters.text, report.words.text, report.skipped.text),
+    '',
+    ...side('ANAGRAM', report.letters.anagram, report.words.anagram, report.skipped.anagram),
+    '',
+    pad(
+      'Every anagram',
+      report.total === null ? '—' : `${formatCount(report.total)} in ${TIER_LABEL[report.tier]}`,
+    ),
+  ];
+  if (report.comparison) {
+    const c = report.comparison;
+    lines.push(
+      '',
+      'TEXT AGAINST ANAGRAM',
+      pad('Words', `${c.words.text} / ${c.words.anagram}`),
+      ...c.parts.map((p) => pad(TAG_LABEL[p.tag], `${p.text} / ${p.anagram}`)),
+      pad('Reads', `${signedScore(c.reads.text)} / ${signedScore(c.reads.anagram)}`),
+      pad('Shared words', c.shared.join(' · ') || 'none'),
+    );
+  }
+  lines.push('', `Generated ${report.generatedAt.toISOString()} by Ars Magna`, `Dictionary: ${SOURCE}`);
+  return `${lines.join('\n')}\n`;
+}
+
+/** The same figures as data, for a reader who wants to work with them. */
+export function buildJson(report: BuildReport): string {
+  const { generatedAt, ...rest } = report;
+  return `${JSON.stringify(
+    {
+      ...rest,
+      total: report.total === null ? null : report.total.replace('>', ''),
+      totalIsFloor: report.total !== null && report.total.startsWith('>'),
+      generatedAt: generatedAt.toISOString(),
+      generatedBy: 'Ars Magna',
+      dictionary: SOURCE,
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+/** `ars-magna-build-dormitory`, from the text. */
+export function buildFileStem(text: string): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return `ars-magna-build${slug.length > 0 ? `-${slug}` : ''}`;
 }
 
 /** Hand a blob to the browser as a download and let go of the object URL. */

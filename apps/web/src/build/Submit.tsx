@@ -87,7 +87,7 @@ export function Submit({ text, words, letters, tierOf, checked, published, pass 
   }
 
   return (
-    <section aria-labelledby="submit-title" className="mt-14 border-t border-rule-strong pt-8">
+    <section aria-labelledby="submit-title" className="mt-14 border-t border-rule-strong pt-8 print:hidden">
       <h2 id="submit-title" className="font-display text-3xl tracking-[-0.01em] text-ink">
         Submit to Discover
       </h2>

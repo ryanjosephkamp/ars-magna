@@ -476,6 +476,7 @@ export function App() {
                     onExport={(format) => void exportAs(format)}
                     exporting={exporting}
                     containing={containing}
+                    input={input}
                   />
                   <ResultList
                     rows={visibleRows}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Definitions } from '../lib/definitions.ts';
 import { useCopy } from '../lib/useCopy.ts';
+import { buildHref } from '../lib/urlState.ts';
 import { CheckToast } from '../components/CheckToast.tsx';
 import { VoteButton } from '../components/CountButton.tsx';
 import { ShareActions } from '../components/ShareActions.tsx';
@@ -447,6 +448,9 @@ export function Gallery() {
                                   <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
                                   <VoteButton hit={hit} votes={votes} reserve />
                                   <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
+                                  <a href={buildHref(hit.input, hit.display)} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
+                                    Build
+                                  </a>
                                   <a href={`/#q=${encodeURIComponent(hit.input)}`} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
                                     Every anagram
                                   </a>

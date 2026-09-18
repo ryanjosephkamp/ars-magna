@@ -6,7 +6,28 @@
  * page fetches each word's part-of-speech mask and frequency byte from the
  * engine and hands them over in order.
  */
-import { TAGS, TAG_BIT, scoreOrder, type Tag } from '@ars-magna/engine';
+import { TAGS, TAG_BIT, scoreOrder, type Tag, type Tier } from '@ars-magna/engine';
+
+/** Parts of speech spelled out, as the word panel on a search result spells them. */
+export const TAG_LABEL: Record<Tag, string> = {
+  det: 'determiner',
+  pron: 'pronoun',
+  prep: 'preposition',
+  conj: 'conjunction',
+  adj: 'adjective',
+  adv: 'adverb',
+  noun: 'noun',
+  verb: 'verb',
+  interj: 'interjection',
+  unknown: 'unknown',
+};
+
+export const TIER_LABEL: Record<Tier, string> = { common: 'Common', standard: 'Standard', full: 'Full', extended: 'Extended' };
+
+/** A score reads with its sign, so `+7` and `-2` are not mistaken for counts. */
+export function signedScore(score: number): string {
+  return score > 0 ? `+${score}` : String(score);
+}
 
 /**
  * How often each letter turns up in English, as a percentage of letters. From
@@ -58,6 +79,14 @@ export function letterFigures(letters: string): LetterFigures {
 export type Band = 'everyday' | 'common' | 'uncommon' | 'rare' | 'unknown';
 
 export const BANDS: readonly Band[] = ['everyday', 'common', 'uncommon', 'rare', 'unknown'];
+
+export const BAND_LABEL: Record<Band, string> = {
+  everyday: 'everyday',
+  common: 'common',
+  uncommon: 'uncommon',
+  rare: 'rare',
+  unknown: 'no frequency',
+};
 
 export function bandOf(zipfByte: number): Band {
   if (zipfByte <= 0) return 'unknown';

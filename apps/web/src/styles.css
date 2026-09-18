@@ -122,3 +122,58 @@
     animation: settle 220ms var(--ease-out-quart) both;
   }
 }
+
+/*
+ * On paper.
+ *
+ * The Build page is the one worth printing: a text, an anagram, the two checks
+ * and the figures. A reader saves it as a PDF through their own print dialog,
+ * which is why there is no PDF library here. Everything interactive is marked
+ * `print:hidden` where it lives; this sets the page itself.
+ */
+@media print {
+  :root {
+    color-scheme: light;
+    /* Ink on paper: the screen's near-white ground would print as grey. */
+    --color-ground: #fff;
+    --color-surface: #fff;
+    --color-sunken: #fff;
+    --color-ink: #000;
+    --color-ink-soft: #222;
+    --color-ink-faint: #444;
+    --color-rule: #bbb;
+    --color-rule-strong: #888;
+    /* The one accent stays, so an extra letter still reads as the problem. */
+  }
+
+  @page {
+    margin: 16mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  /* A figure and its label belong on the same page as each other. */
+  section,
+  dl > div,
+  li {
+    break-inside: avoid;
+  }
+
+  /* An address beside every link would double the length of the page. */
+  a {
+    text-decoration: none;
+  }
+
+  textarea {
+    /* Print what was typed, not a box to type in. */
+    border-color: var(--color-rule) !important;
+    overflow: visible !important;
+  }
+}

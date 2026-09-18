@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_QUERY, UNLIMITED_WORDS, type Query } from '@ars-magna/engine';
-import { cleanPhrase, decodeQuery, encodeQuery, encodeShared, inBoth, inBothSentence, keptPhrases, splitQuery } from './urlState.ts';
+import {
+  BUILD_DEFAULT,
+  buildHref,
+  cleanPhrase,
+  decodeBuild,
+  decodeQuery,
+  encodeBuild,
+  encodeQuery,
+  encodeShared,
+  inBoth,
+  inBothSentence,
+  keptPhrases,
+  splitQuery,
+} from './urlState.ts';
 
 describe('urlState accent folding', () => {
   it('folds an accented must-include word the way the engine will', () => {
@@ -192,5 +205,42 @@ describe('kept phrases', () => {
 
   it('is invisible to the query decoder', () => {
     expect(decodeQuery('#q=dormitory&p=dirty%20room')).toEqual(query({ input: 'dormitory' }));
+  });
+});
+
+describe('the Build page in the address', () => {
+  it('writes only the boxes that hold something, and the dictionary only when it differs', () => {
+    expect(encodeBuild(BUILD_DEFAULT)).toBe('');
+    expect(encodeBuild({ ...BUILD_DEFAULT, text: 'Dario Amodei' })).toBe('t=Dario%20Amodei');
+    expect(encodeBuild({ text: 'Dario Amodei', anagram: 'I da AI doomer', tier: 'extended' })).toBe(
+      't=Dario%20Amodei&a=I%20da%20AI%20doomer&d=extended',
+    );
+    expect(encodeBuild({ ...BUILD_DEFAULT, text: '   ' })).toBe('');
+  });
+
+  it('round-trips both boxes, spaces, accents and punctuation included', () => {
+    const cases = [
+      BUILD_DEFAULT,
+      { ...BUILD_DEFAULT, text: 'Dormitory', anagram: 'dirty room' },
+      { text: "It's a dog's life", anagram: 'Legit, sad foils', tier: 'full' as const },
+      { text: 'Beyoncé & 4', anagram: 'obey nce', tier: 'common' as const },
+    ];
+    for (const original of cases) {
+      expect(decodeBuild(`#${encodeBuild(original)}`)).toEqual(original);
+    }
+    expect(encodeBuild({ ...BUILD_DEFAULT, text: 'Ryan Joseph Kamp' })).not.toContain('+');
+  });
+
+  it('falls back to an empty page and the usual dictionary on nonsense', () => {
+    expect(decodeBuild('')).toEqual(BUILD_DEFAULT);
+    expect(decodeBuild('#d=wingdings')).toEqual(BUILD_DEFAULT);
+    expect(decodeBuild('#q=dormitory')).toEqual(BUILD_DEFAULT);
+  });
+
+  it('links to Build with a row already in its boxes', () => {
+    expect(buildHref('Dario Amodei', 'I da AI doomer')).toBe('/build#t=Dario%20Amodei&a=I%20da%20AI%20doomer');
+    // The search toolbar links with the text alone.
+    expect(buildHref('Dormitory')).toBe('/build#t=Dormitory');
+    expect(buildHref('')).toBe('/build');
   });
 });

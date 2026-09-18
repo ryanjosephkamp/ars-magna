@@ -106,6 +106,11 @@ the chosen tier, which reads `more than` when the count runs out of its budget. 
 filled, the two are set side by side, with the ordering score each reads at and the words they
 share. Everything there is type: labelled lines and hairline bars, never a tile or a chart.
 
+Both boxes live in the address (`/build#t=…&a=…`), so a check is a link, and every search result row, every
+Discover row and the search toolbar link to Build with that row in place. `Export` writes the analysis as TXT
+or JSON; `Print` uses the browser's own dialog, where Save as PDF lives, against a print stylesheet that
+leaves the boxes, the checks and the figures and drops everything you cannot use on paper.
+
 ## Offline
 
 Everything happens on your own machine — the search, the dictionary, the definitions —
