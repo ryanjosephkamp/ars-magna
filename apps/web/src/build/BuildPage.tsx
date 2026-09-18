@@ -297,6 +297,7 @@ export function BuildPage() {
           tier={tier}
           counts={counts}
           lengths={analysis.lengths}
+          typed={{ text, anagram }}
           selected={selected}
           onSelect={setPicked}
         />

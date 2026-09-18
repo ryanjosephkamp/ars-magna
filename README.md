@@ -108,7 +108,9 @@ Then words, their average length, their lengths as bars, the parts of speech the
 them, and how common they are, in bands over its frequency byte and word by word on a scale from
 rare to everyday. For the text alone it states the site's own number, every anagram the text has
 in each of the four dictionaries, the chosen one first, each counted in a worker of its own for at
-most four seconds, which reads `more than` when the time runs out first. With both boxes
+most four seconds, which reads `more than` when the time runs out first. For texts of up to 60
+letters, a letter map sets the text above the anagram with a fine line from each letter to where
+it went. With both boxes
 filled, the two are set side by side, with the ordering score each reads at and the words they
 share. Everything there is type: labelled lines and thin bars, never a tile or a card.
 

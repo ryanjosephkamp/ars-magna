@@ -30,6 +30,7 @@ import {
   type WordFigures,
 } from './analysis.ts';
 import { englishCount, englishFigure } from './letterChart.ts';
+import { MAP_LIMIT, letterMap, mapFits, mapLine } from './letterMap.ts';
 import { createZip } from './zip.ts';
 
 /** Ceiling on rows in any export. ~100k lines is a 2–3 MB text file. */
@@ -218,6 +219,17 @@ const parts = (figures: WordFigures): string =>
 const commonness = (figures: WordFigures): string =>
   figures.commonness.map((b) => `${b.count} ${BAND_LABEL[b.band]}`).join(' · ') || '—';
 
+/**
+ * The letter map as a line: each letter of the text, where it is and where it
+ * went, counting letters from 1; the page's sentence past the limit; nothing
+ * while a box is empty.
+ */
+function mapReport(report: BuildReport): string {
+  const [t, a] = [report.letters.text.count, report.letters.anagram.count];
+  if (t === 0 || a === 0) return '—';
+  return mapFits(t, a) ? mapLine(letterMap(report.text, report.anagram)) : `The letter map draws texts of up to ${MAP_LIMIT} letters.`;
+}
+
 /** Each letter either side has, with this side's count and what English would put in as many letters. */
 function english(report: BuildReport, which: 'text' | 'anagram'): { letter: string; count: number; expected: number }[] {
   const total = report.letters[which].count;
@@ -270,6 +282,7 @@ export function buildTxt(report: BuildReport): string {
     '',
     ...side(report, 'anagram'),
     '',
+    pad('Letter map', mapReport(report)),
     pad(
       'Every anagram',
       report.total === null ? (report.countNote ?? '—') : `${formatCount(report.total)} in ${TIER_LABEL[report.tier]}`,
@@ -313,6 +326,11 @@ export function buildJson(report: BuildReport): string {
         }),
       ),
       english: { text: english(report, 'text'), anagram: english(report, 'anagram') },
+      letterMap: mapFits(report.letters.text.count, report.letters.anagram.count)
+        ? (({ links, missing, extra }) => ({ links: links.map(({ letter, from, to }) => ({ letter, from, to })), missing, extra }))(
+            letterMap(report.text, report.anagram),
+          )
+        : null,
       generatedAt: generatedAt.toISOString(),
       generatedBy: 'Ars Magna',
       dictionary: SOURCE,

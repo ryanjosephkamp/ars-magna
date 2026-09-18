@@ -20,6 +20,7 @@ import {
 } from '../lib/analysis.ts';
 import { countStep, englishCount, figureWidth, letterFigure, letterName, letterScale, moveFocus } from '../lib/letterChart.ts';
 import { limitNote, stoppedAny, tierLine } from '../lib/textCount.ts';
+import { LetterMap } from './LetterMap.tsx';
 import type { TierCounts } from '../state/useTextCount.ts';
 
 const LABEL = 'text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase';
@@ -339,6 +340,8 @@ type Props = {
   counts: TierCounts;
   /** The rows both word-length charts share, and their scale. */
   lengths: { rows: readonly LengthRow[]; most: number };
+  /** The two boxes as typed, for the letter map. */
+  typed: { text: string; anagram: string };
 } & Selection;
 
 /**
@@ -348,7 +351,7 @@ type Props = {
  * PRODUCT.md's lines for this page require; the accent marks only the letter
  * the reader selects.
  */
-export function Analysis({ text, anagram, comparison: side, tier, counts, lengths, selected, onSelect }: Props) {
+export function Analysis({ text, anagram, comparison: side, tier, counts, lengths, typed, selected, onSelect }: Props) {
   const { rows, most } = letterRows(text.letters, anagram.letters);
   const totals = { text: text.letters.count, anagram: anagram.letters.count };
   const chart = { rows, most, totals, scale: letterScale(rows, totals, LETTER_FREQUENCY), width: figureWidth(rows, totals) };
@@ -379,6 +382,8 @@ export function Analysis({ text, anagram, comparison: side, tier, counts, length
           select it again, or press Escape, to clear it.
         </p>
       )}
+
+      <LetterMap text={typed.text} anagram={typed.anagram} selected={selected} onSelect={onSelect} />
 
       <dl className="mt-8">
         <div className="grid grid-cols-[8.5rem_1fr] items-baseline gap-3 border-b border-rule py-1.5">
