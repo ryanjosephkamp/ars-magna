@@ -36,6 +36,44 @@ export const MAX_WORDS = 64;
 /** The most characters of the input a promotion keeps. */
 export const MAX_INPUT = 500;
 
+/** The most letters a submission from the Build page may have. A number the operator may tune; the page itself has no cap. */
+export const MAX_TYPED_LETTERS = 80;
+
+/** The most characters of a submission's "Why it is good". */
+export const MAX_WHY = 500;
+
+/** The most characters of a submission's credit. */
+export const MAX_CREDIT = 60;
+
+/** A submission's categories: the sections' categories, as `tools/hits/src/ids.ts` lists them. */
+export const CATEGORIES = ['people', 'companies', 'products', 'titles', 'places', 'phrases'] as const;
+export type Category = (typeof CATEGORIES)[number];
+
+export function isCategory(value: unknown): value is Category {
+  return typeof value === 'string' && (CATEGORIES as readonly string[]).includes(value);
+}
+
+/**
+ * The rule for what an input is, repeated from `tools/hits/src/about.ts` so
+ * the page and the API can check it without the pipeline's code. `core.test.ts`
+ * checks the two agree.
+ */
+export const ABOUT_MAX = 200;
+export const ABOUT_PATTERN = /^\S[^\r\n\u2028\u2029]*\.["'”’)\]]?$/u;
+
+/** A note as it is kept: runs of whitespace, newlines included, as one space, and none at either end. */
+export function tidyNote(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/** Why a tidied sentence cannot be what an input is, in words for the reader, or null when it can. */
+export function aboutProblem(text: string): string | null {
+  const length = [...text].length;
+  if (length > ABOUT_MAX) return `Keep what the input is to ${ABOUT_MAX} characters; this is ${length}.`;
+  if (!ABOUT_PATTERN.test(text)) return 'Write what the input is as one sentence ending with a full stop.';
+  return null;
+}
+
 /** Letters in alphabetical order: the shape Discover keys a hit's letters by. */
 export function sortedLetters(letters: string): string {
   return [...letters].sort().join('');

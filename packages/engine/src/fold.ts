@@ -45,6 +45,16 @@ export function foldChar(char: string): string {
   return FOLD_TABLE[char] ?? '';
 }
 
+/**
+ * Whether one code point carries something the search ignores and the page
+ * should say so: a digit, a symbol, a letter of another script. Spaces,
+ * punctuation, apostrophes and hyphens are ignored without a word, and a
+ * letter that folds is not skipped at all.
+ */
+export function isSkipped(char: string): boolean {
+  return foldChar(char).length === 0 && COUNTS_AS_SKIPPED.test(char);
+}
+
 export function foldLetters(input: string): Folded {
   let letters = '';
   let skipped = 0;

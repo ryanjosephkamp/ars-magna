@@ -31,7 +31,7 @@ function precacheManifest(): Plugin {
       this.emitFile({
         type: 'asset',
         fileName: 'precache.json',
-        source: `${JSON.stringify({ files: ['/index.html', '/hits.html', '/how.html', '/hits.json', ...files] }, null, 2)}\n`,
+        source: `${JSON.stringify({ files: ['/index.html', '/hits.html', '/build.html', '/how.html', '/hits.json', ...files] }, null, 2)}\n`,
       });
     },
   };
@@ -64,7 +64,7 @@ function brotliHeaders(): Plugin {
 }
 
 /**
- * Serve `/hits` and `/how` the way Cloudflare Pages does.
+ * Serve `/hits`, `/build` and `/how` the way Cloudflare Pages does.
  *
  * Pages resolves an extensionless path to its `.html` file, so that is what the
  * site links to. Vite knows nothing of the convention and would answer 404,
@@ -72,7 +72,7 @@ function brotliHeaders(): Plugin {
  * thing the header exists to do.
  */
 function prettyUrls(): Plugin {
-  const PAGES: Record<string, string> = { '/hits': '/hits.html', '/how': '/how.html' };
+  const PAGES: Record<string, string> = { '/hits': '/hits.html', '/build': '/build.html', '/how': '/how.html' };
 
   const middleware = (req: IncomingMessage, _res: ServerResponse, next: () => void): void => {
     const [path = '', query] = (req.url ?? '').split('?');
@@ -106,11 +106,12 @@ export default defineConfig({
     // The dictionary artifacts in public/dict are content-hashed and served
     // pre-compressed; never inline them.
     assetsInlineLimit: 0,
-    // Three pages: the search, Discover, and how Discover works.
+    // Four pages: the search, Discover, Build, and how Discover works.
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         hits: resolve(__dirname, 'hits.html'),
+        build: resolve(__dirname, 'build.html'),
         how: resolve(__dirname, 'how.html'),
       },
     },

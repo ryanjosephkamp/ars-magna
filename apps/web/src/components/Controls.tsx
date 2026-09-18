@@ -96,7 +96,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * and switching costs nothing because all tiers ship in one artifact — one word
  * list and three bitsets over it.
  */
-function TierPicker({
+export function TierPicker({
   value,
   counts,
   onChange,

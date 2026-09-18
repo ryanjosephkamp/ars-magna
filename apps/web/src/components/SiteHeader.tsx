@@ -11,17 +11,14 @@
  * fifty pixels reads as a mistake.
  */
 
-/** The three pages of the site, by the address each is served at. */
-export type Page = '/' | '/hits' | '/how';
+/** The four pages of the site, by the address each is served at. */
+export type Page = '/' | '/hits' | '/build' | '/how';
 
-/** Until phase E puts submission in the site, it is a GitHub issue form. */
-const SUBMIT = 'https://github.com/ryanjosephkamp/ars-magna/issues/new?template=submit-anagram.yml';
-
-const LINKS: readonly { href: string; label: string; external?: boolean }[] = [
+const LINKS: readonly { href: Page; label: string }[] = [
   { href: '/', label: 'Search' },
   { href: '/hits', label: 'Discover' },
+  { href: '/build', label: 'Build' },
   { href: '/how', label: 'How it works' },
-  { href: SUBMIT, label: 'Submit', external: true },
 ];
 
 export function SiteHeader({ page }: { page: Page }) {
@@ -56,8 +53,6 @@ export function SiteHeader({ page }: { page: Page }) {
                   <a
                     href={link.href}
                     aria-current={current ? 'page' : undefined}
-                    target={link.external ? '_blank' : undefined}
-                    rel={link.external ? 'noopener noreferrer' : undefined}
                     className={`block px-2 py-1 text-sm transition-colors duration-150 ${
                       current ? 'text-accent' : 'text-ink-soft hover:text-accent'
                     }`}

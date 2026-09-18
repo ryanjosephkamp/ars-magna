@@ -75,29 +75,74 @@ export async function readMyPromotions(db: D1Database, voter: string, letters: s
   return results.map((r) => r.key);
 }
 
-/** What a promotion records beyond its key and voter. */
-export type PromotionFields = { input: string; words: readonly string[]; tier: string; via: 'result' | 'typed' };
+/** What a promotion from a search records beyond its key and voter. */
+export type PromotionFields = { input: string; words: readonly string[]; tier: string; via: 'result' };
+
+/** What a submission from the Build page records: a promotion with a note. Empty notes are kept as null. */
+export type SubmissionFields = {
+  input: string;
+  words: readonly string[];
+  tier: string;
+  via: 'typed';
+  category: string;
+  about: string;
+  why: string;
+  credit: string;
+  /** Words the dictionary has at no tier: word requests. */
+  missing: readonly string[];
+};
+
+const orNull = (text: string): string | null => (text.length > 0 ? text : null);
 
 /**
  * Makes or takes back one voter's promotion of an anagram and returns its
  * count. Promoting twice keeps the first promotion as it was; taking back one
  * never made changes nothing. The count is recounted in the same transaction.
+ *
+ * A submission is the voter's promotion too, so it writes the same row: over a
+ * promotion from a search it adds the note, and a second submission replaces
+ * the note. The row keeps when it was first made, and the count stays one per
+ * voter.
  */
 export async function setPromotion(
   db: D1Database,
   key: string,
   voter: string,
   on: boolean,
-  fields: PromotionFields,
+  fields: PromotionFields | SubmissionFields,
   at: string,
 ): Promise<number> {
-  const change = on
-    ? db
-        .prepare(
-          'INSERT INTO promotions (key, voter, input, words, tier, via, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
-        )
-        .bind(key, voter, fields.input, fields.words.join(' '), fields.tier, fields.via, at)
-    : db.prepare('DELETE FROM promotions WHERE key = ? AND voter = ?').bind(key, voter);
+  let change: D1PreparedStatement;
+  if (!on) {
+    change = db.prepare('DELETE FROM promotions WHERE key = ? AND voter = ?').bind(key, voter);
+  } else if (fields.via === 'typed') {
+    change = db
+      .prepare(
+        'INSERT INTO promotions (key, voter, input, words, tier, via, category, about, why, credit, missing, created_at) ' +
+          "VALUES (?, ?, ?, ?, ?, 'typed', ?, ?, ?, ?, ?, ?) " +
+          "ON CONFLICT (key, voter) DO UPDATE SET input = excluded.input, words = excluded.words, tier = excluded.tier, via = 'typed', " +
+          'category = excluded.category, about = excluded.about, why = excluded.why, credit = excluded.credit, missing = excluded.missing',
+      )
+      .bind(
+        key,
+        voter,
+        fields.input,
+        fields.words.join(' '),
+        fields.tier,
+        fields.category,
+        orNull(fields.about),
+        orNull(fields.why),
+        orNull(fields.credit),
+        orNull(fields.missing.join(' ')),
+        at,
+      );
+  } else {
+    change = db
+      .prepare(
+        'INSERT INTO promotions (key, voter, input, words, tier, via, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+      )
+      .bind(key, voter, fields.input, fields.words.join(' '), fields.tier, fields.via, at);
+  }
   const recount = db
     .prepare(
       'INSERT INTO promotion_counts (key, count) VALUES (?, (SELECT COUNT(*) FROM promotions WHERE key = ?)) ' +

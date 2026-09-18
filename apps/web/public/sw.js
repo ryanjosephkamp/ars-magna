@@ -35,19 +35,21 @@
 const CACHE = 'ars-magna-v2';
 const SHELL = '/index.html';
 const HITS_SHELL = '/hits.html';
+const BUILD_SHELL = '/build.html';
 const HOW_SHELL = '/how.html';
 
 /**
- * Which page a navigation belongs to: the gallery and its per-hit pages, how
- * Discover works, or the search.
+ * Which page a navigation belongs to: the gallery and its per-hit pages, Build,
+ * how Discover works, or the search.
  *
- * Cloudflare Pages serves `/hits` and `/how` from the `.html` files, and those
- * extensionless addresses are what the site links to, so both spellings have to
- * reach the same shell. It matters only offline, but offline this is the only
- * thing deciding which page the reader gets.
+ * Cloudflare Pages serves `/hits`, `/build` and `/how` from the `.html` files,
+ * and those extensionless addresses are what the site links to, so both
+ * spellings have to reach the same shell. It matters only offline, but offline
+ * this is the only thing deciding which page the reader gets.
  */
 function shellFor(pathname) {
   if (pathname === '/how' || pathname === HOW_SHELL) return HOW_SHELL;
+  if (pathname === '/build' || pathname === BUILD_SHELL) return BUILD_SHELL;
   if (pathname === '/hits' || pathname === HITS_SHELL || pathname.startsWith('/hits/')) return HITS_SHELL;
   return SHELL;
 }

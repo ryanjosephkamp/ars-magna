@@ -106,12 +106,21 @@ describe('service worker', () => {
     expect(strategyFor('/dict/full-0123abcd.bin', 'cors')).toBe('bypass');
     expect(strategyFor('/api/votes', 'cors')).toBe('bypass');
     expect(strategyFor('/api/promotions', 'cors')).toBe('bypass');
+    expect(strategyFor('/build', 'navigate')).toBe('shell');
   });
 
   it('leaves the vote and promotion API to the network, never answering it from a cache', async () => {
     const sw = worker({ cached: { '/api/votes': '{"counts":{}}', '/api/promotions': '{"counts":{}}' } });
     expect(await sw.get('/api/votes?voter=x')).toBeUndefined();
     expect(await sw.get('/api/promotions?letters=aaeeglmnnt')).toBeUndefined();
+    expect(sw.fetched).toEqual([]);
+  });
+
+  it('never answers a promotion or a submission, which are POSTs to the API', async () => {
+    const sw = worker();
+    expect(sw.strategyFor('/api/promote', 'cors')).toBe('bypass');
+    expect(sw.strategyFor('/api/pass', 'cors')).toBe('bypass');
+    expect(await sw.get('/api/promote')).toBeUndefined();
     expect(sw.fetched).toEqual([]);
   });
 
@@ -144,12 +153,14 @@ describe('service worker', () => {
     // The site links to /hits and /how; Pages serves them from the .html files.
     // Offline, a reader who followed one of those links would otherwise land on
     // the search page.
-    const cached = { '/index.html': 'search shell', '/hits.html': 'gallery shell', '/how.html': 'how shell' };
+    const cached = { '/index.html': 'search shell', '/hits.html': 'gallery shell', '/build.html': 'build shell', '/how.html': 'how shell' };
     const sw = worker({ online: false, cached });
     expect(await sw.get('/hits', 'navigate')).toBe('gallery shell');
     expect(await sw.get('/hits.html', 'navigate')).toBe('gallery shell');
     expect(await sw.get('/how', 'navigate')).toBe('how shell');
     expect(await sw.get('/how.html', 'navigate')).toBe('how shell');
+    expect(await sw.get('/build', 'navigate')).toBe('build shell');
+    expect(await sw.get('/build.html', 'navigate')).toBe('build shell');
     expect(await sw.get('/', 'navigate')).toBe('search shell');
   });
 
