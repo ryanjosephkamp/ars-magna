@@ -591,7 +591,12 @@ for one no tier has.
 
 **The analysis** beneath the boxes counts the letters and the words of each side, names the parts of speech
 the dictionary gives each word and how common it is, and, for the text alone, states how many anagrams the
-text has at the chosen tier. Nothing in the analysis is stored or sent anywhere.
+text has at the chosen tier. The two sides share one grid: each labelled line is one row across both, so the
+letter charts start level, and the charts list every letter either side has, with a faint 0 where one side
+lacks it. `Rarest in English` names the letters present that are least common in English, from the table in
+`lib/analysis.ts`, with their share (`j x · 0.15%`: j and x tie there); `Most used` names the letters the side
+uses most, with the count (`o r · 2` for dormitory). Both list every letter that ties. On a phone the two
+sides stack, each with its own labels. Nothing in the analysis is stored or sent anywhere.
 
 **The count.** That number is the engine's, counted in a second worker of its own, so the word checks
 never wait behind it. That worker holds its own copy of the dictionary (about 70 MB measured in Chrome,

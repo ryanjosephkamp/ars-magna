@@ -12,7 +12,17 @@
  * download instead.
  */
 import { formatCount, type Query, type Tier } from '@ars-magna/engine';
-import { BAND_LABEL, TAG_LABEL, TIER_LABEL, signedScore, type Comparison, type LetterFigures, type WordFigures } from './analysis.ts';
+import {
+  BAND_LABEL,
+  TAG_LABEL,
+  TIER_LABEL,
+  mostUsedLine,
+  rarestLine,
+  signedScore,
+  type Comparison,
+  type LetterFigures,
+  type WordFigures,
+} from './analysis.ts';
 import { createZip } from './zip.ts';
 
 /** Ceiling on rows in any export. ~100k lines is a 2–3 MB text file. */
@@ -183,7 +193,8 @@ export type BuildReport = {
   readonly generatedAt: Date;
 };
 
-const pad = (label: string, value: string): string => `${label.padEnd(16)}${value}`;
+/** Labels in one column wide enough for the longest, `Rarest in English`, with room to spare. */
+const pad = (label: string, value: string): string => `${label.padEnd(20)}${value}`;
 
 const parts = (figures: WordFigures): string =>
   [...figures.parts.map((p) => `${p.count} ${TAG_LABEL[p.tag]}`), ...(figures.unknown > 0 ? [`${figures.unknown} unknown`] : [])].join(' · ') ||
@@ -198,7 +209,8 @@ function side(title: string, letters: LetterFigures, words: WordFigures, skipped
     pad('Letters', String(letters.count)),
     pad('Distinct', String(letters.distinct)),
     pad('Vowels', String(letters.vowels)),
-    pad('Rarest letter', letters.rarest ?? '—'),
+    pad('Rarest in English', rarestLine(letters)),
+    pad('Most used', mostUsedLine(letters)),
     pad('Each letter', letters.histogram.map((l) => `${l.letter} ${l.count}`).join(' · ') || '—'),
     pad('Words', String(words.count)),
     pad('Average length', words.count === 0 ? '—' : words.averageLength.toFixed(1)),

@@ -32,7 +32,7 @@ export function signedScore(score: number): string {
 /**
  * How often each letter turns up in English, as a percentage of letters. From
  * the usual count over a large English corpus; it decides which of a text's
- * letters is the rarest, and nothing else.
+ * letters are the rarest, and nothing else. j and x share a figure.
  */
 export const LETTER_FREQUENCY: Readonly<Record<string, number>> = {
   e: 12.7, t: 9.06, a: 8.17, o: 7.51, i: 6.97, n: 6.75, s: 6.33, h: 6.09, r: 5.99, d: 4.25,
@@ -46,8 +46,14 @@ export type LetterFigures = {
   readonly count: number;
   readonly distinct: number;
   readonly vowels: number;
-  /** The letter of the text that is rarest in English, or null with no letters. `y` counts as a consonant. */
-  readonly rarest: string | null;
+  /**
+   * The letters present that are rarest in English, a to z, with their share
+   * of English letters: more than one when they tie. Null with no letters. `y`
+   * counts as a consonant.
+   */
+  readonly rarest: { readonly letters: readonly string[]; readonly percent: number } | null;
+  /** The letters used most in this side, a to z, and how many times each is. Null with no letters. */
+  readonly mostUsed: { readonly letters: readonly string[]; readonly count: number } | null;
   /** Every letter present, alphabetical, with how many there are. */
   readonly histogram: readonly { readonly letter: string; readonly count: number }[];
 };
@@ -56,17 +62,48 @@ export function letterFigures(letters: string): LetterFigures {
   const counts = new Map<string, number>();
   for (const letter of letters) counts.set(letter, (counts.get(letter) ?? 0) + 1);
   const histogram = [...counts.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([letter, count]) => ({ letter, count }));
-  let rarest: string | null = null;
-  for (const { letter } of histogram) {
-    if (rarest === null || (LETTER_FREQUENCY[letter] ?? 0) < (LETTER_FREQUENCY[rarest] ?? 0)) rarest = letter;
-  }
+  const least = Math.min(...histogram.map(({ letter }) => LETTER_FREQUENCY[letter] ?? 0));
+  const most = Math.max(...histogram.map(({ count }) => count));
   return {
     count: letters.length,
     distinct: histogram.length,
     vowels: [...letters].filter((l) => VOWELS.has(l)).length,
-    rarest,
+    rarest:
+      histogram.length === 0
+        ? null
+        : { letters: histogram.filter(({ letter }) => (LETTER_FREQUENCY[letter] ?? 0) === least).map(({ letter }) => letter), percent: least },
+    mostUsed: histogram.length === 0 ? null : { letters: histogram.filter(({ count }) => count === most).map(({ letter }) => letter), count: most },
     histogram,
   };
+}
+
+/** `j x · 0.15%`: the rarest letters in English and their share of English letters, or `—`. */
+export function rarestLine(f: LetterFigures): string {
+  return f.rarest === null ? '—' : `${f.rarest.letters.join(' ')} · ${f.rarest.percent}%`;
+}
+
+/** `o r · 2`: the letters used most, and how many times each is, or `—`. */
+export function mostUsedLine(f: LetterFigures): string {
+  return f.mostUsed === null ? '—' : `${f.mostUsed.letters.join(' ')} · ${f.mostUsed.count}`;
+}
+
+/** One line of the letter charts: a letter either side has, and how many each side has of it. */
+export type LetterRow = { readonly letter: string; readonly text: number; readonly anagram: number };
+
+/**
+ * The rows both letter charts share: every letter either side has, a to z,
+ * so a letter sits on the same line left and right, with 0 where a side lacks
+ * it. `most` is the largest count on either side, so both charts share one
+ * scale.
+ */
+export function letterRows(text: LetterFigures, anagram: LetterFigures): { rows: LetterRow[]; most: number } {
+  const of = (f: LetterFigures) => new Map(f.histogram.map(({ letter, count }) => [letter, count]));
+  const left = of(text);
+  const right = of(anagram);
+  const rows = [...new Set([...left.keys(), ...right.keys()])]
+    .sort()
+    .map((letter) => ({ letter, text: left.get(letter) ?? 0, anagram: right.get(letter) ?? 0 }));
+  return { rows, most: rows.reduce((top, r) => Math.max(top, r.text, r.anagram), 0) };
 }
 
 /**
