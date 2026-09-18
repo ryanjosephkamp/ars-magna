@@ -25,6 +25,7 @@ const KEY = {
   minWordLen: 'm',
   maxWords: 'w',
   mustInclude: 'i',
+  mustExclude: 'x',
   /** Phrases kept at the top: a shared anagram in the order the sharer chose. */
   kept: 'p',
 } as const;
@@ -48,6 +49,8 @@ export function encodeQuery(query: Query): string {
 
   const pinned = query.mustInclude.filter((word) => word.length > 0);
   if (pinned.length > 0) params.set(KEY.mustInclude, pinned.join(','));
+  const excluded = query.mustExclude.filter((word) => word.length > 0);
+  if (excluded.length > 0) params.set(KEY.mustExclude, excluded.join(','));
 
   // URLSearchParams percent-encodes spaces as `+`, which reads badly in a
   // shared link. Spaces are legal in a fragment, so put them back.
@@ -60,10 +63,14 @@ export function decodeQuery(hash: string): Query {
   const rawTier = params.get(KEY.tier);
   const tier: Tier = TIERS.includes(rawTier as Tier) ? (rawTier as Tier) : DEFAULT_QUERY.tier;
 
-  const mustInclude = (params.get(KEY.mustInclude) ?? '')
-    .split(',')
-    .map(normalizeLetters)
-    .filter((word) => word.length > 0);
+  const words = (key: string) =>
+    (params.get(key) ?? '')
+      .split(',')
+      .map(normalizeLetters)
+      .filter((word) => word.length > 0);
+  const mustInclude = words(KEY.mustInclude);
+  // A link cannot ask for a word both ways; Must include keeps it.
+  const mustExclude = words(KEY.mustExclude).filter((word) => !mustInclude.includes(word));
 
   return {
     input: params.get(KEY.input) ?? '',
@@ -71,7 +78,22 @@ export function decodeQuery(hash: string): Query {
     minWordLen: clampInt(params.get(KEY.minWordLen), 1, 12, DEFAULT_QUERY.minWordLen),
     maxWords: clampInt(params.get(KEY.maxWords), 1, UNLIMITED_WORDS, DEFAULT_QUERY.maxWords),
     mustInclude,
+    mustExclude,
   };
+}
+
+/**
+ * The first word that is in both Must include and Must exclude, or null. The
+ * search page refuses a change that would put one there, since no anagram can
+ * both contain a word and leave it out.
+ */
+export function inBoth(mustInclude: readonly string[], mustExclude: readonly string[]): string | null {
+  return mustInclude.find((word) => mustExclude.includes(word)) ?? null;
+}
+
+/** The sentence under either field when a change would put `word` in both. */
+export function inBothSentence(word: string): string {
+  return `No anagram can both contain and leave out “${word}”.`;
 }
 
 /**

@@ -52,6 +52,7 @@ function metadata(input: ExportInput) {
       minWordLength: query.minWordLen,
       maxWords: query.maxWords >= 64 ? null : query.maxWords,
       mustInclude: [...query.mustInclude],
+      mustExclude: [...query.mustExclude],
     },
     generatedAt: generatedAt.toISOString(),
     generatedBy: 'Ars Magna',
@@ -125,6 +126,7 @@ Dictionary    ${meta.filters.dictionary}
 Min word len  ${meta.filters.minWordLength}
 Max words     ${meta.filters.maxWords ?? 'any'}
 Must include  ${meta.filters.mustInclude.join(', ') || '—'}
+Must exclude  ${meta.filters.mustExclude.join(', ') || '—'}
 Generated     ${meta.generatedAt}
 
 anagrams.txt   one anagram per line

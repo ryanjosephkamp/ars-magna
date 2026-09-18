@@ -147,6 +147,7 @@ fn options(args: &Args, limit: usize) -> SolveOptions {
         short_words: args.short_words.clone(),
         max_words: args.max_words,
         must_include: Vec::new(),
+        exclude: Vec::new(),
         limit,
         max_nodes: u64::MAX,
     }
@@ -261,6 +262,7 @@ fn bench() -> Result<(), Box<dyn std::error::Error>> {
             short_words: None,
             max_words: UNLIMITED_WORDS,
             must_include: Vec::new(),
+            exclude: Vec::new(),
             limit: 0,
             max_nodes: u64::MAX,
         };
@@ -444,6 +446,7 @@ impl BatchConfig {
             short_words: (!self.short_words.is_empty()).then(|| self.short_words.clone()),
             max_words: self.max_words,
             must_include,
+            exclude: Vec::new(),
             limit: 0,
             max_nodes: self.max_nodes,
         }

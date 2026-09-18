@@ -23,6 +23,11 @@ export type Query = {
   readonly minWordLen: number;
   readonly maxWords: number;
   readonly mustInclude: readonly string[];
+  /**
+   * Words taken out of the dictionary for this query: a class whose every
+   * spelling is excluded is gone, and one with other spellings shows those.
+   */
+  readonly mustExclude: readonly string[];
 };
 
 export const DEFAULT_QUERY: Omit<Query, 'input'> = {
@@ -32,6 +37,7 @@ export const DEFAULT_QUERY: Omit<Query, 'input'> = {
   minWordLen: 2,
   maxWords: UNLIMITED_WORDS,
   mustInclude: [],
+  mustExclude: [],
 };
 
 export type DictCounts = {

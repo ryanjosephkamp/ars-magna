@@ -94,13 +94,15 @@ export function App() {
         Promise.all(words.map((word) => spellings(word))),
         definitions.lookupAll(words),
       ]);
+      // A spelling Must exclude took out of this search is not offered back.
+      const shown = (list: string[] | undefined) => (list ?? []).filter((w) => !query.mustExclude.includes(w));
       return words.map((word, i) => ({
         word,
-        spellings: spellingLists[i]?.length ? spellingLists[i]! : [word],
+        spellings: shown(spellingLists[i]).length ? shown(spellingLists[i]) : [word],
         info: infos[i]!,
       }));
     },
-    [definitions, spellings],
+    [definitions, spellings, query.mustExclude],
   );
 
   useEffect(() => syncUrl(query), [query]);
@@ -254,6 +256,7 @@ export function App() {
     total,
     letters,
     mustInclude: query.mustInclude,
+    mustExclude: query.mustExclude,
     known: known && known.key === knownKey ? known.words : null,
   });
 

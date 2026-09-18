@@ -56,7 +56,7 @@ describe('toJson', () => {
     const parsed = JSON.parse(
       toJson(
         input({
-          query: query({ tier: 'full', minWordLen: 4, maxWords: 2, mustInclude: ['room'] }),
+          query: query({ tier: 'full', minWordLen: 4, maxWords: 2, mustInclude: ['room'], mustExclude: ['dirt'] }),
         }),
       ),
     );
@@ -67,6 +67,7 @@ describe('toJson', () => {
       minWordLength: 4,
       maxWords: 2,
       mustInclude: ['room'],
+      mustExclude: ['dirt'],
     });
   });
 

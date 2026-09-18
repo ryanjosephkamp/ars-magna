@@ -47,6 +47,7 @@ export type SolveOptions = {
   minWordLen: number;
   maxWords: number;
   mustInclude?: string[];
+  mustExclude?: string[];
 };
 
 export class Engine {
@@ -93,6 +94,7 @@ export class Engine {
         minWordLen: options.minWordLen,
         maxWords: options.maxWords,
         mustInclude: options.mustInclude ?? [],
+        mustExclude: options.mustExclude ?? [],
       },
       first,
     });

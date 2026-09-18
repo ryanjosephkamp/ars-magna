@@ -56,11 +56,13 @@ export function filterScope(options: {
   letters: string;
   /** Must include as it stands. */
   mustInclude: readonly string[];
+  /** Must exclude as it stands: those words are not in this search's dictionary. */
+  mustExclude?: readonly string[];
   /** The filter's words the dictionary tier carries, once looked up; null until then. */
   known: readonly string[] | null;
   limit?: number;
 }): FilterScope {
-  const { filter, loaded, total, letters, mustInclude, known, limit = AUTO_LOAD_LIMIT } = options;
+  const { filter, loaded, total, letters, mustInclude, mustExclude = [], known, limit = AUTO_LOAD_LIMIT } = options;
   if (filter.trim().length === 0) return { kind: 'all' };
 
   const exact = total.startsWith('>') ? null : Number(total);
@@ -78,7 +80,8 @@ export function filterScope(options: {
     return false;
   });
   if (extra.length === 0) return { kind: 'loaded' };
-  if (!extra.every((w) => known.includes(w))) return { kind: 'loaded' };
+  // An excluded word is out of this search's dictionary, so no result has it.
+  if (!extra.every((w) => known.includes(w) && !mustExclude.includes(w))) return { kind: 'loaded' };
   if (!fitsLetters(letters, [...mustInclude, ...extra])) return { kind: 'loaded' };
   return { kind: 'must-include', words: extra };
 }
@@ -103,8 +106,8 @@ export function containingQuery(query: Query, words: readonly string[]): Query {
  * engine the same question share a key.
  */
 export function containingKey(query: Query, words: readonly string[]): string {
-  const { input, tier, minWordLen, maxWords, mustInclude } = containingQuery(query, words);
-  return JSON.stringify([input, tier, minWordLen, maxWords, mustInclude]);
+  const { input, tier, minWordLen, maxWords, mustInclude, mustExclude } = containingQuery(query, words);
+  return JSON.stringify([input, tier, minWordLen, maxWords, mustInclude, mustExclude]);
 }
 
 /**

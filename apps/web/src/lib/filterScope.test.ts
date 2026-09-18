@@ -46,6 +46,13 @@ describe('filterScope', () => {
     expect(filterScope({ ...base, mustInclude: ['man'] })).toEqual({ kind: 'loaded' });
     expect(filterScope({ ...base, filter: 'man gent', mustInclude: ['man'], known: ['man', 'gent'] })).toEqual({ kind: 'must-include', words: ['gent'] });
   });
+
+  it('never counts a word Must exclude has taken out of the dictionary', () => {
+    expect(filterScope({ ...base, mustExclude: ['man'] })).toEqual({ kind: 'loaded' });
+    expect(filterScope({ ...base, filter: 'man gent', known: ['man', 'gent'], mustExclude: ['gent'] })).toEqual({ kind: 'loaded' });
+    // Excluding another word leaves the count as it was.
+    expect(filterScope({ ...base, mustExclude: ['gent'] })).toEqual({ kind: 'must-include', words: ['man'] });
+  });
 });
 
 describe('the count of results containing the filter', () => {
@@ -67,6 +74,7 @@ describe('the count of results containing the filter', () => {
     expect(containingKey({ ...query, minWordLen: 3 }, ['shamed'])).not.toBe(shamed);
     expect(containingKey({ ...query, maxWords: 3 }, ['shamed'])).not.toBe(shamed);
     expect(containingKey({ ...query, input: 'Demis Hassabi' }, ['shamed'])).not.toBe(shamed);
+    expect(containingKey({ ...query, mustExclude: ['ai'] }, ['shamed'])).not.toBe(shamed);
     // Must include and the filter's words are one list: the engine is asked the same question.
     expect(containingKey({ ...query, mustInclude: ['shamed'] }, [])).toBe(shamed);
   });

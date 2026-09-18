@@ -43,7 +43,7 @@ function connectRespawning(): { client: ArsMagnaClient; workers: FakeWorker[] } 
   return { client, workers };
 }
 
-const QUERY = { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [] } as const;
+const QUERY = { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [], mustExclude: [] } as const;
 
 const ready = (worker: FakeWorker, id: number) =>
   worker.reply({
@@ -62,7 +62,7 @@ describe('ArsMagnaClient', () => {
     const errors: [string, string][] = [];
     let batches = 0;
     client.solve(
-      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [] },
+      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [], mustExclude: [] },
       { onError: (code, message) => errors.push([code, message]), onBatch: () => batches++ },
     );
     const solveId = worker.sent.at(-1)!.id;
@@ -190,7 +190,7 @@ describe('ArsMagnaClient', () => {
 
     const errors: string[] = [];
     client.solve(
-      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: ['zz'] },
+      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: ['zz'], mustExclude: [] },
       { onError: (code) => errors.push(code) },
     );
     const solveId = worker.sent.at(-1)!.id;
