@@ -37,6 +37,11 @@ function longestWord(row: Row): number {
  * Matching the phrase rather than individual words means a query like
  * `dirty ro` still finds `dirty room` — people type what they remember seeing,
  * spaces included. Non-letters in the filter are kept, so a space is meaningful.
+ *
+ * This matches what a row displays, which is one spelling for each set of words
+ * sharing letters: the row holding `sauce` displays `cause`, so a filter of
+ * whole dictionary words is answered by the engine instead, and the line sets
+ * the two beside each other (`filterScope.ts`).
  */
 export function matches(row: Row, filter: string): boolean {
   if (filter.length === 0) return true;

@@ -52,8 +52,9 @@ export class CountWorker {
    * How many results `query` has, climbing the node budgets of `textCount.ts`
    * until the time limit. Null when the worker was closed first, since an
    * abandoned count has no answer to give. Counts run one at a time.
+   * `textLeftOut` says the engine left the text's own row out of the count.
    */
-  async count(query: Query): Promise<{ readonly count: TextCount; readonly timedOut: boolean } | null> {
+  async count(query: Query): Promise<{ readonly count: TextCount; readonly timedOut: boolean; readonly textLeftOut: boolean } | null> {
     if (this.#closed) return null;
     this.#busy = true;
     try {
@@ -66,13 +67,17 @@ export class CountWorker {
       this.#client = client;
       if (client.status.state !== 'ready') {
         this.#drop(client);
-        return { count: { kind: 'failed' }, timedOut: false };
+        return { count: { kind: 'failed' }, timedOut: false, textLeftOut: false };
       }
+      // Whether the text's own row was left out, as the last rung to answer said.
+      let textLeftOut = false;
       const result = await climb(
         async (maxNodes) => {
           if (this.#closed) return null;
           try {
-            return await client.count(query, maxNodes);
+            const answer = await client.count(query, maxNodes);
+            if (answer) textLeftOut = answer.textLeftOut;
+            return answer?.total ?? null;
           } catch {
             return null;
           }
@@ -82,7 +87,7 @@ export class CountWorker {
       if (this.#closed) return null;
       // A rung still running would hold up the next count: its worker goes.
       if (result.timedOut) this.#drop(client);
-      return result;
+      return { ...result, textLeftOut };
     } finally {
       this.#busy = false;
     }

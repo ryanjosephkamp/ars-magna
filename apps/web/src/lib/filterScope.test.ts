@@ -10,32 +10,30 @@ import {
   filterScope,
   filterWords,
   fitsLetters,
+  loadsRest,
+  shownAsTyped,
 } from './filterScope.ts';
 
 describe('filterScope', () => {
   const base = { filter: 'man', loaded: 250, total: '12345', letters: 'agentlemanxyz', mustInclude: [] as string[], known: ['man'] };
 
-  it('covers everything when there is no filter or every result is loaded', () => {
+  it('covers everything when there is no filter', () => {
     expect(filterScope({ ...base, filter: '   ' })).toEqual({ kind: 'all' });
-    expect(filterScope({ ...base, loaded: 12345 })).toEqual({ kind: 'all' });
   });
 
-  it('loads the rest of a list under the limit, whatever the filter is', () => {
-    expect(filterScope({ ...base, total: '4999' })).toEqual({ kind: 'load-rest' });
-    expect(filterScope({ ...base, total: '4999', filter: 'dirty ro' })).toEqual({ kind: 'load-rest' });
-    expect(AUTO_LOAD_LIMIT).toBe(5000);
-    expect(filterScope({ ...base, total: '5000' })).toEqual({ kind: 'must-include', words: ['man'] });
-    expect(filterScope({ ...base, total: '5000', limit: 6000 })).toEqual({ kind: 'load-rest' });
-  });
-
-  it('counts across every result when the filter is dictionary words that fit a partial list', () => {
-    expect(filterScope({ ...base, filter: '  Elegant MAN ', known: ['elegant', 'man'] })).toEqual({ kind: 'must-include', words: ['elegant', 'man'] });
+  it('asks the engine about dictionary words that fit, however much of the list is loaded', () => {
+    expect(filterScope({ ...base, filter: '  Elegant MAN ', known: ['elegant', 'man'] })).toEqual({ kind: 'must-include', words: ['elegant', 'man'], everyLoaded: false });
     // A floor is partial too.
-    expect(filterScope({ ...base, total: '>1000000' })).toEqual({ kind: 'must-include', words: ['man'] });
+    expect(filterScope({ ...base, total: '>1000000' })).toEqual({ kind: 'must-include', words: ['man'], everyLoaded: false });
+    // Every result loaded: still the engine, now with the rows on screen beside it.
+    expect(filterScope({ ...base, loaded: 12345 })).toEqual({ kind: 'must-include', words: ['man'], everyLoaded: true });
+    // A short list too: it is a question about every result, not about the rows on screen.
+    expect(filterScope({ ...base, total: '588', loaded: 250 })).toEqual({ kind: 'must-include', words: ['man'], everyLoaded: false });
   });
 
-  it('keeps a fragment on the loaded rows, and says so', () => {
+  it('keeps a fragment on the rows on screen, every result when they are all loaded', () => {
     expect(filterScope({ ...base, filter: 'ma', known: [] })).toEqual({ kind: 'loaded' });
+    expect(filterScope({ ...base, filter: 'ma', known: [], loaded: 12345 })).toEqual({ kind: 'all' });
     expect(filterScope({ ...base, filter: 'dirty ro', known: ['dirty'] })).toEqual({ kind: 'loaded' });
     expect(filterScope({ ...base, filter: "don't" })).toEqual({ kind: 'loaded' });
     // Not looked up yet: say what is true now.
@@ -46,14 +44,30 @@ describe('filterScope', () => {
     expect(filterScope({ ...base, filter: 'zebra', known: ['zebra'] })).toEqual({ kind: 'loaded' });
     expect(filterScope({ ...base, filter: 'man man', known: ['man'] })).toEqual({ kind: 'loaded' });
     expect(filterScope({ ...base, mustInclude: ['man'] })).toEqual({ kind: 'loaded' });
-    expect(filterScope({ ...base, filter: 'man gent', mustInclude: ['man'], known: ['man', 'gent'] })).toEqual({ kind: 'must-include', words: ['gent'] });
+    expect(filterScope({ ...base, filter: 'man gent', mustInclude: ['man'], known: ['man', 'gent'] })).toEqual({ kind: 'must-include', words: ['gent'], everyLoaded: false });
   });
 
   it('never counts a word Must exclude has taken out of the dictionary', () => {
     expect(filterScope({ ...base, mustExclude: ['man'] })).toEqual({ kind: 'loaded' });
     expect(filterScope({ ...base, filter: 'man gent', known: ['man', 'gent'], mustExclude: ['gent'] })).toEqual({ kind: 'loaded' });
     // Excluding another word leaves the count as it was.
-    expect(filterScope({ ...base, mustExclude: ['gent'] })).toEqual({ kind: 'must-include', words: ['man'] });
+    expect(filterScope({ ...base, mustExclude: ['gent'] })).toEqual({ kind: 'must-include', words: ['man'], everyLoaded: false });
+  });
+});
+
+describe('loading the rest of a short list', () => {
+  it('loads the rest under the limit, whatever the filter is, so the rows on screen narrow over every result', () => {
+    expect(AUTO_LOAD_LIMIT).toBe(5000);
+    expect(loadsRest({ filter: 'man', loaded: 250, total: '4999' })).toBe(true);
+    expect(loadsRest({ filter: 'dirty ro', loaded: 250, total: '4999' })).toBe(true);
+    expect(loadsRest({ filter: 'man', loaded: 250, total: '5000' })).toBe(false);
+    expect(loadsRest({ filter: 'man', loaded: 250, total: '5000', limit: 6000 })).toBe(true);
+  });
+
+  it('does nothing without a filter, once all are loaded, or for a floor', () => {
+    expect(loadsRest({ filter: ' ', loaded: 250, total: '4999' })).toBe(false);
+    expect(loadsRest({ filter: 'man', loaded: 4999, total: '4999' })).toBe(false);
+    expect(loadsRest({ filter: 'man', loaded: 250, total: '>4000' })).toBe(false);
   });
 });
 
@@ -77,6 +91,9 @@ describe('the count of results containing the filter', () => {
     expect(containingKey({ ...query, maxWords: 3 }, ['shamed'])).not.toBe(shamed);
     expect(containingKey({ ...query, input: 'Demis Hassabi' }, ['shamed'])).not.toBe(shamed);
     expect(containingKey({ ...query, mustExclude: ['ai'] }, ['shamed'])).not.toBe(shamed);
+    // Word order is no part of the question.
+    expect(containingKey(query, ['apple', 'sauce'])).toBe(containingKey(query, ['sauce', 'apple']));
+    expect(containingKey({ ...query, mustInclude: ['sauce'] }, ['apple'])).toBe(containingKey(query, ['apple', 'sauce']));
     // Must include and the filter's words are one list: the engine is asked the same question.
     expect(containingKey({ ...query, mustInclude: ['shamed'] }, [])).toBe(shamed);
   });
@@ -125,6 +142,17 @@ describe('the line while and after the count runs in its own worker', () => {
 
   it('leaves the line to the loaded rows when the engine could not count', () => {
     expect(containingLine({ kind: 'failed' }, total, words)).toBeNull();
+  });
+});
+
+describe('the rows on screen beside the count, on a list that is all loaded', () => {
+  it('says how many are shown as typed only when that is not the count', () => {
+    // "apple sauce": 12 results hold sauce, and every one shows it as cause.
+    expect(shownAsTyped({ kind: 'exact', total: '12' }, 0)).toBe('0 shown as typed');
+    expect(shownAsTyped({ kind: 'exact', total: '12' }, 12)).toBeNull();
+    expect(shownAsTyped({ kind: 'exact', total: '1200' }, 1234)).toBe('1,234 shown as typed');
+    expect(shownAsTyped({ kind: 'floor', total: '12' }, 12)).toBe('12 shown as typed');
+    expect(shownAsTyped({ kind: 'counting' }, 3)).toBeNull();
   });
 });
 

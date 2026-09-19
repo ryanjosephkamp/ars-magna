@@ -23,6 +23,8 @@ import {
   containingQuery,
   filterScope,
   filterWords,
+  loadsRest,
+  shownAsTyped,
 } from './lib/filterScope.ts';
 import type { TextCount } from './lib/textCount.ts';
 import { CountWorker } from './state/countWorker.ts';
@@ -242,8 +244,9 @@ export function App() {
   }, [collect, results]);
 
   // Which of the filter's words the dictionary carries at this tier, looked up
-  // once typing pauses. Until the answer is in, the filter is said to cover the
-  // loaded rows, which is true.
+  // as each is typed: the list's worker answers a lookup at once, since no count
+  // runs there. Until the answer is in, the filter is said to cover the rows on
+  // screen, which is true.
   const typedWords = useMemo(() => filterWords(filter), [filter]);
   const [known, setKnown] = useState<{ key: string; words: string[] } | null>(null);
   const knownKey = typedWords ? `${query.tier}|${typedWords.join(' ')}` : null;
@@ -254,7 +257,7 @@ export function App() {
       void Promise.all(typedWords.map((word) => has(word, query.tier))).then((found) => {
         if (live) setKnown({ key: knownKey, words: typedWords.filter((_, i) => found[i]) });
       });
-    }, 200);
+    }, 0);
     return () => {
       live = false;
       clearTimeout(timer);
@@ -271,20 +274,22 @@ export function App() {
     known: known && known.key === knownKey ? known.words : null,
   });
 
-  // A typed filter over a short list loads the rest, once per search, so it
-  // covers every result rather than the first page.
+  // A typed filter over a short list loads the rest, once per search, so the
+  // rows on screen narrow over every result rather than the first page.
+  const loadRest = loadsRest({ filter, loaded: results.length, total });
   const autoLoaded = useRef<Query | null>(null);
   useEffect(() => {
-    if (scope.kind !== 'load-rest' || loadingAll || autoLoaded.current === query) return;
+    if (!loadRest || loadingAll || autoLoaded.current === query) return;
     autoLoaded.current = query;
     void loadAll();
-  }, [scope.kind, loadingAll, query, loadAll]);
+  }, [loadRest, loadingAll, query, loadAll]);
 
-  // A filter of dictionary words on a partial list is counted across every
-  // result, with the words as Must include, and the line leads with that
-  // count. The list stays as it is until the reader asks for them: Show them,
-  // or Enter in the filter box. A count asked for an older filter or search is
-  // never shown against this one.
+  // A filter of dictionary words is counted across every result, with the
+  // words as Must include, however much of the list is loaded, and the line
+  // leads with that count. The list stays as it is until the reader asks for
+  // them: Show them, or Enter in the filter box, lists them spelled with the
+  // words asked for. A count asked for an older filter or search is never
+  // shown against this one.
   //
   // The count runs in a worker of its own, so paging, Go to and a row's
   // details never wait behind it, and for at most FILTER_COUNT_LIMIT_MS. The
@@ -295,7 +300,7 @@ export function App() {
   // makes it.
   const containingWords = scope.kind === 'must-include' ? scope.words : null;
   const countKey = containingWords ? containingKey(query, containingWords) : null;
-  const [containCount, setContainCount] = useState<{ key: string; count: TextCount } | null>(null);
+  const [containCount, setContainCount] = useState<{ key: string; count: TextCount; textLeftOut: boolean } | null>(null);
   const counter = useRef<CountWorker | null>(null);
   const filtering = filter.trim().length > 0;
   useEffect(() => {
@@ -309,7 +314,7 @@ export function App() {
     const worker = (counter.current ??= new CountWorker({ limitMs: FILTER_COUNT_LIMIT_MS }));
     let live = true;
     void worker.count(containingQuery(query, containingWords)).then((result) => {
-      if (live && result) setContainCount({ key: countKey, count: result.count });
+      if (live && result) setContainCount({ key: countKey, count: result.count, textLeftOut: result.textLeftOut });
     });
     return () => {
       live = false;
@@ -324,20 +329,27 @@ export function App() {
   }, [countKey, engine.state]);
   useEffect(() => () => counter.current?.close(), []);
 
+  // On a list that is all loaded, the rows on screen narrow as typed; the line
+  // says how many beside the count when the two differ, and Show them is
+  // offered only then, since otherwise the rows shown are the ones counted.
+  const everyLoaded = scope.kind === 'must-include' && scope.everyLoaded;
+  const shownCount = visibleRows.length;
   const containing = useMemo(() => {
     if (!containingWords) return null;
-    const count: TextCount = containCount?.key === countKey ? containCount.count : { kind: 'counting' };
+    const answer = containCount?.key === countKey ? containCount : null;
+    const count: TextCount = answer?.count ?? { kind: 'counting' };
+    const line = containingLine(count, total, containingWords);
+    const shown = everyLoaded ? shownAsTyped(count, shownCount) : null;
+    const none = count.kind === 'exact' && count.total === '0';
+    const same = everyLoaded && shown === null && count.kind === 'exact';
     return {
-      label: containingLine(count, total, containingWords),
-      // Nothing to show when none contain them.
-      onShow:
-        count.kind === 'exact' && count.total === '0'
-          ? null
-          : () => patch({ mustInclude: containingQuery(query, containingWords).mustInclude }),
+      // The text's own words are never one of the results: said beside the count, as the count above says it.
+      label: line === null ? null : [line, shown, answer?.textLeftOut ? TEXT_LEFT_OUT : null].filter(Boolean).join(' · '),
+      onShow: none || same ? null : () => patch({ mustInclude: containingQuery(query, containingWords).mustInclude }),
     };
     // `containingWords` is rebuilt every render; `countKey` holds what it says.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countKey, containCount, total, query, patch]);
+  }, [countKey, containCount, total, query, patch, everyLoaded, shownCount]);
 
   const exportAs = useCallback(
     async (format: ExportFormat) => {

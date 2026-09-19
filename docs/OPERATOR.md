@@ -703,17 +703,30 @@ credit when the review kept them, never why it is good (see "Review promotions")
 
 ## The filter on Search
 
-The Filter box under a search's count narrows the list the reader is looking at. What it can honestly cover
-depends on how much of the list is loaded (`apps/web/src/lib/filterScope.ts`):
+The Filter box under a search's count asks one of two questions, and the line says which was answered
+(`apps/web/src/lib/filterScope.ts`):
 
-- **Every result loaded:** it narrows the rows in place.
-- **A short list:** under `AUTO_LOAD_LIMIT` results (5,000, a number you may tune), typing a filter loads the
-  rest first, so it covers every result.
-- **A filter of dictionary words on a longer list:** every result is counted with those words as Must include,
-  and the line leads with the count: `11 of 15,202 contain “shamed” · Show them`, or `None of 15,202 contain
-  “amebiasis”`. Show them, or Enter in the box, switches the list to them; nothing switches it while the reader
-  types.
-- **Anything else** (part of a word, a phrase fragment): it narrows the loaded rows, and the line says so.
+- **A filter of one or more whole dictionary words that fit the letters** is a question about every result, so
+  the engine answers it however much of the list is loaded: every result is counted with those words as Must
+  include, and the line leads with the count, `11 of 15,202 contain “shamed” · Show them`, or `None of 15,202
+  contain “amebiasis”`. Show them, or Enter in the box, switches the list to them, spelled with the words asked
+  for; nothing switches it while the reader types. The order the words are typed in makes no difference.
+- **Anything else** (part of a word, a phrase fragment, an apostrophe) narrows the rows on screen by what they
+  display, and the line says what that covered: every result when they are all loaded, the loaded ones
+  otherwise. Under `AUTO_LOAD_LIMIT` results (5,000, a number you may tune), typing any filter loads the rest
+  first, so that narrowing covers every result.
+
+**The rows on screen narrow as the reader types, whichever question was asked**, and they narrow by what each
+row displays. A result shows one spelling for each set of words sharing letters, so on a search for "apple
+sauce" the result holding `sauce` is displayed as `cause`. When the list holds every result, the line sets the
+two figures beside each other where they differ: `4 of 588 contain “sauce” · 1 shown as typed · Show them`, and
+Show them lists the four spelled `sauce`. Where they agree, the line gives the count alone and offers nothing to
+show, since the rows on screen are those results. A substring hits inside a word, so `cause` can show 5 rows
+(one of them `causee palp`) where 4 results hold the word.
+
+**The text's own words are never a result** (C4a), so a filter of exactly them reads `None of 115 contain
+“dormitory” · The text itself is left out.`, the sentence the count above the list uses. It is added whenever
+the engine says that row was left out of the figure.
 
 **The count runs in a worker of its own** (`apps/web/src/state/countWorker.ts`, the one Build's count uses),
 never on the worker the list pages, jumps and opens rows with, so Go to, paging and a row's details answer at
@@ -727,7 +740,10 @@ Each count runs for at most `FILTER_COUNT_LIMIT_MS` (4,000 milliseconds, in `lib
 may tune), climbing the same node budgets as Build's. While it runs the line reads `Counting which of 15,202
 contain “shamed”…`; past the limit it gives the floor it reached, `more than 192,491,544 of 144,632,962,364,130
 contain “wheat”`, or, when it had found none yet, `Counting which of … contain “wheat” stopped after 4
-seconds.` Show them works in every case, since the list's own search counts exactly. On "William Shakespeare
+seconds.` Show them works in every case, since the list's own search counts exactly. Each word is looked up in
+the dictionary as it is typed, on the list's own worker, which answers at once now that no count runs there.
+
+On "William Shakespeare
 the playwright" (31 letters) on 2026-09-19, before this: one word's count held the list's worker for 11.7 s,
 and Go to, a row's details and the next word's lookup waited 9.6 to 11 s behind it; after: they answer in
 under 0.2 s, and each count reads a floor at 4 s.
