@@ -29,17 +29,21 @@
 //! ```
 //!
 //! Use [`Dict::class_words`] to recover the other spellings of a result.
+//!
+//! The text itself is never one of its own results: `dormitory` is a word
+//! here and no other word shares its letters, so the search leaves that row
+//! out and [`Search::text_row`] says so. See the `search` module docs.
 
 pub mod counts;
 pub mod dict;
 mod fold_table;
 pub mod search;
 
-pub use counts::{normalize, Counts};
+pub use counts::{normalize, text_words, Counts};
 pub use dict::{Dict, DictError, SigClass, Tier, TierBits, WordList};
 pub use search::{
-    Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, DEFAULT_MEMO_CAP,
-    UNLIMITED_WORDS,
+    Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, TextRow,
+    DEFAULT_MEMO_CAP, UNLIMITED_WORDS,
 };
 
 /// One solution, as words.

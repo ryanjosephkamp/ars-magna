@@ -11,8 +11,10 @@ and nothing is dropped. No AI — a deterministic search, verified against known
 
 Accented letters are forced to their unaccented base letter, so *Beyoncé* has three e's and
 *Björk* is searched as *bjork*; ß becomes ss, æ becomes ae, ø becomes o, and so on. The
-same folding is applied to the dictionary, so the two always agree. Spaces and punctuation
-are ignored silently. Digits, symbols and letters of other scripts are ignored too, and the
+same folding is applied to the dictionary, so the two always agree. Punctuation is ignored
+silently, and so are spaces but for one thing: they say what the text's own words are, and
+the text itself is never listed as its own anagram (see Filtering and sorting). Digits,
+symbols and letters of other scripts are ignored too, and the
 letters line under the field says how many characters were skipped so that never looks like
 a bug. English only. An input with more than 127 copies of one letter is refused with a
 message rather than searched, since letter counts are bytes.
@@ -87,6 +89,16 @@ Must exclude works the other way, in the engine rather than on the loaded rows: 
 word out of the dictionary for that one search. A class of anagrams whose every spelling is
 excluded drops out, and one with other spellings keeps them and hides the excluded one, so
 the count is still exact. A word cannot be in Must include and Must exclude at once.
+
+The text itself is never one of its own anagrams: its words, in any order. A row of the list
+stands for every spelling of the same letters and shows the commonest, so without this rule
+*below* led its own list and hid *elbow* behind it. Where another word shares a word's letters,
+the text's own row is shown with that word instead (*below* appears as *elbow*, *apple house*
+as *appel house*) and the count is what it was. Where none does (*dormitory*, *house*) the row
+is left out, the count is one fewer, and the page says so beside it: *dormitory* has 115, not
+116. The same letters spaced differently are an anagram, so *applesauce* is a result of
+*apple sauce*. It is done in the engine, so the count, Go to, Surprise me, paging and every
+export agree, and JSON, CSV and the ZIP's README carry a `textLeftOut` flag or sentence.
 
 ## Build
 

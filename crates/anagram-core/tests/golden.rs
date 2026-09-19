@@ -10,7 +10,7 @@
 //! class). Asserting on surface strings would make these tests fail for a
 //! correct engine, and would break again every time frequency data shifted.
 
-use anagram_core::{Counts, Dict, Flow, Memo, Search, SolveOptions, Tier};
+use anagram_core::{Counts, Dict, Flow, Memo, Search, SolveOptions, TextRow, Tier};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -117,15 +117,26 @@ fn the_name_is_an_anagram_of_what_the_site_does() {
 #[test]
 fn punctuation_digits_and_case_are_ignored() {
     let dict = dict_or_skip!();
-    // All four normalize to the same letters, so all four must agree.
+    // All three are the one word `dormitory`, so all three must agree. A
+    // hyphen, an apostrophe and digits carry no letters and end no word.
     let reference = solutions(&dict, "dormitory", opts(3, 2));
-    for variant in ["DORMITORY", "Dor-mit'ory", "dormitory 123", "  d o r m i t o r y  "] {
+    for variant in ["DORMITORY", "Dor-mit'ory", "dormitory 123"] {
         assert_eq!(
             solutions(&dict, variant, opts(3, 2)),
             reference,
             "{variant:?} did not normalize to \"dormitory\""
         );
     }
+
+    // Spaces do end a word. The same letters typed apart are not the word
+    // `dormitory`, so that row is a result of theirs, a re-spacing, where
+    // the word itself left it out. Nothing else differs.
+    let word = signature_of(&["dormitory"]);
+    assert!(!reference.contains(&word), "the text is never its own result");
+    let mut spaced = solutions(&dict, "  d o r m i t o r y  ", opts(3, 2));
+    let at = spaced.iter().position(|row| *row == word).expect("a re-spacing is a result");
+    spaced.remove(at);
+    assert_eq!(spaced, reference);
 }
 
 #[test]
@@ -636,11 +647,14 @@ fn a_short_word_outside_the_query_tier_does_not_admit_its_class() {
         ..opts(3, 1)
     };
 
+    // Typed with a space in it: the word itself is never its own result, and
+    // its two letters, typed apart, are not words here.
+    let spaced = format!("{} {}", &rare[..1], &rare[1..]);
     assert!(
-        solutions(&dict, rare, options(Tier::Common)).is_empty(),
+        solutions(&dict, &spaced, options(Tier::Common)).is_empty(),
         "{rare:?} is not Common, so listing it must admit nothing at Common"
     );
-    assert_eq!(solutions(&dict, rare, options(Tier::Full)), vec![signature_of(&[rare])]);
+    assert_eq!(solutions(&dict, &spaced, options(Tier::Full)), vec![signature_of(&[rare])]);
 }
 
 #[test]
@@ -667,4 +681,180 @@ fn round_trip_recall() {
         let max_words = words.len() as u8;
         assert_contains(&dict, &input, words, opts(3, max_words));
     }
+}
+
+/// The site's own settings: Standard, words of two letters and up, no cap.
+fn site() -> SolveOptions {
+    opts(2, anagram_core::UNLIMITED_WORDS)
+}
+
+#[test]
+fn the_text_is_never_its_own_result_on_the_shipped_dictionary() {
+    let dict = dict_or_skip!();
+
+    // (text, what became of its row, the count, the row's words as shown)
+    //
+    // The counts before this rule were 116, 6, 1, 6, 17, 1,288 and 588: a
+    // dropped row is one fewer and a respelled one changes nothing.
+    let cases: [(&str, TextRow, u128, Option<&[&str]>); 9] = [
+        ("dormitory", TextRow::Dropped, 115, None),
+        ("house", TextRow::Dropped, 5, None),
+        ("rhythm", TextRow::Dropped, 0, None),
+        ("below", TextRow::Respelled, 6, Some(&["elbow"])),
+        ("listen", TextRow::Respelled, 17, Some(&["silent"])),
+        ("apple house", TextRow::Respelled, 1_288, Some(&["appel", "house"])),
+        ("house apple", TextRow::Respelled, 1_288, Some(&["appel", "house"])),
+        // `cause` is commoner than `sauce`, so this row never showed the text.
+        ("apple sauce", TextRow::Shown, 588, Some(&["apple", "cause"])),
+        // One word that is no word: the letters alone, and the re-spacing stays.
+        ("applesauce", TextRow::Dropped, 587, None),
+    ];
+
+    for (text, fate, total, shown) in cases {
+        let search = Search::prepare(&dict, text, site()).unwrap();
+        assert_eq!(search.text_row(), fate, "{text:?}");
+
+        let mut memo = Memo::new();
+        let (counted, saturated, _) = search.count(&mut memo, u64::MAX);
+        assert!(!saturated);
+        assert_eq!(counted, total, "{text:?}: count");
+
+        let own = signature_of(&anagram_core::text_words(text).iter().map(String::as_str).collect::<Vec<_>>());
+        let mut typed = anagram_core::text_words(text);
+        typed.sort();
+        let mut rows = 0u128;
+        let mut found: Option<Vec<String>> = None;
+        search.enumerate(|classes| {
+            let mut words = search.spell(&dict, classes, Tier::Standard);
+            words.sort();
+            assert_ne!(words, typed, "{text:?} is one of its own results");
+            let mut sig: Vec<Counts> = classes.iter().map(|&c| dict.classes[c as usize].counts).collect();
+            sig.sort_by_key(|c| c.to_bytes());
+            if sig == own {
+                found = Some(words);
+            }
+            rows += 1;
+            Flow::Continue
+        });
+        assert_eq!(rows, total, "{text:?}: enumerated");
+        let want = shown.map(|words| {
+            let mut words: Vec<String> = words.iter().map(|w| w.to_string()).collect();
+            words.sort();
+            words
+        });
+        assert_eq!(found, want, "{text:?}: how the text's own row is shown");
+
+        // Past the last result there is nothing, where the dropped row used to be.
+        assert!(search.nth(&mut memo, total).is_none(), "{text:?}: nth past the end");
+        if total > 0 {
+            assert!(search.nth(&mut memo, total - 1).is_some());
+        }
+    }
+
+    // `applesauce` is a result of "apple sauce": the same letters, spaced differently.
+    assert_contains(&dict, "apple sauce", &["applesauce"], site());
+}
+
+#[test]
+fn must_exclude_still_counts_what_it_counted() {
+    let dict = dict_or_skip!();
+
+    // `hassabis` is not a word, so this text has no row of its own and the
+    // figures the manual quotes stand: 15,202, and 14,312 without `ai`.
+    let plain = Search::prepare(&dict, "Demis Hassabis", site()).unwrap();
+    assert_eq!(plain.text_row(), TextRow::None);
+    assert_eq!(plain.count(&mut Memo::new(), u64::MAX).0, 15_202);
+
+    let without = SolveOptions { exclude: vec!["ai".to_owned()], ..site() };
+    let search = Search::prepare(&dict, "Demis Hassabis", without).unwrap();
+    assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 14_312);
+}
+
+#[test]
+fn must_include_of_every_word_of_the_text_leaves_nothing() {
+    let dict = dict_or_skip!();
+
+    let pinned = |words: &[&str]| SolveOptions {
+        must_include: words.iter().map(|w| w.to_string()).collect(),
+        ..site()
+    };
+    // Both words pinned as typed: the only result would be the text.
+    let search = Search::prepare(&dict, "apple house", pinned(&["apple", "house"])).unwrap();
+    assert_eq!(search.text_row(), TextRow::Dropped);
+    assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 0);
+    assert!(search.cursor().next(&search).is_none());
+    assert!(search.nth(&mut Memo::new(), 0).is_none());
+    assert!(search.cursor_at(&mut Memo::new(), 0).is_none());
+
+    // One pinned: its slot stays as typed and the free one takes the other spelling.
+    let search = Search::prepare(&dict, "apple house", pinned(&["house"])).unwrap();
+    assert_eq!(search.text_row(), TextRow::Respelled);
+    let first = search.nth(&mut Memo::new(), 0).unwrap();
+    let mut rows = Vec::new();
+    search.enumerate(|classes| {
+        rows.push(search.spell(&dict, classes, Tier::Standard));
+        Flow::Continue
+    });
+    assert!(rows.contains(&vec!["house".to_owned(), "appel".to_owned()]), "{:?}", &rows[..rows.len().min(5)]);
+    assert!(!rows.contains(&vec!["house".to_owned(), "apple".to_owned()]));
+    assert_eq!(first[0], dict.find_class("house", Tier::Standard).unwrap() as u32);
+
+    // The other spelling pinned: the row already differs from the text.
+    let search = Search::prepare(&dict, "apple house", pinned(&["appel"])).unwrap();
+    assert_eq!(search.text_row(), TextRow::Shown);
+}
+
+#[test]
+fn rank_is_the_inverse_of_nth_on_real_result_sets() {
+    let dict = dict_or_skip!();
+
+    // Whole result sets, one that dropped its row and one that did not.
+    for text in ["dormitory", "apple sauce", "below", "house"] {
+        let search = Search::prepare(&dict, text, site()).unwrap();
+        let mut memo = Memo::new();
+        let (total, _, _) = search.count(&mut memo, u64::MAX);
+        for index in 0..total {
+            let row = search.nth(&mut memo, index).unwrap();
+            assert_eq!(search.rank(&mut memo, &row, u64::MAX), Some(index), "{text:?}: rank(nth({index}))");
+        }
+    }
+
+    // And spread across a large one, where neither could be checked by walking.
+    let search = Search::prepare(&dict, "arnold schwarzenegger", opts(3, 4)).unwrap();
+    let mut memo = Memo::new();
+    let (total, saturated, _) = search.count(&mut memo, u64::MAX);
+    assert!(!saturated && total > 80_000);
+    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+    for _ in 0..200 {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let index = (seed >> 33) as u128 % total;
+        let row = search.nth(&mut memo, index).unwrap();
+        assert_eq!(search.rank(&mut memo, &row, u64::MAX), Some(index), "rank(nth({index}))");
+    }
+}
+
+#[test]
+fn a_stopped_count_of_a_query_that_dropped_its_row_is_still_a_floor() {
+    let dict = dict_or_skip!();
+
+    let search = Search::prepare(&dict, "dormitory", site()).unwrap();
+    let mut streamed: Vec<Vec<u32>> = Vec::new();
+    search.enumerate(|classes| {
+        streamed.push(classes.to_vec());
+        Flow::Continue
+    });
+    assert_eq!(streamed.len(), 115);
+
+    let mut memo = Memo::new();
+    let (floor, _, stats) = search.count(&mut memo, 20);
+    assert!(stats.truncated, "a 20-node budget must cut the count short");
+    assert!(floor < 115, "the floor {floor} must be below the exact total");
+
+    // The list, Go to and Surprise me still leave the row out, in the same places.
+    for (i, expected) in streamed.iter().enumerate() {
+        assert_eq!(search.nth(&mut memo, i as u128).as_ref(), Some(expected), "nth({i}) after a stopped count");
+    }
+    assert_eq!(search.nth(&mut memo, 115), None);
+    let (exact, _, _) = search.count(&mut memo, u64::MAX);
+    assert_eq!(exact, 115);
 }

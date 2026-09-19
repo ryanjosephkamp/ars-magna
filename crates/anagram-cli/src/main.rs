@@ -12,7 +12,7 @@
 //! anagram check "dormitory" "dirty room"
 //! ```
 
-use anagram_core::{Counts, Cursor, Dict, Flow, Memo, Search, SolveOptions, Tier, UNLIMITED_WORDS};
+use anagram_core::{Counts, Cursor, Dict, Flow, Memo, Search, SolveOptions, TextRow, Tier, UNLIMITED_WORDS};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -208,7 +208,17 @@ fn solve(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         stats.subset_tests,
         if stats.truncated { ", truncated" } else { "" }
     );
+    print_text_row(&search);
     Ok(())
+}
+
+/// Say so when the text's own row is not among the results: the text itself,
+/// its words in any order, is never a result, and a row that can be spelled
+/// no other way is left out and not counted.
+fn print_text_row(search: &Search) {
+    if search.text_row() == TextRow::Dropped {
+        println!("  the text itself is left out");
+    }
 }
 
 fn count(args: Args) -> Result<(), Box<dyn std::error::Error>> {
@@ -228,6 +238,7 @@ fn count(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         "  {} candidates · {} nodes · {} memo entries · {} hits · {:.1?}",
         stats.candidates, stats.nodes, stats.memo_entries, stats.memo_hits, elapsed
     );
+    print_text_row(&search);
     Ok(())
 }
 
@@ -336,6 +347,9 @@ struct AnchorSummary {
     head: usize,
     sampled: usize,
     rows: usize,
+    /// The text's own row was dropped from this search, so `count` is one
+    /// fewer than the letters alone would give.
+    text_dropped: bool,
     error: Option<String>,
 }
 
@@ -353,6 +367,9 @@ struct CandidateSummary {
     rows: usize,
     /// Results with more spellings than `--expand-cap`, cut at the cap.
     capped: usize,
+    /// The text's own row was dropped from the main search, so `count` is one
+    /// fewer than the letters alone would give.
+    text_dropped: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     anchors: Vec<AnchorSummary>,
     error: Option<String>,
@@ -364,6 +381,10 @@ struct Summary {
     /// The pipeline's settings version (`s2`…), when the caller names one.
     #[serde(skip_serializing_if = "Option::is_none")]
     settings: Option<String>,
+    /// The counting convention: `excluded` means the text itself is never a
+    /// result, so a candidate's `count` leaves it out (see `text_dropped`).
+    /// A summary without the field counted it.
+    text: &'static str,
     tier: &'static str,
     min_word_len: u8,
     short_words: usize,
@@ -484,18 +505,26 @@ fn spellings(dict: &Dict, classes: &[u32], forced: &[String], config: &BatchConf
 }
 
 /// Every combination of one spelling per slot, the last slot varying fastest,
-/// stopping at `cap`. The flag says whether the cap cut it short.
-fn expand(slots: &[Vec<u32>], cap: usize) -> (Vec<Vec<u32>>, bool) {
+/// stopping at `cap`. The flag says whether the cap cut it short. A
+/// combination `skip` names is passed over before it counts toward the cap:
+/// that is the text's own words, which are never a result.
+fn expand(slots: &[Vec<u32>], cap: usize, skip: impl Fn(&[u32]) -> bool) -> (Vec<Vec<u32>>, bool) {
     let total = slots.iter().try_fold(1usize, |n, s| n.checked_mul(s.len())).unwrap_or(usize::MAX);
     if total == 0 {
         return (Vec::new(), false);
     }
     let mut out = Vec::new();
     let mut at = vec![0usize; slots.len()];
+    let mut passed = 0usize;
     loop {
-        out.push(at.iter().zip(slots).map(|(&i, s)| s[i]).collect());
+        let words: Vec<u32> = at.iter().zip(slots).map(|(&i, s)| s[i]).collect();
+        if skip(&words) {
+            passed += 1;
+        } else {
+            out.push(words);
+        }
         if out.len() >= cap {
-            return (out, total > cap);
+            return (out, total - passed > cap);
         }
         let mut slot = slots.len();
         loop {
@@ -522,6 +551,7 @@ struct Pass {
     sampled: usize,
     rows: usize,
     capped: usize,
+    text_dropped: bool,
 }
 
 /// Write one result as rows, one per spelling. Returns the rows written and
@@ -531,6 +561,7 @@ struct Pass {
 fn write_result(
     raw: &mut impl Write,
     dict: &Dict,
+    search: &Search,
     candidate: &Candidate,
     anchor: Option<&str>,
     forced: &[String],
@@ -548,7 +579,15 @@ fn write_result(
         return Ok((0, false));
     }
     let slots = spellings(dict, classes, forced, config);
-    let (combinations, capped) = expand(&slots, if config.all_spellings { config.expand_cap.max(1) } else { 1 });
+    let cap = if config.all_spellings { config.expand_cap.max(1) } else { 1 };
+    let (mut combinations, capped) = expand(&slots, cap, |words| search.is_text(words));
+    // With one spelling per class, the text's own row has only the text to
+    // show here, so it takes the spelling the search itself gives it.
+    if combinations.is_empty() && search.text_row() == TextRow::Respelled {
+        let respelled: Option<Vec<u32>> =
+            search.spell(dict, classes, config.tier).iter().map(|word| dict.index_of(word)).collect();
+        combinations.extend(respelled.filter(|words| !search.is_text(words)));
+    }
     for words in &combinations {
         let row = Row {
             id: &candidate.id,
@@ -607,14 +646,15 @@ fn run_pass(
     let mut memo = Memo::new();
     let (total, saturated, count_stats) = search.count(&mut memo, config.max_nodes);
     let count_is_floor = saturated || count_stats.truncated;
-    let mut pass = Pass { count: total, count_is_floor, ..Pass::default() };
+    let text_dropped = search.text_row() == TextRow::Dropped;
+    let mut pass = Pass { count: total, count_is_floor, text_dropped, ..Pass::default() };
 
     let mut cursor: Cursor = search.cursor();
     let mut index: u128 = 0;
     while pass.head < config.limit {
         let Some(classes) = cursor.next(search) else { break };
         let (rows, capped) =
-            write_result(raw, dict, candidate, anchor, forced, classes, total, count_is_floor, index, false, seen, config)?;
+            write_result(raw, dict, search, candidate, anchor, forced, classes, total, count_is_floor, index, false, seen, config)?;
         pass.rows += rows;
         pass.capped += capped as usize;
         pass.head += 1;
@@ -644,7 +684,7 @@ fn run_pass(
         for pick in picks {
             let Some(classes) = search.nth(&mut memo, pick) else { continue };
             let (rows, capped) =
-                write_result(raw, dict, candidate, anchor, forced, &classes, total, count_is_floor, pick, true, seen, config)?;
+                write_result(raw, dict, search, candidate, anchor, forced, &classes, total, count_is_floor, pick, true, seen, config)?;
             pass.rows += rows;
             pass.capped += capped as usize;
             pass.sampled += 1;
@@ -723,6 +763,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
                     sampled: 0,
                     rows: 0,
                     capped: 0,
+                    text_dropped: false,
                     anchors: Vec::new(),
                     error: Some(error.to_string()),
                     ms: started.elapsed().as_millis(),
@@ -756,6 +797,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
                             head: pass.head,
                             sampled: pass.sampled,
                             rows: pass.rows,
+                            text_dropped: pass.text_dropped,
                             error: None,
                         }
                     }
@@ -766,6 +808,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
                         head: 0,
                         sampled: 0,
                         rows: 0,
+                        text_dropped: false,
                         error: Some(error.to_string()),
                     },
                 };
@@ -796,6 +839,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
             sampled: main.sampled,
             rows,
             capped,
+            text_dropped: main.text_dropped,
             anchors,
             error: None,
             ms: started.elapsed().as_millis(),
@@ -805,6 +849,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
     raw.flush()?;
     let summary = Summary {
         settings: argv.get("settings").map(str::to_owned),
+        text: "excluded",
         tier: tier_name(config.tier),
         min_word_len: config.min_word_len,
         short_words: config.short_words.len(),

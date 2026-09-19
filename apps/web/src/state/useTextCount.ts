@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArsMagnaClient, DEFAULT_QUERY, TIERS, type EngineStatus, type Tier } from '@ars-magna/engine';
+import { ArsMagnaClient, DEFAULT_QUERY, TIERS, foldWords, type EngineStatus, type Tier } from '@ars-magna/engine';
 
 import { climb, tierOrder, type TextCount } from '../lib/textCount.ts';
 
@@ -27,6 +27,9 @@ export function useTextCounts(input: string, letters: string, chosen: Tier, dict
   const [counted, setCounted] = useState<{ key: string; counts: Partial<Record<Tier, TextCount>> } | null>(null);
   const chosenRef = useRef(chosen);
   chosenRef.current = chosen;
+  // The text's words, not only its letters: the text itself is never counted, so
+  // `applesauce` has one anagram fewer than `apple sauce` though the letters are the same.
+  const words = foldWords(input).join(' ');
 
   useEffect(() => {
     // Started once the page's dictionary has loaded, so it is in the cache.
@@ -34,7 +37,7 @@ export function useTextCounts(input: string, letters: string, chosen: Tier, dict
     let live = true;
     let client: ArsMagnaClient | null = null;
     const record = (tier: Tier, count: TextCount) =>
-      setCounted((prev) => ({ key: letters, counts: { ...(prev?.key === letters ? prev.counts : {}), [tier]: count } }));
+      setCounted((prev) => ({ key: words, counts: { ...(prev?.key === words ? prev.counts : {}), [tier]: count } }));
     const timer = setTimeout(() => {
       void (async () => {
         for (const tier of tierOrder(chosenRef.current)) {
@@ -72,14 +75,14 @@ export function useTextCounts(input: string, letters: string, chosen: Tier, dict
       clearTimeout(timer);
       client?.terminate();
     };
-    // The letters are the key; the text's spelling cannot change a count, and every dictionary is counted.
+    // The words are the key; capitals and punctuation cannot change a count, and every dictionary is counted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [letters, dictionary]);
+  }, [words, dictionary]);
 
   const of = (tier: Tier): TextCount => {
     if (letters.length === 0) return { kind: 'none' };
     if (dictionary === 'failed') return { kind: 'failed' };
-    return (counted?.key === letters ? counted.counts[tier] : undefined) ?? { kind: 'counting' };
+    return (counted?.key === words ? counted.counts[tier] : undefined) ?? { kind: 'counting' };
   };
   return Object.fromEntries(TIERS.map((tier) => [tier, of(tier)])) as Record<Tier, TextCount>;
 }

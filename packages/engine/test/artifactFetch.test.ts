@@ -142,7 +142,9 @@ describe.skipIf(!built)('artifact fetching', () => {
       .filter((m): m is Extract<EngineResponse, { k: 'batch' }> => m.k === 'batch')
       .flatMap((b) => b.rows.map((r) => [...r].sort().join(' ')));
 
-    expect(rows).toContain('listen');
+    // The text is never its own anagram, so its row shows the next commonest spelling.
+    expect(rows).toContain('silent');
+    expect(rows).not.toContain('listen');
     expect(rows).toContain('in lets');
   });
 });

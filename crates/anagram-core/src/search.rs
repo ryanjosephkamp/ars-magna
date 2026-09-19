@@ -44,6 +44,33 @@
 //! The result is that every solution is generated exactly once, with no hash
 //! set and no dedup pass. `tests/oracle.rs` checks this against a naive
 //! enumerator on every input it can afford to.
+//!
+//! # The text is never its own result
+//!
+//! A result is a multiset of classes, shown with one spelling per class, so
+//! when the text's own words are dictionary words the text is one of its own
+//! results: "below" led its list and hid `elbow` behind it. The rule is that
+//! the text itself, its words in any order, is never a result, while the same
+//! letters spaced differently (`applesauce` for "apple sauce") are.
+//!
+//! Only one row can ever display as the text: the class multiset of its words.
+//! When that row can be spelled another way, [`Search::spell`] spells it that
+//! way and nothing else changes. When it cannot, the row is dropped, and then
+//! every view of the result set has to agree that it is gone.
+//!
+//! They agree through the **canonical path**, the candidate indices the walk
+//! chooses on its way to a result. It is a function of the multiset alone (the
+//! rarest letter, then every word of the row holding it in ascending index,
+//! then the next rarest), so the dropped row's path is known without searching.
+//! And canonical order *is* lexicographic order on paths: two results share a
+//! prefix, reach the same state, and part ways inside one bucket, which is
+//! scanned in ascending index. So the walkers skip the row by comparing paths
+//! at emission, and unranking learns whether an index lies before or after
+//! the row by comparing the path it landed on, with no count involved. That
+//! matters because a count that stopped at its budget cannot say what index
+//! the row had, and the list, "Go to" and "Surprise me" must still skip it.
+//! The memo holds raw subtree totals throughout; the one subtraction happens
+//! where a total leaves [`Search::count`].
 
 use crate::counts::Counts;
 use crate::dict::{Dict, Tier};
@@ -148,6 +175,129 @@ struct Forced {
     counts: Counts,
 }
 
+/// What became of the text's own row in this query.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextRow {
+    /// The text's words are not a result here: one of them is not a word of
+    /// this query, there are more of them than the word cap allows, or the
+    /// row lacks a word every result must include.
+    None,
+    /// The row is a result and already shows other words than the text's,
+    /// as "apple sauce" shows `cause apple`.
+    Shown,
+    /// The row would have shown the text, so one word takes its next
+    /// commonest spelling: "below" shows `elbow`.
+    Respelled,
+    /// The row can only be spelled as the text, so it is not a result. The
+    /// count is one fewer than the letters alone would give.
+    Dropped,
+}
+
+enum Fate {
+    Shown,
+    /// Show `word` in the last free slot holding `class`.
+    Respelled { class: u32, word: u32 },
+    Dropped,
+}
+
+/// The one row that could display as the text: the classes of its words.
+struct OwnRow {
+    /// The row's free part (everything but the forced classes) as candidate
+    /// indices, in the order the walk chooses them.
+    path: Vec<u32>,
+    /// Every class of the row, forced ones included, sorted: what `spell`
+    /// compares a result with.
+    classes: Vec<u32>,
+    /// The text's words as word indices, sorted.
+    words: Vec<u32>,
+    fate: Fate,
+}
+
+impl OwnRow {
+    /// The text's own row under this query, or `None` when the text's words
+    /// are not one of its results: a word outside the tier or excluded (an
+    /// excluded spelling is never shown, so the text cannot appear), more
+    /// words than the cap, a forced class the row lacks (every result holds
+    /// them all), or a class the query does not search with.
+    fn find(
+        dict: &Dict,
+        input: &str,
+        options: &SolveOptions,
+        forced: &Forced,
+        excluded: &HashSet<u32>,
+        candidates: &Candidates,
+        remaining: Counts,
+    ) -> Option<OwnRow> {
+        let tokens = crate::counts::text_words(input);
+        if tokens.is_empty() || tokens.len() > options.max_words as usize {
+            return None;
+        }
+
+        let mut words = Vec::with_capacity(tokens.len());
+        let mut classes = Vec::with_capacity(tokens.len());
+        for token in &tokens {
+            let class = dict.find_class(token, options.tier)? as u32;
+            let word = dict.index_of(token)?;
+            if excluded.contains(&word) {
+                return None;
+            }
+            words.push(word);
+            classes.push(class);
+        }
+
+        // The free part: the row less one occurrence of each forced class.
+        let mut free = classes.clone();
+        for class in &forced.classes {
+            let at = free.iter().position(|c| c == class)?;
+            free.swap_remove(at);
+        }
+        let members: Vec<u32> = free
+            .iter()
+            .map(|&class| candidates.index_of_class(class))
+            .collect::<Option<_>>()?;
+        let path = candidates.canonical_path(remaining, &members)?;
+
+        // What the row shows by default: the forced words as typed, and each
+        // free class's commonest spelling this query allows.
+        let allowed = |class: u32| {
+            dict.class_words(class as usize, options.tier).filter(|w| !excluded.contains(w))
+        };
+        let mut shown = forced.words.clone();
+        for &class in &free {
+            shown.push(allowed(class).next()?);
+        }
+        shown.sort_unstable();
+        words.sort_unstable();
+        classes.sort_unstable();
+
+        let fate = if shown != words {
+            Fate::Shown
+        } else {
+            // Changing one slot always makes the row differ from the text, so
+            // one is changed: to the commonest replacement any free class
+            // offers, ties A to Z. A class's spellings come commonest first,
+            // so its candidate is its second.
+            let mut best: Option<(u32, u32)> = None;
+            for &class in &free {
+                let Some(word) = allowed(class).nth(1) else { continue };
+                let better = best.is_none_or(|(_, held)| {
+                    let (new, old) = (dict.zipf[word as usize], dict.zipf[held as usize]);
+                    new > old || (new == old && dict.word(word) < dict.word(held))
+                });
+                if better {
+                    best = Some((class, word));
+                }
+            }
+            match best {
+                Some((class, word)) => Fate::Respelled { class, word },
+                None => Fate::Dropped,
+            }
+        };
+
+        Some(OwnRow { path, classes, words, fate })
+    }
+}
+
 /// Per-query candidate set: the classes that could possibly appear, plus an
 /// index from letter to the candidates containing it.
 pub struct Candidates {
@@ -233,6 +383,40 @@ impl Candidates {
             longest,
         }
     }
+
+    /// The candidate standing for a dictionary class, if it is one. Candidates
+    /// keep the dictionary's class order, so this is a binary search, and so
+    /// comparing two candidate indices is comparing their classes.
+    fn index_of_class(&self, class: u32) -> Option<u32> {
+        self.class.binary_search(&class).ok().map(|i| i as u32)
+    }
+
+    /// The order the walk chooses `members` in, when they partition `rem`
+    /// exactly: the rarest letter left, every member holding it in ascending
+    /// index (one run), then the next rarest. `None` when they do not
+    /// partition `rem`. See the module docs: a result has exactly one path.
+    fn canonical_path(&self, mut rem: Counts, members: &[u32]) -> Option<Vec<u32>> {
+        let mut left = members.to_vec();
+        left.sort_unstable();
+        let mut path = Vec::with_capacity(left.len());
+        while let Some(letter) = rem.rarest() {
+            let (run, rest): (Vec<u32>, Vec<u32>) =
+                left.iter().partition(|&&i| self.counts[i as usize].get(letter) != 0);
+            if run.is_empty() {
+                return None;
+            }
+            for index in run {
+                let counts = self.counts[index as usize];
+                if !counts.fits_in(rem) {
+                    return None;
+                }
+                rem = rem.sub(counts);
+                path.push(index);
+            }
+            left = rest;
+        }
+        left.is_empty().then_some(path)
+    }
 }
 
 /// Default ceiling on memo entries during a count. Each entry is roughly 80
@@ -315,6 +499,8 @@ pub struct Search {
     /// same as `remaining.is_empty()`, which is legitimately reached when
     /// `must_include` accounts for every letter.
     empty_input: bool,
+    /// The text's own row, when the text's words are a result of this query.
+    own: Option<OwnRow>,
 }
 
 impl Search {
@@ -379,6 +565,7 @@ impl Search {
         }
 
         let candidates = Candidates::build(dict, remaining, &options, &excluded);
+        let own = OwnRow::find(dict, input, &options, &forced, &excluded, &candidates, remaining);
 
         Ok(Search {
             candidates,
@@ -387,7 +574,46 @@ impl Search {
             remaining,
             options,
             empty_input,
+            own,
         })
+    }
+
+    /// What became of the text's own row: see [`TextRow`].
+    pub fn text_row(&self) -> TextRow {
+        match self.own.as_ref().map(|own| &own.fate) {
+            None => TextRow::None,
+            Some(Fate::Shown) => TextRow::Shown,
+            Some(Fate::Respelled { .. }) => TextRow::Respelled,
+            Some(Fate::Dropped) => TextRow::Dropped,
+        }
+    }
+
+    /// Whether `words` (word indices, any order) are the text's own words. A
+    /// caller that spells results its own way, as the batch does with every
+    /// spelling of a row, asks this to leave the text out.
+    pub fn is_text(&self, words: &[u32]) -> bool {
+        self.own.as_ref().is_some_and(|own| {
+            if words.len() != own.words.len() {
+                return false;
+            }
+            let mut sorted = words.to_vec();
+            sorted.sort_unstable();
+            sorted == own.words
+        })
+    }
+
+    /// The dropped row's path, when this query dropped its row.
+    fn dropped(&self) -> Option<&[u32]> {
+        match &self.own {
+            Some(OwnRow { path, fate: Fate::Dropped, .. }) => Some(path),
+            _ => None,
+        }
+    }
+
+    /// Whether a walk that has chosen `path` stands on the dropped row.
+    #[inline]
+    fn skips(&self, path: &[u32]) -> bool {
+        self.dropped().is_some_and(|own| own == path)
     }
 
     /// True when the input normalized away to nothing, so there is no query.
@@ -429,6 +655,7 @@ impl Search {
                 ..Stats::default()
             },
             stopped: false,
+            skip: self.dropped(),
         };
 
         if self.empty_input || self.forced.classes.len() > walker.max_words {
@@ -448,6 +675,11 @@ impl Search {
     ///
     /// Returns `(count, saturated)`. `saturated` means the true total exceeded
     /// `u128::MAX` and the number is a floor, not an exact figure.
+    ///
+    /// When the query dropped the text's own row the figure is one fewer than
+    /// the tree holds. That is exact for a finished count. For one that stopped
+    /// at its budget it keeps the floor honest: the partial sum may or may not
+    /// have reached the row, and only one fewer is certain either way.
     pub fn count(&self, memo: &mut Memo, node_budget: u64) -> (u128, bool, Stats) {
         let unlimited = self.options.max_words >= UNLIMITED_WORDS;
         let budget_left = self
@@ -474,13 +706,14 @@ impl Search {
             return (0, false, counter.stats);
         }
 
-        let total = counter.pivot(self.remaining, budget_left);
+        let raw = counter.pivot(self.remaining, budget_left);
         let saturated = counter.saturated;
         let stopped = counter.stopped;
         let mut stats = counter.stats;
         stats.memo_entries = memo.table.len();
         stats.memo_hits = memo.hits;
         stats.truncated = stopped;
+        let total = if self.dropped().is_some() && !saturated { raw.saturating_sub(1) } else { raw };
         (total, saturated, stats)
     }
 
@@ -491,40 +724,117 @@ impl Search {
     /// be walked directly to a position: at each branch, subtract subtree counts
     /// until the index falls inside one. That makes deep pagination and
     /// "surprise me" O(depth × bucket) instead of O(index).
+    ///
+    /// When the query dropped the text's own row, every index at or past the
+    /// row's place means the result one further along the tree. Which side an
+    /// index falls on is read off the path it unranks to, so this needs no
+    /// finished count and costs at most a second unranking.
     pub fn nth(&self, memo: &mut Memo, index: u128) -> Option<Vec<u32>> {
-        if self.empty_input {
+        if self.empty_input || self.forced.classes.len() > self.options.max_words as usize {
             return None;
         }
-        let unlimited = self.options.max_words >= UNLIMITED_WORDS;
-        let budget_left = self
-            .options
-            .max_words
-            .saturating_sub(self.forced.classes.len() as u8);
+        let mut path = self.unrank(memo, index)?;
+        if self.dropped().is_some_and(|own| path.as_slice() >= own) {
+            path = self.unrank(memo, index.checked_add(1)?)?;
+        }
+        let mut out = self.forced.classes.clone();
+        out.extend(path.iter().map(|&i| self.candidates.class[i as usize]));
+        Some(out)
+    }
 
-        let mut counter = Counter {
+    /// A counter over this query's tree with no budget: unranking and seeking
+    /// add at most O(depth × bucket) entries to what a count already built.
+    fn counter<'a>(&'a self, memo: &'a mut Memo, node_budget: u64) -> Counter<'a> {
+        Counter {
             candidates: &self.candidates,
             memo,
-            unlimited,
+            unlimited: self.options.max_words >= UNLIMITED_WORDS,
             saturated: false,
-            node_budget: u64::MAX,
+            node_budget,
             memo_cap: usize::MAX,
             stats: Stats::default(),
             stopped: false,
-        };
+        }
+    }
 
-        let mut out = self.forced.classes.clone();
-        let found = counter.unrank_pivot(self.remaining, budget_left, index, &mut |class| {
-            out.push(class);
-        });
-        found.then_some(out)
+    /// Words a result may still use once the forced ones are placed.
+    fn budget_left(&self) -> u8 {
+        self.options.max_words.saturating_sub(self.forced.classes.len() as u8)
+    }
+
+    /// The path of the tree's `index`-th result, the dropped row included.
+    fn unrank(&self, memo: &mut Memo, index: u128) -> Option<Vec<u32>> {
+        let mut path = Vec::new();
+        let found = self
+            .counter(memo, u64::MAX)
+            .unrank_pivot(self.remaining, self.budget_left(), index, &mut |candidate| path.push(candidate));
+        found.then_some(path)
+    }
+
+    /// The index of a result in canonical order: the inverse of [`Search::nth`].
+    ///
+    /// `classes` are the result's classes in any order, the forced ones among
+    /// them. `None` when they are not a result of this query (the text's own
+    /// row, once dropped, is not one), or when `node_budget` ran out first.
+    ///
+    /// The walk follows the result's canonical path and, at each step, adds
+    /// the subtree totals of every candidate the scan would have tried before
+    /// the one chosen: the same totals [`Search::nth`] subtracts, so the cost
+    /// is the same, O(depth × bucket) memo hits after a finished count. After
+    /// a count that stopped early those totals are not in the memo and have to
+    /// be counted, which is what the budget is for; a stopped counter writes
+    /// nothing, so the memo is never poisoned. Nothing in the engine waits on
+    /// this: skipping the dropped row compares paths instead.
+    pub fn rank(&self, memo: &mut Memo, classes: &[u32], node_budget: u64) -> Option<u128> {
+        if self.empty_input || classes.len() > self.options.max_words as usize {
+            return None;
+        }
+        let mut free = classes.to_vec();
+        for class in &self.forced.classes {
+            let at = free.iter().position(|c| c == class)?;
+            free.swap_remove(at);
+        }
+        let members: Vec<u32> = free
+            .iter()
+            .map(|&class| self.candidates.index_of_class(class))
+            .collect::<Option<_>>()?;
+        let path = self.candidates.canonical_path(self.remaining, &members)?;
+
+        let own = self.dropped();
+        if own == Some(path.as_slice()) {
+            return None;
+        }
+        let raw = self
+            .counter(memo, node_budget)
+            .rank_path(self.remaining, self.budget_left(), &path)?;
+        // The dropped row sat before this one, so everything after it moved up.
+        Some(if own.is_some_and(|own| own < path.as_slice()) { raw - 1 } else { raw })
     }
 
     /// Resolve class indices to concrete words, best spelling first.
     ///
     /// Forced words occupy the first slots of every solution, and those are
     /// spelled exactly as the caller wrote them; the rest take the commonest
-    /// spelling in `tier`.
+    /// spelling in `tier`. The one exception is the text's own row when that
+    /// spelling would be the text: one free slot takes its next spelling, so
+    /// "below" reads `elbow` (see [`TextRow::Respelled`]).
     pub fn spell(&self, dict: &Dict, classes: &[u32], tier: Tier) -> Vec<String> {
+        let mut words = self.spell_commonest(dict, classes, tier);
+        if let Some(OwnRow { classes: own, fate: Fate::Respelled { class, word }, .. }) = &self.own {
+            if classes.len() == own.len() {
+                let mut sorted = classes.to_vec();
+                sorted.sort_unstable();
+                // The last free slot holding the class; forced slots come first.
+                let slot = (self.forced.words.len()..classes.len()).rev().find(|&s| classes[s] == *class);
+                if let (true, Some(slot)) = (sorted == *own, slot) {
+                    words[slot] = dict.word(*word).to_owned();
+                }
+            }
+        }
+        words
+    }
+
+    fn spell_commonest(&self, dict: &Dict, classes: &[u32], tier: Tier) -> Vec<String> {
         classes
             .iter()
             .enumerate()
@@ -555,8 +865,10 @@ impl Search {
             return cursor;
         }
         if self.remaining.is_empty() {
-            // Forced words consumed every letter: one result, the forced ones.
-            cursor.emit_empty = true;
+            // Forced words consumed every letter: one result, the forced ones,
+            // unless they are the text itself and the row was dropped.
+            cursor.emit_empty = !self.skips(&[]);
+            cursor.done = !cursor.emit_empty;
             return cursor;
         }
 
@@ -576,40 +888,39 @@ impl Search {
     /// A resumable enumeration positioned so that its first `next` is result
     /// `index`, built by unranking rather than by walking: O(depth × bucket),
     /// the same cost as [`Search::nth`]. `None` when `index` is past the end.
+    ///
+    /// Like [`Search::nth`], a seek that lands on or past the dropped row is
+    /// made again one further along the tree.
     pub fn cursor_at(&self, memo: &mut Memo, index: u128) -> Option<Cursor> {
         let max_words = self.options.max_words as usize;
         if self.empty_input || self.forced.classes.len() > max_words {
             return None;
         }
-        let mut cursor = self.blank_cursor();
-        cursor.position = index;
 
         if self.remaining.is_empty() {
-            if index != 0 {
+            if index != 0 || self.skips(&[]) {
                 return None;
             }
+            let mut cursor = self.blank_cursor();
             cursor.emit_empty = true;
             return Some(cursor);
         }
 
-        let unlimited = self.options.max_words >= UNLIMITED_WORDS;
-        let budget_left = self
-            .options
-            .max_words
-            .saturating_sub(self.forced.classes.len() as u8);
-        let mut counter = Counter {
-            candidates: &self.candidates,
-            memo,
-            unlimited,
-            saturated: false,
-            node_budget: u64::MAX,
-            memo_cap: usize::MAX,
-            stats: Stats::default(),
-            stopped: false,
-        };
-        let found = counter.seek_pivot(
+        let mut cursor = self.seek(memo, index)?;
+        if self.dropped().is_some_and(|own| cursor.chosen.as_slice() >= own) {
+            cursor = self.seek(memo, index.checked_add(1)?)?;
+        }
+        cursor.position = index;
+        Some(cursor)
+    }
+
+    /// A cursor standing on the tree's `index`-th result, the dropped row
+    /// included, ready to emit it.
+    fn seek(&self, memo: &mut Memo, index: u128) -> Option<Cursor> {
+        let mut cursor = self.blank_cursor();
+        let found = self.counter(memo, u64::MAX).seek_pivot(
             self.remaining,
-            budget_left,
+            self.budget_left(),
             index,
             &mut cursor.frames,
             &mut cursor.chosen,
@@ -655,6 +966,8 @@ struct Walker<'a> {
     node_budget: u64,
     stats: Stats,
     stopped: bool,
+    /// The path of the text's own row, when the query dropped it.
+    skip: Option<&'a [u32]>,
 }
 
 impl Walker<'_> {
@@ -668,6 +981,10 @@ impl Walker<'_> {
         }
 
         if rem.is_empty() {
+            // The text's own row, which is not a result: see the module docs.
+            if self.skip.is_some_and(|own| own == self.stack.as_slice()) {
+                return;
+            }
             self.solution.truncate(self.forced_len);
             for &index in &self.stack {
                 self.solution.push(self.candidates.class[index as usize]);
@@ -896,6 +1213,11 @@ impl Cursor {
                 self.chosen.push(index);
 
                 if next.is_empty() {
+                    // The text's own row, which is not a result: walk on.
+                    if search.skips(&self.chosen) {
+                        self.chosen.pop();
+                        continue;
+                    }
                     self.pending_pop = true;
                     return self.emit(candidates);
                 }
@@ -1126,7 +1448,7 @@ impl Counter<'_> {
             };
 
             if *index < subtree {
-                push(self.candidates.class[slot]);
+                push(candidate);
                 return if stays {
                     self.unrank_run(next, letter, candidate, next_budget, index, push)
                 } else {
@@ -1137,6 +1459,69 @@ impl Counter<'_> {
         }
         false
     }
+
+    // -------------------------------------------------------------- ranking
+
+    /// The inverse of `unrank_pivot`: how many results the walk reaches before
+    /// the one whose canonical path is `path`. At each step that is every
+    /// subtree the scan would have entered before the chosen candidate. `None`
+    /// when `path` is no result here, the budget ran out, or a total overflowed.
+    fn rank_path(&mut self, mut rem: Counts, mut budget: u8, path: &[u32]) -> Option<u128> {
+        let candidates = self.candidates;
+        let mut rank: u128 = 0;
+        let mut letter = rem.rarest();
+        let mut min_index = 0u32;
+
+        for &chosen in path {
+            let letter_now = letter?;
+            if budget == 0 {
+                return None;
+            }
+            let bucket = &candidates.buckets[letter_now];
+            let start = bucket.partition_point(|&i| i < min_index);
+            let room = rem.total();
+            let next_budget = self.spend(budget);
+
+            for &candidate in &bucket[start..] {
+                if candidate >= chosen {
+                    break;
+                }
+                let slot = candidate as usize;
+                if candidates.len[slot] as u32 > room {
+                    continue;
+                }
+                let counts = candidates.counts[slot];
+                if !counts.fits_in(rem) {
+                    continue;
+                }
+                let next = rem.sub(counts);
+                let subtree = if next.get(letter_now) > 0 {
+                    self.run(next, letter_now, candidate, next_budget)
+                } else {
+                    self.pivot(next, next_budget)
+                };
+                if self.stopped {
+                    return None;
+                }
+                rank = rank.checked_add(subtree)?;
+            }
+
+            let counts = candidates.counts[chosen as usize];
+            if chosen < min_index || counts.get(letter_now) == 0 || !counts.fits_in(rem) {
+                return None;
+            }
+            rem = rem.sub(counts);
+            budget = next_budget;
+            if rem.get(letter_now) > 0 {
+                min_index = chosen;
+            } else {
+                letter = rem.rarest();
+                min_index = 0;
+            }
+        }
+        rem.is_empty().then_some(rank)
+    }
+
     // -------------------------------------------------------------- seeking
 
     /// `unrank_pivot`, but recording the walk as cursor frames so it can be
@@ -1266,6 +1651,9 @@ mod tests {
         out
     }
 
+    /// The tests over this dictionary search "t oad", not "toad": `toad` is a
+    /// word here with no other spelling, so as the text it would be left out
+    /// of its own results, which is not what these tests are about.
     fn small_dict() -> Dict {
         Dict::from_words(["a", "to", "no", "on", "ad", "qi", "dot", "toad", "not"]).unwrap()
     }
@@ -1277,10 +1665,10 @@ mod tests {
         // "toad" is "a" + "dot" or "to" + "ad": the first needs a listed word,
         // the second needs "ad", which is in the dictionary but not the list.
         assert_eq!(
-            spelled(&dict, "toad", options(Some(&["a", "to", "no"]))),
+            spelled(&dict, "t oad", options(Some(&["a", "to", "no"]))),
             rows(&[&["toad"], &["a", "dot"]])
         );
-        assert_eq!(spelled(&dict, "toad", options(None)), rows(&[&["toad"]]));
+        assert_eq!(spelled(&dict, "t oad", options(None)), rows(&[&["toad"]]));
 
         // "qi" + "dot" is the only partition of these letters. Unlisted, "qi"
         // never appears, even though a lower minimum would admit it.
@@ -1298,7 +1686,7 @@ mod tests {
         // ones: nothing fails, and the present ones still count.
         let list: &[&str] = &["zz", "xyzzy", "", "A", " to ", "N-o"];
         assert_eq!(
-            spelled(&dict, "toad", options(Some(list))),
+            spelled(&dict, "t oad", options(Some(list))),
             rows(&[&["toad"], &["a", "dot"]])
         );
         assert_eq!(
@@ -1387,9 +1775,9 @@ mod tests {
         let at = |tier: Tier, short: &[&str]| SolveOptions { tier, ..options(Some(short)) };
 
         // "a" is not in Common, so at Common the list cannot reach "a dot".
-        assert_eq!(spelled(&dict, "toad", at(Tier::Common, &["a"])), rows(&[&["toad"]]));
+        assert_eq!(spelled(&dict, "t oad", at(Tier::Common, &["a"])), rows(&[&["toad"]]));
         assert_eq!(
-            spelled(&dict, "toad", at(Tier::Standard, &["a"])),
+            spelled(&dict, "t oad", at(Tier::Standard, &["a"])),
             rows(&[&["toad"], &["a", "dot"]])
         );
 
@@ -1522,6 +1910,213 @@ mod tests {
         // An unnormalized spelling of a word it has is that word.
         let (_, rows) = counted(&dict, "dormitory", excluding(&["ROOM"]));
         assert!(rows.iter().all(|r| !r.contains(&"room".to_string())));
+    }
+
+    // ------------------------------------------- the text is never a result
+
+    /// A dictionary with a frequency byte per word, from `(word, zipf)` rows.
+    fn weighted(rows: &[(&str, u8)]) -> Dict {
+        let mut rows = rows.to_vec();
+        rows.sort_by_key(|&(word, _)| word);
+        let words: Vec<String> = rows.iter().map(|&(word, _)| word.to_owned()).collect();
+        let zipf: Vec<u8> = rows.iter().map(|&(_, z)| z).collect();
+        let n = words.len();
+        Dict::new(WordList { words, zipf, pos: vec![0; n] }, None).unwrap()
+    }
+
+    fn everyday() -> Dict {
+        weighted(&[
+            ("listen", 200), ("silent", 180), ("tinsel", 100), ("enlist", 90),
+            ("below", 150), ("elbow", 140), ("bowel", 90),
+            ("apple", 170), ("appel", 40), ("pepla", 0),
+            ("house", 190), ("sauce", 120), ("cause", 185),
+            ("evil", 130), ("live", 130), ("vile", 130), ("veil", 110),
+        ])
+    }
+
+    /// The one row of `input` that holds `words`' classes, as it is shown.
+    fn shown_as(dict: &Dict, input: &str, words: &[&str]) -> Option<Vec<String>> {
+        let mut want: Vec<u32> = words.iter().map(|w| dict.find_class(w, Tier::Full).unwrap() as u32).collect();
+        want.sort_unstable();
+        let search = Search::prepare(dict, input, SolveOptions { limit: 0, ..options(None) }).unwrap();
+        let mut found = None;
+        search.enumerate(|classes| {
+            let mut sorted = classes.to_vec();
+            sorted.sort_unstable();
+            if sorted == want {
+                found = Some(search.spell(dict, classes, Tier::Full));
+            }
+            Flow::Continue
+        });
+        found.map(|mut row| {
+            row.sort();
+            row
+        })
+    }
+
+    fn words(row: &[&str]) -> Option<Vec<String>> {
+        let mut row: Vec<String> = row.iter().map(|w| w.to_string()).collect();
+        row.sort();
+        Some(row)
+    }
+
+    #[test]
+    fn the_row_that_would_show_the_text_takes_the_commonest_other_spelling() {
+        let dict = everyday();
+        // One word: the next commonest of its class.
+        assert_eq!(shown_as(&dict, "below", &["below"]), words(&["elbow"]));
+        assert_eq!(shown_as(&dict, "listen", &["listen"]), words(&["silent"]));
+        // Two words, one with no other spelling: the other changes.
+        assert_eq!(shown_as(&dict, "apple house", &["apple", "house"]), words(&["appel", "house"]));
+        // Two words that could both change: one does, to the commoner replacement
+        // (`silent` 180 against `elbow` 140), whichever way round they were typed.
+        assert_eq!(shown_as(&dict, "listen below", &["listen", "below"]), words(&["silent", "below"]));
+        assert_eq!(shown_as(&dict, "below listen", &["listen", "below"]), words(&["silent", "below"]));
+        // A tie in frequency goes A to Z: `live` before `vile`.
+        assert_eq!(shown_as(&dict, "evil", &["evil"]), words(&["live"]));
+        // A row that never showed the text is left as it was: `cause` leads `sauce`.
+        assert_eq!(shown_as(&dict, "apple sauce", &["apple", "sauce"]), words(&["apple", "cause"]));
+        assert_eq!(shown_as(&dict, "silent", &["listen"]), words(&["listen"]));
+        // And with no other spelling at all, there is no such row.
+        assert_eq!(shown_as(&dict, "house", &["house"]), None);
+        assert_eq!(shown_as(&dict, "h ouse", &["house"]), words(&["house"]));
+    }
+
+    #[test]
+    fn what_became_of_the_text_is_reported() {
+        let dict = everyday();
+        let row = |input: &str| Search::prepare(&dict, input, options(None)).unwrap().text_row();
+        assert_eq!(row("house"), TextRow::Dropped);
+        assert_eq!(row("below"), TextRow::Respelled);
+        assert_eq!(row("apple sauce"), TextRow::Shown);
+        assert_eq!(row("apple saauce"), TextRow::None);
+        assert_eq!(row("applesauce"), TextRow::None);
+        assert_eq!(row(""), TextRow::None);
+
+        // The text's own words, in any order and however they were typed, and
+        // nothing else: what a caller that spells rows itself asks.
+        let search = Search::prepare(&dict, "Apple  HOUSE", options(None)).unwrap();
+        let index = |word: &str| dict.index_of(word).unwrap();
+        assert!(search.is_text(&[index("house"), index("apple")]));
+        assert!(!search.is_text(&[index("house"), index("appel")]));
+        assert!(!search.is_text(&[index("house")]));
+    }
+
+    /// The claims the skip rests on, checked on the tree itself with the rule
+    /// switched off: a result's path is the order the walk emits it in, paths
+    /// sort the way results are listed, and `rank_path` is a result's index.
+    #[test]
+    fn a_path_is_the_walk_and_path_order_is_list_order() {
+        let dict = Dict::from_words([
+            "dormitory", "dirty", "tydir", "room", "moor", "rid", "moo", "try", "torrid", "yom", "dim", "roty",
+            "or", "do", "it", "my", "to", "mid", "riot", "trio", "dorm", "mood", "doom", "tom", "dry", "rot",
+            "dot", "rod", "trod", "dirt", "tidy", "toy", "rim", "mod", "motor", "moody", "od", "oy", "id", "om",
+            "mo", "yo", "ti", "tor", "ort", "dor", "tod", "yod", "dom", "rom", "mor", "myo", "rimy", "miry",
+        ])
+        .unwrap();
+
+        let mut checked = 0usize;
+        for (input, min_word_len, max_words, include) in [
+            ("dormitory", 2u8, UNLIMITED_WORDS, None),
+            ("dormitory", 3, UNLIMITED_WORDS, None),
+            ("dormitory", 2, 3, None),
+            ("dormitory", 2, 2, None),
+            ("dormitory", 2, UNLIMITED_WORDS, Some("dirty")),
+            ("dormitory", 2, 3, Some("it")),
+            ("moo moo dirty", 2, UNLIMITED_WORDS, None),
+        ] {
+            let options = SolveOptions {
+                tier: Tier::Full,
+                min_word_len,
+                max_words,
+                must_include: include.iter().map(|w| w.to_string()).collect(),
+                limit: 0,
+                ..Default::default()
+            };
+            let mut search = Search::prepare(&dict, input, options).unwrap();
+            // The tree itself: with no own row, nothing is skipped.
+            search.own = None;
+            let forced = search.forced.classes.len();
+
+            let mut rows: Vec<Vec<u32>> = Vec::new();
+            search.enumerate(|classes| {
+                rows.push(classes.to_vec());
+                Flow::Continue
+            });
+            assert!(!rows.is_empty(), "{input:?} min={min_word_len} max={max_words} include={include:?}: no rows");
+            checked += rows.len();
+
+            let mut memo = Memo::new();
+            let mut previous: Option<Vec<u32>> = None;
+            for (i, row) in rows.iter().enumerate() {
+                let walked: Vec<u32> =
+                    row[forced..].iter().map(|&c| search.candidates.index_of_class(c).unwrap()).collect();
+                // Shuffled in, the members come back out in the walk's own order.
+                let mut members = walked.clone();
+                members.reverse();
+                let path = search.candidates.canonical_path(search.remaining, &members).unwrap();
+                assert_eq!(path, walked, "{input:?} row {i}: the path is not the walk");
+
+                if let Some(before) = &previous {
+                    assert!(before < &path, "{input:?} row {i}: paths do not sort as the list does");
+                }
+                previous = Some(path.clone());
+
+                let rank = search.counter(&mut memo, u64::MAX).rank_path(search.remaining, search.budget_left(), &path);
+                assert_eq!(rank, Some(i as u128), "{input:?} row {i}: rank");
+                assert_eq!(search.unrank(&mut memo, i as u128), Some(path), "{input:?} row {i}: unrank");
+            }
+        }
+        assert!(checked > 100, "only {checked} rows checked");
+    }
+
+    #[test]
+    fn a_count_that_stopped_early_is_one_lower_and_the_views_still_skip_the_row() {
+        let dict = Dict::from_words([
+            "dormitory", "dirty", "room", "moor", "rid", "moo", "try", "torrid", "yom", "dim", "or", "do", "it",
+            "my", "to", "mid", "riot", "trio", "dorm", "mood", "doom", "tom", "dry", "rot",
+        ])
+        .unwrap();
+        let options = SolveOptions { tier: Tier::Full, min_word_len: 2, limit: 0, ..Default::default() };
+        let search = Search::prepare(&dict, "dormitory", options.clone()).unwrap();
+        assert_eq!(search.text_row(), TextRow::Dropped);
+
+        let mut rows: Vec<Vec<u32>> = Vec::new();
+        search.enumerate(|classes| {
+            rows.push(classes.to_vec());
+            Flow::Continue
+        });
+        let own = dict.find_class("dormitory", Tier::Full).unwrap() as u32;
+        assert!(rows.iter().all(|row| row != &[own]));
+
+        // The same letters typed apart keep the row: one more, the same otherwise.
+        let spaced = Search::prepare(&dict, "dormitor y", options).unwrap();
+        let (with_row, _, _) = spaced.count(&mut Memo::new(), u64::MAX);
+        assert_eq!(with_row, rows.len() as u128 + 1);
+
+        // Stopped at every budget short of finishing: a floor, one lower than the
+        // partial sum the same budget gives with the row kept, never below zero,
+        // and never above the truth.
+        for budget in 0..40 {
+            let mut memo = Memo::new();
+            let (floor, saturated, stats) = search.count(&mut memo, budget);
+            let (kept, _, _) = spaced.count(&mut Memo::new(), budget);
+            assert!(!saturated);
+            if !stats.truncated {
+                assert_eq!(floor, rows.len() as u128);
+                break;
+            }
+            assert_eq!(floor, kept.saturating_sub(1), "budget {budget}");
+            assert!(floor <= rows.len() as u128, "budget {budget}: a floor above the truth");
+
+            // Nothing partial was written, so unranking and seeking are still right.
+            for (i, row) in rows.iter().enumerate() {
+                assert_eq!(search.nth(&mut memo, i as u128).as_ref(), Some(row), "budget {budget}: nth({i})");
+            }
+            assert_eq!(search.nth(&mut memo, rows.len() as u128), None);
+            let mut cursor = search.cursor_at(&mut memo, 1).unwrap();
+            assert_eq!(cursor.next(&search), Some(rows[1].as_slice()));
+        }
     }
 
     #[test]

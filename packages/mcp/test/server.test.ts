@@ -46,6 +46,15 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     expect(counted['total']).toBe(solved['total']);
     const nth = parse(await client.callTool({ name: 'nth', arguments: { input: 'dormitory', index: '0', tier: 'common', maxWords: 2 } }));
     expect((solved['results'] as string[])[0]).toBe(nth['result']);
+
+    // The text is never its own result, and the tools say when that took a row out.
+    expect(solved['results']).not.toContain('dormitory');
+    expect(solved['text_left_out']).toBe(true);
+    expect(counted['text_left_out']).toBe(true);
+    const apart = parse(await client.callTool({ name: 'solve', arguments: { input: 'dormitor y', tier: 'common', maxWords: 2, first: 100 } }));
+    expect(apart['results']).toContain('dormitory');
+    expect(apart['text_left_out']).toBe(false);
+    expect(Number(apart['total'])).toBe(Number(solved['total']) + 1);
   });
 
   it('explains a word with a gloss, provenance and its spellings', async () => {

@@ -83,8 +83,16 @@ export class Engine {
     return this.#port.take('lookup').found;
   }
 
-  /** The first `first` results and the exact (or floor) total; starts a session `nth` can use. */
-  async solve(input: string, options: SolveOptions, first: number): Promise<{ total: string; rows: string[][] }> {
+  /**
+   * The first `first` results and the exact (or floor) total; starts a session `nth` can use.
+   * `textLeftOut` says the text's own row is not among them, so the total is one fewer than
+   * the letters alone would give: the text is never its own result.
+   */
+  async solve(
+    input: string,
+    options: SolveOptions,
+    first: number,
+  ): Promise<{ total: string; rows: string[][]; textLeftOut: boolean }> {
     await this.#core.handle({
       k: 'solve',
       id: this.#id++,
@@ -104,7 +112,8 @@ export class Engine {
     if (error && error.k === 'error') throw new Error(error.message);
     const count = messages.find((m) => m.k === 'count');
     const rows = messages.flatMap((m) => (m.k === 'batch' ? m.rows.map((r) => [...r]) : []));
-    return { total: count && count.k === 'count' ? count.total : '0', rows };
+    const counted = count && count.k === 'count' ? count : null;
+    return { total: counted?.total ?? '0', rows, textLeftOut: counted?.textLeftOut ?? false };
   }
 
   /** Result `index` of the current session, by unranking. */

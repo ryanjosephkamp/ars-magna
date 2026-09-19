@@ -33,6 +33,9 @@ import { englishCount, englishFigure } from './letterChart.ts';
 import { MAP_LIMIT, letterMap, mapFits, mapLine } from './letterMap.ts';
 import { createZip } from './zip.ts';
 
+/** What the page says beside the count when the text's own row was left out, and the files with it. */
+export const TEXT_LEFT_OUT = 'The text itself is left out.';
+
 /** Ceiling on rows in any export. ~100k lines is a 2–3 MB text file. */
 export const EXPORT_LIMIT = 100_000;
 
@@ -43,6 +46,12 @@ export type ExportInput = {
   readonly letters: string;
   /** The engine's reported total; a `>` prefix means it is itself a floor. */
   readonly total: string;
+  /**
+   * The text's own row is not in the list or the total: the text itself is
+   * never a result. Said in the file, like a cap, since the file outlives the
+   * page that would have said it.
+   */
+  readonly textLeftOut: boolean;
   readonly rows: readonly (readonly string[])[];
   readonly generatedAt: Date;
 };
@@ -55,7 +64,7 @@ function isComplete({ total, rows }: ExportInput): boolean {
 }
 
 function metadata(input: ExportInput) {
-  const { query, letters, total, rows, generatedAt } = input;
+  const { query, letters, total, rows, generatedAt, textLeftOut } = input;
   return {
     input: query.input,
     // The sorted alphagram, not the normalized input. It is what actually
@@ -64,6 +73,7 @@ function metadata(input: ExportInput) {
     letters: [...letters].sort().join(''),
     total: total.replace('>', ''),
     totalIsFloor: total.startsWith('>'),
+    textLeftOut,
     exported: rows.length,
     complete: isComplete(input),
     filters: {
@@ -111,7 +121,7 @@ export function toCsv(input: ExportInput): string {
   lines.push(
     `# Ars Magna — anagrams of ${csvCell(meta.input)} · ${meta.exported} of ${
       meta.totalIsFloor ? `more than ${meta.total}` : meta.total
-    }${meta.complete ? '' : ' (partial)'} · ${meta.generatedAt}`,
+    }${meta.complete ? '' : ' (partial)'} · ${meta.generatedAt}${meta.textLeftOut ? ` · ${TEXT_LEFT_OUT}` : ''}`,
   );
   lines.push('anagram,word_count,longest_word');
 
@@ -138,7 +148,7 @@ const README = (input: ExportInput) => {
 
 ${meta.exported.toLocaleString()} of ${
     meta.totalIsFloor ? `more than ${Number(meta.total).toLocaleString()}` : Number(meta.total).toLocaleString()
-  } anagrams${meta.complete ? '' : ' (this is a partial list)'}
+  } anagrams${meta.complete ? '' : ' (this is a partial list)'}${meta.textLeftOut ? `\n${TEXT_LEFT_OUT}` : ''}
 
 Letters       ${meta.letters}
 Dictionary    ${meta.filters.dictionary}

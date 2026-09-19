@@ -148,6 +148,12 @@ export function HowItWorks() {
             On the search page, Must exclude takes a word out of the dictionary for that search alone and leaves its other spellings, so
             every count is still exact.
           </p>
+          <p className="mt-3 max-w-prose text-sm text-ink-soft">
+            The text itself, its words in any order, is never listed as its own anagram. Where another word shares a word’s letters,
+            the row is shown with that word instead, so <i>below</i> appears as <i>elbow</i>. Where none does, the row is left out, the
+            count is one fewer, and the page says so. The same letters spaced differently are an anagram: <i>applesauce</i> for{' '}
+            <i>apple sauce</i>.
+          </p>
         </section>
 
         <SiteFooter />

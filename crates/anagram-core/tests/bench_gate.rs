@@ -64,6 +64,13 @@ fn load() -> Option<Dict> {
 /// internationalization    568 →   704   4,589 → 4,824  90,137,342 → 116,466,920
 /// ```
 ///
+/// The text is never its own result (September 2026), and that costs the
+/// search nothing: the text's own row is left out where a result is emitted
+/// and where a total leaves the counter, never inside the tree, so every
+/// figure above measured the same before and after. Only the totals moved,
+/// by the one row, where the input is a word with no other spelling:
+/// dormitory 17 → 16 and internationalization 311,285 → 311,284 here.
+///
 /// Note how far apart counting and enumeration are on the last row: under
 /// five thousand nodes to count the answers, against 116 million sub-multiset
 /// tests to actually list them. That gap is the entire reason the interface

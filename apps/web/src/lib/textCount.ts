@@ -77,7 +77,7 @@ export async function climb(
 }
 
 /**
- * The line `Every anagram of the text` reads: `116 in Standard`, `more than
+ * The line `Every anagram of the text` reads: `115 in Standard`, `more than
  * 39,233,467,955 in Standard`, or a sentence when the text is too long to
  * count in the time the page allows.
  */
@@ -112,7 +112,7 @@ export function tierOrder(chosen: Tier): Tier[] {
 
 /**
  * One dictionary's figure in the count by dictionary, where the label already
- * names it: `116`, `more than 1,065,799`, or a sentence when the time ran out
+ * names it: `115`, `more than 1,065,799`, or a sentence when the time ran out
  * before a single anagram.
  */
 export function tierLine(count: TextCount): string {
