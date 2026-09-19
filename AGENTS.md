@@ -74,6 +74,7 @@ pnpm hits:input id "Big Brother"              # set how a hit's input reads, let
 pnpm hits:judged-at --date=2026-09-15 id…     # date named hits' judgements from the queue that judged them
 pnpm hits:desk                                # build the review desk into .cache/desk/index.html
 pnpm hits:desk --artifact                     # also write .cache/desk/artifact.html, to publish as an Artifact for a phone
+pnpm hits:desk --promotions=../ars-magna-promotions  # add the Promoted tab: what readers promoted, from the private repository
 pnpm hits:desk --audit                        # build the Greatest Hits audit into .cache/desk/audit.html
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
@@ -107,7 +108,9 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
   prompts for the value.
 - Copy anything a reader typed (a promotion's input, a submission's note) from the private repository
   `ars-magna-promotions` or `.cache/promotions/` into this repository, a commit, a pull request, a log or a
-  public page. Only `promotions:apply` publishes it, and only for a review the operator merged there.
+  public page. Only `promotions:apply` publishes it, and only for a review the operator merged there. A
+  review desk built with `--promotions` holds it too, so that page stays in `.cache/desk/` or a private
+  Artifact.
 
 ## Where to read more
 

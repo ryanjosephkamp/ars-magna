@@ -188,6 +188,15 @@
   button.word:hover { border-color: var(--accent); color: var(--accent-hover); }
   td.phrase .link { display: inline-block; margin-top: 0.2rem; }
 
+  /* The Promoted tab: what readers typed, shown as text, and the review's decision. */
+  .count { display: block; font: 1.25rem/1.2 var(--font-display); }
+  td.readers, td.review { min-width: 11rem; max-width: 20rem; font-size: 0.8125rem; overflow-wrap: anywhere; }
+  dl.note { margin: 0 0 0.6rem; padding: 0 0 0.6rem; border-bottom: 1px dashed var(--rule); }
+  dl.note:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+  dl.note dt { font: 600 0.6875rem/1.4 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); margin-top: 0.3rem; }
+  dl.note dd { margin: 0; white-space: pre-wrap; }
+  .kept { color: var(--ink-soft); }
+
   /* A phone: a table's rows read top to bottom, each value under its column's name. */
   @media (max-width: 640px) {
     header, nav[role='tablist'], .layout { padding-left: 0.9rem; padding-right: 0.9rem; }
@@ -208,6 +217,7 @@
       color: var(--ink-faint);
     }
     table.rows td.phrase { font-size: 1.25rem; }
+    td.readers, td.review { min-width: 0; max-width: none; }
     td textarea, td input[type='text'], td select { min-width: 0; width: 100%; }
   }
 </style>
@@ -242,6 +252,7 @@
   var SHELF_LABEL = { greatest: 'Greatest Hits', interesting: 'Interesting', stretch: 'A stretch' };
   var TABS = AUDIT ? [['audit', 'Greatest Hits page']] : [
     ['review', 'Review'],
+    ['promoted', 'Promoted'],
     ['collection', 'Collection'],
     ['near', 'Near misses'],
     ['seed', 'Seed'],
@@ -256,7 +267,7 @@
   }
   function save() {
     try {
-      localStorage.setItem(STORE, JSON.stringify({ tab: state.tab, queue: state.queue, decisions: state.decisions, notes: state.notes, branch: state.branch }));
+      localStorage.setItem(STORE, JSON.stringify({ tab: state.tab, queue: state.queue, decisions: state.decisions, notes: state.notes, branch: state.branch, order: state.order }));
     } catch (e) { /* storage may be blocked; the page still works for this visit */ }
   }
 
@@ -268,6 +279,10 @@
     status: 'all',
     category: 'all',
     show: 'all',
+    /* Collection and audit: in their own order, or Most votes. */
+    order: saved.order === 'votes' ? 'votes' : '',
+    promotedShow: 'all',
+    promotedFilter: '',
     decisions: Array.isArray(saved.decisions) ? saved.decisions : [],
     notes: typeof saved.notes === 'string' ? saved.notes : '',
     branch: typeof saved.branch === 'string' ? saved.branch : '',
@@ -299,6 +314,7 @@
       case 'status': case 'justify': case 'describe': case 'tag': case 'order': case 'note': case 'shelf': return d.kind + ':' + d.id;
       case 'sense': return 'sense:' + d.id + ':' + d.word;
       case 'promote': return 'promote:' + d.id;
+      case 'block': return 'block:' + d.id;
       case 'seed': return 'seed:' + candidateIdOf(d.input, d.category);
       case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/));
       default: return d.kind;
@@ -344,8 +360,23 @@
       case 'deep': return 'Deep run into data/queue/' + d.date;
       case 'seed': return 'Seed ' + d.input + ' (' + d.category + (d.anchors.length ? '; anchors ' + d.anchors.join(' ') : '') + ')';
       case 'add': return 'Add ' + d.input + ': ' + d.phrase;
+      case 'block': return 'Block "' + d.display + '" (code ' + d.id.slice(0, 12) + ')';
       default: return d.kind;
     }
+  }
+
+  function votesText(n) {
+    return n === 1 ? '1 vote' : n.toLocaleString('en-US') + ' votes';
+  }
+  /* Most votes first, a tie A to Z by input and then by anagram, as the site orders a section. */
+  function byVotes(a, b) {
+    return b.votes - a.votes || a.input.localeCompare(b.input, 'en', { sensitivity: 'base' }) ||
+      a.display.localeCompare(b.display, 'en') || a.id.localeCompare(b.id);
+  }
+  function orderSelect(own) {
+    var order = h('select', { 'aria-label': 'Order' }, h('option', { value: '' }, own), h('option', { value: 'votes' }, 'Most votes'));
+    order.value = state.order;
+    return order;
   }
 
   /* Where a hit sits: [label, class]. */
@@ -767,6 +798,7 @@
       h('option', { value: 'all' }, 'Every status (' + DATA.hits.length + ')'),
       STATUSES.map(function (s) { return h('option', { value: s }, STATUS_LABEL[s] + ' (' + (counts[s] || 0) + ')'); }));
     status.value = state.status;
+    var order = orderSelect('As in the file');
     var list = h('div');
     function draw() {
       var q = state.filter.trim().toLowerCase();
@@ -774,13 +806,15 @@
         return (state.status === 'all' || x.status === state.status) &&
           (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
       });
+      if (state.order === 'votes') hits = hits.slice().sort(byVotes);
       var table = batched(hits, 50, function (x) {
         var where = whereOf(x);
         return h('tr', rowAttrs(x.id),
           h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
           phraseCell(x.id, x.display, true),
           h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
-            x.relation !== null ? h('div', { class: 'small' }, 'relation ' + x.relation + ', reads ' + x.reads) : null),
+            x.relation !== null ? h('div', { class: 'small' }, 'relation ' + x.relation + ', reads ' + x.reads) : null,
+            x.votes ? h('div', { class: 'small' }, votesText(x.votes)) : null),
           h('td', { class: 'small', 'data-label': 'Tags' }, x.tags.join(' ')),
           h('td', { 'data-label': 'Decision' }, hitControls(x)));
       });
@@ -793,7 +827,8 @@
     }
     filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
     status.addEventListener('change', function () { state.status = status.value; draw(); });
-    main.append(h('h2', {}, 'Collection'), h('div', { class: 'toolbar' }, field('Filter', filter), field('Status', status)), list);
+    order.addEventListener('change', function () { state.order = order.value; save(); draw(); });
+    main.append(h('h2', {}, 'Collection'), h('div', { class: 'toolbar' }, field('Filter', filter), field('Status', status), field('Order', order)), list);
     draw();
   }
 
@@ -809,6 +844,145 @@
         'Accepting one adds it from its queue\'s verdicts; one without a justification goes in as proposed until it has one.'));
     if (!rows.length) { main.append(h('p', { class: 'empty' }, 'None.')); return; }
     main.append(rowTable(rows, true, 50));
+  }
+
+  var OUTCOME_LABEL = {
+    place: 'Placed',
+    near: 'Left out: a near miss',
+    none: 'Left out: no link to its input',
+    private: 'Withheld: a private person',
+    'words-missing': 'Waiting on a word the dictionary lacks',
+  };
+  var KEPT = { keep: 'kept', drop: 'dropped' };
+
+  /* Where a promoted anagram stands, for the Show filter. */
+  function promotedState(p) {
+    if (p.blocked) return 'blocked';
+    if (!p.review) return 'waiting';
+    return p.review.outcome === 'place' ? 'placed' : 'left';
+  }
+
+  /* One reader's note, each field shown as the text it is. */
+  function noteList(n) {
+    function item(label, value) { return value ? [h('dt', {}, label), h('dd', {}, value)] : null; }
+    return h('dl', { class: 'note' },
+      item('Input as typed', n.input),
+      item('What the input is', n.about),
+      item('Why it is good', n.why),
+      item('Credit', n.credit),
+      item('Category', n.category),
+      item('Words it asks for', n.missing.join(', ')),
+      item('Sent', n.created.slice(0, 10)));
+  }
+
+  function reviewCell(p) {
+    var r = p.review;
+    if (!r) {
+      return h('td', { class: 'review', 'data-label': 'Review' },
+        h('div', {}, p.checked ? 'Not reviewed yet.' : 'Not reviewed: it waits until the dictionary has ' + p.unknown.join(', ') + '.'));
+    }
+    var published = p.applied
+      ? 'Published by the routine on ' + p.applied.date + ' (' + p.applied.outcome + ').'
+      : r.outcome === 'place' ? 'Approved; the next routine run publishes it.' : '';
+    return h('td', { class: 'review', 'data-label': 'Review' },
+      h('div', { class: r.outcome === 'place' ? '' : 'where-near' }, OUTCOME_LABEL[r.outcome] || r.outcome),
+      h('div', { class: 'small' }, 'Decided ' + r.decided + ' at ' + r.promotions + (r.promotions === 1 ? ' promotion' : ' promotions') +
+        (r.relation !== null ? '; relation ' + r.relation + ', reads ' + r.reads : '') + (r.category ? '; ' + r.category : '')),
+      r.justification ? h('p', {}, r.justification) : null,
+      r.rationale ? h('div', { class: 'small' }, r.rationale) : null,
+      r.readerAbout || r.credit ? h('div', { class: 'kept' },
+        [r.readerAbout && 'What the input is: ' + KEPT[r.readerAbout], r.credit && 'Credit: ' + KEPT[r.credit]].filter(Boolean).join(' · ')) : null,
+      r.requests.length ? h('div', { class: 'kept' }, 'Word requests forwarded: ' + r.requests.join(', ')) : null,
+      published ? h('div', { class: 'small' }, published) : null,
+      h('div', { class: 'small' }, r.model + ', ' + (r.judgedBy === 'hand' ? 'reviewed by hand' : 'reviewed by the routine')));
+  }
+
+  /* The one decision an anagram that is not a hit takes here: block it. The command carries its code alone. */
+  function blockControl(p) {
+    if (p.blocked) return h('div', { class: 'small' }, 'Blocked. Its promotions are no longer counted, and the review skips it.');
+    var key = 'block:' + p.code;
+    var choice = h('select', { 'aria-label': 'Decision for ' + p.words.join(' ') },
+      h('option', { value: '' }, 'Leave it'),
+      h('option', { value: 'block' }, 'Block it'));
+    if (find(key)) choice.value = 'block';
+    choice.addEventListener('change', function () {
+      if (choice.value) upsert({ kind: 'block', id: p.code, display: p.words.join(' ') });
+      else drop(key);
+      markRow(choice, p.code);
+    });
+    return h('div', { class: 'control' }, choice,
+      h('div', { class: 'small' }, 'Blocking hides its Promote and Submit, and leaves it out of the counts and the review. The command names its code, never its words.'));
+  }
+
+  function renderPromoted(main) {
+    main.append(h('h2', {}, 'Promoted'));
+    if (!DATA.promoted) {
+      main.append(h('p', { class: 'empty' }, 'This desk was built without the private repository, so it shows no promotions. ' +
+        'Build it with pnpm hits:desk --promotions=../ars-magna-promotions to see them.'));
+      return;
+    }
+    var rows = DATA.promotions;
+    var counts = { all: rows.length, notes: 0, waiting: 0, placed: 0, left: 0, blocked: 0 };
+    rows.forEach(function (p) {
+      counts[promotedState(p)] += 1;
+      if (p.notes.length) counts.notes += 1;
+    });
+    var filter = h('input', { type: 'text', placeholder: 'Input or anagram', 'aria-label': 'Filter the promoted anagrams' });
+    filter.value = state.promotedFilter;
+    var show = h('select', { 'aria-label': 'Show' }, [
+      ['all', 'Every promoted anagram'],
+      ['notes', 'With a note from Build'],
+      ['waiting', 'Not reviewed yet'],
+      ['placed', 'Placed by the review'],
+      ['left', 'Left out by the review'],
+      ['blocked', 'Blocked'],
+    ].map(function (o) { return h('option', { value: o[0] }, o[1] + ' (' + counts[o[0]] + ')'); }));
+    show.value = state.promotedShow;
+    var list = h('div');
+
+    function row(p) {
+      var hit = p.hit ? hitsById.get(p.hit) : null;
+      var searchedAs = p.searches.filter(function (s) { return s.input !== p.input || p.searches.length > 1; });
+      return h('tr', rowAttrs(p.hit || p.code),
+        h('td', { 'data-label': 'Promoted' },
+          h('span', { class: 'count', 'aria-label': p.count + (p.count === 1 ? ' promotion' : ' promotions') }, String(p.count)),
+          h('div', {}, p.input),
+          searchedAs.length ? h('div', { class: 'small' }, 'Searched as ' + searchedAs.map(function (s) { return s.input + ' (' + s.n + ')'; }).join(', ')) : null,
+          h('div', { class: 'small' }, [p.fromSearch && p.fromSearch + ' from a search', p.typed && p.typed + ' from Build'].filter(Boolean).join(', ')),
+          h('div', { class: 'small' }, p.first === p.last ? p.first : p.first + ' to ' + p.last)),
+        hit ? phraseCell(hit.id, hit.display, true) : h('td', { class: 'phrase', 'data-label': 'Anagram' }, p.words.join(' '),
+          p.unknown.length ? h('span', { class: 'reading-was' }, 'Not in the dictionary: ' + p.unknown.join(', ')) : null),
+        h('td', { class: 'readers', 'data-label': 'From readers' },
+          p.notes.length ? p.notes.map(noteList) : h('span', { class: 'small' }, 'Promoted from a search, with no note.')),
+        reviewCell(p),
+        h('td', { 'data-label': 'Decision' },
+          hit ? [h('div', { class: 'small' }, 'A hit now: ' + whereOf(hit)[0] + (hit.votes ? ', ' + votesText(hit.votes) : '') + '.'), hitControls(hit)] : blockControl(p)));
+    }
+    function draw() {
+      var q = state.promotedFilter.trim().toLowerCase();
+      var shown = rows.filter(function (p) {
+        var kind = promotedState(p);
+        return (state.promotedShow === 'all' || (state.promotedShow === 'notes' ? p.notes.length > 0 : kind === state.promotedShow)) &&
+          (!q || (p.input + ' ' + p.words.join(' ') + ' ' + p.searches.map(function (s) { return s.input; }).join(' ')).toLowerCase().indexOf(q) >= 0);
+      });
+      var table = batched(shown, 50, row);
+      list.replaceChildren(
+        h('p', { class: 'small', role: 'status' }, shown.length + ' of ' + rows.length + ' promoted anagrams'),
+        shown.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Promoted'), h('th', {}, 'Anagram'), h('th', {}, 'From readers'), h('th', {}, 'Review'), h('th', {}, 'Decision'))),
+          table.body)) : h('p', { class: 'empty' }, 'None here.'),
+        table.more);
+    }
+    filter.addEventListener('input', function () { state.promotedFilter = filter.value; draw(); });
+    show.addEventListener('change', function () { state.promotedShow = show.value; draw(); });
+    main.append(
+      h('p', { class: 'small' }, rows.length + ' anagrams readers promoted, from the export of ' + DATA.promoted.export + ' in ' + DATA.promoted.from +
+        ', most promoted first. ' + counts.notes + ' came with a note from Build. What readers typed is shown exactly as they typed it, and nothing in it has been checked.'),
+      h('p', { class: 'small' }, 'An anagram becomes a hit only through a review you merge in ' + DATA.promoted.from +
+        '. Once the routine has published it, its row has a hit\'s controls; until then you can block it. This page holds what readers typed, so it stays private.'),
+      h('div', { class: 'toolbar' }, field('Filter', filter), field('Show', show)),
+      list);
+    draw();
   }
 
   function renderSeed(main) {
@@ -946,6 +1120,7 @@
       h('option', { value: 'suggested' }, 'Suggested for Greatest Hits'),
       h('option', { value: 'changed' }, 'Changed here'));
     show.value = state.show;
+    var order = orderSelect('Strongest link first');
     var list = h('div');
 
     function row(x) {
@@ -954,6 +1129,7 @@
         phraseCell(x.id, x.display, true),
         h('td', { class: 'small', 'data-label': 'Judge' },
           x.relation !== null ? 'relation ' + x.relation + ', reads ' + x.reads : 'not judged',
+          x.votes ? h('div', {}, votesText(x.votes)) : null,
           suggested(x) ? h('div', { class: 'where-greatest' }, 'Suggested for Greatest Hits') : null),
         h('td', { 'data-label': 'Label' }, hitControls(x)));
     }
@@ -964,6 +1140,7 @@
           (state.show === 'all' || (state.show === 'suggested' ? suggested(x) : pendingFor(x.id))) &&
           (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
       });
+      if (state.order === 'votes') shown = shown.slice().sort(byVotes);
       var out = [
         h('h3', {}, SHELF_LABEL[shelf], h('span', { class: 'category' }, shown.length === hits.length ? String(hits.length) : shown.length + ' of ' + hits.length)),
         h('p', { class: 'small' }, SECTION_NOTE[shelf]),
@@ -982,12 +1159,13 @@
     filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
     category.addEventListener('change', function () { state.category = category.value; draw(); });
     show.addEventListener('change', function () { state.show = show.value; draw(); });
+    order.addEventListener('change', function () { state.order = order.value; save(); draw(); });
     main.append(
       h('h2', {}, 'The Discover page'),
       h('p', { class: 'small' }, 'Every anagram the site shows, ' + total + ' in all, each labelled with the section it is in now: ' + greatest.length +
         ' in Greatest Hits, ' + interesting.length + ' in Interesting and ' + stretch.length + ' in A stretch. A prompt copied without changes changes nothing. ' +
         'Change a label to move an anagram to another section or off the page, and edit a justification, what its input is or the sense a word reads in, reorder the words or add a note as in the review desk.'),
-      h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show)),
+      h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show), field('Order', order)),
       list);
     draw();
   }
@@ -1105,7 +1283,7 @@
     document.getElementById('tabs').hidden = TABS.length < 2;
     var main = document.getElementById('main');
     main.replaceChildren();
-    ({ audit: renderAudit, review: renderReview, collection: renderCollection, near: renderNear, seed: renderSeed, deep: renderDeep, add: renderAdd })[state.tab](main);
+    ({ audit: renderAudit, review: renderReview, promoted: renderPromoted, collection: renderCollection, near: renderNear, seed: renderSeed, deep: renderDeep, add: renderAdd })[state.tab](main);
     renderAside();
   }
 
@@ -1116,7 +1294,9 @@
   document.getElementById('meta').textContent = 'Built ' + DATA.generated.slice(0, 16).replace('T', ' ') + ' UTC from the repository. ' +
     (AUDIT
       ? 'The Greatest Hits page shows ' + DATA.hits.filter(function (x) { return x.status === 'featured' || x.status === 'accepted'; }).length + ' anagrams. '
-      : DATA.hits.length + ' hits (' + byStatus + '), ' + DATA.queues.length + ' judged queues. ') +
+      : DATA.hits.length + ' hits (' + byStatus + '), ' + DATA.queues.length + ' judged queues' +
+        (DATA.promoted ? ', ' + DATA.promotions.length + ' promoted anagrams. ' : '. ')) +
+    (DATA.votesDate ? 'Votes from the counts of ' + DATA.votesDate + '. ' : '') +
     'Decisions are kept in this browser until you clear them.';
   render();
 })();

@@ -51,6 +51,12 @@ export type RequeueDecision = { kind: 'requeue'; ids: string[]; settingsBefore: 
 export type DeepDecision = { kind: 'deep'; date: string; perInput: string };
 export type SeedDecision = { kind: 'seed'; input: string; category: CategoryName; anchors: string[] };
 export type AddDecision = { kind: 'add'; input: string; category: CategoryName; phrase: string; tier: TierName; justification: string };
+/**
+ * A promoted anagram never to be promoted again, by its code (the SHA-256 of
+ * its key). `display` is how the desk showed it, for the list of decisions
+ * only: the command carries the code alone, since the words may be a reader's.
+ */
+export type BlockDecision = { kind: 'block'; id: string; display: string };
 export type Decision =
   | StatusDecision
   | JustifyDecision
@@ -64,13 +70,16 @@ export type Decision =
   | RequeueDecision
   | DeepDecision
   | SeedDecision
-  | AddDecision;
+  | AddDecision
+  | BlockDecision;
 
 /** `notes` are the desk's own notes on the commands; `rowNotes` are the operator's notes on single rows, one list item each. */
 export type Composed = { commands: string[]; notes: string[]; rowNotes: string[] };
 
 export const DESK_CATEGORIES: CategoryName[] = ['people', 'companies', 'products', 'titles', 'places', 'phrases'];
 const STATUS_ORDER: StatusName[] = ['featured', 'accepted', 'proposed', 'retired'];
+/** A promoted anagram's code: the SHA-256 of its key, in lowercase hex. */
+const CODE = /^[0-9a-f]{64}$/;
 
 /** A shell word: as it is when it is safe, otherwise in single quotes. */
 export function shellQuote(text: string): string {
@@ -174,7 +183,7 @@ function lastBy<T extends Decision>(decisions: readonly Decision[], kind: T['kin
 /**
  * The commands for a set of decisions, grouped so each runs after what it
  * needs: seeds and requeues, a deep run, rows promoted from a queue, word
- * orders, then justifications, what inputs are, senses, tags, shelves and statuses, then hits added by hand. A
+ * orders, then justifications, what inputs are, senses, tags, shelves and statuses, then blocks, then hits added by hand. A
  * later decision about the same thing replaces an earlier one. The notes on
  * rows come out as a list for the prompt, each with the row's chosen order.
  */
@@ -289,6 +298,10 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
     const ids = [...statuses].filter(([, s]) => s === status).map(([id]) => id);
     if (ids.length > 0) commands.push(`pnpm hits:set --status=${status} ${ids.join(' ')}`);
   }
+
+  // By code only: nothing a reader typed goes into a command.
+  const blocks = lastBy<BlockDecision>(decisions, 'block', (d) => d.id).filter((d) => CODE.test(d.id));
+  for (const b of blocks) commands.push(`pnpm promotions:block --code=${b.id}`);
 
   for (const a of lastBy<AddDecision>(decisions, 'add', (d) => hitIdOf(d.input, d.category, d.phrase.split(/\s+/)))) {
     const words = a.phrase.split(/\s+/).map(foldLetters).filter((w) => w.length > 0);

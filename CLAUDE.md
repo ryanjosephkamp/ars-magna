@@ -68,7 +68,8 @@ The review desk for a phone is the private artifact "Ars Magna Review Desk":
 https://claude.ai/code/artifact/ee0c24c8-3d8f-4e95-96e2-a0add07c0485. Publish
 `.cache/desk/artifact.html` from `pnpm hits:desk --artifact` to that URL, as
 `docs/prompts/publish-desk.md` describes, and keep it private: its near misses
-include slurs and insults made from the letters.
+include slurs and insults made from the letters, and a desk built with
+`--promotions` holds what readers typed.
 
 ## Greatest Hits audit
 
