@@ -69,9 +69,10 @@ export function HowItWorks() {
               promotion for each anagram, and pressing Promote again takes it back. There are no promotions against.
             </p>
             <p>
-              Promotions are counted now. Once the review starts, a model will read the most promoted anagrams and place each in Interesting
-              or A stretch, or leave it out when the link does not hold. Promotions never put an anagram in Greatest Hits: the site’s editor
-              picks those by hand.
+              A model reads promoted anagrams, the most promoted first, and places each in Interesting or A stretch, or leaves it out when
+              the link does not hold; one it leaves out is read again once its promotions have doubled. The site’s editor approves every
+              placement before it appears, and once an anagram is on Discover each promotion of it counts as a vote. Promotions never put
+              an anagram in Greatest Hits: the site’s editor picks those by hand.
             </p>
           </div>
         </section>
@@ -119,7 +120,10 @@ export function HowItWorks() {
             <li>
               Which anagrams that id voted for or promoted, and when. A promotion also keeps the text searched, the words in the order shown,
               and the dictionary used. A submission also keeps its category and, when you give them, what the input is, why it is good and a
-              credit. Only the number of promotions an anagram has is ever published.
+              credit. Each day the number of votes and promotions each anagram has is published, a promoted anagram under a code rather
+              than its words. What you typed is read by the review and published only with an anagram the site’s editor has approved for
+              Discover: the text, and a submission’s credit and what the input is when the review keeps them. Why it is good is never
+              published, and nor is the id.
             </li>
             <li>
               To stop floods of votes, a code made from your connection’s address, a secret and the day. It changes every day and cannot be

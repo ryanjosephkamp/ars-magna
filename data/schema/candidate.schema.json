@@ -14,7 +14,7 @@
     },
     "input": { "type": "string", "minLength": 1, "description": "The text as a person would write it." },
     "category": { "$ref": "#/$defs/category" },
-    "source": { "type": "string", "enum": ["manual", "trending", "submission"] },
+    "source": { "type": "string", "enum": ["manual", "trending", "submission", "promotion"], "description": "manual: added by hand. trending: the nightly fetch. submission: a reader's submission (the issue form or Build). promotion: a reader promoted an anagram of it from a search, and the review placed it." },
     "first_seen": { "type": "string", "format": "date", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
     "status": {
       "type": "string",

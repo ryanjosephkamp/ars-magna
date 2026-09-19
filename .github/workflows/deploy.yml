@@ -3,11 +3,13 @@ name: Deploy
 on:
   push:
     branches: [main]
-    # The site does not read the queue or the candidates; the hits do (the
-    # gallery is built from data/hits.jsonl), so those still redeploy.
+    # The site does not read the queue, the candidates or the daily counts; the
+    # hits do (the gallery is built from data/hits.jsonl), and so does the block
+    # list (data/promotions/blocks.jsonl), so those still redeploy.
     paths-ignore:
       - 'data/queue/**'
       - 'data/candidates.jsonl'
+      - 'data/counts/**'
   workflow_dispatch:
 
 concurrency:
@@ -91,3 +93,14 @@ jobs:
           pnpm dlx wrangler@4.121.0 pages deploy dist
           --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
           --branch=main
+
+      # A promoted anagram that is now published: each promotion of it becomes a
+      # vote for the hit (voting plan R4; apps/web/src/votes/convert.ts). It runs
+      # after the upload, so a promotion made before the new hits.json was live
+      # is caught, and every row it converts is marked, so running it again adds
+      # nothing and a vote taken back is never added again. It prints counts only.
+      - name: Promotions of published anagrams become votes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm votes:convert --remote

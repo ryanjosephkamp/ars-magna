@@ -12,12 +12,14 @@ import {
   tidyNote,
   HIT_ID_PATTERN,
   KEY_PATTERN,
+  KEY_SHA256_PATTERN,
   MAX_LETTERS,
   MAX_WORDS,
   PASS_TTL_MS,
   VOTER_PATTERN,
   connectionKey,
   hourBucket,
+  keySha256,
   promotable,
   promotionKey,
   signPass,
@@ -96,6 +98,15 @@ describe('promotions', () => {
     expect(promotionKey(['am', 'entangle'])).toBe('aaeeglmnnt:am-entangle');
     expect(KEY_PATTERN.test(promotionKey(['elegant', 'man']))).toBe(true);
     expect(KEY_PATTERN.test('aaeeglmnnt:Elegant-man')).toBe(false);
+  });
+
+  it('are published under a code, the SHA-256 of the key, the same in the Worker, the page and Node', async () => {
+    // The fixed vector, computed once with Node's own crypto.createHash.
+    expect(await keySha256('aaeeglmnnt:elegant-man')).toBe('1dbceba2e47ea608ae58971444adedfb7a03bf013943e6f76cc1cd9727912d34');
+    const { createHash } = await import('node:crypto');
+    const key = promotionKey(['entangle', 'am']);
+    expect(await keySha256(key)).toBe(createHash('sha256').update(key).digest('hex'));
+    expect(KEY_SHA256_PATTERN.test(await keySha256(key))).toBe(true);
   });
 
   it('share a spelling key across the spellings the search shows as one row', () => {

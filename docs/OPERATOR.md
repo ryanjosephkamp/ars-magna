@@ -12,10 +12,12 @@ explains the pipeline these jobs sit on.
 |---|---|---|
 | 06:00 daily | Hits nightly Action | a commit to `main` with `data/queue/<date>/` (the summary and the screen input) and `data/candidates.jsonl` |
 | 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request; nothing after a thin night; a `Greatest Hits: <date> not judged` pull request after a night it could not judge |
-| every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev, after Deploy applies any new votes database migration |
+| after Hits nightly | Export promotions Action | a commit to `main` with `data/counts/<date>/` (the day's votes, and promotions by code), and the private export in `ars-magna-promotions` (see "Review promotions") |
+| every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev, after Deploy applies any new votes database migration; then each promotion of a newly published anagram becomes a vote |
 | a merge that changes `data/hits.jsonl`, `tools/hits/src/publish.ts` or the dataset card | Publish hits Action | the dataset at https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits |
 
-A nightly commit touches only the queue and the candidates, so it runs neither CI nor Deploy.
+A nightly commit touches only the queue and the candidates, and an export commit only the day's counts, so
+neither runs CI or Deploy.
 
 ## Add a hit by hand
 
@@ -128,7 +130,7 @@ the pull request that adds it. The list is `data/vocabulary/requests.jsonl`.
 | Source | Where it comes from |
 |---|---|
 | `judge` | A model judging a queue proposed it. `hits:ingest` collects these, and the routine's pull request lists them. |
-| `submission` | A reader's anagram was refused because the word is in no tier. The issue is labelled `word-request`. A submission from the Build page records such a word in its `missing` column instead (see "Build"). |
+| `submission` | A reader's anagram was refused because the word is in no tier. The issue is labelled `word-request`. A submission from the Build page records such a word in its `missing` column instead (see "Build"), and the review of promotions forwards the ones worth asking for, from `promotion <code>` (see "Review promotions"). |
 | `anchor` | A seeded anchor word the engine could not find. As often a typo as a real word. |
 
 **A gloss or trace a model proposed is unverified.** Check the source exists and says what it is
@@ -195,7 +197,8 @@ would announce a word the site cannot find.
 ## Review a routine pull request
 
 When a pull request titled `Greatest Hits: N new for <date>` appears. The routine opens one after it
-judges a non-empty queue, even when N is zero.
+judges a non-empty queue, even when N is zero, and after it applies a review of promotions you approved; the
+promotions it publishes follow the ingest report in the body (see "Review promotions").
 
 The judge scores each anagram's **relation** to its input from 1 to 5, and how it **reads** from 1 to
 3. Ingest turns that into a shelf:
@@ -402,7 +405,7 @@ opinion and no joke, and never about a private person. The schemas refuse anythi
 |---|---|
 | Wikidata | `hits:fetch` writes one for each new trending input from its item's English description ("American singer-songwriter (1946–2026)" becomes "Dolly Parton was an American singer-songwriter (1946–2026)."), and the link from its English Wikipedia article. The sentence is built mechanically, so read it. |
 | the judge | Each input's first row in a judge batch shows its sentence or `(empty)`; for an empty one the judge may write one. Ingest keeps the first that follows the rule, and the routine's pull request lists it under About. |
-| a submission | The issue form's "What the input is", or `about` on the MCP tool `propose_hit`, for an input that has none. A Build submission's "What the input is" is kept on the promotion (`about`, see "Build") until the review (roadmap phase F) carries it to the candidate. |
+| a submission | The issue form's "What the input is", or `about` on the MCP tool `propose_hit`, for an input that has none. A Build submission's "What the input is" is kept on the promotion (`about`, see "Build"); the review keeps or drops it, and when it keeps it and places the anagram, it reaches the input once you have approved the review (see "Review promotions"). |
 | you | `pnpm hits:describe`, or About the input in the review desk or the audit. |
 
 **Set or change one:**
@@ -496,8 +499,9 @@ anagram already in a section: one per browser per anagram, taken back by pressin
 against. Most votes, the page's usual order, ranks each section by them; votes never move an anagram from one
 section to another. A promotion is for any other anagram in a search, on the same terms, and asks for it to
 be considered for a section; a submission from the Build page is a promotion with a note (see "Build").
-Nothing reviews promotions yet (roadmap phase F), so for now they are only counted. The search page shows
-both: a Discover block above the complete list, and Vote or Promote on every row. The rules as readers see
+The review reads them; see "Review promotions". When a promoted anagram is published, each promotion of it
+becomes a vote. The search page shows both: a Discover block above the complete list, and Vote or Promote on
+every row. The rules as readers see
 them are at https://ars-magna.pages.dev/how.
 
 | Piece | Where |
@@ -508,6 +512,8 @@ them are at https://ars-magna.pages.dev/how.
 | the check | the Turnstile widget `Ars Magna votes` for `ars-magna.pages.dev`; its site key is in `apps/web/src/votes/state.ts` |
 | the secrets | `TURNSTILE_SECRET` and `IP_HASH_SECRET`, Pages secrets in the dashboard (Workers & Pages, `ars-magna`, Settings, Variables and Secrets) |
 | the switches | `VOTES_OPEN` and `PROMOTIONS_OPEN` in `apps/web/wrangler.toml` |
+| the block list | `data/promotions/blocks.jsonl`, by code only; the build copies it into `hits.json` as `blocked` (see "Review promotions") |
+| clicks to votes | `apps/web/src/votes/convert.ts`, run by Deploy after each upload through `pnpm votes:convert --remote` |
 
 A check that has produced nothing two minutes after Vote or Promote was pressed is abandoned: the widget
 goes, nothing is saved, and the page tells the reader to try again.
@@ -521,7 +527,8 @@ published anagram can sit behind a row that spells it another way: for `Doritos`
 sorted and joined with hyphens: `aaeeglmnnt:elegant-man`), `voter`, `input` as the reader typed it, `words` in
 the order they saw, the `tier` they searched, `via` (`result` from a search, `typed` from Build), and
 `created_at`. A submission from Build also fills `category`, `about` (what the input is, a column added by
-migration `0003`), `why`, `credit` and `missing` (its word requests); the rest leave them empty.
+migration `0003`), `why`, `credit` and `missing` (its word requests); the rest leave them empty. `converted_to`
+(migration `0004`) is the hit a promotion's vote went to, once its anagram is published; the row stays.
 `promotion_counts` holds each key's count, recounted with every change. A promotion of an anagram already on
 Discover is refused, and the search page shows Vote for it instead.
 
@@ -659,8 +666,103 @@ in its boxes, and the search toolbar links with the text alone.
 pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "SELECT key, input, words, tier, category, about, why, credit, missing, created_at FROM promotions WHERE via = 'typed' ORDER BY created_at DESC LIMIT 20"
 ```
 
-Until the review lands (roadmap phase F), a submission is only kept and counted. Nothing on the site shows its
-note, and nothing reaches `data/` from it.
+The review reads each submission's note, and only what you approve reaches `data/`: what the input is and the
+credit when the review kept them, never why it is good (see "Review promotions").
+
+## Review promotions
+
+When readers have promoted anagrams from a search, or submitted them from Build, and you want them read,
+placed and published. Nothing a reader typed reaches this public repository, a workflow log or a public page
+until the review has placed it and you have approved it, and no voter id ever leaves the database.
+
+| Step | Who | What it writes |
+|---|---|---|
+| 1. Export | the Export promotions Action, after each Hits nightly | here: `data/counts/<date>/`, the day's votes by hit and promotions by code; in the private repository `ars-magna-promotions`: `export/<date>.jsonl`, every promotion with what readers typed and the engine's check |
+| 2. Review | a model: the judge routine, or a session you start | a pull request in the private repository, `review/<date>`, with `reviews/<date>.jsonl` and `reviews/<date>.md` |
+| 3. Approve | you, by merging that pull request | the private repository's `main` |
+| 4. Apply | `pnpm promotions:apply`, in the next judge routine run | the routine's public pull request: hits, candidates, word requests, `data/promotions/decisions.jsonl` and `data/promotions/reviews/<date>.md` |
+| 5. Publish | you, by merging the public pull request | the site; Deploy then makes each promotion of a newly published anagram a vote |
+
+**The export** reads the database with SELECT statements only and never the voter column. Each day's counts
+list a promoted anagram by the SHA-256 of its key (its code), never its words, and only when the engine finds
+every word and it is not blocked; the rest are counted in `meta.json`, which also states the convention. The
+folders are never squashed; a second run on one day replaces that day's. The export prints totals only,
+because this repository's workflow logs are public. Without `PROMOTIONS_DEPLOY_KEY` it writes the counts
+alone. Pause it with `gh variable set EXPORT_PROMOTIONS --body off` (delete the variable to resume), or
+`gh workflow disable "Export promotions"`; while Hits nightly is disabled it does not run on its own, so run it
+by hand from the Actions tab to keep the daily counts.
+
+**The review** reads every promoted anagram not yet decided, most promoted first, up to 100 a run
+(`REVIEW_LIMIT` in `tools/hits/src/promotions/files.ts`, a number you may tune), with the judge's rubric (v2)
+and its own instructions (`tools/hits/prompts/review.md`), under the checks in "A night that is refused". For
+each it assigns the category of a search and checks the reader's on a submission; says whether the input is
+a private person, whose anagram is never added and is kept as a code and a count only; keeps or drops the
+reader's "What the input is" and credit; and forwards the words in no tier worth asking for. An anagram
+decided before is read again once its promotions have doubled (`REREVIEW_FACTOR`), and one waiting on a word
+once the export's check passes. A blocked anagram, or one whose words no page could have sent, is never read.
+No review starts while an earlier one waits for its merge, or before the day's export.
+
+**Approve it.** Open the pull request in `ars-magna-promotions` and read `reviews/<date>.md`: what it would
+place, with the justification and the reader's note (what it kept and what it dropped; why it is good is never
+published), the near misses and those with no link, those waiting on a word, and a private person's by code
+only. Merging approves all of it. To hold one back, change its `outcome` to `near` in `reviews/<date>.jsonl` on
+the branch before merging. To reject the whole review, close the pull request and delete its branch; the next
+review reads those anagrams again.
+
+**Placement** happens at apply, against the hits of that day, by the queue's rule: relation 4 or 5 that reads 2
+or 3 to Interesting (a 5 flagged for Greatest Hits), relation 3 that reads 2 or 3 to A stretch, three to an
+input, then up to five alternates, and the rest near misses. A placed promotion is tagged `promoted`, a placed
+submission `submitted` with the credit as its `submitter` when the review kept it. A new input becomes a
+candidate with the source `promotion` or `submission`. `data/promotions/decisions.jsonl` records every
+decision by code, with no text; a private person's reads `withheld`. The routine's pull request carries
+`data/promotions/reviews/<date>.md`: only the anagrams placed and the reader-written sentences kept, which
+merging publishes. Change one on the branch with `pnpm hits:describe` or `pnpm hits:justify`, as with any hit.
+
+**Clicks become votes.** After each upload, Deploy runs `pnpm votes:convert --remote`: every promotion of a
+published anagram not yet converted becomes a vote for its hit, dated from the promotion, and is marked with
+the hit's id (`converted_to`). Running it again adds nothing, a vote taken back afterwards stays taken back, and
+the promotion rows are kept. When two published hits share a key (Listen and Enlist both give "silent"), the
+first added takes the votes. A blocked anagram is never converted.
+
+**Block an anagram** that should never be promoted, by its key from the private export or review, or its code:
+
+```bash
+pnpm promotions:block aaeeglmnnt:am-entangle
+pnpm promotions:block --code=<64 hex characters>
+```
+
+It appends the code to `data/promotions/blocks.jsonl`, never the words. Commit it in a pull request; once it is
+deployed, the API refuses its promotions and leaves them out of the counts, the search page and Build hide its
+Promote and Submit (Build says "This anagram cannot be submitted."), the export leaves it out of the public
+counts, and the review skips it. Its promotions stay in the database.
+
+**Set up the private repository**, once:
+
+1. Create the private repository `ars-magna-promotions` on GitHub, empty.
+2. On this Mac, make a deploy key and hand it over; the private key never passes through a chat:
+
+   ```bash
+   ssh-keygen -t ed25519 -N '' -f promo
+   gh repo deploy-key add promo.pub --repo ryanjosephkamp/ars-magna-promotions --allow-write --title "Export promotions"
+   gh secret set PROMOTIONS_DEPLOY_KEY < promo
+   rm promo promo.pub
+   ```
+
+3. Give the Claude GitHub App access to `ars-magna-promotions` (github.com/settings/installations), add it to the
+   judge routine as a second repository on the routine's page, and carry the routine's prompt over ("Manage the
+   judge routine").
+4. Run Export promotions once by hand from the Actions tab, and check that `export/<date>.jsonl` arrived.
+5. The routine opens the private review pull request itself only if it can push there; its pull request body
+   says so when it could not. Until then, review in a session.
+
+**Review in a session** on this Mac, with the private repository cloned beside this one: paste
+`docs/prompts/review-promotions.md`. It uses the same commands, with `--judged-by=hand`, and opens the same
+private pull request. To publish as soon as you have merged it, rather than in the next routine run, run
+`pnpm promotions:apply --from=../ars-magna-promotions` on a branch off `main`, then the four suites, and open a
+pull request. Without the private repository, `pnpm promotions:export --out=.cache/promotions` writes the
+export to a gitignored folder here instead, and `--from=.cache/promotions` reviews it.
+
+Prompt: `docs/prompts/review-promotions.md`.
 
 ## Judge a queue by hand
 
@@ -970,7 +1072,7 @@ Prompt: `docs/prompts/verify-release.md` (pr_number).
 | Schedule | daily at 07:00 UTC (`0 7 * * *`), an hour after the nightly |
 | Model | `claude-sonnet-5` |
 | Tools | Bash, Read, Write, Edit, Glob, Grep |
-| Repository | https://github.com/ryanjosephkamp/ars-magna |
+| Repositories | https://github.com/ryanjosephkamp/ars-magna, and the private https://github.com/ryanjosephkamp/ars-magna-promotions once you have added it (see "Review promotions") |
 | Prompt | a copy of `automation/judge-routine.md` above its closing comment |
 
 **The routine's prompt is a copy.** Editing `automation/judge-routine.md` does not change what the routine
@@ -1011,7 +1113,7 @@ chat, a file, or a shell history. No agent reads one.
 | Name | Kind | Used by | A new one comes from |
 |---|---|---|---|
 | `HF_TOKEN` | repository secret | Publish hits, `pnpm hits:publish` | Hugging Face, Settings, Access Tokens, with write access to the dataset |
-| `CLOUDFLARE_API_TOKEN` | repository secret | Deploy: the upload and the votes database migrations | Cloudflare, My Profile, API Tokens, with Cloudflare Pages: Edit and D1: Edit |
+| `CLOUDFLARE_API_TOKEN` | repository secret | Deploy: the upload, the votes database migrations and clicks to votes; Export promotions: SELECT only | Cloudflare, My Profile, API Tokens, with Cloudflare Pages: Edit and D1: Edit |
 | `TURNSTILE_SECRET` | Pages secret | the vote API's check before voting | Cloudflare, Turnstile, the `Ars Magna votes` widget, its secret key |
 | `IP_HASH_SECRET` | Pages secret | the vote API: connection hashes for rate limits, and passes | any long random string, such as `openssl rand -hex 32` |
 | `CLOUDFLARE_ACCOUNT_ID` | repository secret | Deploy | the Cloudflare dashboard sidebar; it changes only with the account |
@@ -1019,6 +1121,8 @@ chat, a file, or a shell history. No agent reads one.
 | `XAI_API_KEY` | your shell only | the second judge column in `hits:judge --via=api` | the xAI console |
 | `CLOUDFLARE_PROJECT_NAME` | repository variable, `ars-magna` | Deploy's on switch | not a secret |
 | `PUBLISH_HITS` | repository variable, unset | `off` pauses Publish hits | not a secret |
+| `PROMOTIONS_DEPLOY_KEY` | repository secret | Export promotions: pushes the private export to `ars-magna-promotions` | a new key pair: `ssh-keygen`, the public half added to that repository as a deploy key with write access (see "Review promotions") |
+| `EXPORT_PROMOTIONS` | repository variable, unset | `off` pauses Export promotions | not a secret |
 
 The nightly Action and the submission validator use GitHub's built-in token, and the judge routine bills
 to the Claude plan; neither has anything to rotate.

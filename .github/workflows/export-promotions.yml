@@ -1,0 +1,134 @@
+name: Export promotions
+
+# Each day, after Hits nightly: read the votes database (SELECT only) and write
+#
+# - this repository's counts for the day, data/counts/<date>/: votes by hit,
+#   and promotions by the SHA-256 of each anagram's key, never its words;
+# - the private export, every promotion with what readers typed, to the
+#   private repository ars-magna-promotions, when PROMOTIONS_DEPLOY_KEY is set.
+#
+# This repository is public, and so are its workflow logs. Nothing a reader
+# typed may appear in either: the export prints totals only, writes the
+# private rows under $RUNNER_TEMP, stages exact paths, and on any failure
+# prints a fixed sentence (tools/hits/src/promotions/export.ts). See "Review
+# promotions" in docs/OPERATOR.md.
+#
+# Pause: gh variable set EXPORT_PROMOTIONS --body off (delete it to resume),
+# or gh workflow disable "Export promotions". While Hits nightly is disabled,
+# this does not run on its own; run it by hand to keep the daily counts.
+
+on:
+  workflow_run:
+    workflows: ['Hits nightly']
+    types: [completed]
+  workflow_dispatch:
+
+# The nightly's group: this never runs while the nightly is pushing to main.
+concurrency:
+  group: hits-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    if: ${{ vars.EXPORT_PROMOTIONS != 'off' && vars.CLOUDFLARE_PROJECT_NAME != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The engine checks every promoted anagram's words, as ci.yml builds it.
+      - name: Rust toolchain
+        run: rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: v0.15.0
+      - name: Build engine
+        run: pnpm wasm:build
+
+      - name: Clone the private repository
+        id: private
+        env:
+          PROMOTIONS_DEPLOY_KEY: ${{ secrets.PROMOTIONS_DEPLOY_KEY }}
+        run: |
+          if [ -z "$PROMOTIONS_DEPLOY_KEY" ]; then
+            echo "No PROMOTIONS_DEPLOY_KEY: the day's counts only."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$PROMOTIONS_DEPLOY_KEY" > ~/.ssh/promotions
+          chmod 600 ~/.ssh/promotions
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/promotions -o IdentitiesOnly=yes"
+          git clone -q "git@github.com:${{ github.repository_owner }}/ars-magna-promotions.git" "$RUNNER_TEMP/promotions" 2>/dev/null
+          echo "dir=$RUNNER_TEMP/promotions" >> "$GITHUB_OUTPUT"
+
+      - name: Export
+        id: export
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ steps.private.outputs.dir }}" ]; then
+            pnpm --silent promotions:export --counts --out="${{ steps.private.outputs.dir }}" --date="$DATE"
+          else
+            pnpm --silent promotions:export --counts --date="$DATE"
+          fi
+
+      - name: Commit the day's counts
+        run: |
+          DIR="data/counts/${{ steps.export.outputs.date }}"
+          git config user.name "export-promotions"
+          git config user.email "export-promotions@users.noreply.github.com"
+          git add "$DIR/promotions.jsonl" "$DIR/votes.jsonl" "$DIR/meta.json"
+          # Only that folder, and nothing else, may be staged.
+          if git diff --cached --name-only | grep -v "^$DIR/"; then
+            echo "Something besides $DIR was staged; nothing committed."
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "The counts have not changed since the last export today."
+            exit 0
+          fi
+          git commit -q -m "Counts for ${{ steps.export.outputs.date }}"
+          for attempt in 1 2 3; do
+            git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0
+            sleep $((attempt * 10))
+          done
+          echo "Could not push the counts after three tries."
+          exit 1
+
+      - name: Push the private export
+        if: ${{ steps.private.outputs.dir != '' }}
+        working-directory: ${{ steps.private.outputs.dir }}
+        run: |
+          FILE="export/${{ steps.export.outputs.date }}.jsonl"
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/promotions -o IdentitiesOnly=yes"
+          git config user.name "export-promotions"
+          git config user.email "export-promotions@users.noreply.github.com"
+          git add "$FILE"
+          if git diff --cached --name-only | grep -v "^$FILE$"; then
+            echo "Something besides the export was staged; nothing pushed."
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "The export has not changed since the last run today."
+            exit 0
+          fi
+          git commit -q -m "Export ${{ steps.export.outputs.date }}"
+          git push -q origin HEAD:main 2>/dev/null || { echo "Could not push the private export."; exit 1; }

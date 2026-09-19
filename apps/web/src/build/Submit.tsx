@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react';
 import { SECTIONS, type PublicHit } from '../hits/build.ts';
 import { submissionTier, wordRequestSentence, wordRequests, type TierOf } from '../lib/checks.ts';
 import { ActionProblem, type Pass } from '../state/usePass.ts';
+import { useBlocked } from '../state/usePublishedHits.ts';
 import type { PromotionsBody } from '../votes/api.ts';
 import {
   CATEGORIES,
@@ -61,6 +62,7 @@ type Props = {
 export function Submit({ text, words, letters, tierOf, checked, published, pass }: Props) {
   const key = promotionKey(words);
   const onDiscover = published?.find((hit) => promotionKey(hit.words) === key) ?? null;
+  const blocked = useBlocked(key);
 
   let body: React.ReactNode;
   if (letters > MAX_TYPED_LETTERS) {
@@ -82,6 +84,8 @@ export function Submit({ text, words, letters, tierOf, checked, published, pass 
         </a>
       </p>
     );
+  } else if (blocked) {
+    body = <p className="mt-4 max-w-prose text-sm text-ink-soft">This anagram cannot be submitted.</p>;
   } else {
     body = <Form key={key} promotionKey={key} text={text} words={words} tierOf={tierOf} checked={checked} pass={pass} />;
   }
@@ -179,8 +183,9 @@ function Form({
   return (
     <>
       <p className="mt-4 max-w-prose text-sm text-ink-soft">
-        Sending it counts as your promotion of this anagram and keeps what you write below for the review. The review has not started
-        yet; until it does, submissions are kept and counted.
+        Sending it counts as your promotion of this anagram and keeps what you write below for the review. A model reads the most
+        promoted anagrams first and places each in Interesting or A stretch, or leaves it out; nothing reaches Discover until the
+        site’s editor approves it. If it is placed, what the input is and your credit may be shown with it.
       </p>
       {promo && promo.count > 0 && (
         <p className="mt-3 font-mono text-[11px] text-ink-faint">

@@ -6,7 +6,8 @@
  *   GET  /api/votes?voter=               every hit's count, and which hits this voter voted for
  *   POST /api/pass                       {voter, token}: the Turnstile check, once a visit; returns a signed pass
  *   POST /api/vote                       {hit_id, on, voter, pass}: casts or takes back a vote; returns the count
- *   GET  /api/promotions?letters=&voter= one set of letters' promotion counts, and which this voter promoted
+ *   GET  /api/promotions?letters=&voter= one set of letters' promotion counts, and which this voter promoted;
+ *                                        a blocked anagram's promotions are left out of the counts
  *   POST /api/promote                    {input, words, tier, on, voter, pass}: makes or takes back a promotion;
  *                                        with via "typed", category and optional about, why, credit and missing,
  *                                        a submission from the Build page
@@ -34,6 +35,7 @@ import {
   hourBucket,
   isCategory,
   isTier,
+  keySha256,
   promotable,
   promotionKey,
   signPass,
@@ -73,7 +75,10 @@ export type Deps = {
   now(): number;
   fetch(input: string, init?: RequestInit): Promise<Response>;
   published(request: Request, env: Env): Promise<Published>;
-  /** Promotion keys that may not be promoted. The list itself lands with the review (roadmap phase F). */
+  /**
+   * The codes (`keySha256`) of the anagrams that may not be promoted: the block
+   * list in data/promotions/blocks.jsonl, which the build copies into hits.json.
+   */
   blockedKeys(request: Request, env: Env): Promise<ReadonlySet<string>>;
 };
 
@@ -179,7 +184,17 @@ export async function postVote(request: Request, env: Env, deps: Deps): Promise<
   return json({ hit_id: hitId, on, count });
 }
 
-export async function getPromotions(request: Request, env: Env): Promise<Response> {
+/** Counts with every blocked anagram left out. */
+async function withoutBlocked(counts: Record<string, number>, blocked: ReadonlySet<string>): Promise<Record<string, number>> {
+  if (blocked.size === 0) return counts;
+  const kept: Record<string, number> = {};
+  for (const [key, count] of Object.entries(counts)) {
+    if (!blocked.has(await keySha256(key))) kept[key] = count;
+  }
+  return kept;
+}
+
+export async function getPromotions(request: Request, env: Env, deps?: Pick<Deps, 'blockedKeys'>): Promise<Response> {
   const params = new URL(request.url).searchParams;
   const letters = params.get('letters') ?? '';
   if (!/^[a-z]+$/.test(letters) || letters.length > MAX_LETTERS) {
@@ -187,7 +202,10 @@ export async function getPromotions(request: Request, env: Env): Promise<Respons
   }
   const sorted = sortedLetters(letters);
   const voter = params.get('voter');
-  const counts = await readPromotionCounts(env.DISCOVERIES_DB, sorted);
+  const all = await readPromotionCounts(env.DISCOVERIES_DB, sorted);
+  // The counts do not wait on the block list: if hits.json cannot be read, they are shown whole.
+  const blocked = deps ? await deps.blockedKeys(request, env).catch(() => null) : null;
+  const counts = blocked ? await withoutBlocked(all, blocked) : all;
   const mine = voter && VOTER_PATTERN.test(voter) ? await readMyPromotions(env.DISCOVERIES_DB, voter, sorted) : [];
   return json({ open: promotionsOpen(env), counts, mine } satisfies PromotionsBody);
 }
@@ -276,7 +294,7 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   if (on && (await deps.published(request, env)).keys.has(key)) {
     return refuse(409, 'published', 'That anagram is on Discover already. Vote for it instead.');
   }
-  if (on && (await deps.blockedKeys(request, env)).has(key)) {
+  if (on && (await deps.blockedKeys(request, env)).has(await keySha256(key))) {
     return refuse(403, 'blocked', 'That anagram cannot be promoted.');
   }
   // A submission is a promotion, and counts against the same hourly limit.
@@ -306,27 +324,33 @@ export async function guard(handler: () => Promise<Response>, message = 'Votes a
   }
 }
 
-let published: { at: number; value: Published } | null = null;
+/** What hits.json tells the API: what is on Discover, and the codes of the blocked anagrams. */
+type SiteList = { published: Published; blocked: ReadonlySet<string> };
 
-/** Nothing is blocked until the block list lands with the review (roadmap phase F). */
-const NO_BLOCKS: ReadonlySet<string> = new Set();
+let siteList: { at: number; value: SiteList } | null = null;
 
-/** The live dependencies: the clock, the network, and hits.json read once every five minutes. */
+/** hits.json, read once every five minutes. */
+async function readSiteList(request: Request, env: Env): Promise<SiteList> {
+  const now = Date.now();
+  if (siteList && now - siteList.at < 5 * 60_000) return siteList.value;
+  const url = new URL('/hits.json', request.url);
+  const response = await (env.ASSETS ? env.ASSETS.fetch(new Request(url)) : fetch(url));
+  if (!response.ok) throw new Error(`hits.json answered ${response.status}`);
+  const body = (await response.json()) as { hits: { id: string; words: string[] }[]; blocked?: string[] };
+  const value: SiteList = {
+    published: { ids: new Set(body.hits.map((h) => h.id)), keys: new Set(body.hits.map((h) => promotionKey(h.words))) },
+    blocked: new Set(body.blocked ?? []),
+  };
+  siteList = { at: now, value };
+  return value;
+}
+
+/** The live dependencies: the clock, the network, and hits.json. */
 export function liveDeps(): Deps {
   return {
     now: () => Date.now(),
     fetch: (input, init) => fetch(input, init),
-    async published(request, env) {
-      const now = Date.now();
-      if (published && now - published.at < 5 * 60_000) return published.value;
-      const url = new URL('/hits.json', request.url);
-      const response = await (env.ASSETS ? env.ASSETS.fetch(new Request(url)) : fetch(url));
-      if (!response.ok) throw new Error(`hits.json answered ${response.status}`);
-      const body = (await response.json()) as { hits: { id: string; words: string[] }[] };
-      const value: Published = { ids: new Set(body.hits.map((h) => h.id)), keys: new Set(body.hits.map((h) => promotionKey(h.words))) };
-      published = { at: now, value };
-      return value;
-    },
-    blockedKeys: async () => NO_BLOCKS,
+    published: async (request, env) => (await readSiteList(request, env)).published,
+    blockedKeys: async (request, env) => (await readSiteList(request, env)).blocked,
   };
 }
