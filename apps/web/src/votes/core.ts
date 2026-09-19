@@ -9,6 +9,8 @@
 import { normalizeLetters } from '@ars-magna/engine/fold';
 import { TIERS, type Tier } from '@ars-magna/engine/protocol';
 
+const encoder = new TextEncoder();
+
 /** A voter id: a random UUID the browser makes once and keeps. */
 export const VOTER_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -87,6 +89,20 @@ export function promotionKey(words: readonly string[]): string {
   return `${sortedLetters(words.join(''))}:${[...words].sort().join('-')}`;
 }
 
+/** A promotion's public code: 64 lowercase hex characters. */
+export const KEY_SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+/**
+ * The code a promotion key is published under: the SHA-256 of the key, as
+ * lowercase hex. The repository's daily counts, its decisions and its block
+ * list name an anagram by this code, so its words are never published there;
+ * the Worker, the page and the pipeline all compute it here.
+ */
+export async function keySha256(key: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(key)));
+  return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 /**
  * The words with each one's letters sorted, then sorted: what stays the same
  * across every spelling the search collapses into one row. "door sit" and
@@ -111,8 +127,6 @@ export function promotable(input: string, words: readonly string[]): boolean {
   const letters = normalizeLetters(input);
   return letters.length <= MAX_LETTERS && sortedLetters(letters) === sortedLetters(words.join(''));
 }
-
-const encoder = new TextEncoder();
 
 async function hmac(secret: string, message: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);

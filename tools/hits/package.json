@@ -24,7 +24,12 @@
     "order": "node --experimental-strip-types src/order.ts",
     "input": "node --experimental-strip-types src/input.ts",
     "judged-at": "node --experimental-strip-types src/judged-at.ts",
-    "request": "node --experimental-strip-types src/request.ts"
+    "request": "node --experimental-strip-types src/request.ts",
+    "promotions:export": "node --experimental-strip-types src/promotions/export.ts",
+    "promotions:review": "node --experimental-strip-types src/promotions/review.ts",
+    "promotions:ingest": "node --experimental-strip-types src/promotions/ingest.ts",
+    "promotions:apply": "node --experimental-strip-types src/promotions/apply.ts",
+    "promotions:block": "node --experimental-strip-types src/promotions/block.ts"
   },
   "dependencies": {
     "@ars-magna/engine": "workspace:*",

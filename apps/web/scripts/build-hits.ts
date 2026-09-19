@@ -20,6 +20,7 @@ import { hitOrderings } from '../src/lib/orderings.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(here, '../../..');
 const HITS_PATH = resolve(REPO_ROOT, 'data/hits.jsonl');
+const BLOCKS_PATH = resolve(REPO_ROOT, 'data/promotions/blocks.jsonl');
 const PUBLIC = resolve(here, '../public');
 const ORIGIN = process.env['SITE_ORIGIN'] ?? 'https://ars-magna.pages.dev';
 
@@ -39,7 +40,13 @@ async function main(): Promise<void> {
   }
   const rows = ordered(published);
 
-  await writeFile(resolve(PUBLIC, 'hits.json'), `${JSON.stringify({ generated: new Date().toISOString(), hits: rows })}\n`);
+  // The codes of the blocked anagrams (their keys' SHA-256), which the API refuses and the pages hide Promote for.
+  const blocked = (await readFile(BLOCKS_PATH, 'utf8'))
+    .split('\n')
+    .filter((l) => l.trim().length > 0)
+    .map((l) => (JSON.parse(l) as { key_sha256: string }).key_sha256)
+    .sort();
+  await writeFile(resolve(PUBLIC, 'hits.json'), `${JSON.stringify({ generated: new Date().toISOString(), hits: rows, blocked })}\n`);
 
   const dir = resolve(PUBLIC, 'hits');
   await rm(dir, { recursive: true, force: true });
@@ -49,7 +56,7 @@ async function main(): Promise<void> {
     await writeFile(resolve(dir, hit.slug, 'index.html'), hitPage(hit, ORIGIN));
   }
   const pages = (await readdir(dir)).length;
-  console.log(`hits: ${rows.length} published of ${records.length} -> public/hits.json and ${pages} pages`);
+  console.log(`hits: ${rows.length} published of ${records.length} -> public/hits.json and ${pages} pages; ${blocked.length} blocked`);
 }
 
 await main();

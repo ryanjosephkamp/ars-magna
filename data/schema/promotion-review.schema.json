@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/promotion-review.schema.json",
+  "title": "The review of one promoted anagram, as the private repository keeps it",
+  "description": "A line of reviews/<date>.jsonl in the private repository ars-magna-promotions, never in this one. Merging the review's pull request there is the operator's approval; `pnpm promotions:apply` then publishes it. A private person's line keeps only its code, count and outcome.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "key_sha256",
+    "decided",
+    "promotions",
+    "outcome",
+    "model",
+    "rubric_version",
+    "review_version",
+    "judged_by"
+  ],
+  "properties": {
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z]+:[a-z]+(-[a-z]+)*$"
+    },
+    "key_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The SHA-256 of the promotion key, as lowercase hex: the code an anagram is published under in place of its words."
+    },
+    "decided": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "promotions": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "outcome": {
+      "enum": [
+        "place",
+        "near",
+        "none",
+        "private",
+        "words-missing"
+      ]
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "input",
+        "words",
+        "tier",
+        "missing",
+        "about_reader",
+        "credit_reader"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "search",
+            "submission"
+          ]
+        },
+        "input": {
+          "type": "string",
+          "minLength": 1
+        },
+        "words": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]{1,45}$"
+          },
+          "minItems": 1
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "enum": [
+                "common",
+                "standard",
+                "full",
+                "extended"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]{1,45}$"
+          }
+        },
+        "about_reader": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "credit_reader": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation",
+        "reads",
+        "tone",
+        "subjects",
+        "category",
+        "rationale"
+      ],
+      "properties": {
+        "relation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "reads": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "tone": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "literal",
+              "ironic",
+              "pun",
+              "self-referential",
+              "uncanny",
+              "rude"
+            ]
+          }
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          }
+        },
+        "category": {
+          "enum": [
+            "people",
+            "companies",
+            "products",
+            "titles",
+            "places",
+            "phrases"
+          ]
+        },
+        "justification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "senses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "about": {
+          "type": "string"
+        },
+        "reader_about": {
+          "enum": [
+            "keep",
+            "drop"
+          ]
+        },
+        "credit": {
+          "enum": [
+            "keep",
+            "drop"
+          ]
+        },
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]{1,45}$"
+          }
+        }
+      }
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rubric_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+$"
+    },
+    "review_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+$"
+    },
+    "judged_by": {
+      "enum": [
+        "routine",
+        "hand"
+      ]
+    }
+  },
+  "if": {
+    "properties": {
+      "outcome": {
+        "const": "private"
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "key": false,
+      "row": false,
+      "verdict": false
+    }
+  },
+  "else": {
+    "required": [
+      "key",
+      "row",
+      "verdict"
+    ]
+  }
+}

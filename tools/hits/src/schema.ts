@@ -23,7 +23,7 @@ export const QUEUE_DIR = resolve(DATA_DIR, 'queue');
 export const CANDIDATES_PATH = resolve(DATA_DIR, 'candidates.jsonl');
 export const HITS_PATH = resolve(DATA_DIR, 'hits.jsonl');
 
-export type CandidateSource = 'manual' | 'trending' | 'submission';
+export type CandidateSource = 'manual' | 'trending' | 'submission' | 'promotion';
 export type CandidateStatus = 'new' | 'enumerated' | 'unclassified' | 'rejected';
 
 export type Candidate = {

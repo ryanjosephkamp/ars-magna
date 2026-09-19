@@ -210,7 +210,8 @@ function problemV1(v: VerdictV1): string | null {
   return null;
 }
 
-function problemV2(v: VerdictV2): string | null {
+/** Why a rubric v2 verdict breaks the rubric, or null. */
+export function problemV2(v: VerdictV2): string | null {
   if (!between(v.relation, 1, 5)) return 'relation outside 1-5';
   if (!between(v.reads, 1, 3)) return 'reads outside 1-3';
   if (!hasText(v.rationale)) return 'no rationale';
@@ -402,7 +403,8 @@ export function hitFromRow(
   return hit;
 }
 
-function tagsFor(best: JudgementV2, alternate: boolean, candidateSubjects: readonly string[] = []): string[] {
+/** A shelved hit's tags from its best v2 judgement: the Greatest Hits flag, alternate, tones and subjects. */
+export function tagsFor(best: JudgementV2, alternate: boolean, candidateSubjects: readonly string[] = []): string[] {
   return [
     ...(best.relation === 5 ? ['greatest-candidate'] : []),
     ...(alternate ? ['alternate'] : []),

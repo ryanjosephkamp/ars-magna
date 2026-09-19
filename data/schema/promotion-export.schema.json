@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/promotion-export.schema.json",
+  "title": "A promoted anagram, as the private export keeps it",
+  "description": "A line of export/<date>.jsonl in the private repository ars-magna-promotions, never in this one: every promotion of one anagram, with what readers typed and the engine's check. No voter id: the export never reads that column.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "key",
+    "key_sha256",
+    "count",
+    "first",
+    "last",
+    "via",
+    "searches",
+    "submissions",
+    "check",
+    "blocked"
+  ],
+  "properties": {
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z]+:[a-z]+(-[a-z]+)*$"
+    },
+    "key_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The SHA-256 of the promotion key, as lowercase hex: the code an anagram is published under in place of its words."
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "first": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "last": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "via": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "typed"
+      ],
+      "properties": {
+        "result": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "typed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "searches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "input",
+          "words",
+          "tier",
+          "n",
+          "at_tier"
+        ],
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{1,45}$"
+            },
+            "minItems": 1
+          },
+          "tier": {
+            "enum": [
+              "common",
+              "standard",
+              "full",
+              "extended"
+            ]
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "at_tier": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "submissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "input",
+          "words",
+          "tier",
+          "category",
+          "about",
+          "why",
+          "credit",
+          "missing",
+          "created",
+          "at_tier"
+        ],
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{1,45}$"
+            },
+            "minItems": 1
+          },
+          "tier": {
+            "enum": [
+              "common",
+              "standard",
+              "full",
+              "extended"
+            ]
+          },
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "people",
+                  "companies",
+                  "products",
+                  "titles",
+                  "places",
+                  "phrases"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "about": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "why": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "credit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{1,45}$"
+            }
+          },
+          "created": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "at_tier": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ok",
+        "reason",
+        "narrowest",
+        "unknown",
+        "dictionary"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            null,
+            "letters",
+            "unknown-word"
+          ]
+        },
+        "narrowest": {
+          "anyOf": [
+            {
+              "enum": [
+                "common",
+                "standard",
+                "full",
+                "extended"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unknown": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]{1,45}$"
+          }
+        },
+        "dictionary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repo",
+            "rev"
+          ],
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "rev": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "blocked": {
+      "type": "boolean"
+    }
+  }
+}

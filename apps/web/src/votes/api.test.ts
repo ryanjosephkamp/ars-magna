@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { LIMITS, MAX_TYPED_LETTERS, PASS_TTL_MS, verifyPass } from './core.ts';
+import { LIMITS, MAX_TYPED_LETTERS, PASS_TTL_MS, keySha256, verifyPass } from './core.ts';
 import {
   TURNSTILE_VERIFY,
   getPromotions,
@@ -44,7 +44,7 @@ function setup(options: { turnstile?: boolean; open?: string; promotionsOpen?: s
       return new Response(JSON.stringify({ success: options.turnstile ?? true }));
     },
     published: async () => ({ ids: new Set([HIT, OTHER]), keys: new Set([PUBLISHED_KEY]) }),
-    blockedKeys: async () => new Set(options.blocked ?? []),
+    blockedKeys: async () => new Set(await Promise.all((options.blocked ?? []).map(keySha256))),
   };
   const env: Env = {
     DISCOVERIES_DB: db,
@@ -63,7 +63,7 @@ function setup(options: { turnstile?: boolean; open?: string; promotionsOpen?: s
   const votes = async (voter?: string) => (await (await getVotes(new Request(`${ORIGIN}/api/votes${voter ? `?voter=${voter}` : ''}`), env)).json()) as VotesBody;
   const promote = (body: Record<string, unknown>, ip = IP) => postPromote(post('/api/promote', body, ip), env, deps);
   const promotions = async (letters: string, voter?: string) =>
-    (await (await getPromotions(new Request(`${ORIGIN}/api/promotions?letters=${letters}${voter ? `&voter=${voter}` : ''}`), env)).json()) as PromotionsBody;
+    (await (await getPromotions(new Request(`${ORIGIN}/api/promotions?letters=${letters}${voter ? `&voter=${voter}` : ''}`), env, deps)).json()) as PromotionsBody;
   return { db, env, deps, verified, post, passFor, vote, votes, promote, promotions, advance: (ms: number) => void (now += ms), now: () => now };
 }
 
@@ -228,6 +228,7 @@ describe('POST /api/promote and GET /api/promotions', () => {
         missing: null,
         created_at: '2026-09-15T12:00:00.000Z',
         about: null,
+        converted_to: null,
       },
     ]);
     expect(JSON.stringify(t.db.sqlite.prepare('SELECT * FROM rate_limits').all())).not.toContain(IP);
@@ -262,6 +263,27 @@ describe('POST /api/promote and GET /api/promotions', () => {
     // Taking a promotion back always works, even for an anagram published or blocked since.
     expect((await t.promote({ ...PROMOTED, words: ['elegant', 'man'], voter: ALICE, pass: alice, on: false })).status).toBe(200);
     expect((await t.promote({ ...PROMOTED, words: ['man', 'get', 'elan'], voter: ALICE, pass: alice, on: false })).status).toBe(200);
+  });
+
+  it('leaves a blocked anagram out of the counts, and shows the counts whole when the block list cannot be read', async () => {
+    const t = setup({ blocked: [PROMOTED_KEY] });
+    // Promoted before it was blocked: the rows stay, the count is not shown.
+    t.db.sqlite.exec(
+      "INSERT INTO promotions (key, voter, input, words, tier, via, created_at) VALUES " +
+        `('${PROMOTED_KEY}', '${ALICE}', 'A gentleman', 'entangle am', 'standard', 'result', '2026-09-15T12:00:00.000Z'), ` +
+        `('aaeeglmnnt:angel-meant', '${ALICE}', 'A gentleman', 'angel meant', 'standard', 'result', '2026-09-15T12:00:00.000Z'); ` +
+        `INSERT INTO promotion_counts (key, count) VALUES ('${PROMOTED_KEY}', 1), ('aaeeglmnnt:angel-meant', 1);`,
+    );
+    expect(await t.promotions('aaeeglmnnt', ALICE)).toEqual({
+      open: true,
+      counts: { 'aaeeglmnnt:angel-meant': 1 },
+      mine: ['aaeeglmnnt:am-entangle', 'aaeeglmnnt:angel-meant'],
+    });
+    expect(t.db.sqlite.prepare('SELECT COUNT(*) AS n FROM promotions').get()).toEqual({ n: 2 });
+
+    const failing = { ...t.deps, blockedKeys: async () => Promise.reject(new Error('hits.json answered 500')) };
+    const whole = (await (await getPromotions(new Request(`${ORIGIN}/api/promotions?letters=aaeeglmnnt`), t.env, failing)).json()) as PromotionsBody;
+    expect(whole.counts).toEqual({ [PROMOTED_KEY]: 1, 'aaeeglmnnt:angel-meant': 1 });
   });
 
   it('pauses promotions and votes apart, and keeps the check open while either is open', async () => {
@@ -333,6 +355,7 @@ describe('POST /api/promote with via "typed": a submission from the Build page',
         missing: null,
         created_at: '2026-09-15T12:00:00.000Z',
         about: 'A gentleman is a courteous man, as the phrase has it.',
+        converted_to: null,
       },
     ]);
     expect(JSON.stringify(t.db.sqlite.prepare('SELECT * FROM rate_limits').all())).not.toContain(IP);

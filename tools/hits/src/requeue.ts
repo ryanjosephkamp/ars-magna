@@ -24,7 +24,7 @@ import {
 } from './schema.ts';
 import { lastRun, versionNumber } from './settings.ts';
 
-const SOURCES: readonly CandidateSource[] = ['manual', 'trending', 'submission'];
+const SOURCES: readonly CandidateSource[] = ['manual', 'trending', 'submission', 'promotion'];
 const OPTIONS = ['settings-before', 'rubric-before', 'category', 'source'];
 
 export type RequeueFilter = {

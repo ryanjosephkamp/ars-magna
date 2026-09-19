@@ -43,7 +43,8 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
 | `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |
 | `tools/hits/src/desk`, `tools/hits/templates/desk.html` | the review desk: `pnpm hits:desk` builds it into `.cache/desk/index.html` |
-| `data/` | `candidates.jsonl`, `hits.jsonl`, `schema/`, `queue/<date>/` |
+| `data/` | `candidates.jsonl`, `hits.jsonl`, `schema/`, `queue/<date>/`, `counts/<date>/` (the day's votes, and promotions by code), `promotions/` (the review's decisions and the block list, by code) |
+| `tools/hits/src/promotions` | the promotions review: export, review, ingest, apply, block. Reader text lives only in the private repository `ars-magna-promotions` and `.cache/promotions/` |
 | `automation/` | `judge-routine.md` (the judge's instructions) and `RUNBOOK.md` (the pipeline) |
 | `docs/OPERATOR.md` | the operator manual: one section per workflow, each with its prompt |
 | `docs/prompts/` | the prompt templates the manual names, with bare placeholders like `hit_input` |
@@ -95,7 +96,7 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
 
 - Push to `main`, merge a pull request, or rewrite a branch someone else pushed.
 - Edit `data/hits.jsonl` by hand, or change an existing line of `data/candidates.jsonl`. The tools
-  write them: `hits:ingest`, `hits:set`, `hits:justify`, `hits:describe`, `hits:sense`, `hits:tag`, `hits:order`, `hits:input`, `hits:judged-at`, `hits:fetch`, and the MCP tool
+  write them: `hits:ingest`, `promotions:apply`, `hits:set`, `hits:justify`, `hits:describe`, `hits:sense`, `hits:tag`, `hits:order`, `hits:input`, `hits:judged-at`, `hits:fetch`, and the MCP tool
   `propose_hit`. Appending new
   `manual` candidates by hand is allowed.
 - Create, change, pause or delete a schedule (the Actions crons, the judge routine, a scheduled task)
@@ -104,6 +105,9 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
   `wrangler d1 migrations apply --remote`) unless the task asks for exactly that. Deploy applies migrations.
 - Read, print, store or ask for a secret's value. A person sets secrets with `gh secret set`, which
   prompts for the value.
+- Copy anything a reader typed (a promotion's input, a submission's note) from the private repository
+  `ars-magna-promotions` or `.cache/promotions/` into this repository, a commit, a pull request, a log or a
+  public page. Only `promotions:apply` publishes it, and only for a review the operator merged there.
 
 ## Where to read more
 

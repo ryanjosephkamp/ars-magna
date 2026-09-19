@@ -48,10 +48,10 @@
     "tier": { "type": "string", "enum": ["common", "standard", "full", "extended"] },
     "tags": {
       "type": "array",
-      "description": "classic; submitted; alternate (qualified past the per-input cap); greatest-candidate (the judge scored relation 5); note:<text>; shelf:interesting or shelf:stretch (the operator's placement, over the judge's scores); subject:<label>; tone:<label>.",
+      "description": "classic; submitted (from a reader, by the issue form or Build); promoted (a reader promoted it from a search, and the review placed it); alternate (qualified past the per-input cap); greatest-candidate (the judge scored relation 5); note:<text>; shelf:interesting or shelf:stretch (the operator's placement, over the judge's scores); subject:<label>; tone:<label>.",
       "items": {
         "type": "string",
-        "pattern": "^(classic|submitted|alternate|greatest-candidate|note:[\\s\\S]+|shelf:(interesting|stretch)|subject:[a-z][a-z0-9-]*|tone:(literal|ironic|pun|self-referential|uncanny|rude))$"
+        "pattern": "^(classic|submitted|promoted|alternate|greatest-candidate|note:[\\s\\S]+|shelf:(interesting|stretch)|subject:[a-z][a-z0-9-]*|tone:(literal|ironic|pun|self-referential|uncanny|rude))$"
       }
     },
     "status": {

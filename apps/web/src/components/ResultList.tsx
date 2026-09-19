@@ -16,6 +16,7 @@ import { buildHref } from '../lib/urlState.ts';
 import { discoveryFor, type Discovered, type RowDiscovery } from '../lib/inDiscoveries.ts';
 import type { Votes } from '../hits/useVotes.ts';
 import type { Promotions } from '../state/usePromotions.ts';
+import { useBlocked } from '../state/usePublishedHits.ts';
 import { promotable, promotionKey } from '../votes/core.ts';
 import { CountButton, VoteButton } from './CountButton.tsx';
 import { ShareActions } from './ShareActions.tsx';
@@ -462,11 +463,12 @@ function PublishedAction({ discovery, votes }: { discovery: RowDiscovery; votes:
   );
 }
 
-/** Promote, with its count, for a row that is not on Discover. Absent when promotions did not load. */
+/** Promote, with its count, for a row that is not on Discover. Absent when promotions did not load, and for a blocked anagram. */
 function PromoteAction({ words, input, promotions }: { words: readonly string[]; input: string; promotions: Promotions }) {
-  if (promotions.status !== 'open' && promotions.status !== 'closed') return null;
-  if (!promotable(input, words)) return null;
   const key = promotionKey(words);
+  const blocked = useBlocked(key);
+  if (promotions.status !== 'open' && promotions.status !== 'closed') return null;
+  if (!promotable(input, words) || blocked !== false) return null;
   const count = promotions.counts[key] ?? 0;
   return (
     <CountButton

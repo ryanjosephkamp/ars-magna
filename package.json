@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Ars Magna — find every multi-word anagram of any text.",
+  "description": "Ars Magna \u2014 find every multi-word anagram of any text.",
   "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=22"
@@ -42,6 +42,12 @@
     "hits:order": "pnpm --filter @ars-magna/hits run order",
     "hits:input": "pnpm --filter @ars-magna/hits run input",
     "hits:judged-at": "pnpm --filter @ars-magna/hits run judged-at",
+    "promotions:export": "pnpm --filter @ars-magna/hits run promotions:export",
+    "promotions:review": "pnpm --filter @ars-magna/hits run promotions:review",
+    "promotions:ingest": "pnpm --filter @ars-magna/hits run promotions:ingest",
+    "promotions:apply": "pnpm --filter @ars-magna/hits run promotions:apply",
+    "promotions:block": "pnpm --filter @ars-magna/hits run promotions:block",
+    "votes:convert": "node --experimental-strip-types apps/web/scripts/convert-promotions.ts",
     "wasm:build": "bash scripts/build-wasm.sh",
     "rust:test": "cargo test --workspace"
   },
