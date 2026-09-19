@@ -1,16 +1,24 @@
 /**
  * What a typed filter can honestly cover.
  *
- * The filter works on the rows in memory. When those are every result, it
- * covers everything. When they are not, there are two better answers than
- * filtering a fraction and saying so: a short list simply loads the rest, and
- * a filter that is one or more dictionary words is counted across every result
- * with those words as Must include, so the line leads with how many of the
- * whole list contain them (`11 of 15,202 contain “shamed”`), and Show them
- * switches the list to them. The count leaves the list alone, and nothing
- * switches it while the reader types: `sham` is a word on the way to `shamed`.
- * A filter that is part of a word, or a phrase fragment, stays on the loaded
- * rows and is labelled that way.
+ * A filter that is one or more whole dictionary words that fit the letters is
+ * a question about every result, so the engine answers it, however much of the
+ * list is loaded: every result is counted with those words as Must include, the
+ * line leads with how many contain them (`11 of 15,202 contain “shamed”`), and
+ * Show them switches the list to them, spelled with the words asked for. The
+ * order the words are typed in does not matter. The count leaves the list
+ * alone, and nothing switches it while the reader types: `sham` is a word on
+ * the way to `shamed`.
+ *
+ * The rows on screen still narrow as the reader types, by what they display:
+ * a result shows one spelling for each set of words sharing letters, so on a
+ * list of "apple sauce" the row holding sauce shows cause, and the filter
+ * `sauce` narrows it away while the engine counts it. On a list that is all
+ * loaded, the line says so beside the engine's count when the two differ
+ * (`12 of 588 contain “sauce” · 0 shown as typed`). A filter that is part of a
+ * word, or a phrase fragment, narrows the rows on screen alone: every result
+ * when they are all loaded, the loaded ones otherwise, labelled that way, and
+ * a short list loads the rest first.
  *
  * The count runs in a worker of its own (`state/countWorker.ts`), never on the
  * one the list pages, jumps and opens rows with, and for at most
@@ -27,13 +35,15 @@ export const AUTO_LOAD_LIMIT = 5_000;
 export const FILTER_COUNT_LIMIT_MS = 4_000;
 
 export type FilterScope =
-  /** No filter, or every result is loaded: the filter covers everything. */
+  /** No filter, or a fragment over a list that is all loaded: the rows on screen are every result it can match. */
   | { kind: 'all' }
-  /** The list is short enough to load the rest now, after which the filter covers everything. */
-  | { kind: 'load-rest' }
-  /** The filter is dictionary words that fit: count every result containing them, and offer to show those. */
-  | { kind: 'must-include'; words: string[] }
-  /** The filter covers the loaded rows only, and says so. */
+  /**
+   * The filter is dictionary words that fit: the engine counts every result
+   * containing them, and offers to show those. `everyLoaded` says the list on
+   * screen holds every result, so its own narrowing can be set beside the count.
+   */
+  | { kind: 'must-include'; words: string[]; everyLoaded: boolean }
+  /** A fragment over a partial list: it covers the loaded rows only, and says so. */
   | { kind: 'loaded' };
 
 /** The filter as whole words, lowercase, when it is nothing but letters and spaces; otherwise null. */
@@ -69,18 +79,31 @@ export function filterScope(options: {
   mustExclude?: readonly string[];
   /** The filter's words the dictionary tier carries, once looked up; null until then. */
   known: readonly string[] | null;
-  limit?: number;
 }): FilterScope {
-  const { filter, loaded, total, letters, mustInclude, mustExclude = [], known, limit = AUTO_LOAD_LIMIT } = options;
+  const { filter, loaded, total, letters, mustInclude, mustExclude = [], known } = options;
   if (filter.trim().length === 0) return { kind: 'all' };
-
   const exact = total.startsWith('>') ? null : Number(total);
-  if (exact !== null && loaded >= exact) return { kind: 'all' };
-  if (exact !== null && exact < limit) return { kind: 'load-rest' };
+  const everyLoaded = exact !== null && loaded >= exact;
+  const words = engineWords(filter, letters, mustInclude, mustExclude, known);
+  if (words) return { kind: 'must-include', words, everyLoaded };
+  return everyLoaded ? { kind: 'all' } : { kind: 'loaded' };
+}
 
+/**
+ * The filter's words the engine is asked about: every word is one the
+ * dictionary carries, not taken out by Must exclude, and they fit the letters
+ * beside Must include. Words Must include already holds add nothing, since
+ * every row contains them. Null when any word fails, or none is left.
+ */
+function engineWords(
+  filter: string,
+  letters: string,
+  mustInclude: readonly string[],
+  mustExclude: readonly string[],
+  known: readonly string[] | null,
+): string[] | null {
   const words = filterWords(filter);
-  if (!words || !known) return { kind: 'loaded' };
-  // Words Must include already holds add nothing: every row contains them.
+  if (!words || !known) return null;
   const pending = [...mustInclude];
   const extra = words.filter((w) => {
     const at = pending.indexOf(w);
@@ -88,11 +111,23 @@ export function filterScope(options: {
     pending.splice(at, 1);
     return false;
   });
-  if (extra.length === 0) return { kind: 'loaded' };
+  if (extra.length === 0) return null;
   // An excluded word is out of this search's dictionary, so no result has it.
-  if (!extra.every((w) => known.includes(w) && !mustExclude.includes(w))) return { kind: 'loaded' };
-  if (!fitsLetters(letters, [...mustInclude, ...extra])) return { kind: 'loaded' };
-  return { kind: 'must-include', words: extra };
+  if (!extra.every((w) => known.includes(w) && !mustExclude.includes(w))) return null;
+  if (!fitsLetters(letters, [...mustInclude, ...extra])) return null;
+  return extra;
+}
+
+/**
+ * Whether a typed filter loads the rest of the list first: a short list under
+ * `limit` that is not all loaded, so the rows on screen narrow over every
+ * result, whatever the filter is.
+ */
+export function loadsRest(options: { filter: string; loaded: number; total: string; limit?: number }): boolean {
+  const { filter, loaded, total, limit = AUTO_LOAD_LIMIT } = options;
+  if (filter.trim().length === 0 || total.startsWith('>')) return false;
+  const exact = Number(total);
+  return loaded < exact && exact < limit;
 }
 
 /** “dirty”, or “dirty” and “room”, or “a”, “b” and “c”. */
@@ -112,11 +147,12 @@ export function containingQuery(query: Query, words: readonly string[]): Query {
 /**
  * What a count is for, so an answer is only ever shown against the filter and
  * the search it was asked for. Two filters, or two searches, that would ask the
- * engine the same question share a key.
+ * engine the same question share a key, whatever order their words are in.
  */
 export function containingKey(query: Query, words: readonly string[]): string {
   const { input, tier, minWordLen, maxWords, mustInclude, mustExclude } = containingQuery(query, words);
-  return JSON.stringify([input, tier, minWordLen, maxWords, mustInclude, mustExclude]);
+  // Word order is no part of the question: `sauce apple` asks what `apple sauce` does.
+  return JSON.stringify([input, tier, minWordLen, maxWords, [...mustInclude].sort(), [...mustExclude].sort()]);
 }
 
 /**
@@ -154,4 +190,17 @@ export function containingLine(count: TextCount, total: string, words: readonly 
     case 'failed':
       return null;
   }
+}
+
+/**
+ * Beside the engine's count on a list that is all loaded: how many rows the
+ * screen shows for the filter as typed, when that is not the count. The screen
+ * matches what each row displays, and a row shows one spelling for each set of
+ * words sharing letters, so `sauce` can count 12 while the rows show `cause`
+ * and none is shown. Null when the two agree, or the count has no figure yet.
+ */
+export function shownAsTyped(count: TextCount, shown: number): string | null {
+  if (count.kind !== 'exact' && count.kind !== 'floor') return null;
+  if (count.kind === 'exact' && count.total === String(shown)) return null;
+  return `${formatCount(String(shown))} shown as typed`;
 }

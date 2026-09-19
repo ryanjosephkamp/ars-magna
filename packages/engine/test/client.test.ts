@@ -178,7 +178,12 @@ describe('ArsMagnaClient', () => {
     worker.reply({ k: 'count', id: first!.id, total: '40', candidates: 0, textLeftOut: false });
     worker.reply({ k: 'count', id: second!.id, total: '11', candidates: 0, textLeftOut: false });
     await expect(sham).resolves.toBeNull();
-    await expect(shamed).resolves.toBe('11');
+    await expect(shamed).resolves.toEqual({ total: '11', textLeftOut: false });
+
+    // A count that pins every word of the text: its only result would be the text, so the engine says it left that out.
+    const itself = client.count({ ...QUERY, mustInclude: ['dormitory'] });
+    worker.reply({ k: 'count', id: worker.sent.at(-1)!.id, total: '0', candidates: 0, textLeftOut: true });
+    await expect(itself).resolves.toEqual({ total: '0', textLeftOut: true });
 
     // Neither count is the search: the list keeps its own id and its batches.
     worker.reply({ k: 'batch', id: solveId, offset: 0, rows: [['x']], done: true, truncated: false });
@@ -213,7 +218,7 @@ describe('ArsMagnaClient', () => {
     second.reply({ k: 'solved', id: second.sent[1]!.id, stats: { candidates: 9, elapsedMs: 1 } });
     const answered = client.count({ ...QUERY, mustInclude: ['lens'] });
     second.reply({ k: 'count', id: second.sent.at(-1)!.id, total: '2', candidates: 0, textLeftOut: false });
-    await expect(answered).resolves.toBe('2');
+    await expect(answered).resolves.toEqual({ total: '2', textLeftOut: false });
     client.solve({ ...QUERY, input: 'silent' }, {});
     expect(workers).toHaveLength(2);
   });

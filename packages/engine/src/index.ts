@@ -37,6 +37,9 @@ export type SolveHandlers = {
   onError?(code: ErrorCode, message: string): void;
 };
 
+/** A count on its own: the total (`>` in front for a floor), and whether the text's own row was left out of it. */
+export type CountAnswer = { readonly total: string; readonly textLeftOut: boolean };
+
 export type EngineStatus =
   | { readonly state: 'loading' }
   | { readonly state: 'ready'; readonly counts: DictCounts; readonly builtAt: string }
@@ -144,14 +147,15 @@ export class ArsMagnaClient {
 
   /**
    * The total for `query`, without results and without touching the list the
-   * active search is paging through. Resolves with null when a later `count`
-   * replaced this one before it was answered, the way a superseded query's
-   * results are dropped.
+   * active search is paging through, and whether the text's own row was left
+   * out of it (see `count` in the protocol). Resolves with null when a later
+   * `count` replaced this one before it was answered, the way a superseded
+   * query's results are dropped.
    */
-  async count(query: Query, maxNodes?: number): Promise<string | null> {
+  async count(query: Query, maxNodes?: number): Promise<CountAnswer | null> {
     let asked = 0;
     try {
-      const total = await this.#ask<string>((id) => {
+      const total = await this.#ask<CountAnswer>((id) => {
         asked = id;
         this.#activeCount = id;
         this.#counting.add(id);
@@ -276,7 +280,7 @@ export class ArsMagnaClient {
       else if (message.k === 'spellings') oneShot.resolve(message.words as never);
       else if (message.k === 'lookup') oneShot.resolve(message.found as never);
       else if (message.k === 'masks') oneShot.resolve(message.masks as never);
-      else if (message.k === 'count') oneShot.resolve(message.total as never);
+      else if (message.k === 'count') oneShot.resolve({ total: message.total, textLeftOut: message.textLeftOut } as never);
       else if (message.k === 'zipf') oneShot.resolve(message.zipf as never);
       else if (message.k === 'batch') oneShot.resolve((message.rows[0] ?? null) as never);
       else if (message.k === 'collected')

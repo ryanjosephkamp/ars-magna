@@ -12,7 +12,7 @@ const READY: EngineStatus = { state: 'ready', counts: { common: 1, standard: 1, 
  * once a budget reaches `needs`, a floor of the budget before that. Each keeps
  * whether it was stopped.
  */
-function engines(c: ReturnType<typeof clock>, { rate = 50, needs = 30, startMs = 0, status = READY } = {}) {
+function engines(c: ReturnType<typeof clock>, { rate = 50, needs = 30, startMs = 0, status = READY, textLeftOut = false } = {}) {
   const started: { stopped: boolean; asked: number[] }[] = [];
   const create = async (): Promise<Counter> => {
     const engine = { stopped: false, asked: [] as number[] };
@@ -23,7 +23,7 @@ function engines(c: ReturnType<typeof clock>, { rate = 50, needs = 30, startMs =
       count: async (_query, maxNodes = 0) => {
         engine.asked.push(maxNodes);
         await c.wait(Math.min(maxNodes, needs) / rate);
-        return maxNodes >= needs ? '116' : `>${maxNodes}`;
+        return { total: maxNodes >= needs ? '116' : `>${maxNodes}`, textLeftOut };
       },
       terminate: () => {
         engine.stopped = true;
@@ -42,7 +42,7 @@ describe('a count in a worker of its own', () => {
       const done = worker.count(QUERY);
       expect(worker.busy).toBe(true);
       await c.advance(10);
-      expect(await done).toEqual({ count: { kind: 'exact', total: '116' }, timedOut: false });
+      expect(await done).toEqual({ count: { kind: 'exact', total: '116' }, timedOut: false, textLeftOut: false });
       expect(worker.busy).toBe(false);
     }
     expect(e.started).toHaveLength(1);
@@ -58,7 +58,7 @@ describe('a count in a worker of its own', () => {
     const worker = new CountWorker({ create: e.create, wait: c.wait, limitMs: 4_000 });
     const first = worker.count(QUERY);
     await c.advance(4_000);
-    expect(await first).toEqual({ count: { kind: 'floor', total: '10000' }, timedOut: true });
+    expect(await first).toEqual({ count: { kind: 'floor', total: '10000' }, timedOut: true, textLeftOut: false });
     expect(e.started[0]!.stopped).toBe(true);
     const second = worker.count(QUERY);
     await c.advance(1);
@@ -84,6 +84,15 @@ describe('a count in a worker of its own', () => {
     expect(e.started).toHaveLength(1);
   });
 
+  it('passes on that the engine left the text itself out', async () => {
+    const c = clock();
+    const e = engines(c, { textLeftOut: true });
+    const worker = new CountWorker({ create: e.create, wait: c.wait });
+    const done = worker.count(QUERY);
+    await c.advance(10);
+    expect(await done).toEqual({ count: { kind: 'exact', total: '116' }, timedOut: false, textLeftOut: true });
+  });
+
   it('stops an engine that arrives after the count was abandoned', async () => {
     const c = clock();
     const e = engines(c, { startMs: 300 });
@@ -100,7 +109,7 @@ describe('a count in a worker of its own', () => {
     const c = clock();
     const e = engines(c, { status: { state: 'failed', code: 'FETCH_FAILED', message: 'no' } });
     const worker = new CountWorker({ create: e.create, wait: c.wait });
-    expect(await worker.count(QUERY)).toEqual({ count: { kind: 'failed' }, timedOut: false });
+    expect(await worker.count(QUERY)).toEqual({ count: { kind: 'failed' }, timedOut: false, textLeftOut: false });
     expect(e.started[0]!.stopped).toBe(true);
     await worker.count(QUERY);
     expect(e.started).toHaveLength(2);

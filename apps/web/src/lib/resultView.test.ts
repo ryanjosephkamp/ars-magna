@@ -21,6 +21,14 @@ describe('matches', () => {
   it('treats an empty filter as no filter', () => {
     expect(matches(['anything'], '')).toBe(true);
   });
+
+  it('matches what a row displays, which is why the engine answers a word filter', () => {
+    // A row shows one spelling for each set of words sharing letters, so the row holding
+    // sauce displays cause: the rows on screen cannot answer "which contain sauce", and
+    // the count beside them does (`filterScope.ts`). A substring hits inside a word, too.
+    expect(matches(['cause', 'apple'], 'sauce')).toBe(false);
+    expect(matches(['causee', 'palp'], 'cause')).toBe(true);
+  });
 });
 
 describe('applyView', () => {
