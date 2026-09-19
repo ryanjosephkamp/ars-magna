@@ -603,8 +603,11 @@ one marks that letter in the accent, underlined, in both charts, the tray and bo
 selected again or Escape is pressed. A tick on each letter's bar marks how many of that letter English would use
 in as many letters (the table in `lib/analysis.ts`). Beneath the letters, **Word lengths** has a bar per length from
 the shortest word on either side to the longest, and **Each word** places every distinct word on a fixed scale from
-rare to everyday by its frequency byte, with faint marks where the bands meet. Nothing in the analysis is stored or
-sent anywhere.
+rare to everyday by its frequency byte, with faint marks where the bands meet. The **Letter map** sets the text above
+the anagram and draws a fine line from each letter to where it went, a repeated letter matched in order; the selected
+letter's lines take the accent, and a letter with no partner has none. It draws texts of up to `MAP_LIMIT` letters
+(60, in `apps/web/src/lib/letterMap.ts`, a number you may tune) and says so in a sentence past that. Nothing in the
+analysis is stored or sent anywhere.
 
 **The count.** The text's anagrams are counted in all four dictionaries, one at a time, the chosen one first, and
 shown as four lines, Common to Extended, with the chosen one set darker. Each is the engine's number, counted in a

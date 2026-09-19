@@ -337,6 +337,15 @@ describe('the Build page’s export', () => {
     expect(JSON.parse(buildJson(report({ total: '>5000000' })))).toMatchObject({ total: '5000000', totalIsFloor: true });
   });
 
+  it('writes the letter map, counting letters from 1, and the limit past it', () => {
+    expect(buildTxt(report())).toContain('Letter map          d 1→1 · o 2→7 · r 3→3 · m 4→9 · i 5→2 · t 6→4 · o 7→8 · r 8→6 · y 9→5');
+    expect(JSON.parse(buildJson(report())).letterMap.links[1]).toEqual({ letter: 'o', from: 1, to: 6 });
+    const long = 'a'.repeat(61);
+    const past = report({ text: long, anagram: long, letters: { text: letterFigures(long), anagram: letterFigures(long) } });
+    expect(buildTxt(past)).toContain('Letter map          The letter map draws texts of up to 60 letters.');
+    expect(JSON.parse(buildJson(past)).letterMap).toBeNull();
+  });
+
   it('names the file after the text', () => {
     expect(buildFileStem('Dario Amodei')).toBe('ars-magna-build-dario-amodei');
     expect(buildFileStem('  ')).toBe('ars-magna-build');
