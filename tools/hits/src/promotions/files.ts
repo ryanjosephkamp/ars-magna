@@ -177,6 +177,7 @@ export const validators = {
   promotionCount: () => schema('count.schema.json', 'promotion'),
   voteCount: () => schema('count.schema.json', 'vote'),
   countsMeta: () => schema('count.schema.json', 'meta'),
+  monthly: () => schema('monthly.schema.json'),
 };
 
 /**
@@ -230,6 +231,20 @@ export async function datedFiles(dir: string, ext: string): Promise<{ date: stri
       return match ? [{ date: match[1]!, path: resolve(dir, name) }] : [];
     })
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Votes by hit from the newest folder in data/counts/, and its date; empty when there is none. */
+export async function newestVotes(dir: string = COUNTS_DIR): Promise<{ date: string | null; votes: Map<string, number> }> {
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return { date: null, votes: new Map() };
+  }
+  const date = names.filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n)).sort().at(-1);
+  if (!date) return { date: null, votes: new Map() };
+  const lines = await readLines<VoteCount>(resolve(dir, date, 'votes.jsonl'), await validators.voteCount());
+  return { date, votes: new Map(lines.map((l) => [l.hit_id, l.count])) };
 }
 
 /** The blocked anagrams' codes. */

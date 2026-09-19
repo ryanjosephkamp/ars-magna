@@ -11,7 +11,7 @@ explains the pipeline these jobs sit on.
 | When (UTC) | What | Leaves behind |
 |---|---|---|
 | 06:00 daily | Hits nightly Action | a commit to `main` with `data/queue/<date>/` (the summary and the screen input) and `data/candidates.jsonl` |
-| 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request; nothing after a thin night; a `Greatest Hits: <date> not judged` pull request after a night it could not judge |
+| 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request; nothing after a thin night; a `Greatest Hits: <date> not judged` pull request after a night it could not judge; on its first run of each month, the monthly vote review in the same pull request (see "The monthly vote review") |
 | after Hits nightly | Export promotions Action | a commit to `main` with `data/counts/<date>/` (the day's votes, and promotions by code), and the private export in `ars-magna-promotions` (see "Review promotions") |
 | every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev, after Deploy applies any new votes database migration; then each promotion of a newly published anagram becomes a vote |
 | a merge that changes `data/hits.jsonl`, `tools/hits/src/publish.ts` or the dataset card | Publish hits Action | the dataset at https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits |
@@ -198,7 +198,8 @@ would announce a word the site cannot find.
 
 When a pull request titled `Greatest Hits: N new for <date>` appears. The routine opens one after it
 judges a non-empty queue, even when N is zero, and after it applies a review of promotions you approved; the
-promotions it publishes follow the ingest report in the body (see "Review promotions").
+promotions it publishes follow the ingest report in the body (see "Review promotions"). Once a month the body also
+holds the monthly vote review (see "The monthly vote review").
 
 The judge scores each anagram's **relation** to its input from 1 to 5, and how it **reads** from 1 to
 3. Ingest turns that into a shelf:
@@ -792,6 +793,44 @@ pull request. Without the private repository, `pnpm promotions:export --out=.cac
 export to a gitignored folder here instead, and `--from=.cache/promotions` reviews it.
 
 Prompt: `docs/prompts/review-promotions.md`.
+
+## The monthly vote review
+
+When the routine's pull request carries a section "Monthly vote review <month>", once a month. Votes never move
+an anagram by themselves; once a month they nominate.
+
+- **A stretch, read again.** The top tenth of A stretch by votes, each with at least 5 votes, is read again by the
+  routine's model with its own instructions (`tools/hits/prompts/monthly.md`). It may move **one** to Interesting,
+  with the tag `shelf:interesting` (and `shelf:stretch` off, if you had placed it there), and only when its link
+  plainly meets Interesting's bar. Every row it read gets a decision and a sentence of its own, under the same
+  repeated-sentence check as a queue.
+- **Greatest Hits suggestions.** The top tenth of Interesting by votes, each with at least 5 votes, is listed for
+  you. Nothing is promoted: a hit joins Greatest Hits only by your named decision,
+  `pnpm hits:set --status=featured <id>`.
+- **Votes** come from the newest daily counts, `data/counts/<date>/votes.jsonl` (see "Review promotions"), ranked
+  as the site ranks a section: most votes first, a tie A to Z. The desk's and the audit's Most votes order shows
+  the same ranking.
+
+**How the routine knows it is the month's turn**, with no schedule of its own: each review writes
+`data/votes/monthly/<month>.md` and `.jsonl`, which the routine's pull request carries. A run is the month's turn
+when neither `main` nor any open `hits/*` branch holds that month's record, so the first run of each UTC month does
+it and every later run that month finds it. If you close that pull request unmerged, the next run does the review
+again; a run that cannot see the open branches skips it rather than risk doing it twice. When nothing has 5 votes,
+the month is still recorded, saying so.
+
+**Review it** in the routine's pull request, which has the section in its body: the move with its sentence, every
+row that stays with its sentence, and the suggestions. Merging approves the move. To keep that hit in A stretch
+instead, on the branch run the command the section prints (`pnpm hits:tag <id> -shelf:interesting`, plus
+`+shelf:stretch` if you had placed it there), commit and push. `data/votes/monthly/<month>.jsonl` keeps every row it
+read, the ones that stay included, with the model, who ran it, and the counts' date.
+
+**The numbers**, which you may tune in `tools/hits/src/monthly.ts`: `MONTHLY_SHARE` (the top tenth), `MONTHLY_MIN_VOTES`
+(5) and `MONTHLY_MOVES` (1).
+
+**By hand**, when the routine is paused or a month was missed: paste `docs/prompts/monthly-vote-review.md` into a
+session on this Mac. `pnpm hits:monthly --month=YYYY-MM` names another month.
+
+Prompt: `docs/prompts/monthly-vote-review.md`.
 
 ## Judge a queue by hand
 

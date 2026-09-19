@@ -28,22 +28,14 @@
  * record of what the operator approved.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { artifactFragment, deskData, renderDesk, type DeskMode, type PromotionsInput, type QueueInput, type SenseRule } from './desk/build.ts';
-import {
-  COUNTS_DIR,
-  datedFiles,
-  readBlocks,
-  readDecisions,
-  readLines,
-  readReviews,
-  validators,
-  type ExportLine,
-  type VoteCount,
-} from './promotions/files.ts';
+import { datedFiles, newestVotes, readBlocks, readDecisions, readLines, readReviews, validators, type ExportLine } from './promotions/files.ts';
+
+export { newestVotes } from './promotions/files.ts';
 import { firstGlosses } from './glosses.ts';
 import { parseVerdicts } from './judge.ts';
 import { JUDGE_OUTPUT, flag, queueDates, queueDir, readJudgedRows } from './queue.ts';
@@ -90,20 +82,6 @@ export async function judgedQueues(count: number): Promise<QueueInput[]> {
     out.push({ name, rows: await readJudgedRows(dir), verdicts });
   }
   return out;
-}
-
-/** Votes by hit from the newest folder in data/counts/, and its date; empty when there is none. */
-export async function newestVotes(dir: string = COUNTS_DIR): Promise<{ date: string | null; votes: Map<string, number> }> {
-  let names: string[];
-  try {
-    names = await readdir(dir);
-  } catch {
-    return { date: null, votes: new Map() };
-  }
-  const date = names.filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n)).sort().at(-1);
-  if (!date) return { date: null, votes: new Map() };
-  const lines = await readLines<VoteCount>(resolve(dir, date, 'votes.jsonl'), await validators.voteCount());
-  return { date, votes: new Map(lines.map((l) => [l.hit_id, l.count])) };
 }
 
 /**
