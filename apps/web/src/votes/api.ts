@@ -17,6 +17,7 @@
  * CORS preflight this API never grants.
  */
 import { normalizeLetters } from '@ars-magna/engine/fold';
+import { isTextItself } from '@ars-magna/engine/identity';
 
 import {
   HIT_ID_PATTERN,
@@ -280,6 +281,11 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   }
   if (!promotable(input, words)) {
     return refuse(400, 'not-an-anagram', 'Those words do not use exactly the letters of the input.');
+  }
+  // The text's own words, in any order, and a re-spacing of it are the text, not an anagram of it.
+  // Taking a promotion back always works, so only making one is refused.
+  if (on && isTextItself(input, words)) {
+    return refuse(400, 'text-itself', 'That is the text itself, not an anagram of it.');
   }
   // Taking a submission back needs no note; making one needs a good one.
   const noted = typed && on ? submission(body, words) : null;

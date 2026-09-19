@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Tier } from '@ars-magna/engine';
 import {
+  TEXT_ITSELF,
   lettersMatchLabel,
   submissionTier,
   wordRequestSentence,
@@ -80,5 +81,11 @@ describe('what a submission records', () => {
 
   it('says so in the exact sentence', () => {
     expect(wordRequestSentence('doomer')).toBe('doomer is not in the dictionary; it will be reviewed as a word request too.');
+  });
+});
+
+describe('the text itself', () => {
+  it('has one line, which the page shows in place of the letters verdict', () => {
+    expect(TEXT_ITSELF).toBe('That is the text itself.');
   });
 });

@@ -20,7 +20,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import { bestOrder, scoreOrder } from '@ars-magna/engine';
+import { bestOrder, isRespacing, scoreOrder } from '@ars-magna/engine';
 import { normalizeLetters } from '@ars-magna/engine/fold';
 
 import { hitId, alphagram, isCategory, type Category } from './ids.ts';
@@ -98,25 +98,10 @@ export function reject(
   if (!isCategory(row.category)) return 'category';
   // "Star Wars" -> "star wars", "The Godfather" -> "the god father": the
   // input's own letters in the input's own order, in some arrangement of the
-  // words. A re-spacing, not an anagram.
+  // words. A re-spacing, not an anagram. The rule is the engine's, shared with
+  // Build and the promotions API (`identity.ts`).
   if (isRespacing(row.words, normalizeLetters(row.input))) return 'identity';
   return null;
-}
-
-/** Can the words be arranged to spell `letters` exactly? At most 5 words, so at most 120 orders. */
-export function isRespacing(words: readonly string[], letters: string): boolean {
-  if (words.join('').length !== letters.length) return false;
-  const walk = (remaining: string, used: boolean[]): boolean => {
-    if (remaining.length === 0) return true;
-    for (let i = 0; i < words.length; i++) {
-      if (used[i] || !remaining.startsWith(words[i]!)) continue;
-      used[i] = true;
-      if (walk(remaining.slice(words[i]!.length), used)) return true;
-      used[i] = false;
-    }
-    return false;
-  };
-  return walk(letters, words.map(() => false));
 }
 
 /**

@@ -546,7 +546,9 @@ the order they saw, the `tier` they searched, `via` (`result` from a search, `ty
 migration `0003`), `why`, `credit` and `missing` (its word requests); the rest leave them empty. `converted_to`
 (migration `0004`) is the hit a promotion's vote went to, once its anagram is published; the row stays.
 `promotion_counts` holds each key's count, recounted with every change. A promotion of an anagram already on
-Discover is refused, and the search page shows Vote for it instead.
+Discover is refused, and the search page shows Vote for it instead. A promotion of the text itself is refused
+too, typed from Build or pressed on a search row: the text's own words in any order, and a re-spacing of it,
+are the text (see "Build"). Taking a promotion back is never refused.
 
 **Look at the counts.** Read-only, from `apps/web`, once `pnpm dlx wrangler@4.121.0 login` has signed this
 machine in to Cloudflare:
@@ -611,6 +613,15 @@ form ("Add a hit by hand") stays open as a second way in, and the page links to 
 | a submission | `POST /api/promote` with `via: "typed"`: a row in the promotions table (see "Votes on Discover") |
 | the analysis | `apps/web/src/lib/analysis.ts`, from the dictionary's own part-of-speech masks and frequency bytes |
 | the text's count | `apps/web/src/state/useTextCount.ts` (`useTextCounts`), a second worker (`apps/web/src/state/countWorker.ts`, the one Search's filter count uses too) started to count the four dictionaries and stopped when the last ends; its time limit and budgets in `apps/web/src/lib/textCount.ts` |
+
+**The text is never its own anagram.** The text's own words, in any order ("sauce apple" for "apple sauce"),
+and a re-spacing of it, the same letters in the same order split another way ("star wars" for "Star Wars",
+"the god father" for "The Godfather"), are the text, not an anagram of it (D46). The verdict line under the
+anagram box then reads `That is the text itself.` and no submission form is shown; both checks answer as they
+always do, since the letters do match and the words are known. The rule is one module the nightly pipeline,
+the page and the API share, `isTextItself` in `packages/engine/src/identity.ts`, so the three cannot disagree;
+it splits a text into words as the engine does (`foldWords`). The search still lists a re-spacing, since
+"applesauce" is a different word from "apple sauce".
 
 **The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
 apostrophes, hyphens and punctuation carry no letters, and digits, symbols and letters of other scripts are
@@ -682,6 +693,7 @@ replaces the note, and pressing Promote on the same anagram in a search takes it
   `apps/web/src/votes/core.ts`, a number you may tune); the page itself has no cap. It passes the same
   Turnstile check as votes and counts against the promotions' hourly limit.
 - **An anagram already on Discover** shows a link to it instead of the form, and the API refuses it.
+- **The text itself** shows no form, and the API refuses it: `That is the text itself, not an anagram of it.`
 - **Pausing.** `PROMOTIONS_OPEN = "false"` pauses submissions with promotions; the page says `Submissions are
   paused.`
 
