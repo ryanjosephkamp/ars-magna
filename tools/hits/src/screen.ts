@@ -20,9 +20,11 @@ import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { SCREEN_KEEP_CAP, screenKeepProblems } from './guards.ts';
 import { alphagram, hitId, isCategory, type Category } from './ids.ts';
 import type { Prefiltered } from './prefilter.ts';
 import { PREFILTERED, SCREENED, SCREEN_OUTPUT, SCREEN_SCORES, flag, pickQueue } from './queue.ts';
+import { isDeepQueue } from './settings.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const SCREEN_PROMPT_PATH = resolve(here, '../prompts/screen.md');
@@ -250,7 +252,8 @@ export async function screenedCandidateIds(dir: string): Promise<string[]> {
 /**
  * Read a screened queue's answers, check them, and write the kept rows to
  * `screened.jsonl`. Throws, naming every problem, when the answers are
- * missing or do not fit the inputs.
+ * missing or do not fit the inputs, or when an input keeps more than
+ * `SCREEN_KEEP_CAP` phrases in a queue that is not a deep run's.
  */
 export async function applyScreen(dir: string): Promise<Prefiltered[]> {
   const files = await screenInputFiles(dir);
@@ -261,6 +264,14 @@ export async function applyScreen(dir: string): Promise<Prefiltered[]> {
   const sections = parseScreenInputs(await Promise.all(files.map((f) => readFile(f, 'utf8'))));
   const { kept, problems } = validateScreen(parseScreenOutput(await readFile(outputPath, 'utf8')), sections);
   if (problems.length > 0) throw new Error(`${SCREEN_OUTPUT} does not fit the screen inputs:\n  ${problems.join('\n  ')}`);
+  const over = (await isDeepQueue(dir)) ? [] : screenKeepProblems(kept);
+  if (over.length > 0) {
+    throw new Error(
+      `${SCREEN_OUTPUT} keeps too many phrases. The screen keeps a phrase only for a link to its input; the routine's ` +
+        `nights before 2026-09-18 never kept more than 3 for one input, and ${SCREEN_KEEP_CAP} is the most allowed.\n  ${over.join('\n  ')}\n` +
+        `Read those inputs' phrases again and keep only the strongest links. Nothing was written.`,
+    );
+  }
   const rows = rebuildRows(sections, parseScores(await readFile(resolve(dir, SCREEN_SCORES), 'utf8')), kept);
   await writeFile(resolve(dir, SCREENED), rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
   return rows;

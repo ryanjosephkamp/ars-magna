@@ -54,7 +54,15 @@ export type CandidateRun = {
   settings: string;
   rubric: string;
   date: string;
+  /** The model that screened and judged the queue. From F0 on. */
+  model?: string;
+  /** Whether the judge routine or a session a person started judged the queue. From F0 on. */
+  judged_by?: JudgedBy;
 };
+
+/** Who judged a queue: the scheduled judge routine, or a session a person started (by hand, a deep run). */
+export const JUDGED_BY = ['routine', 'hand'] as const;
+export type JudgedBy = (typeof JUDGED_BY)[number];
 
 /** Labels a v2 judge may put on a phrase. They never change a score. */
 export const TONES = ['literal', 'ironic', 'pun', 'self-referential', 'uncanny', 'rude'] as const;
@@ -70,6 +78,7 @@ export type JudgementV1 = {
   total: number;
   rationale: string;
   judged_at: string;
+  judged_by?: JudgedBy;
 };
 
 /**
@@ -89,6 +98,8 @@ export type JudgementV2 = {
   senses?: Record<string, string>;
   rationale: string;
   judged_at: string;
+  /** Whether the judge routine or a session a person started judged it. From F0 on. */
+  judged_by?: JudgedBy;
 };
 
 export type Judgement = JudgementV1 | JudgementV2;

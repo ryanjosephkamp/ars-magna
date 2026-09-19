@@ -11,7 +11,7 @@ explains the pipeline these jobs sit on.
 | When (UTC) | What | Leaves behind |
 |---|---|---|
 | 06:00 daily | Hits nightly Action | a commit to `main` with `data/queue/<date>/` (the summary and the screen input) and `data/candidates.jsonl` |
-| 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request, or nothing after a thin night |
+| 07:00 daily | Judge routine (Claude Code, `claude-sonnet-5`) | a `Greatest Hits: N new for <date>` pull request; nothing after a thin night; a `Greatest Hits: <date> not judged` pull request after a night it could not judge |
 | every merge to `main` | CI and Deploy | the site at https://ars-magna.pages.dev, after Deploy applies any new votes database migration |
 | a merge that changes `data/hits.jsonl`, `tools/hits/src/publish.ts` or the dataset card | Publish hits Action | the dataset at https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits |
 
@@ -202,18 +202,24 @@ The judge scores each anagram's **relation** to its input from 1 to 5, and how i
 
 | Scores | Shelf | In the pull request as |
 |---|---|---|
-| relation 5 | Interesting, flagged for Greatest Hits | `accepted`, tag `greatest-candidate` |
-| relation 4 | Interesting | `accepted` |
+| relation 5 that reads 2 or 3 | Interesting, flagged for Greatest Hits | `accepted`, tag `greatest-candidate` |
+| relation 4 that reads 2 or 3 | Interesting | `accepted` |
 | relation 3 that reads 2 or 3 | A stretch | `accepted` |
-| a fourth or later qualifying phrase for one input | alternate | `proposed`, tag `alternate` |
-| relation 3 that reads 1, or relation 2 | near miss | not added; listed in the report |
+| a fourth to eighth qualifying phrase for one input | alternate | `proposed`, tag `alternate` |
+| relation 3, 4 or 5 that reads 1, relation 2, or a qualifying phrase past an input's five alternates | near miss | not added; listed in the report |
+
+A phrase that reads as word salad is a near miss however apt one of its words is (decided 2026-09-18). An input
+keeps at most five alternates, counting any it already has. Hits published before the rule keep their shelves;
+the site places a published hit by its relation alone, so the audit is where to move one.
 
 **Merging accepts every hit under Interesting and A stretch.** Greatest Hits (`featured`) changes only
 when you promote a hit by name. Rude or offensive phrases are never scored down; they carry the tag
 `tone:rude`.
 
 1. Read the ingest report in the body. For each hit it lists the relation, reads, input, phrase and
-   justification, then the alternates, then the near misses. Its **About** section lists every sentence
+   justification, then the alternates, then the near misses. A night that reads like 2026-09-18 (hundreds of
+   hits, one input dominating, sentences that repeat) should not get this far, since the tools refuse it;
+   if one does, read "A night that is refused" before merging. Its **About** section lists every sentence
    saying what an input is that reached a hit in this run: the ones the judge wrote, marked with the model,
    and the ones the input already had (from Wikidata, by way of the nightly fetch). Merging accepts them;
    change one with `pnpm hits:describe <candidate> "One factual sentence."` on the branch. Its **Senses**
@@ -670,15 +676,19 @@ on a laptop, with the engine check turned back on.
 
 2. Have a Claude session answer every `screen-input-N.md` into `screen-output.jsonl`: one JSON line per
    input, listing the numbers of the phrases with any link to it, read phrase by phrase rather than kept
-   or dropped by script. An older queue without screen files skips this step.
+   or dropped by script, and never more than 12 for one input. An older queue without screen files skips
+   this step. The session reads every file itself; judging a queue by hand is not a deep run, and hands
+   nothing to subagents.
 3. `pnpm hits:judge --date=<folder>` checks the screen answers, writes the kept phrases to
    `screened.jsonl`, and writes `judge-input-N.md` files into the folder: the rubric, then the candidates,
    each with its words and their first dictionary glosses.
 4. Have a Claude session answer every judge file into `judge-output.jsonl`, one JSON line per candidate,
    forming each verdict itself rather than giving groups of rows a default score by script. With
    `ANTHROPIC_API_KEY` set in your shell, `pnpm hits:judge --date=<folder> --via=api` writes the judge's
-   answers through the API instead; the screen is always answered in a session.
-5. `pnpm hits:ingest --date=<folder> --model=<the model that judged>` re-checks every phrase with the
+   answers through the API instead; the screen is always answered in a session. Each justification is
+   written for its own phrase: ingest refuses a file in which one sentence, with the words it quotes
+   masked, is on more than three verdicts.
+5. `pnpm hits:ingest --date=<folder> --model=<the model that judged> --judged-by=hand` re-checks every phrase with the
    engine, writes the shelved hits and the alternates, and writes `ingest-report.md`. Each judgement's
    `judged_at` is the queue's date, or the date its verdict line carries (as `--via=api` writes one); a
    hit's `added` is the day ingest runs. Ingesting a queue again on a later day keeps the day it was judged.
@@ -752,6 +762,47 @@ for an input with more results than the preset's limit.
 
 Prompt: `docs/prompts/thin-night.md`. It diagnoses and recommends; it changes nothing.
 
+## A night that is refused
+
+When a pull request titled `Greatest Hits: <date> not judged` appears, or a routine pull request reads like
+2026-09-18's. That night the routine handed its files to subagents: the screen kept 783 phrases where earlier
+nights kept 6 to 43, 448 of them for one input, and a keyword script scored those and wrote their
+justifications from templates. The routine's prompt already forbade it, so the tools now refuse such a night:
+
+| Check | What it refuses | Where |
+|---|---|---|
+| the screen's keep cap | an input that keeps more than 12 phrases through the screen (`SCREEN_KEEP_CAP`); the routine's nights before 2026-09-18 never kept more than 3 | `pnpm hits:judge`, before it writes anything |
+| repeated sentences | a verdict file in which one justification, with the words it quotes masked, is on more than 3 verdicts (`REPEAT_CAP`); the message names each sentence and its count | `pnpm hits:ingest`, before it writes anything |
+| the alternates cap | nothing: an input keeps at most 5 alternates (`ALTERNATE_CAP`), and the rest stay with the near misses | `pnpm hits:ingest` |
+| who judged | a queue ingest without `--judged-by=routine` or `--judged-by=hand` | `pnpm hits:ingest` |
+
+The numbers live in `tools/hits/src/guards.ts` and `tools/hits/src/shelf.ts`, and you may tune them. A deep
+run's queue, whose `summary.json` records the deep preset's limit of 50,000, is not held to the keep cap, since
+a deep run screens up to 300 phrases an input on purpose; the repeated-sentence check holds there too. The
+rubric also says a word carried over from the input is not a link by itself: that is what scored "Eternal Blue"
+→ "eternal lube" a 5.
+
+A refusal writes nothing, and the routine is told to read those inputs or rows again, answer them properly,
+and run the command again. If it still cannot, or if it cannot read the whole queue in one session, it commits
+none of its answers and opens `Greatest Hits: <date> not judged`, which adds one row to
+`data/queue/EXCLUDED.md` and nothing else.
+
+**The ledger.** `data/queue/EXCLUDED.md` lists every judging of a queue that never reached `main`, and why: a
+run the checks refused, one too large to read, and one you closed unmerged after review, as #72 was. Its first
+row is 2026-09-18. The queue's folder keeps its screen input, and the routine skips any folder the ledger names.
+
+What to do:
+
+- **A `not judged` pull request:** read why in its body, and merge it as it is, so the ledger stays complete.
+  To have the night judged after all, judge it by hand ("Judge a queue by hand", naming the folder), which
+  adds its answers as a new entry beside the ledger's row.
+- **A routine pull request that should have been refused** (a failure no check catches yet): close it
+  unmerged with a comment saying why, keep its branch, and add its row to the ledger in the next pull request
+  that touches the file. Then say what the tools should have caught.
+- **To see who judged what:** from 2026-09-19 every judge entry on a hit, and each candidate's run for the
+  queue, records `judged_by` (`routine`, or `hand` for a session you started, a deep run included) beside the
+  model, so the near misses and relation 1 verdicts in `judge-output.jsonl` can be traced too.
+
 ## Requeue candidates
 
 When the enumeration settings or the rubric change, and candidates processed under the old versions
@@ -819,8 +870,13 @@ the judge then scores only the tenth or so the screen keeps.
    - enumerates with the deep preset, prefilters, and writes the screen input;
    - screens with `claude-sonnet-5` subagents, one per screen file;
    - judges what the screen kept with `claude-opus-5` subagents, one per judge file;
-   - ingests with the engine check on, and opens a pull request titled
+   - ingests with the engine check on and `--judged-by=hand`, and opens a pull request titled
      `Greatest Hits deep run: <category>, <N> new`.
+
+   The screen's keep cap does not apply to a deep run's queue, which screens up to 300 phrases an input on
+   purpose; ingest's refusal of repeated sentences does (see "A night that is refused"). The routine's rule
+   of one session and no subagents is the routine's: a deep run still works through subagents, each reading
+   every phrase of its file itself.
 3. Review each pull request in the desk (`gh pr checkout <number>`, then `pnpm hits:desk`) and merge them
    one at a time. Each adds lines to the same data files, so the session rebuilds a later branch from
    `main` rather than resolving a data file by hand.

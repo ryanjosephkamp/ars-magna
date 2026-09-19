@@ -105,7 +105,12 @@
         "memorability": { "type": "integer", "minimum": 1, "maximum": 5 },
         "total": { "type": "integer", "minimum": 3, "maximum": 15 },
         "rationale": { "type": "string", "minLength": 1 },
-        "judged_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" }
+        "judged_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "judged_by": {
+          "type": "string",
+          "enum": ["routine", "hand"],
+          "description": "Whether the judge routine or a session a person started judged it. Recorded from F0 (2026-09-19) on."
+        }
       }
     },
     "judgementV2": {
@@ -133,7 +138,12 @@
           "description": "The senses the judge proposed for words of the phrase whose first dictionary sense would not explain the reading."
         },
         "rationale": { "type": "string", "minLength": 1 },
-        "judged_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" }
+        "judged_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "judged_by": {
+          "type": "string",
+          "enum": ["routine", "hand"],
+          "description": "Whether the judge routine or a session a person started judged it. Recorded from F0 (2026-09-19) on."
+        }
       },
       "if": {
         "type": "object",

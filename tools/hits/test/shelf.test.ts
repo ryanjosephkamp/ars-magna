@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SHELF_CAP, assess, bestJudgement, judgedShelf, scoresOf, shelfOf, shelve, type Scores } from '../src/shelf.ts';
+import { ALTERNATE_CAP, SHELF_CAP, assess, bestJudgement, judgedShelf, scoresOf, shelfOf, shelve, type Scores } from '../src/shelf.ts';
 import type { Hit, JudgementV1, JudgementV2 } from '../src/schema.ts';
 import { shelfOf as siteShelfOf, type HitRecord } from '../../../apps/web/src/hits/build.ts';
 
@@ -30,9 +30,11 @@ const v1 = (aptness: number, grammar: number, memorability = 3): JudgementV1 => 
 describe('shelves', () => {
   it('assesses every row of the shelf table', () => {
     const cases: [number, number, ReturnType<typeof assess>][] = [
-      [5, 1, 'interesting'],
+      [5, 1, 'near'],
+      [5, 2, 'interesting'],
       [5, 3, 'interesting'],
-      [4, 1, 'interesting'],
+      [4, 1, 'near'],
+      [4, 2, 'interesting'],
       [3, 3, 'stretch'],
       [3, 2, 'stretch'],
       [3, 1, 'near'],
@@ -72,7 +74,7 @@ describe('shelves', () => {
     expect(judgedShelf({ judge: [v2(3, 3)] })).toBe('stretch');
   });
 
-  it('fills three slots best first, keeps the rest as alternates, and sorts near misses out', () => {
+  it('fills three slots best first, keeps the rest as alternates, and sorts near misses out, word salad included', () => {
     type Row = { key: string; s: Scores };
     const rows: Row[] = [
       { key: 'a', s: { relation: 3, reads: 2 } },
@@ -86,15 +88,40 @@ describe('shelves', () => {
     const keys = (list: Row[]) => list.map((r) => r.key);
     const all = shelve(rows, (r) => r.s, (r) => r.key);
     expect(SHELF_CAP).toBe(3);
-    expect(keys(all.accepted)).toEqual(['b', 'd', 'c']);
-    expect(keys(all.alternates)).toEqual(['a']);
-    expect(keys(all.near)).toEqual(['e', 'f']);
+    expect(keys(all.accepted)).toEqual(['b', 'c', 'a']);
+    expect(keys(all.alternates)).toEqual([]);
+    // A relation 4 that reads 1 is a near miss (D40).
+    expect(keys(all.near)).toEqual(['d', 'e', 'f']);
     expect(keys(all.none)).toEqual(['g']);
     // Hits the input already has on a shelf take slots.
     expect(keys(shelve(rows, (r) => r.s, (r) => r.key, 2).accepted)).toEqual(['b']);
-    expect(keys(shelve(rows, (r) => r.s, (r) => r.key, 5).alternates)).toEqual(['b', 'd', 'c', 'a']);
+    expect(keys(shelve(rows, (r) => r.s, (r) => r.key, 2).alternates)).toEqual(['c', 'a']);
+    expect(keys(shelve(rows, (r) => r.s, (r) => r.key, 5).alternates)).toEqual(['b', 'c', 'a']);
     // The result does not depend on input order.
-    expect(keys(shelve([...rows].reverse(), (r) => r.s, (r) => r.key).accepted)).toEqual(['b', 'd', 'c']);
+    expect(keys(shelve([...rows].reverse(), (r) => r.s, (r) => r.key).accepted)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('keeps at most five alternates an input, counting the ones it has, and lists the rest with the near misses', () => {
+    type Row = { key: string; s: Scores };
+    const rows: Row[] = 'abcdefghij'.split('').map((key, i) => ({ key, s: { relation: i < 5 ? 4 : 3, reads: 3 } }));
+    rows.push({ key: 'k', s: { relation: 2, reads: 3 } });
+    const keys = (list: Row[]) => list.map((r) => r.key);
+    const all = shelve(rows, (r) => r.s, (r) => r.key);
+    expect(ALTERNATE_CAP).toBe(5);
+    expect(keys(all.accepted)).toEqual(['a', 'b', 'c']);
+    expect(keys(all.alternates)).toEqual(['d', 'e', 'f', 'g', 'h']);
+    expect(keys(all.near)).toEqual(['i', 'j', 'k']);
+    // An input with four alternates already takes one more.
+    const later = shelve(rows, (r) => r.s, (r) => r.key, 3, 4);
+    expect(keys(later.accepted)).toEqual([]);
+    expect(keys(later.alternates)).toEqual(['a']);
+    expect(keys(later.near)).toEqual(['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']);
+  });
+
+  it('never moves a published hit that reads 1: its shelf reads relation alone', () => {
+    expect(judgedShelf({ judge: [v2(4, 1)] })).toBe('interesting');
+    expect(judgedShelf({ judge: [v2(5, 1)] })).toBe('interesting');
+    expect(shelfOf({ status: 'accepted', judge: [v2(4, 1)], tags: ['shelf:stretch'] })).toBe('stretch');
   });
 
   it('agrees with the site build, which repeats the rule', () => {

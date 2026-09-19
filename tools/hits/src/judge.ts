@@ -243,7 +243,7 @@ async function main(): Promise<void> {
     }
     console.log(
       `\nAnswer each file with one JSONL line per candidate into ${resolve(dir, JUDGE_OUTPUT)},\n` +
-        `then run pnpm hits:ingest --model=<the model that judged>. Rubric ${version}.`,
+        `then run pnpm hits:ingest --model=<the model that judged> --judged-by=routine|hand. Rubric ${version}.`,
     );
     return;
   }

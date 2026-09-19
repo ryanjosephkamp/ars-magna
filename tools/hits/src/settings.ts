@@ -149,6 +149,23 @@ export async function queueSettings(dir: string): Promise<string> {
   return (JSON.parse(text) as { settings?: string }).settings ?? 's1';
 }
 
+/**
+ * Whether a queue was enumerated with the deep preset, read from the limit
+ * its `summary.json` records: a deep run's limit is ten times the routine's.
+ * The summary is committed before anyone screens, so changing it to pass for
+ * a deep run shows in the pull request. A queue with no summary is not deep.
+ */
+export async function isDeepQueue(dir: string): Promise<boolean> {
+  let text: string;
+  try {
+    text = await readFile(resolve(dir, 'summary.json'), 'utf8');
+  } catch {
+    return false;
+  }
+  const limit = (JSON.parse(text) as { limit?: unknown }).limit;
+  return typeof limit === 'number' && limit >= PRESETS.deep.limit;
+}
+
 /** The queue a folder names: its last path segment, such as 2026-09-12c. */
 export function queueName(dir: string): string {
   return basename(dir);
