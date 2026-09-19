@@ -75,6 +75,7 @@ pnpm hits:judged-at --date=2026-09-15 id…     # date named hits' judgements fr
 pnpm hits:desk                                # build the review desk into .cache/desk/index.html
 pnpm hits:desk --artifact                     # also write .cache/desk/artifact.html, to publish as an Artifact for a phone
 pnpm hits:desk --promotions=../ars-magna-promotions  # add the Promoted tab: what readers promoted, from the private repository
+pnpm hits:monthly                             # the monthly vote review: whether it is this month's turn, and the rows to read again
 pnpm hits:desk --audit                        # build the Greatest Hits audit into .cache/desk/audit.html
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
@@ -97,7 +98,7 @@ needs ~330 MB into `.cache/`; `dict:verify` checks the committed artifacts.
 
 - Push to `main`, merge a pull request, or rewrite a branch someone else pushed.
 - Edit `data/hits.jsonl` by hand, or change an existing line of `data/candidates.jsonl`. The tools
-  write them: `hits:ingest`, `promotions:apply`, `hits:set`, `hits:justify`, `hits:describe`, `hits:sense`, `hits:tag`, `hits:order`, `hits:input`, `hits:judged-at`, `hits:fetch`, and the MCP tool
+  write them: `hits:ingest`, `promotions:apply`, `hits:monthly --ingest`, `hits:set`, `hits:justify`, `hits:describe`, `hits:sense`, `hits:tag`, `hits:order`, `hits:input`, `hits:judged-at`, `hits:fetch`, and the MCP tool
   `propose_hit`. Appending new
   `manual` candidates by hand is allowed.
 - Create, change, pause or delete a schedule (the Actions crons, the judge routine, a scheduled task)

@@ -21,6 +21,7 @@
     "sense": "node --experimental-strip-types src/sense.ts",
     "glosses": "node --experimental-strip-types src/glosses.ts",
     "tag": "node --experimental-strip-types src/tag.ts",
+    "monthly": "node --experimental-strip-types src/monthly.ts",
     "order": "node --experimental-strip-types src/order.ts",
     "input": "node --experimental-strip-types src/input.ts",
     "judged-at": "node --experimental-strip-types src/judged-at.ts",

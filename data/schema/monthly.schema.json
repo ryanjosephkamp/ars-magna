@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/monthly.schema.json",
+  "title": "A line of the monthly vote review",
+  "description": "data/votes/monthly/<YYYY-MM>.jsonl: what one month's vote review decided, written by `pnpm hits:monthly --ingest`. A reread line is an A stretch hit among the most voted that the review read again, with its decision and the sentence for it; one that stays is kept, never discarded. A suggestion line is an Interesting hit among the most voted, listed for the operator as a Greatest Hits suggestion; nothing makes it one but the operator's named decision. Votes are as the daily counts of `counts` gave them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["month", "decided", "counts", "kind", "hit_id", "votes", "rank"],
+  "properties": {
+    "month": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}$",
+      "description": "The UTC month the review belongs to."
+    },
+    "decided": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "counts": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The date of the daily counts in data/counts/ the votes were read from; its meta.json states the counting convention."
+    },
+    "kind": {
+      "enum": ["reread", "suggestion"]
+    },
+    "hit_id": {
+      "type": "string",
+      "pattern": "^[a-z]+:(people|companies|products|titles|places|phrases):[a-z]+(-[a-z]+)*$"
+    },
+    "votes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rank": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Its place in its section by votes, most first, a tie going A to Z by input and then by anagram, as the site orders a section."
+    },
+    "decision": {
+      "enum": ["move", "stay"],
+      "description": "A reread line's decision: move to Interesting with the tag shelf:interesting, or stay in A stretch."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "A reread line's one sentence, written for this anagram alone."
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "judged_by": {
+      "enum": ["routine", "hand"]
+    },
+    "monthly_version": {
+      "type": "string",
+      "pattern": "^v\\d+$",
+      "description": "The version of tools/hits/prompts/monthly.md the reread followed."
+    }
+  },
+  "if": { "properties": { "kind": { "const": "suggestion" } } },
+  "then": { "properties": { "decision": false, "reason": false, "model": false, "judged_by": false, "monthly_version": false } },
+  "else": { "required": ["decision", "reason", "model", "judged_by", "monthly_version"] }
+}
