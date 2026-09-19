@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
-import { BUILD_COUNT_LIMIT_MS, COUNT_STEPS, climb, countLine, exportTotal, limitNote, readTotal, stoppedAny, tierLine, tierOrder } from './textCount.ts';
+import type { Tier } from '@ars-magna/engine';
+
+import {
+  BUILD_COUNT_LIMIT_MS,
+  COUNT_STEPS,
+  addsNone,
+  climb,
+  countLine,
+  countNotes,
+  exportTotal,
+  limitNote,
+  nestCounts,
+  nextTier,
+  readTotal,
+  stoppedAny,
+  tierLine,
+  tierOrder,
+  type TextCount,
+} from './textCount.ts';
 
 /**
  * A clock the test moves by hand: `wait` resolves once `advance` has passed
@@ -152,5 +170,122 @@ describe('every dictionary', () => {
     expect(stoppedAny([{ kind: 'exact', total: '1' }, { kind: 'floor', total: '9' }])).toBe(true);
     expect(stoppedAny([{ kind: 'too-long' }])).toBe(true);
     expect(limitNote()).toBe('Each count stops after 4 seconds; “more than” means it stopped first.');
+  });
+});
+
+const exact = (total: string): TextCount => ({ kind: 'exact', total });
+const floor = (total: string, from?: Tier): TextCount => (from ? { kind: 'floor', total, from } : { kind: 'floor', total });
+
+describe('the dictionaries nest', () => {
+  it('counts the chosen dictionary first, then narrowest to widest, skipping what a stop settles', () => {
+    // Standard chosen and exact: the rest are counted in turn.
+    expect(nextTier('standard', {})).toBe('standard');
+    expect(nextTier('standard', { standard: exact('115') })).toBe('common');
+    expect(nextTier('standard', { standard: exact('115'), common: exact('97') })).toBe('full');
+    expect(nextTier('standard', { standard: exact('115'), common: exact('97'), full: exact('115'), extended: exact('115') })).toBeNull();
+    // Standard stops: Common may still finish, and Full and Extended are settled.
+    expect(nextTier('standard', { standard: floor('107') })).toBe('common');
+    expect(nextTier('standard', { standard: floor('107'), common: floor('717903484') })).toBeNull();
+    // Full stops once Common and Standard were exact: Extended is settled.
+    expect(nextTier('common', { common: exact('58'), standard: exact('999'), full: { kind: 'too-long' } })).toBeNull();
+  });
+
+  it('still counts the narrower dictionaries when a wide one chosen stops, until one of them stops too', () => {
+    expect(nextTier('extended', { extended: { kind: 'too-long' } })).toBe('common');
+    expect(nextTier('extended', { extended: { kind: 'too-long' }, common: floor('717903484') })).toBeNull();
+    expect(nextTier('extended', { extended: floor('4'), common: exact('2') })).toBe('standard');
+    expect(nextTier('full', { full: floor('4'), common: exact('2'), standard: floor('3') })).toBeNull();
+  });
+
+  it('raises a wider floor to the narrower figure, and carries it to what was not counted', () => {
+    // The 190-letter text as it read before: Common far past Standard, Full nothing.
+    const before = nestCounts({ common: floor('7231191941'), standard: floor('4240612'), full: floor('4'), extended: { kind: 'too-long' } });
+    expect(before).toEqual({
+      common: floor('7231191941'),
+      standard: floor('7231191941', 'common'),
+      full: floor('7231191941', 'common'),
+      extended: floor('7231191941', 'common'),
+    });
+    // Standard chosen and stopped, Common stopped: Full and Extended were never counted.
+    expect(nestCounts({ standard: floor('107'), common: floor('717903484') })).toEqual({
+      common: floor('717903484'),
+      standard: floor('717903484', 'common'),
+      full: floor('717903484', 'common'),
+      extended: floor('717903484', 'common'),
+    });
+  });
+
+  it('keeps a wider floor that is already larger, and never changes an exact count', () => {
+    expect(nestCounts({ common: floor('10'), standard: floor('20'), full: exact('999'), extended: exact('999') })).toEqual({
+      common: floor('10'),
+      standard: floor('20'),
+      full: exact('999'),
+      extended: exact('999'),
+    });
+    expect(nestCounts({ common: exact('58'), standard: exact('999'), full: exact('999'), extended: exact('1000') }).standard).toEqual(exact('999'));
+  });
+
+  it('gives a stopped dictionary the narrower exact figure as its floor, and none from a count of 0', () => {
+    expect(nestCounts({ common: exact('58'), standard: { kind: 'too-long' } })).toEqual({
+      common: exact('58'),
+      standard: floor('58', 'common'),
+      full: floor('58', 'common'),
+      extended: floor('58', 'common'),
+    });
+    expect(nestCounts({ common: exact('0'), standard: { kind: 'too-long' } })).toEqual({
+      common: exact('0'),
+      standard: { kind: 'too-long' },
+      full: { kind: 'too-long', from: 'standard' },
+      extended: { kind: 'too-long', from: 'standard' },
+    });
+  });
+
+  it('reads counting for a dictionary still to come, and too long when the narrowest stopped with nothing', () => {
+    expect(nestCounts({ standard: exact('115') })).toEqual({
+      common: { kind: 'counting' },
+      standard: exact('115'),
+      full: { kind: 'counting' },
+      extended: { kind: 'counting' },
+    });
+    expect(nestCounts({ extended: { kind: 'too-long' }, common: { kind: 'too-long' } })).toEqual({
+      common: { kind: 'too-long' },
+      standard: { kind: 'too-long', from: 'common' },
+      full: { kind: 'too-long', from: 'common' },
+      extended: { kind: 'too-long' },
+    });
+  });
+
+  it('says a wider dictionary adds none when its exact count is the narrower one’s', () => {
+    // "this is a test": 999 at Standard, Full and Extended is the exact count, not a cap.
+    const counts = nestCounts({ common: exact('58'), standard: exact('999'), full: exact('999'), extended: exact('999') });
+    expect(['common', 'standard', 'full', 'extended'].map((t) => addsNone(counts, t as Tier))).toEqual([false, false, true, true]);
+    expect(tierLine(counts.full, addsNone(counts, 'full'))).toBe('999 · adds none');
+    expect(tierLine(counts.standard, addsNone(counts, 'standard'))).toBe('999');
+    // Floors say nothing about what a dictionary adds, and neither do two zeros.
+    const floors = nestCounts({ common: floor('10'), standard: floor('10'), full: exact('0'), extended: exact('0') });
+    expect(addsNone(floors, 'standard')).toBe(false);
+    expect(addsNone(nestCounts({ common: exact('0'), standard: exact('0'), full: exact('0'), extended: exact('0') }), 'standard')).toBe(false);
+  });
+
+  it('writes the sentences the figures need, and none when every count is exact and different', () => {
+    expect(countNotes(nestCounts({ common: exact('97'), standard: exact('115'), full: exact('120'), extended: exact('121') }))).toEqual([]);
+    expect(countNotes(nestCounts({ common: exact('58'), standard: exact('999'), full: exact('999'), extended: exact('999') }))).toEqual([
+      'Each dictionary holds every anagram of the ones above it.',
+      'A line that reads “adds none” has no anagram the one above lacks.',
+    ]);
+    expect(countNotes(nestCounts({ standard: floor('107'), common: floor('717903484') }))).toEqual([
+      'Each count stops after 4 seconds; “more than” means it stopped first.',
+      'Each dictionary holds every anagram of the ones above it.',
+      'Once a count stops, the dictionaries below it are not counted and read its figure.',
+    ]);
+    // A stop with nothing carried: the limit alone.
+    expect(countNotes(nestCounts({ common: exact('97'), standard: exact('115'), full: exact('120'), extended: floor('121') }))).toEqual([
+      'Each count stops after 4 seconds; “more than” means it stopped first.',
+    ]);
+  });
+
+  it('exports a carried floor in the engine’s form', () => {
+    expect(exportTotal(floor('717903484', 'common'))).toBe('>717903484');
+    expect(exportTotal({ kind: 'too-long', from: 'common' })).toBeNull();
   });
 });

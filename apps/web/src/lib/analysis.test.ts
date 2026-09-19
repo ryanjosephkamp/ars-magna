@@ -47,7 +47,8 @@ describe('the letters', () => {
   it('names the letters used most, ties and all, with the count', () => {
     expect(letterFigures('hello').mostUsed).toEqual({ letters: ['l'], count: 2 });
     expect(letterFigures('dormitory').mostUsed).toEqual({ letters: ['o', 'r'], count: 2 });
-    expect(letterFigures('listen').mostUsed).toEqual({ letters: ['e', 'i', 'l', 'n', 's', 't'], count: 1 });
+    // No letter of listen repeats, so none is named.
+    expect(letterFigures('listen').mostUsed).toEqual({ letters: [], count: 1 });
     expect(letterFigures('').mostUsed).toBeNull();
   });
 
@@ -56,6 +57,8 @@ describe('the letters', () => {
     expect(rarestLine(letterFigures('hello'))).toBe('l · 4.03%');
     expect(mostUsedLine(letterFigures('hello'))).toBe('l · 2');
     expect(mostUsedLine(letterFigures('dormitory'))).toBe('o r · 2');
+    expect(mostUsedLine(letterFigures('listen'))).toBe('no letter repeats');
+    expect(mostUsedLine(letterFigures('a'))).toBe('no letter repeats');
     expect(rarestLine(letterFigures(''))).toBe('—');
     expect(mostUsedLine(letterFigures(''))).toBe('—');
   });

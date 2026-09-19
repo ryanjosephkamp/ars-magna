@@ -19,7 +19,7 @@ import {
   type WordFigures,
 } from '../lib/analysis.ts';
 import { countStep, englishCount, figureWidth, letterFigure, letterName, letterScale, moveFocus } from '../lib/letterChart.ts';
-import { limitNote, stoppedAny, tierLine } from '../lib/textCount.ts';
+import { addsNone, countNotes, tierLine } from '../lib/textCount.ts';
 import { LetterMap } from './LetterMap.tsx';
 import type { TierCounts } from '../state/useTextCount.ts';
 
@@ -27,6 +27,24 @@ const LABEL = 'text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercas
 const FIGURE = 'font-mono text-[13px] tabular-nums text-ink';
 
 const number = (n: number) => n.toLocaleString('en-US');
+
+/**
+ * A figure that may wrap after each group of digits: a saturated floor runs
+ * to some forty digits, far wider than a phone's column, and a comma alone
+ * gives the browser no place to break it.
+ */
+function Breakable({ children }: { children: string }) {
+  return children.split(',').map((part, i, all) => (
+    <span key={i}>
+      {part}
+      {i < all.length - 1 && (
+        <>
+          ,<wbr />
+        </>
+      )}
+    </span>
+  ));
+}
 
 /** One labelled line: what it is, and the figure, or a sentence where there is none. */
 function Figure({ label, prose = false, children }: { label: string; prose?: boolean; children: React.ReactNode }) {
@@ -362,7 +380,7 @@ export function Analysis({ text, anagram, comparison: side, tier, counts, length
     words: letters + rows.length + lengths.rows.length,
     wordWidth: Math.min(16, Math.max(4, ...[...text.commonness, ...anagram.commonness].map((w) => w.word.length))),
   };
-  const stopped = stoppedAny(TIERS.map((t) => counts[t]));
+  const notes = countNotes(counts);
   return (
     <section aria-labelledby="analysis-title" className="mt-12 border-t border-rule pt-6">
       <h2 id="analysis-title" className={LABEL}>
@@ -385,13 +403,15 @@ export function Analysis({ text, anagram, comparison: side, tier, counts, length
 
       <LetterMap text={typed.text} anagram={typed.anagram} selected={selected} onSelect={onSelect} />
 
+      {/* On a phone the label sits above the four lines, so the figures have the width: a saturated floor
+          reads `more than` and some forty digits. */}
       <dl className="mt-8">
-        <div className="grid grid-cols-[8.5rem_1fr] items-baseline gap-3 border-b border-rule py-1.5">
+        <div className="grid grid-cols-1 items-baseline gap-x-3 gap-y-1.5 border-b border-rule py-1.5 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
           <dt className="text-sm text-ink-soft">Every anagram of the text</dt>
-          <dd>
-            <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1">
+          <dd className="min-w-0">
+            <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-1">
               {TIERS.map((t) => {
-                const line = tierLine(counts[t]);
+                const line = tierLine(counts[t], addsNone(counts, t));
                 const prose = counts[t].kind === 'too-long';
                 return (
                   <div key={t} className="contents">
@@ -399,12 +419,14 @@ export function Analysis({ text, anagram, comparison: side, tier, counts, length
                       {TIER_LABEL[t]}
                       {t === tier && <span className="sr-only">, the dictionary chosen</span>}
                     </dt>
-                    <dd className={prose ? 'text-sm text-ink-soft' : `${FIGURE} ${t === tier ? '' : 'text-ink-soft'}`}>{line}</dd>
+                    <dd className={`min-w-0 ${prose ? 'text-sm text-ink-soft' : `${FIGURE} ${t === tier ? '' : 'text-ink-soft'}`}`}>
+                      <Breakable>{line}</Breakable>
+                    </dd>
                   </div>
                 );
               })}
             </dl>
-            {stopped && <p className="mt-1.5 text-xs text-ink-faint">{limitNote()}</p>}
+            {notes.length > 0 && <p className="mt-1.5 max-w-prose text-xs text-ink-faint">{notes.join(' ')}</p>}
           </dd>
         </div>
       </dl>

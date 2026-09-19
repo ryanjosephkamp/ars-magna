@@ -14,6 +14,10 @@ import {
   type ExportInput,
 } from './exporters.ts';
 import { commonnessByWord, comparison, letterFigures, wordFigures, wordLengthRows } from './analysis.ts';
+import { nestCounts, type TextCount } from './textCount.ts';
+
+const exact = (total: string): TextCount => ({ kind: 'exact', total });
+const floor = (total: string): TextCount => ({ kind: 'floor', total });
 
 const query = (overrides: Partial<Query> = {}): Query => ({
   input: 'dormitory',
@@ -251,8 +255,7 @@ describe('the Build page’s export', () => {
     countNote: null,
     wordLengths: wordLengthRows(text.words, anagram.words).rows,
     commonness: { text: commonnessByWord(text.words, text.zipf), anagram: commonnessByWord(anagram.words, anagram.zipf) },
-    byDictionary: { common: '97', standard: '115', full: '115', extended: '115' },
-    byDictionaryNote: null,
+    byDictionary: { common: exact('97'), standard: exact('115'), full: exact('120'), extended: exact('121') },
     generatedAt: new Date('2026-09-18T05:00:00.000Z'),
     ...over,
   });
@@ -265,26 +268,42 @@ describe('the Build page’s export', () => {
     expect(txt).toContain('Word lengths        4 letters: 1 · 5 letters: 1');
     expect(txt).toContain('Each word           dormitory uncommon');
     expect(txt).toContain('Each word           dirty common · room everyday');
-    expect(txt).toContain('By dictionary       Common 97 · Standard 115 · Full 115 · Extended 115');
+    expect(txt).toContain(
+      ['By dictionary       Common 97', '                    Standard 115', '                    Full 120', '                    Extended 121'].join('\n'),
+    );
     expect(buildTxt(report({ wordLengths: wordLengthRows(['dormitory'], ['i', 'da', 'ai']).rows }))).toContain(
       'Word lengths        1 letter: 1 · 2 letters: 2',
     );
-    const stopped = buildTxt(
-      report({
-        byDictionary: { common: '>1065799', standard: null, full: null, extended: null },
-        byDictionaryNote: 'Each count stops after 4 seconds; “more than” means it stopped first.',
-      }),
+    // Standard chosen and stopped, then Common stopped: Full and Extended were not counted and read its floor.
+    const stopped = buildTxt(report({ byDictionary: nestCounts({ standard: floor('107'), common: floor('1065799') }) }));
+    expect(stopped).toContain(
+      [
+        'By dictionary       Common more than 1,065,799',
+        '                    Standard more than 1,065,799',
+        '                    Full more than 1,065,799',
+        '                    Extended more than 1,065,799',
+        '                    Each count stops after 4 seconds; “more than” means it stopped first.',
+        '                    Each dictionary holds every anagram of the ones above it.',
+        '                    Once a count stops, the dictionaries below it are not counted and read its figure.',
+      ].join('\n'),
     );
-    expect(stopped).toContain('By dictionary       Common more than 1,065,799 · Standard — · Full — · Extended —');
-    expect(stopped).toContain('                    Each count stops after 4 seconds; “more than” means it stopped first.');
+    // "this is a test": the same 999 in the three widest is the exact count, and says so.
+    const same = buildTxt(report({ byDictionary: nestCounts({ common: exact('58'), standard: exact('999'), full: exact('999'), extended: exact('999') }) }));
+    expect(same).toContain('                    Full 999 · adds none');
+    expect(same).toContain('                    A line that reads “adds none” has no anagram the one above lacks.');
 
-    const parsed = JSON.parse(buildJson(report({ byDictionary: { common: '>1065799', standard: '115', full: null, extended: '115' } })));
+    const parsed = JSON.parse(
+      buildJson(report({ byDictionary: nestCounts({ common: floor('1065799'), standard: exact('2000000'), full: { kind: 'too-long' }, extended: exact('2000000') }) })),
+    );
     expect(parsed.byDictionary).toEqual({
-      common: { total: '1065799', isFloor: true },
-      standard: { total: '115', isFloor: false },
-      full: null,
-      extended: { total: '115', isFloor: false },
+      common: { total: '1065799', isFloor: true, addsNone: false, countedIn: 'common' },
+      standard: { total: '2000000', isFloor: false, addsNone: false, countedIn: 'standard' },
+      full: { total: '2000000', isFloor: true, addsNone: false, countedIn: 'standard' },
+      extended: { total: '2000000', isFloor: false, addsNone: false, countedIn: 'extended' },
     });
+    const none = JSON.parse(buildJson(report({ byDictionary: nestCounts({ common: exact('58'), standard: exact('999'), full: exact('999'), extended: { kind: 'counting' } }) })));
+    expect(none.byDictionary.full).toEqual({ total: '999', isFloor: false, addsNone: true, countedIn: 'full' });
+    expect(none.byDictionary.extended).toBeNull();
     expect(parsed.english.text[3]).toEqual({ letter: 'o', count: 2, expected: 0.7 });
     expect(parsed.wordLengths).toEqual([
       { length: 4, text: 0, anagram: 1 },

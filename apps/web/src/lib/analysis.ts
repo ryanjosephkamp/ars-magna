@@ -52,7 +52,10 @@ export type LetterFigures = {
    * counts as a consonant.
    */
   readonly rarest: { readonly letters: readonly string[]; readonly percent: number } | null;
-  /** The letters used most in this side, a to z, and how many times each is. Null with no letters. */
+  /**
+   * The letters used most in this side, a to z, and how many times each is:
+   * no letters, and a count of 1, when no letter repeats. Null with no letters.
+   */
   readonly mostUsed: { readonly letters: readonly string[]; readonly count: number } | null;
   /** Every letter present, alphabetical, with how many there are. */
   readonly histogram: readonly { readonly letter: string; readonly count: number }[];
@@ -72,7 +75,10 @@ export function letterFigures(letters: string): LetterFigures {
       histogram.length === 0
         ? null
         : { letters: histogram.filter(({ letter }) => (LETTER_FREQUENCY[letter] ?? 0) === least).map(({ letter }) => letter), percent: least },
-    mostUsed: histogram.length === 0 ? null : { letters: histogram.filter(({ count }) => count === most).map(({ letter }) => letter), count: most },
+    mostUsed:
+      histogram.length === 0
+        ? null
+        : { letters: most === 1 ? [] : histogram.filter(({ count }) => count === most).map(({ letter }) => letter), count: most },
     histogram,
   };
 }
@@ -82,9 +88,10 @@ export function rarestLine(f: LetterFigures): string {
   return f.rarest === null ? '—' : `${f.rarest.letters.join(' ')} · ${f.rarest.percent}%`;
 }
 
-/** `o r · 2`: the letters used most, and how many times each is, or `—`. */
+/** `o r · 2`: the letters used most, and how many times each is; `no letter repeats` when none does, or `—`. */
 export function mostUsedLine(f: LetterFigures): string {
-  return f.mostUsed === null ? '—' : `${f.mostUsed.letters.join(' ')} · ${f.mostUsed.count}`;
+  if (f.mostUsed === null) return '—';
+  return f.mostUsed.letters.length === 0 ? 'no letter repeats' : `${f.mostUsed.letters.join(' ')} · ${f.mostUsed.count}`;
 }
 
 /** One line of the letter charts: a letter either side has, and how many each side has of it. */

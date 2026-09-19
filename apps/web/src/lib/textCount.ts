@@ -10,6 +10,11 @@
  * When the time runs out mid-rung, the page shows the last floor and the
  * worker is killed. Pure apart from the timer, so the tests drive it with a
  * stand-in for the engine.
+ *
+ * The four dictionaries nest, each holding every anagram of the narrower
+ * ones, so their figures do too: a wider dictionary never reads less than a
+ * narrower one, and once one stops at the limit the wider ones are not
+ * counted, since a wider search is never cheaper (`nextTier`, `nestCounts`).
  */
 import { TIERS, formatCount, type Tier } from '@ars-magna/engine';
 
@@ -27,10 +32,19 @@ export type TextCount =
   | { readonly kind: 'counting' }
   /** Every anagram, counted. */
   | { readonly kind: 'exact'; readonly total: string }
-  /** At least this many; the time or the last budget ran out first. Digits only, no `>`. */
-  | { readonly kind: 'floor'; readonly total: string }
-  /** The time ran out before the engine had found a single anagram to count. */
-  | { readonly kind: 'too-long' }
+  /**
+   * At least this many; the time or the last budget ran out first. Digits
+   * only, no `>`. `from` names a narrower dictionary whose figure this is,
+   * when that one reached further than this one's own count, or this one was
+   * not counted because that one stopped.
+   */
+  | { readonly kind: 'floor'; readonly total: string; readonly from?: Tier }
+  /**
+   * The time ran out before the engine had found a single anagram to count.
+   * `from` names the narrower dictionary that stopped, when this one was not
+   * counted at all.
+   */
+  | { readonly kind: 'too-long'; readonly from?: Tier }
   /** The engine could not say. */
   | { readonly kind: 'failed' };
 
@@ -110,15 +124,81 @@ export function tierOrder(chosen: Tier): Tier[] {
   return [chosen, ...TIERS.filter((tier) => tier !== chosen)];
 }
 
+/** Whether a count stopped short of the exact figure: every wider dictionary would stop too, since none is cheaper. */
+export function stopped(count: TextCount | undefined): boolean {
+  return count?.kind === 'floor' || count?.kind === 'too-long';
+}
+
+/**
+ * The next dictionary to count, or null when there is none left: in
+ * `tierOrder`, the first not yet counted that no narrower dictionary's stop
+ * already settles. The dictionaries nest, each holding every anagram of the
+ * narrower ones, so a wider search is never cheaper: once one stops, every
+ * wider one would stop too, and reads the narrower one's figure instead. With
+ * Extended chosen and stopping, Common is still counted, since it may finish;
+ * if it stops as well, Standard and Full are settled by it.
+ */
+export function nextTier(chosen: Tier, counted: Readonly<Partial<Record<Tier, TextCount>>>): Tier | null {
+  const settled = (tier: Tier) => TIERS.slice(0, TIERS.indexOf(tier)).some((narrower) => stopped(counted[narrower]));
+  return tierOrder(chosen).find((tier) => counted[tier] === undefined && !settled(tier)) ?? null;
+}
+
+/** Whether digits `a` stand for a larger number than digits `b`. */
+const larger = (a: string, b: string): boolean => BigInt(a) > BigInt(b);
+
+/**
+ * Every dictionary's figure as the page shows it, from the counts that have
+ * come in. A wider dictionary holds every anagram of a narrower one, so its
+ * figure is never less: a floor lower than a narrower dictionary's figure
+ * rises to it, and a dictionary that stopped before finding one anagram reads
+ * the narrower figure as its floor. One not yet counted reads `counting`,
+ * unless a narrower dictionary's stop settles it, when it reads that figure,
+ * or `too-long` when there is none. An exact count is never changed.
+ */
+export function nestCounts(counted: Readonly<Partial<Record<Tier, TextCount>>>): Record<Tier, TextCount> {
+  const out = {} as Record<Tier, TextCount>;
+  /** The largest figure a narrower dictionary reached, and which dictionary counted it. */
+  let carried: { total: string; from: Tier } | null = null;
+  /** The narrower dictionary that stopped, when one has. */
+  let stop: Tier | null = null;
+  for (const tier of TIERS) {
+    const own = counted[tier];
+    const floor: TextCount | null = carried !== null && carried.total !== '0' ? { kind: 'floor', total: carried.total, from: carried.from } : null;
+    let shown: TextCount;
+    if (own === undefined) shown = stop === null ? { kind: 'counting' } : (floor ?? { kind: 'too-long', from: stop });
+    else if (own.kind === 'floor') shown = floor !== null && larger(floor.total, own.total) ? floor : own;
+    else if (own.kind === 'too-long') shown = floor ?? own;
+    else shown = own;
+    out[tier] = shown;
+    if ((shown.kind === 'exact' || shown.kind === 'floor') && (carried === null || larger(shown.total, carried.total))) {
+      carried = { total: shown.total, from: (shown.kind === 'floor' ? shown.from : undefined) ?? tier };
+    }
+    if (stop === null && stopped(own)) stop = tier;
+  }
+  return out;
+}
+
+/**
+ * Whether a dictionary's exact count is the same as the narrower one's before
+ * it, so the words it adds make no further anagram: `Full 999 · adds none`.
+ * Never for Common, which has nothing narrower, nor for a count of 0.
+ */
+export function addsNone(counts: Readonly<Record<Tier, TextCount>>, tier: Tier): boolean {
+  const i = TIERS.indexOf(tier);
+  const own = counts[tier];
+  const narrower = i > 0 ? counts[TIERS[i - 1]!] : undefined;
+  return own.kind === 'exact' && narrower?.kind === 'exact' && own.total === narrower.total && own.total !== '0';
+}
+
 /**
  * One dictionary's figure in the count by dictionary, where the label already
- * names it: `115`, `more than 1,065,799`, or a sentence when the time ran out
- * before a single anagram.
+ * names it: `115`, `999 · adds none`, `more than 1,065,799`, or a sentence
+ * when the time ran out before a single anagram.
  */
-export function tierLine(count: TextCount): string {
+export function tierLine(count: TextCount, same = false): string {
   switch (count.kind) {
     case 'exact':
-      return formatCount(count.total);
+      return same ? `${formatCount(count.total)} · adds none` : formatCount(count.total);
     case 'floor':
       return `more than ${formatCount(count.total)}`;
     case 'too-long':
@@ -141,4 +221,22 @@ export function stoppedAny(counts: readonly TextCount[]): boolean {
 export function limitNote(limitMs = BUILD_COUNT_LIMIT_MS): string {
   const seconds = limitMs / 1000;
   return `Each count stops after ${seconds} ${seconds === 1 ? 'second' : 'seconds'}; “more than” means it stopped first.`;
+}
+
+/**
+ * The sentences under the count by dictionary, as its figures need them: how
+ * long a count may run, when one stopped; that the dictionaries nest, when a
+ * figure came from a narrower one or a line reads `adds none`; and what each
+ * of those means.
+ */
+export function countNotes(counts: Readonly<Record<Tier, TextCount>>, limitMs = BUILD_COUNT_LIMIT_MS): string[] {
+  const all = TIERS.map((tier) => counts[tier]);
+  const carried = all.some((c) => (c.kind === 'floor' || c.kind === 'too-long') && c.from !== undefined);
+  const same = TIERS.some((tier) => addsNone(counts, tier));
+  return [
+    ...(stoppedAny(all) ? [limitNote(limitMs)] : []),
+    ...(carried || same ? ['Each dictionary holds every anagram of the ones above it.'] : []),
+    ...(carried ? ['Once a count stops, the dictionaries below it are not counted and read its figure.'] : []),
+    ...(same ? ['A line that reads “adds none” has no anagram the one above lacks.'] : []),
+  ];
 }

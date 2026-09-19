@@ -623,7 +623,8 @@ text has at the chosen tier. The two sides share one grid: each labelled line is
 letter charts start level, and the charts list every letter either side has, with a faint 0 where one side
 lacks it. `Rarest in English` names the letters present that are least common in English, from the table in
 `lib/analysis.ts`, with their share (`j x · 0.15%`: j and x tie there); `Most used` names the letters the side
-uses most, with the count (`o r · 2` for dormitory). Both list every letter that ties. On a phone the two
+uses most, with the count (`o r · 2` for dormitory), or reads `no letter repeats` when each is used once (listen).
+Both list every letter that ties. On a phone the two
 sides stack, each with its own labels. Each bar's darkness follows its count, in five steps of the ink's grey
 (`--color-count-1` to `--color-count-5` in `apps/web/src/styles.css`, the step chosen in
 `apps/web/src/lib/letterChart.ts`); hovering or focusing a bar shows its figure (`2 of 5 · 40%`), and selecting
@@ -633,13 +634,23 @@ in as many letters (the table in `lib/analysis.ts`). Beneath the letters, **Word
 the shortest word on either side to the longest, and **Each word** places every distinct word on a fixed scale from
 rare to everyday by its frequency byte, with faint marks where the bands meet. The **Letter map** sets the text above
 the anagram and draws a fine line from each letter to where it went, a repeated letter matched in order; the selected
-letter's lines take the accent, and a letter with no partner has none. It draws texts of up to `MAP_LIMIT` letters
+letter's lines take the accent, and a letter with no partner has none. The drawing is as wide as the letters run,
+measured from the letters themselves, so it scrolls sideways only when they are wider than the screen, and narrows
+again when a phone turns back to portrait. It draws texts of up to `MAP_LIMIT` letters
 (60, in `apps/web/src/lib/letterMap.ts`, a number you may tune) and says so in a sentence past that. Nothing in the
 analysis is stored or sent anywhere.
 
 **The count.** The text's anagrams are counted in all four dictionaries, one at a time, the chosen one first, and
-shown as four lines, Common to Extended, with the chosen one set darker. Each is the engine's number, counted in a
-second worker of its own, so the word checks never wait behind it; changing the dictionary counts nothing again.
+shown as four lines, Common to Extended, with the chosen one set darker. Each is the engine's number, exact and
+never abbreviated, counted in a second worker of its own, so the word checks never wait behind it; changing the
+dictionary counts nothing again. The dictionaries nest, each holding every anagram of the ones above it, so the
+figures nest too (`nestCounts` in `apps/web/src/lib/textCount.ts`): a wider dictionary whose exact count is the
+narrower one's reads `adds none` (`Full 999 · adds none` for "this is a test", the exact count and not a cap), a
+floor never reads less than a narrower dictionary's figure, and once a count stops at the limit the wider
+dictionaries are not counted at all, since a wider search is never cheaper: they read its figure. After the chosen
+dictionary the rest go narrowest first (`nextTier`), so with Extended chosen and stopped, Common is still counted,
+and Standard and Full are settled by Common if it stops too. The sentences under the lines say whichever of this
+applies.
 That worker holds its own copy of the dictionary (about 70 MB measured in Chrome, near 100 MB once a count has
 run), so it is started when the counting begins, from the copy the page's first worker cached, and stopped when
 the last count ends. The engine cannot stop a count from inside, so the moment the text
@@ -650,8 +661,13 @@ tune). It counts with a small node budget first and a budget four times larger e
 so when the time is up the line reads `more than N` from the last budget that finished. A dictionary in
 which no budget found a single anagram in that time reads `Too long to count here.`, and whenever a count
 stopped at the limit the page adds `Each count stops after 4 seconds; “more than” means it stopped first.`
-A long text takes up to four times the limit to fill all four lines. Texts of about 20 letters count
-exactly in well under a second; the time limit starts to matter at about 25.
+A long text usually fills all four lines in about twice the limit, the chosen dictionary and Common, where it
+took four times before (the 190-letter text on 2026-09-19: the second worker lived 8.6 s, against 17.7 s). Texts
+of about 20 letters count exactly in well under a second; the time limit starts to matter at about 25. A floor can
+run to some forty digits when the engine's count saturates; it wraps after a group of digits rather than spilling
+out of its column, and on a phone the label sits above the four lines to give it room. The TXT export sets the four
+lines and the sentences as the page does, and the JSON gives each dictionary's `total`, `isFloor`, `addsNone` and
+`countedIn`, the dictionary whose count gave the figure.
 
 **A submission** is the reader's promotion of that anagram, with a note: a category (required), and, when
 given, what the input is (the rule in "What an input is"; the API refuses one that breaks it), why it is good
