@@ -41,7 +41,10 @@ export function LetterMap({
 
   // Where each letter sits is only known once the page has laid it out, in
   // whatever face the reader's device has; measured again on any resize and
-  // once the fonts have loaded.
+  // once the fonts have loaded. The drawing is as wide as the letter rows run,
+  // measured from the letters themselves: the box is at least as wide as its
+  // column and holds the drawing, so a width taken from the box would keep a
+  // wide layout's width after the page narrows, and scroll sideways.
   useLayoutEffect(() => {
     const el = box.current;
     if (!el || !fits) return;
@@ -49,16 +52,13 @@ export function LetterMap({
       const origin = el.getBoundingClientRect();
       // A glyph's box holds the letter-spacing after it; its centre is the glyph's alone.
       const spacing = parseFloat(getComputedStyle(el).letterSpacing) || 0;
-      const centres = (side: string) =>
-        [...el.querySelectorAll<HTMLElement>(`[data-side="${side}"] > span`)].map((span) => {
-          const r = span.getBoundingClientRect();
-          return r.left - origin.left + (r.width - spacing) / 2;
-        });
-      const top = centres('text');
-      const bottom = centres('anagram');
+      const boxes = (side: string) => [...el.querySelectorAll<HTMLElement>(`[data-side="${side}"] > span`)].map((span) => span.getBoundingClientRect());
+      const top = boxes('text');
+      const bottom = boxes('anagram');
+      const centre = (r: DOMRect | undefined) => (r ? r.left - origin.left + (r.width - spacing) / 2 : 0);
       setDrawn({
-        width: el.scrollWidth,
-        lines: map.links.map((l) => ({ letter: l.letter, x1: top[l.fromChar] ?? 0, x2: bottom[l.toChar] ?? 0 })),
+        width: Math.ceil(Math.max(0, ...[...top, ...bottom].map((r) => r.right - origin.left))),
+        lines: map.links.map((l) => ({ letter: l.letter, x1: centre(top[l.fromChar]), x2: centre(bottom[l.toChar]) })),
       });
     };
     measure();
@@ -105,7 +105,8 @@ export function LetterMap({
         <p className="mt-2 text-sm text-ink-soft">{`The letter map draws texts of up to ${MAP_LIMIT} letters.`}</p>
       ) : (
         <>
-          <div className="mt-3 overflow-x-auto pb-1 print:overflow-visible" aria-hidden="true">
+          {/* Sideways only: a glyph that runs a pixel past the rows must not make the map scroll up and down. */}
+          <div className="mt-3 overflow-x-auto overflow-y-hidden pb-2 print:overflow-visible" aria-hidden="true">
             <div ref={box} className={`relative w-max min-w-full font-display leading-none tracking-[0.12em] whitespace-pre text-ink ${size}`}>
               <p data-side="text">{glyphs('text')}</p>
               <svg width={drawn.width} height={GAP} className="my-1.5 block overflow-visible" fill="none">

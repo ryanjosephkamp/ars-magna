@@ -10,7 +10,7 @@ import { lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } from '../lib/
 import { buildFileStem, buildJson, buildTxt, download, type BuildReport } from '../lib/exporters.ts';
 import { holdsLetter } from '../lib/letterChart.ts';
 import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.ts';
-import { countLine, exportTotal, limitNote, stoppedAny } from '../lib/textCount.ts';
+import { countLine, exportTotal } from '../lib/textCount.ts';
 import { decodeBuild, syncBuildUrl } from '../lib/urlState.ts';
 import { useDictionary } from '../state/useDictionary.ts';
 import { usePass } from '../state/usePass.ts';
@@ -96,13 +96,7 @@ export function BuildPage() {
     countNote: textCount.kind === 'too-long' ? countLine(textCount, tier) : null,
     wordLengths: analysis.lengths.rows,
     commonness: { text: analysis.text.commonness, anagram: analysis.anagram.commonness },
-    byDictionary: {
-      common: exportTotal(counts.common),
-      standard: exportTotal(counts.standard),
-      full: exportTotal(counts.full),
-      extended: exportTotal(counts.extended),
-    },
-    byDictionaryNote: stoppedAny(Object.values(counts)) ? limitNote() : null,
+    byDictionary: counts,
     generatedAt: new Date(),
   });
 

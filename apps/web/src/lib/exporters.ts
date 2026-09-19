@@ -31,6 +31,7 @@ import {
 } from './analysis.ts';
 import { englishCount, englishFigure } from './letterChart.ts';
 import { MAP_LIMIT, letterMap, mapFits, mapLine } from './letterMap.ts';
+import { addsNone, countNotes, exportTotal, tierLine, type TextCount } from './textCount.ts';
 import { createZip } from './zip.ts';
 
 /** What the page says beside the count when the text's own row was left out, and the files with it. */
@@ -212,10 +213,8 @@ export type BuildReport = {
   readonly wordLengths: readonly LengthRow[];
   /** Each side's distinct words on the commonness scale. */
   readonly commonness: { readonly text: readonly WordCommonness[]; readonly anagram: readonly WordCommonness[] };
-  /** Every anagram of the text in each dictionary, in the engine's form (`>` for a floor), null where there is no figure. */
-  readonly byDictionary: Readonly<Record<Tier, string | null>>;
-  /** The sentence the page shows when a count stopped at its time limit; null otherwise. */
-  readonly byDictionaryNote: string | null;
+  /** Every anagram of the text in each dictionary, as the page shows it: nested, a narrower dictionary's figure carried where it reached further. */
+  readonly byDictionary: Readonly<Record<Tier, TextCount>>;
   readonly generatedAt: Date;
 };
 
@@ -297,14 +296,9 @@ export function buildTxt(report: BuildReport): string {
       'Every anagram',
       report.total === null ? (report.countNote ?? '—') : `${formatCount(report.total)} in ${TIER_LABEL[report.tier]}`,
     ),
-    pad(
-      'By dictionary',
-      TIERS.map((t) => {
-        const total = report.byDictionary[t];
-        return `${TIER_LABEL[t]} ${total === null ? '—' : formatCount(total)}`;
-      }).join(' · '),
-    ),
-    ...(report.byDictionaryNote ? [pad('', report.byDictionaryNote)] : []),
+    // One dictionary a line, as the page sets them, with the page's sentences beneath.
+    ...TIERS.map((t, i) => pad(i === 0 ? 'By dictionary' : '', `${TIER_LABEL[t]} ${tierLine(report.byDictionary[t], addsNone(report.byDictionary, t))}`)),
+    ...countNotes(report.byDictionary).map((note) => pad('', note)),
   ];
   if (report.comparison) {
     const c = report.comparison;
@@ -329,10 +323,23 @@ export function buildJson(report: BuildReport): string {
       ...rest,
       total: report.total === null ? null : report.total.replace('>', ''),
       totalIsFloor: report.total !== null && report.total.startsWith('>'),
+      // `countedIn` names the dictionary whose count gave the figure: this one, or a narrower one whose
+      // figure reached further, or stopped first so this one was not counted.
       byDictionary: Object.fromEntries(
         TIERS.map((t) => {
-          const total = report.byDictionary[t];
-          return [t, total === null ? null : { total: total.replace('>', ''), isFloor: total.startsWith('>') }];
+          const count = report.byDictionary[t];
+          const total = exportTotal(count);
+          return [
+            t,
+            total === null
+              ? null
+              : {
+                  total: total.replace('>', ''),
+                  isFloor: total.startsWith('>'),
+                  addsNone: addsNone(report.byDictionary, t),
+                  countedIn: (count.kind === 'floor' ? count.from : undefined) ?? t,
+                },
+          ];
         }),
       ),
       english: { text: english(report, 'text'), anagram: english(report, 'anagram') },
