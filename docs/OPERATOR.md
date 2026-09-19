@@ -610,7 +610,7 @@ form ("Add a hit by hand") stays open as a second way in, and the page links to 
 | the words check | the search's own engine and dictionary, loaded once the page is on screen, asked which tier each word is in |
 | a submission | `POST /api/promote` with `via: "typed"`: a row in the promotions table (see "Votes on Discover") |
 | the analysis | `apps/web/src/lib/analysis.ts`, from the dictionary's own part-of-speech masks and frequency bytes |
-| the text's count | `apps/web/src/state/useTextCount.ts` (`useTextCounts`), a second worker started to count the four dictionaries and stopped when the last ends; its time limit and budgets in `apps/web/src/lib/textCount.ts` |
+| the text's count | `apps/web/src/state/useTextCount.ts` (`useTextCounts`), a second worker (`apps/web/src/state/countWorker.ts`, the one Search's filter count uses too) started to count the four dictionaries and stopped when the last ends; its time limit and budgets in `apps/web/src/lib/textCount.ts` |
 
 **The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
 apostrophes, hyphens and punctuation carry no letters, and digits, symbols and letters of other scripts are
@@ -700,6 +700,37 @@ pnpm dlx wrangler@4.121.0 d1 execute ars-magna-discoveries --remote --command "S
 
 The review reads each submission's note, and only what you approve reaches `data/`: what the input is and the
 credit when the review kept them, never why it is good (see "Review promotions").
+
+## The filter on Search
+
+The Filter box under a search's count narrows the list the reader is looking at. What it can honestly cover
+depends on how much of the list is loaded (`apps/web/src/lib/filterScope.ts`):
+
+- **Every result loaded:** it narrows the rows in place.
+- **A short list:** under `AUTO_LOAD_LIMIT` results (5,000, a number you may tune), typing a filter loads the
+  rest first, so it covers every result.
+- **A filter of dictionary words on a longer list:** every result is counted with those words as Must include,
+  and the line leads with the count: `11 of 15,202 contain “shamed” · Show them`, or `None of 15,202 contain
+  “amebiasis”`. Show them, or Enter in the box, switches the list to them; nothing switches it while the reader
+  types.
+- **Anything else** (part of a word, a phrase fragment): it narrows the loaded rows, and the line says so.
+
+**The count runs in a worker of its own** (`apps/web/src/state/countWorker.ts`, the one Build's count uses),
+never on the worker the list pages, jumps and opens rows with, so Go to, paging and a row's details answer at
+once while a filter is counted. The worker starts with the first word typed, from the dictionary the page
+already cached, and stays while each count finishes in time, so words typed one after another on a short text
+pay for one start; it holds its own copy of the dictionary (about 70 MB on a phone) and is closed once the box
+is empty, which a new search makes it. A count still running when the filter, the search or a Must field
+changes is abandoned by stopping its worker, and the next count starts a fresh one.
+
+Each count runs for at most `FILTER_COUNT_LIMIT_MS` (4,000 milliseconds, in `lib/filterScope.ts`, a number you
+may tune), climbing the same node budgets as Build's. While it runs the line reads `Counting which of 15,202
+contain “shamed”…`; past the limit it gives the floor it reached, `more than 192,491,544 of 144,632,962,364,130
+contain “wheat”`, or, when it had found none yet, `Counting which of … contain “wheat” stopped after 4
+seconds.` Show them works in every case, since the list's own search counts exactly. On "William Shakespeare
+the playwright" (31 letters) on 2026-09-19, before this: one word's count held the list's worker for 11.7 s,
+and Go to, a row's details and the next word's lookup waited 9.6 to 11 s behind it; after: they answer in
+under 0.2 s, and each count reads a floor at 4 s.
 
 ## Review promotions
 

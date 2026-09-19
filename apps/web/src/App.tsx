@@ -16,7 +16,16 @@ import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
 import { applyView, type SortMode } from './lib/resultView.ts';
-import { containingKey, containingLabel, containingQuery, filterScope, filterWords } from './lib/filterScope.ts';
+import {
+  FILTER_COUNT_LIMIT_MS,
+  containingKey,
+  containingLine,
+  containingQuery,
+  filterScope,
+  filterWords,
+} from './lib/filterScope.ts';
+import type { TextCount } from './lib/textCount.ts';
+import { CountWorker } from './state/countWorker.ts';
 import { discoveredFor } from './lib/inDiscoveries.ts';
 import { InDiscoveries } from './components/InDiscoveries.tsx';
 import { CheckToast } from './components/CheckToast.tsx';
@@ -76,7 +85,7 @@ export function App() {
 
   const {
     engine, searching, error, candidates, countedLetters, textLeftOut, loadMore, collect, at, surpriseMe, spellings, masks,
-    has, countOf,
+    has,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
@@ -276,29 +285,55 @@ export function App() {
   // count. The list stays as it is until the reader asks for them: Show them,
   // or Enter in the filter box. A count asked for an older filter or search is
   // never shown against this one.
+  //
+  // The count runs in a worker of its own, so paging, Go to and a row's
+  // details never wait behind it, and for at most FILTER_COUNT_LIMIT_MS. The
+  // worker is kept while counts finish in time, so words typed one after
+  // another on a short text pay for one start. A count still running when the
+  // filter, the search or a Must field changes is abandoned with its worker,
+  // and the worker is closed once the filter box is empty, which a new search
+  // makes it.
   const containingWords = scope.kind === 'must-include' ? scope.words : null;
   const countKey = containingWords ? containingKey(query, containingWords) : null;
-  const [containCount, setContainCount] = useState<{ key: string; count: string } | null>(null);
+  const [containCount, setContainCount] = useState<{ key: string; count: TextCount } | null>(null);
+  const counter = useRef<CountWorker | null>(null);
+  const filtering = filter.trim().length > 0;
   useEffect(() => {
-    if (!containingWords || !countKey) return;
+    if (filtering) return;
+    counter.current?.close();
+    counter.current = null;
+  }, [filtering]);
+  useEffect(() => {
+    // Between words the filter covers the loaded rows while its words are looked up; the worker stays.
+    if (!containingWords || !countKey || engine.state !== 'ready') return;
+    const worker = (counter.current ??= new CountWorker({ limitMs: FILTER_COUNT_LIMIT_MS }));
     let live = true;
-    void countOf(containingQuery(query, containingWords)).then((count) => {
-      if (live && count !== null) setContainCount({ key: countKey, count });
+    void worker.count(containingQuery(query, containingWords)).then((result) => {
+      if (live && result) setContainCount({ key: countKey, count: result.count });
     });
     return () => {
       live = false;
+      // A count still running is abandoned with its worker; a finished one leaves the worker for the next.
+      if (worker.busy) {
+        worker.close();
+        if (counter.current === worker) counter.current = null;
+      }
     };
     // The key holds the query and the words; they change only when it does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countKey, countOf]);
+  }, [countKey, engine.state]);
+  useEffect(() => () => counter.current?.close(), []);
 
   const containing = useMemo(() => {
     if (!containingWords) return null;
-    const count = containCount?.key === countKey ? containCount.count : null;
+    const count: TextCount = containCount?.key === countKey ? containCount.count : { kind: 'counting' };
     return {
-      label: count === null ? null : containingLabel(count, total, containingWords),
+      label: containingLine(count, total, containingWords),
       // Nothing to show when none contain them.
-      onShow: count === '0' ? null : () => patch({ mustInclude: containingQuery(query, containingWords).mustInclude }),
+      onShow:
+        count.kind === 'exact' && count.total === '0'
+          ? null
+          : () => patch({ mustInclude: containingQuery(query, containingWords).mustInclude }),
     };
     // `containingWords` is rebuilt every render; `countKey` holds what it says.
     // eslint-disable-next-line react-hooks/exhaustive-deps

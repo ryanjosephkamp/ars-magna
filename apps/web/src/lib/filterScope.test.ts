@@ -3,7 +3,9 @@ import { DEFAULT_QUERY, type Query } from '@ars-magna/engine';
 import {
   AUTO_LOAD_LIMIT,
   containingKey,
+  FILTER_COUNT_LIMIT_MS,
   containingLabel,
+  containingLine,
   containingQuery,
   filterScope,
   filterWords,
@@ -93,6 +95,36 @@ describe('the count of results containing the filter', () => {
   it('says so when either figure is a floor', () => {
     expect(containingLabel('>5000000', '>90000000', ['moon'])).toBe('more than 5,000,000 of more than 90,000,000 contain “moon”');
     expect(containingLabel('0', '>90000000', ['moon'])).toBe('None of more than 90,000,000 contain “moon”');
+  });
+});
+
+describe('the line while and after the count runs in its own worker', () => {
+  const words = ['wheat'];
+  const total = '144632962364130';
+  it('says it is counting, then gives the figure', () => {
+    expect(containingLine({ kind: 'counting' }, total, words)).toBe('Counting which of 144,632,962,364,130 contain “wheat”…');
+    expect(containingLine({ kind: 'exact', total: '11' }, '15202', ['shamed'])).toBe('11 of 15,202 contain “shamed”');
+    expect(containingLine({ kind: 'exact', total: '0' }, '15202', ['amebiasis'])).toBe('None of 15,202 contain “amebiasis”');
+  });
+
+  it('gives the floor it reached when the time ran out', () => {
+    expect(containingLine({ kind: 'floor', total: '438623680172' }, total, words)).toBe(
+      'more than 438,623,680,172 of 144,632,962,364,130 contain “wheat”',
+    );
+  });
+
+  it('says the count stopped when the time ran out before it found one', () => {
+    expect(FILTER_COUNT_LIMIT_MS).toBe(4_000);
+    expect(containingLine({ kind: 'too-long' }, total, words)).toBe(
+      'Counting which of 144,632,962,364,130 contain “wheat” stopped after 4 seconds.',
+    );
+    expect(containingLine({ kind: 'too-long' }, total, ['dirty', 'room'], 1_000)).toBe(
+      'Counting which of 144,632,962,364,130 contain “dirty” and “room” stopped after 1 second.',
+    );
+  });
+
+  it('leaves the line to the loaded rows when the engine could not count', () => {
+    expect(containingLine({ kind: 'failed' }, total, words)).toBeNull();
   });
 });
 
