@@ -194,22 +194,7 @@ export function useEngine(query: Query) {
     }
   }, []);
 
-  /**
-   * How many results `query` has, without disturbing the list on screen. Null
-   * when a later count replaced this one before it was answered (the client
-   * drops a superseded answer by its id) or when the engine could not say.
-   */
-  const countOf = useCallback(async (other: Query): Promise<string | null> => {
-    const client = clientRef.current;
-    if (!client) return null;
-    try {
-      return await client.count(other);
-    } catch {
-      return null;
-    }
-  }, []);
-
-  return { ...state, loadMore, collect, at, surpriseMe, spellings, masks, has, countOf };
+  return { ...state, loadMore, collect, at, surpriseMe, spellings, masks, has };
 }
 
 export { DEFAULT_QUERY };

@@ -11,11 +11,20 @@
  * switches it while the reader types: `sham` is a word on the way to `shamed`.
  * A filter that is part of a word, or a phrase fragment, stays on the loaded
  * rows and is labelled that way.
+ *
+ * The count runs in a worker of its own (`state/countWorker.ts`), never on the
+ * one the list pages, jumps and opens rows with, and for at most
+ * `FILTER_COUNT_LIMIT_MS`; past it the line gives the floor it reached.
  */
 import { formatCount, type Query } from '@ars-magna/engine';
 
+import type { TextCount } from './textCount.ts';
+
 /** Below this exact total, a typed filter loads the rest of the list. A number the operator may tune. */
 export const AUTO_LOAD_LIMIT = 5_000;
+
+/** How long a filter's count may run, in milliseconds, before the line gives what it reached. A number the operator may tune. */
+export const FILTER_COUNT_LIMIT_MS = 4_000;
 
 export type FilterScope =
   /** No filter, or every result is loaded: the filter covers everything. */
@@ -119,4 +128,30 @@ export function containingLabel(count: string, total: string, words: readonly st
   const of = `of ${formatCount(total)}`;
   if (count === '0') return `None ${of} contain ${quoted(words)}`;
   return `${formatCount(count)} ${of} ${count === '1' ? 'contains' : 'contain'} ${quoted(words)}`;
+}
+
+/**
+ * The status line for a filter's count as far as it has got: `Counting which
+ * of 15,202 contain “shamed”…` while it runs; `11 of 15,202 contain “shamed”`
+ * once counted; `more than 438,623,680,172 of 144,632,962,364,130 contain
+ * “wheat”` when the time ran out after it had found some; a sentence saying
+ * the count stopped when it ran out before finding one. Null when the engine
+ * could not count, so the line falls back to the loaded rows.
+ */
+export function containingLine(count: TextCount, total: string, words: readonly string[], limitMs = FILTER_COUNT_LIMIT_MS): string | null {
+  switch (count.kind) {
+    case 'counting':
+      return `Counting which of ${formatCount(total)} contain ${quoted(words)}…`;
+    case 'exact':
+      return containingLabel(count.total, total, words);
+    case 'floor':
+      return containingLabel(`>${count.total}`, total, words);
+    case 'too-long': {
+      const seconds = limitMs / 1000;
+      return `Counting which of ${formatCount(total)} contain ${quoted(words)} stopped after ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`;
+    }
+    case 'none':
+    case 'failed':
+      return null;
+  }
 }

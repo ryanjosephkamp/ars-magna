@@ -26,8 +26,10 @@ type Props = {
   input: string;
   /**
    * The filter is dictionary words and the list is partial. `label` says how
-   * many of every result contain them, once the engine has counted; `onShow`
-   * switches the list to them through Must include, and is null when none do.
+   * many of every result contain them, as far as the count has got (counting,
+   * the figure, a floor, or that it stopped), and is null when the engine
+   * could not count; `onShow` switches the list to them through Must include,
+   * and is null when none do.
    */
   containing: { label: string | null; onShow: (() => void) | null } | null;
 };
