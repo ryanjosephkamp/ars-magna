@@ -268,10 +268,12 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
    open .cache/desk/index.html
    ```
 
-   It reads `data/hits.jsonl`, `data/candidates.jsonl` and the three newest judged queues (`--queues=N`
-   for more), and writes one self-contained page. It never writes to the repository. Built on a routine
-   pull request's branch (`gh pr checkout <number>` first), it shows that queue's hits as the pull
-   request adds them. To use it on a phone, see "On a phone" below.
+   It reads `data/hits.jsonl`, `data/candidates.jsonl`, the three newest judged queues (`--queues=N`
+   for more) and the newest vote counts in `data/counts/`, and writes one self-contained page. It never
+   writes to the repository. Built on a routine pull request's branch (`gh pr checkout <number>` first), it
+   shows that queue's hits as the pull request adds them. To see what readers promoted, add
+   `--promotions=../ars-magna-promotions` (see "Review promotions"), with that repository's `main` up to
+   date. To use it on a phone, see "On a phone" below.
 2. Decide in its tabs:
    - **Review:** one queue by input, labelled with the models that judged it (and how many verdicts each
      gave, when there are several), each row with its relation, reads, where it stands, the model that
@@ -286,7 +288,16 @@ miss, edit justifications or tags across the collection, seed a batch, or set up
      something about that hit alone: why it deserves promoting, what its justification should say, or what
      else to change. A near miss accepted with no justification but with a note goes in as proposed, and
      the agent writes a justification from the note, then accepts it, all in the pull request you merge.
-   - **Collection:** every hit, filtered by text or status, with the same controls.
+   - **Promoted:** with `--promotions`, every anagram readers promoted, from the newest private export, most
+     promoted first, ties A to Z. Each row shows how many promoted it and from where, each input it was
+     searched as, every note from Build (what the input is, why it is good, the credit, the category and
+     the words it asks for) exactly as the reader typed it, the review's newest decision and what it kept
+     or dropped, and what the routine published. A row that is now a hit has a hit's controls. Any other
+     row can only be blocked: it becomes a hit through the review you merge, not here. Filter by text, or
+     show only those with a note, not reviewed yet, placed, left out, or blocked. Without `--promotions`
+     the tab says how to build it.
+   - **Collection:** every hit, filtered by text or status, with the same controls, in the file's order or
+     by **Most votes** (ties A to Z, as on the site). A hit with votes shows how many.
    - **Near misses:** every near miss in those queues, strongest first.
    - **Seed:** inputs pasted one per line as `input | category | anchors`, each id checked against the
      pool.
@@ -316,7 +327,8 @@ phone browser signed in to claude.ai:
    from.
 4. Merge from GitHub mobile as usual.
 
-The Artifact stays private: its near misses include slurs and insults made from the letters. Decisions are
+The Artifact stays private: its near misses include slurs and insults made from the letters, and a desk built
+with `--promotions` holds what readers typed. Decisions are
 kept in the browser that made them, so a phone and a laptop each hold their own.
 
 | Decision | Command it becomes |
@@ -330,6 +342,7 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 | word order | `pnpm hits:order id room dirty`, after the ingest that writes a promoted near miss |
 | note on a row | no command: the prompt lists it under the row's id and chosen order, and the agent acts on it with the commands above |
 | seed | appends the lines to `data/candidates.jsonl` |
+| block a promoted anagram | `pnpm promotions:block --code=<its code>`: the code alone, never the words |
 | deep run | `pnpm hits:requeue …`, then `hits:enumerate --preset=deep`, `hits:prefilter --per-input=all` and `hits:screen` |
 
 `hits:justify`, `hits:describe`, `hits:sense`, `hits:tag` and `hits:order` refuse an unknown id, an empty or over-long
@@ -368,7 +381,9 @@ the audit handles what the page already shows.
    (`featured`: the best of them, picked by hand), **Interesting** (names the original, or has a clear,
    specific link to it: relation 4 or 5) and **A stretch** (a looser link, arguable in a sentence: relation 3).
    Within each, the anagrams the judge suggested for Greatest Hits come first, then the strongest links.
-   Filter by text or category, or show only the suggestions or what you have changed.
+   Filter by text or category, or show only the suggestions or what you have changed. **Order** puts each
+   section in that order or by **Most votes**, ties A to Z as on the site, from the newest vote counts in
+   `data/counts/`; a hit with votes shows how many.
 3. Change a row's label to move it to another section or **Remove from the page** (`retired`), and edit its
    justification, what its input is, the senses of its words, tags or word order, or add a note, as in the
    review desk. Every row starts on its current label, so a prompt copied without changes changes nothing.
@@ -739,21 +754,35 @@ counts, and the review skips it. Its promotions stay in the database.
 **Set up the private repository**, once:
 
 1. Create the private repository `ars-magna-promotions` on GitHub, empty.
-2. On this Mac, make a deploy key and hand it over; the private key never passes through a chat:
+2. On this Mac, make a deploy key and hand it over; the private key never passes through a chat. Every
+   command names its repository, so it works from any folder:
 
    ```bash
    ssh-keygen -t ed25519 -N '' -f promo
    gh repo deploy-key add promo.pub --repo ryanjosephkamp/ars-magna-promotions --allow-write --title "Export promotions"
-   gh secret set PROMOTIONS_DEPLOY_KEY < promo
-   rm promo promo.pub
+   gh secret set PROMOTIONS_DEPLOY_KEY --repo ryanjosephkamp/ars-magna < promo
+   gh secret list --repo ryanjosephkamp/ars-magna
    ```
+
+   Once the list shows `PROMOTIONS_DEPLOY_KEY`, delete both files with `rm promo promo.pub`. Without
+   `--repo`, `gh secret set` stores the secret on whichever repository the folder belongs to, or on none, and
+   the export then writes the day's counts alone ("No PROMOTIONS_DEPLOY_KEY" in its log). To start again, remove
+   the old key with `gh repo deploy-key list` and `gh repo deploy-key delete <id>`, both with
+   `--repo ryanjosephkamp/ars-magna-promotions`, and repeat this step.
 
 3. Give the Claude GitHub App access to `ars-magna-promotions` (github.com/settings/installations), add it to the
    judge routine as a second repository on the routine's page, and carry the routine's prompt over ("Manage the
    judge routine").
-4. Run Export promotions once by hand from the Actions tab, and check that `export/<date>.jsonl` arrived.
+4. Run Export promotions once by hand from the Actions tab. Its step "Push the private export" runs rather
+   than being skipped, and `export/<date>.jsonl` arrives in the private repository (empty until a reader
+   promotes something).
 5. The routine opens the private review pull request itself only if it can push there; its pull request body
    says so when it could not. Until then, review in a session.
+
+**In the review desk.** Built with `--promotions=../ars-magna-promotions`, the desk has a **Promoted** tab
+(see "Review in the desk"): every anagram in the newest export, most promoted first, with what each reader typed
+and the review's decision on it, what the routine published, and the hit it became. The page then holds what
+readers typed, so it is only ever a file on this Mac or a private Artifact.
 
 **Review in a session** on this Mac, with the private repository cloned beside this one: paste
 `docs/prompts/review-promotions.md`. It uses the same commands, with `--judged-by=hand`, and opens the same

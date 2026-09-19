@@ -5,6 +5,7 @@
 import { stripTypeScriptTypes } from 'node:module';
 
 import { toJudgement, validateVerdicts } from '../ingest.ts';
+import { promotionKey, type Decision as PublishedDecision, type ExportLine, type ReviewLine, type ReviewOutcome } from '../promotions/files.ts';
 import type { Verdict } from '../judge.ts';
 import type { Prefiltered } from '../prefilter.ts';
 import { isV2, type Candidate, type Hit, type HitStatus, type Judgement } from '../schema.ts';
@@ -59,6 +60,8 @@ export type DeskHit = DeskPlace & {
   added: string;
   relation: number | null;
   reads: number | null;
+  /** Its votes in the newest daily counts; 0 when it has none. */
+  votes: number;
 };
 
 export type DeskCandidate = {
@@ -75,6 +78,72 @@ export type DeskCandidate = {
 
 /** `desk` is the review desk; `audit` is one page for moving every anagram the site's Discover page shows between its sections. */
 export type DeskMode = 'desk' | 'audit';
+
+/** One reader's note on a Build submission, exactly as typed. The page shows it as text. */
+export type DeskNote = {
+  input: string;
+  category: string | null;
+  about: string | null;
+  why: string | null;
+  credit: string | null;
+  /** The words the engine could not find, which the submission asks for. */
+  missing: string[];
+  created: string;
+};
+
+/** The review's decision on a promoted anagram, from the newest review file that holds it. */
+export type DeskReview = {
+  decided: string;
+  outcome: ReviewOutcome;
+  /** Its promotions when it was decided. */
+  promotions: number;
+  relation: number | null;
+  reads: number | null;
+  category: string | null;
+  justification: string;
+  rationale: string;
+  /** Whether the review kept the reader's "What the input is" and credit; null where it said nothing. */
+  readerAbout: 'keep' | 'drop' | null;
+  credit: 'keep' | 'drop' | null;
+  requests: string[];
+  model: string;
+  judgedBy: string;
+};
+
+/**
+ * A promoted anagram as the Promoted tab shows it: one line of the private
+ * export, with the review's decision and, once published through the routine,
+ * the hit it became.
+ */
+export type DeskPromotion = {
+  /** The SHA-256 of its key: the only name the public side ever uses. */
+  code: string;
+  key: string;
+  /** The input and words most readers saw, or the latest submission's. */
+  input: string;
+  words: string[];
+  count: number;
+  first: string;
+  last: string;
+  /** Promotions from a search, and from Build. */
+  fromSearch: number;
+  typed: number;
+  /** Each input it was searched as, with how many promoted it from there, most first. */
+  searches: { input: string; n: number }[];
+  notes: DeskNote[];
+  /** Whether the engine finds every word, and the words it does not. */
+  checked: boolean;
+  unknown: string[];
+  blocked: boolean;
+  review: DeskReview | null;
+  /** What the routine published, from data/promotions/decisions.jsonl. */
+  applied: { outcome: string; hitId: string | null; date: string } | null;
+  /** The hit it is in data/hits.jsonl now, if any. */
+  hit: string | null;
+};
+
+/** Where the Promoted tab's rows came from: the private folder's name and its newest export's date. */
+export type DeskPromoted = { from: string; export: string; reviews: number };
 
 export type DeskData = {
   mode: DeskMode;
@@ -97,6 +166,11 @@ export type DeskData = {
   deepRun: string;
   /** The deep preset's bound per input, the Deep run tab's default; null for none. */
   deepPerInput: number | null;
+  /** The date of the daily counts the votes come from; null when there are none. */
+  votesDate: string | null;
+  /** Null when the desk was built without the private repository; then `promotions` is empty. */
+  promoted: DeskPromoted | null;
+  promotions: DeskPromotion[];
 };
 
 export type SenseRule = { pattern: string; max: number };
@@ -183,6 +257,94 @@ export function deskQueue(queue: QueueInput, hits: readonly Hit[], date: string)
   return { name: queue.name, model: models[0]?.model ?? fallback, models, judged: ok.length, rows: out };
 }
 
+/** What the desk reads from the private side, and the public files that name its anagrams by code. */
+export type PromotionsInput = {
+  from: string;
+  exportDate: string;
+  lines: readonly ExportLine[];
+  /** Every review line, from the oldest file to the newest. */
+  reviews: readonly ReviewLine[];
+  decisions: readonly PublishedDecision[];
+  blocks: readonly string[];
+};
+
+const byName = (a: string, b: string): number => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b, 'en');
+
+/**
+ * The Promoted tab's rows: every anagram in the newest export, most promoted
+ * first, ties A to Z by input and then by anagram. Each carries what readers
+ * typed, the newest review decision on it, what the routine published, and
+ * the hit it is now: the one a published decision names, or else the first
+ * added whose words make its key.
+ */
+export function deskPromotions(input: PromotionsInput, hits: readonly Hit[]): DeskPromotion[] {
+  const review = new Map<string, ReviewLine>();
+  for (const line of input.reviews) review.set(line.key_sha256, line);
+  const applied = new Map<string, PublishedDecision>();
+  for (const d of input.decisions) applied.set(d.key_sha256, d);
+  const blocked = new Set(input.blocks);
+  const hitIds = new Set(hits.map((h) => h.id));
+  const byKey = new Map<string, Hit>();
+  for (const h of [...hits].sort((a, b) => a.added.localeCompare(b.added) || a.id.localeCompare(b.id))) {
+    const key = promotionKey(h.words);
+    if (!byKey.has(key)) byKey.set(key, h);
+  }
+  const rows = input.lines.map((line): DeskPromotion => {
+    const submission = line.submissions[0];
+    const search = line.searches[0];
+    const r = review.get(line.key_sha256);
+    const v = r?.verdict;
+    const a = applied.get(line.key_sha256);
+    const named = a?.hit_id && hitIds.has(a.hit_id) ? a.hit_id : null;
+    return {
+      code: line.key_sha256,
+      key: line.key,
+      input: submission?.input ?? search?.input ?? '',
+      words: [...(submission?.words ?? search?.words ?? line.key.slice(line.key.indexOf(':') + 1).split('-'))],
+      count: line.count,
+      first: line.first,
+      last: line.last,
+      fromSearch: line.via.result,
+      typed: line.via.typed,
+      searches: line.searches.map((x) => ({ input: x.input, n: x.n })),
+      notes: line.submissions.map((x) => ({
+        input: x.input,
+        category: x.category,
+        about: x.about,
+        why: x.why,
+        credit: x.credit,
+        missing: [...x.missing],
+        created: x.created,
+      })),
+      checked: line.check.ok,
+      unknown: [...line.check.unknown],
+      blocked: line.blocked || blocked.has(line.key_sha256),
+      review: r
+        ? {
+            decided: r.decided,
+            outcome: r.outcome,
+            promotions: r.promotions,
+            relation: v?.relation ?? null,
+            reads: v?.reads ?? null,
+            category: v?.category ?? null,
+            justification: v?.justification ?? '',
+            rationale: v?.rationale ?? '',
+            readerAbout: v?.reader_about ?? null,
+            credit: v?.credit ?? null,
+            requests: [...(v?.requests ?? [])],
+            model: r.model,
+            judgedBy: r.judged_by,
+          }
+        : null,
+      applied: a ? { outcome: a.outcome, hitId: a.hit_id ?? null, date: a.applied } : null,
+      hit: named ?? byKey.get(line.key)?.id ?? null,
+    };
+  });
+  return rows.sort(
+    (a, b) => b.count - a.count || byName(a.input, b.input) || byName(a.words.join(' '), b.words.join(' ')) || a.code.localeCompare(b.code),
+  );
+}
+
 export function deskData(input: {
   hits: readonly Hit[];
   candidates: readonly Candidate[];
@@ -197,7 +359,13 @@ export function deskData(input: {
   deepRun: string;
   deepPerInput: number | null;
   mode?: DeskMode;
+  /** Votes by hit id from the newest daily counts, and their date. */
+  votes?: ReadonlyMap<string, number>;
+  votesDate?: string | null;
+  /** The private side, for the Promoted tab; null or absent without it. */
+  promotions?: PromotionsInput | null;
 }): DeskData {
+  const promotions = input.mode !== 'audit' && input.promotions ? input.promotions : null;
   return {
     mode: input.mode ?? 'desk',
     generated: input.generated,
@@ -222,6 +390,7 @@ export function deskData(input: {
         added: h.added,
         relation: scores?.relation ?? null,
         reads: scores?.reads ?? null,
+        votes: input.votes?.get(h.id) ?? 0,
       };
     }),
     candidates: input.candidates.map((c) => ({
@@ -245,6 +414,9 @@ export function deskData(input: {
     applyDesk: input.applyDesk,
     deepRun: input.deepRun,
     deepPerInput: input.deepPerInput,
+    votesDate: input.votesDate ?? null,
+    promoted: promotions ? { from: promotions.from, export: promotions.exportDate, reviews: new Set(promotions.reviews.map((r) => r.decided)).size } : null,
+    promotions: promotions ? deskPromotions(promotions, input.hits) : [],
   };
 }
 
