@@ -211,6 +211,22 @@ pub fn normalize(input: &str) -> String {
     out
 }
 
+/// Text -> its words, each folded as [`normalize`] folds: what the text is made
+/// of before the search forgets where its spaces were.
+///
+/// Split on whitespace only. A hyphen or an apostrophe carries no letters, so
+/// "apple-sauce" is the one word `applesauce`; a piece that folds to nothing
+/// ("&", "2026") is not a word at all and is left out. Whitespace is Unicode
+/// White_Space plus U+FEFF, which is what `foldWords` in
+/// `packages/engine/src/fold.ts` splits on, so the two sides agree.
+pub fn text_words(input: &str) -> Vec<String> {
+    input
+        .split(|c: char| c.is_whitespace() || c == '\u{feff}')
+        .map(normalize)
+        .filter(|word| !word.is_empty())
+        .collect()
+}
+
 /// The table entry for a non-ASCII character, if it folds to any letters.
 fn fold_char(c: char) -> Option<&'static str> {
     let table = &crate::fold_table::FOLD;
@@ -303,6 +319,49 @@ mod tests {
         ];
         for (input, expected) in cases {
             assert_eq!(normalize(input), expected, "{input:?}");
+        }
+    }
+
+    /// Mirrors WORD_CASES in `packages/engine/test/fold.test.ts`: the worker
+    /// sends the engine the words it split, and the CLI lets the engine split
+    /// them, so the two have to find the same words in the same text.
+    #[test]
+    fn text_words_are_split_on_whitespace_alone() {
+        let at = |code: u32| char::from_u32(code).unwrap();
+        let between = |code: u32| format!("apple{}sauce", at(code));
+        let cases: Vec<(String, Vec<&str>)> = vec![
+            ("apple sauce".into(), vec!["apple", "sauce"]),
+            ("  Apple\tSAUCE\n".into(), vec!["apple", "sauce"]),
+            ("applesauce".into(), vec!["applesauce"]),
+            ("apple-sauce".into(), vec!["applesauce"]),
+            ("O'Brien Smith".into(), vec!["obrien", "smith"]),
+            ("apple & sauce 2026".into(), vec!["apple", "sauce"]),
+            ("Beyoncé Knowles".into(), vec!["beyonce", "knowles"]),
+            ("Straße 9".into(), vec!["strasse"]),
+            (between(0xa0), vec!["apple", "sauce"]),
+            (between(0x85), vec!["apple", "sauce"]),
+            (between(0x2028), vec!["apple", "sauce"]),
+            (between(0x3000), vec!["apple", "sauce"]),
+            (between(0xfeff), vec!["apple", "sauce"]),
+            (between(0x200b), vec!["applesauce"]),
+            (String::new(), vec![]),
+            ("1234 !!".into(), vec![]),
+        ];
+        for (input, expected) in &cases {
+            assert_eq!(&text_words(input), expected, "{input:?}");
+            assert_eq!(text_words(input).concat(), normalize(input), "{input:?}: the words are the letters");
+        }
+
+        // Unicode White_Space plus U+FEFF, and nothing else: the list the
+        // TypeScript side spells out in its regular expression.
+        let breaks: [u32; 26] = [
+            0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
+            0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
+        ];
+        for code in 0..=0x10ffffu32 {
+            let Some(c) = char::from_u32(code) else { continue };
+            let words = text_words(&format!("a{c}b"));
+            assert_eq!(words.len() == 2, breaks.contains(&code), "U+{code:04X}");
         }
     }
 

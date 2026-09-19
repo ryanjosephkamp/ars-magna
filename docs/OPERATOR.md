@@ -941,7 +941,11 @@ After any merge to `main`. Every check reads; none changes anything.
    curl -sL https://huggingface.co/datasets/ryanjosephkamp/ars-magna-greatest-hits/resolve/main/all.jsonl | wc -l
    ```
 
-5. In a browser, search for `dormitory` at https://ars-magna.pages.dev, then open
+5. In a browser, search for `dormitory` at https://ars-magna.pages.dev. It reads `115 anagrams` and, beside
+   the count, `The text itself is left out.`: `dormitory` is a word no other word shares its letters with,
+   and the text is never listed as its own anagram, so that one row is gone and the count is one fewer
+   than the 116 the letters alone would give. `below` reads 6 with `elbow` first and no such sentence,
+   since that row is shown with another word of the same letters. Then open
    https://ars-magna.pages.dev/hits. Its count matches step 2, and its Greatest Hits, Interesting and A
    stretch sections add up to it: the Discover page fetches `hits.json` from the
    network on every visit, and the service worker's copy is only for offline use. The one exception is

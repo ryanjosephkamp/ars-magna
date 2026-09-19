@@ -18,11 +18,15 @@ import type {
 
 export * from './protocol.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
-export { foldChar, foldLetters, isSkipped, normalizeLetters, type Folded } from './fold.ts';
+export { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters, type Folded } from './fold.ts';
 
 export type SolveHandlers = {
-  /** Exact total, ahead of any results. A `>` prefix means it is a floor. */
-  onCount?(total: string, candidates: number): void;
+  /**
+   * Exact total, ahead of any results. A `>` prefix means it is a floor.
+   * `textLeftOut` says the text's own row is not among them: see `count` in
+   * the protocol.
+   */
+  onCount?(total: string, candidates: number, textLeftOut: boolean): void;
   onBatch?(
     offset: number,
     rows: readonly (readonly string[])[],
@@ -297,7 +301,7 @@ export class ArsMagnaClient {
 
     switch (message.k) {
       case 'count':
-        handlers.onCount?.(message.total, message.candidates);
+        handlers.onCount?.(message.total, message.candidates, message.textLeftOut);
         break;
       case 'batch':
         handlers.onBatch?.(message.offset, message.rows, message.done, message.truncated);

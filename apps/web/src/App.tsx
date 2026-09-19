@@ -27,6 +27,7 @@ import { useVotes } from './hits/useVotes.ts';
 import { sortedLetters } from './votes/core.ts';
 import {
   EXPORT_LIMIT,
+  TEXT_LEFT_OUT,
   buildBlob,
   download,
   fileStem,
@@ -74,7 +75,8 @@ export function App() {
   const letters = folded.letters;
 
   const {
-    engine, searching, error, candidates, countedLetters, loadMore, collect, at, surpriseMe, spellings, masks, has, countOf,
+    engine, searching, error, candidates, countedLetters, textLeftOut, loadMore, collect, at, surpriseMe, spellings, masks,
+    has, countOf,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
@@ -315,6 +317,7 @@ export function App() {
           query,
           letters,
           total,
+          textLeftOut,
           rows: view,
           generatedAt: new Date(),
         });
@@ -323,7 +326,7 @@ export function App() {
         setExporting(null);
       }
     },
-    [collect, filter, sort, query, letters, total],
+    [collect, filter, sort, query, letters, total, textLeftOut],
   );
 
   return (
@@ -397,6 +400,15 @@ export function App() {
                   <span className="text-sm text-ink-soft">
                     {total === '1' ? 'anagram' : 'anagrams'}
                   </span>
+                  {/* The text is never its own anagram. When no other word shares its
+                      words' letters, that row is gone and the count is one fewer: a
+                      thing left out of a complete list is said where the count is. */}
+                  {textLeftOut && (
+                    <>
+                      {' '}
+                      <span className="text-sm text-ink-faint">{TEXT_LEFT_OUT}</span>
+                    </>
+                  )}
                   {searching && <span className="ml-2 text-xs text-ink-faint">searching…</span>}
                 </p>
 
@@ -459,7 +471,7 @@ export function App() {
               {shownDiscoveries && <InDiscoveries sections={shownDiscoveries.sections} votes={votes} />}
 
               {empty ? (
-                <NoResults letters={letters} tier={filters.tier} />
+                <NoResults letters={letters} tier={filters.tier} textLeftOut={textLeftOut} />
               ) : (
                 <>
                   <ResultToolbar
@@ -640,12 +652,13 @@ function Intro({ counts }: { counts: { extended: number } | null }) {
   );
 }
 
-function NoResults({ letters, tier }: { letters: string; tier: string }) {
+function NoResults({ letters, tier, textLeftOut }: { letters: string; tier: string; textLeftOut: boolean }) {
   return (
     <div className="py-10 text-sm">
       <p className="text-ink">
-        Nothing spells <span className="font-display text-lg">{letters}</span> in the {tier}{' '}
-        dictionary.
+        {/* The text's own words do spell it; they are the one thing never listed. */}
+        {textLeftOut ? 'Nothing else spells' : 'Nothing spells'}{' '}
+        <span className="font-display text-lg">{letters}</span> in the {tier} dictionary.
       </p>
       <ul className="mt-4 space-y-1.5 text-ink-soft">
         <li>
@@ -653,10 +666,13 @@ function NoResults({ letters, tier }: { letters: string; tier: string }) {
           additions.
         </li>
         <li>Lower the minimum word length, or raise the maximum number of words.</li>
-        <li>
-          Some letter sets genuinely have no partition. A lone <i>q</i> with no <i>u</i> is a
-          common culprit.
-        </li>
+        {/* Not said of letters the text's own words do spell. */}
+        {!textLeftOut && (
+          <li>
+            Some letter sets genuinely have no partition. A lone <i>q</i> with no <i>u</i> is a
+            common culprit.
+          </li>
+        )}
       </ul>
     </div>
   );

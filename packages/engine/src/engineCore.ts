@@ -9,7 +9,7 @@
 import initWasm, { Engine, type InitInput } from './wasm/anagram.js';
 import type { Manifest, ManifestFile, Query, Request, Response, Tier } from './protocol.ts';
 import { bestOrder } from './wordOrder.ts';
-import { normalizeLetters } from './fold.ts';
+import { foldWords, normalizeLetters } from './fold.ts';
 
 export type Port = {
   post(message: Response): void;
@@ -240,9 +240,11 @@ export class EngineCore {
 
     // Folded here as well as in Rust: the engine's normalize() does the same
     // thing, but the worker is the boundary every caller crosses, and folding
-    // on both sides means neither can regress the other unnoticed.
+    // on both sides means neither can regress the other unnoticed. The words
+    // go over with single spaces between them, since the engine needs to know
+    // what the text's own words are: the text is never its own result.
     const candidates = engine.begin(
-      normalizeLetters(query.input),
+      foldWords(query.input).join(' '),
       query.tier,
       query.minWordLen,
       query.maxWords,
@@ -261,7 +263,7 @@ export class EngineCore {
     // bought minutes of frozen worker on a pasted sentence, not accuracy. The
     // engine also caps the memo, so a count cannot grow without bound.
     const total = engine.count(maxNodes);
-    this.#port.post({ k: 'count', id, total, candidates });
+    this.#port.post({ k: 'count', id, total, candidates, textLeftOut: engine.textLeftOut });
 
     this.#emit(id, 0, first);
     this.#port.post({
@@ -277,8 +279,8 @@ export class EngineCore {
    * untouched. `candidates` is reported as 0: nothing here predicts a search.
    */
   #count(id: number, query: Query, maxNodes = DEFAULT_MAX_NODES): void {
-    const total = this.#require().countQuery(
-      normalizeLetters(query.input),
+    const counted = this.#require().countQuery(
+      foldWords(query.input).join(' '),
       query.tier,
       query.minWordLen,
       query.maxWords,
@@ -286,7 +288,9 @@ export class EngineCore {
       query.mustExclude.map(normalizeLetters),
       maxNodes,
     );
-    this.#port.post({ k: 'count', id, total, candidates: 0 });
+    const { total, textLeftOut } = counted;
+    counted.free();
+    this.#port.post({ k: 'count', id, total, candidates: 0, textLeftOut });
   }
 
   #page(offset: number, len: number): void {

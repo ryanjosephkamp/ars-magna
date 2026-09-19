@@ -157,6 +157,14 @@ export type Response =
        */
       readonly total: string;
       readonly candidates: number;
+      /**
+       * The text's own row is not among the results, so `total` is one fewer
+       * than its letters alone would give. The text itself, its words in any
+       * order, is never a result. When other words share a word's letters the
+       * row is shown with one of those and nothing is left out; when none do,
+       * the row goes, and the page says so beside the count.
+       */
+      readonly textLeftOut: boolean;
     }
   | {
       readonly k: 'batch';

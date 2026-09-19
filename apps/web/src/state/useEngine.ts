@@ -29,6 +29,11 @@ export type SearchState = {
    * still holds the previous search's count until the next one resets it.
    */
   countedLetters: string | null;
+  /**
+   * The text's own row was left out of the results, so the total is one fewer
+   * than the letters alone would give. The page says so beside the count.
+   */
+  textLeftOut: boolean;
 };
 
 export function useResults() {
@@ -44,6 +49,7 @@ export function useEngine(query: Query) {
     error: null,
     candidates: 0,
     countedLetters: null,
+    textLeftOut: false,
   });
 
   // Boot the worker once.
@@ -71,20 +77,20 @@ export function useEngine(query: Query) {
 
     if (normalizeLetters(query.input).length === 0) {
       results.reset();
-      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null }));
+      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false }));
       return;
     }
 
     const timer = setTimeout(() => {
       results.reset();
-      setState((s) => ({ ...s, searching: true, error: null }));
+      setState((s) => ({ ...s, searching: true, error: null, textLeftOut: false }));
 
       client.solve(
         query,
         {
-          onCount: (total, candidates) => {
+          onCount: (total, candidates, textLeftOut) => {
             results.setTotal(total);
-            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input) }));
+            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input), textLeftOut }));
           },
           onBatch: (offset, rows, done, truncated) =>
             results.append(offset, rows, done, truncated),

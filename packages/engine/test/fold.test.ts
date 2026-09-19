@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { foldChar, foldLetters, isSkipped, normalizeLetters } from '../src/fold.ts';
+import { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters } from '../src/fold.ts';
 import { FOLD_RANGES, FOLD_TABLE } from '../src/foldTable.ts';
 
 /** `[input, letters, skipped]` — mirrored in the Rust unit tests. */
@@ -87,6 +87,59 @@ describe('foldLetters', () => {
     for (const char of ['a', 'Z', 'é', 'ß', ' ', "'", '-', '.', ',', '&', '’', '—']) expect(isSkipped(char), char).toBe(false);
     for (const [input, , skipped] of FOLD_CASES) {
       expect([...input].filter(isSkipped).length, input).toBe(skipped);
+    }
+  });
+});
+
+/** Code points, so no editor or tool can turn an escape into the character it names. */
+const at = (code: number) => String.fromCodePoint(code);
+
+/** `[input, words]` — mirrored in `text_words_are_split_on_whitespace_alone` in `counts.rs`. */
+export const WORD_CASES: readonly (readonly [string, readonly string[]])[] = [
+  ['apple sauce', ['apple', 'sauce']],
+  ['  Apple\tSAUCE\n', ['apple', 'sauce']],
+  ['applesauce', ['applesauce']],
+  // A hyphen and an apostrophe carry no letters and end no word.
+  ['apple-sauce', ['applesauce']],
+  ["O'Brien Smith", ['obrien', 'smith']],
+  // A piece that folds to nothing is not a word.
+  ['apple & sauce 2026', ['apple', 'sauce']],
+  ['Beyoncé Knowles', ['beyonce', 'knowles']],
+  ['Straße 9', ['strasse']],
+  [`apple${at(0xa0)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0x85)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0x2028)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0x3000)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0xfeff)}sauce`, ['apple', 'sauce']],
+  // A zero-width space is not whitespace to Unicode, so it ends no word.
+  [`apple${at(0x200b)}sauce`, ['applesauce']],
+  ['', []],
+  ['1234 !!', []],
+];
+
+/** Unicode White_Space, plus U+FEFF: the same list `counts.rs` checks Rust's against. */
+const WORD_BREAKS = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
+  0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
+];
+
+describe('foldWords', () => {
+  it.each(WORD_CASES)('splits %j', (input, words) => {
+    expect(foldWords(input)).toEqual(words);
+  });
+
+  it('joins back to exactly the letters the search uses', () => {
+    for (const [input] of [...FOLD_CASES, ...WORD_CASES]) {
+      expect(foldWords(input).join('')).toBe(normalizeLetters(input));
+    }
+  });
+
+  it('ends a word at the characters the engine ends one at, and no others', () => {
+    const breaks = new Set(WORD_BREAKS);
+    for (let code = 0; code <= 0xffff; code++) {
+      if (code >= 0xd800 && code <= 0xdfff) continue;
+      const words = foldWords(`a${at(code)}b`);
+      expect(words.length === 2, `U+${code.toString(16).padStart(4, '0')}`).toBe(breaks.has(code));
     }
   });
 });

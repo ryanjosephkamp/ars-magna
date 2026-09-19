@@ -85,7 +85,7 @@ describe.skipIf(!built)('EngineCore', () => {
     await Promise.all([loading, counting, looking]);
     expect(fresh.all('error')).toEqual([]);
     expect(fresh.messages.map((m) => m.k)).toEqual(['ready', 'count', 'lookup']);
-    expect(fresh.last('count')?.total).toBe('116');
+    expect(fresh.last('count')?.total).toBe('115');
   });
 
   it('loads the dictionary and reports its counts', () => {
@@ -134,9 +134,15 @@ describe.skipIf(!built)('EngineCore', () => {
 
   it('strips digits, punctuation and case', async () => {
     const plain = rowsOf(await solve('dormitory', { tier: 'common', minWordLen: 3 }));
-    for (const variant of ['DORMITORY', "Dor-mit'ory", 'dormitory 123', ' d o r m i t o r y ']) {
+    for (const variant of ['DORMITORY', "Dor-mit'ory", 'dormitory 123']) {
       expect(rowsOf(await solve(variant, { tier: 'common', minWordLen: 3 }))).toEqual(plain);
     }
+    // Spaces are the one thing that is kept: they say what the text's words are. The same
+    // letters typed apart are not the word `dormitory`, so the word is an anagram of theirs.
+    const apart = rowsOf(await solve(' d o r m i t o r y ', { tier: 'common', minWordLen: 3 }));
+    expect(plain).not.toContainEqual(['dormitory']);
+    expect(apart).toContainEqual(['dormitory']);
+    expect(apart.filter((row) => row.join() !== 'dormitory')).toEqual(plain);
   });
 
   it('folds accented letters to their base letters', async () => {
@@ -363,7 +369,7 @@ describe.skipIf(!built)('EngineCore', () => {
     };
 
     // The operator's case: eleven anagrams contain `shamed`.
-    expect(await count(90, ['shamed'])).toEqual([{ k: 'count', id: 90, total: '11', candidates: 0 }]);
+    expect(await count(90, ['shamed'])).toEqual([{ k: 'count', id: 90, total: '11', candidates: 0, textLeftOut: false }]);
     // The same answer a search with Must include gives.
     const pinned = await solve('Demis Hassabis', { mustInclude: ['shamed'] }, 50);
     expect(pinned.last('count')!.total).toBe('11');
@@ -429,6 +435,71 @@ describe.skipIf(!built)('EngineCore', () => {
     // A word in both fields is refused rather than searched.
     const both = await solve('Demis Hassabis', { mustInclude: ['ai'], mustExclude: ['ai'] }, 0);
     expect(both.last('error')!.message).toContain('both included and excluded');
+  });
+
+  it('never lists the text as its own anagram, and says when that left a row out', async () => {
+    // No other word has these letters, so the text's own row goes: 116 became 115.
+    const dormitory = await solve('Dormitory', {}, 200);
+    expect(dormitory.last('count')).toMatchObject({ total: '115', textLeftOut: true });
+    expect(rowsOf(dormitory)).toHaveLength(115);
+    expect(rowsOf(dormitory)).not.toContainEqual(['dormitory']);
+    const all = rowsOf(dormitory).map((r) => r.join(' '));
+
+    // Every view agrees. Go to and Surprise me: result 115 is the last, and there is no 116th.
+    port.reset();
+    await core.handle({ k: 'random', id: 120, index: '114' });
+    expect(port.last('batch')!.rows).toHaveLength(1);
+    port.reset();
+    await core.handle({ k: 'random', id: 121, index: '115' });
+    expect(port.last('batch')!.rows).toEqual([]);
+    // Paging from any offset, and the export.
+    port.reset();
+    await core.handle({ k: 'page', id: 122, offset: 40, len: 200 });
+    expect(port.last('batch')!.rows.map((r) => [...r].sort().join(' '))).toEqual(all.slice(40));
+    expect(port.last('batch')!.done).toBe(true);
+    port.reset();
+    await core.handle({ k: 'collect', id: 123, limit: 1000 });
+    const collected = port.last('collected')!;
+    expect(collected.complete).toBe(true);
+    expect(collected.rows.map((r) => [...r].sort().join(' '))).toEqual(all);
+    // And the count asked on its own, as Build and the filter ask it.
+    port.reset();
+    await core.handle({ k: 'count', id: 124, query: { ...DEFAULT_QUERY, input: 'dormitory' } });
+    expect(port.last('count')).toMatchObject({ total: '115', textLeftOut: true });
+
+    // The same letters typed apart are not the word, so the word is a result of theirs.
+    const spaced = await solve('dormitor y', {}, 200);
+    expect(spaced.last('count')).toMatchObject({ total: '116', textLeftOut: false });
+    expect(rowsOf(spaced)).toContainEqual(['dormitory']);
+
+    // A word that shares its letters with others: the row stays and shows the next of them.
+    const below = await solve('below', {}, 50);
+    expect(below.last('count')).toMatchObject({ total: '6', textLeftOut: false });
+    expect(rowsOf(below)).toContainEqual(['elbow']);
+    expect(rowsOf(below)).not.toContainEqual(['below']);
+    expect(rowsOf(await solve('listen', {}, 50))).toContainEqual(['silent']);
+
+    // Two words. "apple house" appeared as typed; now `appel` stands in. "apple sauce"
+    // never did: `cause` is commoner than `sauce`. Both counts are what they were.
+    const house = await solve('Apple  house', {}, 2000);
+    expect(house.last('count')).toMatchObject({ total: '1288', textLeftOut: false });
+    expect(rowsOf(house)).toContainEqual(['appel', 'house']);
+    expect(rowsOf(house)).not.toContainEqual(['apple', 'house']);
+    const sauce = await solve('apple sauce', {}, 1000);
+    expect(sauce.last('count')).toMatchObject({ total: '588', textLeftOut: false });
+    expect(rowsOf(sauce)).toContainEqual(['apple', 'cause']);
+    expect(rowsOf(sauce)).toContainEqual(['applesauce']);
+
+    // Must include keeps its word as typed. Holding every word of the text leaves only the text.
+    const pinned = await solve('apple house', { mustInclude: ['house'] }, 2000);
+    expect(rowsOf(pinned)).toContainEqual(['appel', 'house']);
+    expect(rowsOf(pinned)).not.toContainEqual(['apple', 'house']);
+    const both = await solve('apple house', { mustInclude: ['apple', 'house'] }, 50);
+    expect(both.last('count')).toMatchObject({ total: '0', textLeftOut: true });
+    expect(rowsOf(both)).toEqual([]);
+
+    // A text whose only anagram was itself has none.
+    expect((await solve('rhythm', {}, 50)).last('count')).toMatchObject({ total: '0', textLeftOut: true });
   });
 
   it('gives each word its frequency byte, and zero for one the dictionary lacks', async () => {

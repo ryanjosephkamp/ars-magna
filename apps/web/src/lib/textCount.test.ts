@@ -43,7 +43,7 @@ function engine(c: ReturnType<typeof clock>, rate: number, needs: number, total:
 
 describe('reading a rung', () => {
   it('tells an exact total from a floor, and a floor of nothing from both', () => {
-    expect(readTotal('116')).toEqual({ kind: 'exact', total: '116' });
+    expect(readTotal('115')).toEqual({ kind: 'exact', total: '115' });
     expect(readTotal('>39233467955')).toEqual({ kind: 'floor', total: '39233467955' });
     expect(readTotal('>0')).toEqual({ kind: 'too-long' });
   });
@@ -52,10 +52,10 @@ describe('reading a rung', () => {
 describe('climbing the ladder', () => {
   it('answers a short text on the first rung', async () => {
     const c = clock();
-    const e = engine(c, 1000, 30, '116', () => '0');
+    const e = engine(c, 1000, 30, '115', () => '0');
     const done = climb(e.ask, { wait: c.wait });
     await c.advance(1);
-    expect(await done).toEqual({ count: { kind: 'exact', total: '116' }, timedOut: false });
+    expect(await done).toEqual({ count: { kind: 'exact', total: '115' }, timedOut: false });
     expect(e.asked).toEqual([COUNT_STEPS[0]]);
   });
 
@@ -113,7 +113,7 @@ describe('climbing the ladder', () => {
 
 describe('the line', () => {
   it('reads as the page shows it', () => {
-    expect(countLine({ kind: 'exact', total: '116' }, 'standard')).toBe('116 in Standard');
+    expect(countLine({ kind: 'exact', total: '115' }, 'standard')).toBe('115 in Standard');
     expect(countLine({ kind: 'floor', total: '39233467955' }, 'common')).toBe('more than 39,233,467,955 in Common');
     expect(countLine({ kind: 'too-long' }, 'standard')).toBe(
       'The text is too long to count here; the page stops counting after 4 seconds.',
@@ -127,7 +127,7 @@ describe('the line', () => {
   });
 
   it('exports a figure only when there is one', () => {
-    expect(exportTotal({ kind: 'exact', total: '116' })).toBe('116');
+    expect(exportTotal({ kind: 'exact', total: '115' })).toBe('115');
     expect(exportTotal({ kind: 'floor', total: '5000' })).toBe('>5000');
     expect(exportTotal({ kind: 'too-long' })).toBeNull();
     expect(exportTotal({ kind: 'counting' })).toBeNull();
@@ -141,7 +141,7 @@ describe('every dictionary', () => {
   });
 
   it('gives each dictionary its figure alone, the label naming the dictionary', () => {
-    expect(tierLine({ kind: 'exact', total: '116' })).toBe('116');
+    expect(tierLine({ kind: 'exact', total: '115' })).toBe('115');
     expect(tierLine({ kind: 'floor', total: '1065799' })).toBe('more than 1,065,799');
     expect(tierLine({ kind: 'too-long' })).toBe('Too long to count here.');
     expect(tierLine({ kind: 'counting' })).toBe('Counting…');

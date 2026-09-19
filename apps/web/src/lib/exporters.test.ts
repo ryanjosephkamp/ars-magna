@@ -25,14 +25,15 @@ const input = (overrides: Partial<ExportInput> = {}): ExportInput => ({
   query: query(),
   letters: 'dimoorrty',
   total: '3',
-  rows: [['dormitory'], ['dirty', 'room'], ['moor', 'dirty']],
+  textLeftOut: false,
+  rows: [['torrid', 'yom'], ['dirty', 'room'], ['moor', 'dirty']],
   generatedAt: new Date('2026-08-10T12:00:00Z'),
   ...overrides,
 });
 
 describe('toTxt', () => {
   it('writes one anagram per line and nothing else', () => {
-    expect(toTxt(input())).toBe('dormitory\ndirty room\nmoor dirty\n');
+    expect(toTxt(input())).toBe('torrid yom\ndirty room\nmoor dirty\n');
   });
 
   it('stays parseable when the list is empty', () => {
@@ -43,7 +44,7 @@ describe('toTxt', () => {
 describe('toJson', () => {
   it('keeps words as arrays rather than flattening the spaces away', () => {
     const parsed = JSON.parse(toJson(input()));
-    expect(parsed.anagrams).toEqual([['dormitory'], ['dirty', 'room'], ['moor', 'dirty']]);
+    expect(parsed.anagrams).toEqual([['torrid', 'yom'], ['dirty', 'room'], ['moor', 'dirty']]);
   });
 
   it('records the alphagram, not the input spelling', () => {
@@ -95,6 +96,17 @@ describe('toJson', () => {
     const floored = JSON.parse(toJson(input({ total: '>3' })));
     expect(floored.complete).toBe(false);
     expect(floored.totalIsFloor).toBe(true);
+  });
+
+  it('says so when the text itself was left out of the list and the total', () => {
+    expect(JSON.parse(toJson(input())).textLeftOut).toBe(false);
+    expect(toCsv(input()).split('\n')[0]).not.toContain('left out');
+
+    const left = input({ textLeftOut: true });
+    expect(JSON.parse(toJson(left)).textLeftOut).toBe(true);
+    expect(toCsv(left).split('\n')[0]).toMatch(/ · The text itself is left out\.$/);
+    // TXT stays one anagram per line and nothing else.
+    expect(toTxt(left)).toBe(toTxt(input()));
   });
 });
 
@@ -235,11 +247,11 @@ describe('the Build page’s export', () => {
     words: { text: wordFigures(text.words, text.masks, text.zipf), anagram: wordFigures(anagram.words, anagram.masks, anagram.zipf) },
     skipped: { text: [], anagram: [] },
     comparison: comparison(text, anagram),
-    total: '116',
+    total: '115',
     countNote: null,
     wordLengths: wordLengthRows(text.words, anagram.words).rows,
     commonness: { text: commonnessByWord(text.words, text.zipf), anagram: commonnessByWord(anagram.words, anagram.zipf) },
-    byDictionary: { common: '97', standard: '116', full: '116', extended: '116' },
+    byDictionary: { common: '97', standard: '115', full: '115', extended: '115' },
     byDictionaryNote: null,
     generatedAt: new Date('2026-09-18T05:00:00.000Z'),
     ...over,
@@ -253,7 +265,7 @@ describe('the Build page’s export', () => {
     expect(txt).toContain('Word lengths        4 letters: 1 · 5 letters: 1');
     expect(txt).toContain('Each word           dormitory uncommon');
     expect(txt).toContain('Each word           dirty common · room everyday');
-    expect(txt).toContain('By dictionary       Common 97 · Standard 116 · Full 116 · Extended 116');
+    expect(txt).toContain('By dictionary       Common 97 · Standard 115 · Full 115 · Extended 115');
     expect(buildTxt(report({ wordLengths: wordLengthRows(['dormitory'], ['i', 'da', 'ai']).rows }))).toContain(
       'Word lengths        1 letter: 1 · 2 letters: 2',
     );
@@ -266,12 +278,12 @@ describe('the Build page’s export', () => {
     expect(stopped).toContain('By dictionary       Common more than 1,065,799 · Standard — · Full — · Extended —');
     expect(stopped).toContain('                    Each count stops after 4 seconds; “more than” means it stopped first.');
 
-    const parsed = JSON.parse(buildJson(report({ byDictionary: { common: '>1065799', standard: '116', full: null, extended: '116' } })));
+    const parsed = JSON.parse(buildJson(report({ byDictionary: { common: '>1065799', standard: '115', full: null, extended: '115' } })));
     expect(parsed.byDictionary).toEqual({
       common: { total: '1065799', isFloor: true },
-      standard: { total: '116', isFloor: false },
+      standard: { total: '115', isFloor: false },
       full: null,
-      extended: { total: '116', isFloor: false },
+      extended: { total: '115', isFloor: false },
     });
     expect(parsed.english.text[3]).toEqual({ letter: 'o', count: 2, expected: 0.7 });
     expect(parsed.wordLengths).toEqual([
@@ -296,7 +308,7 @@ describe('the Build page’s export', () => {
     expect(txt).toContain('Most used           o r · 2');
     expect(txt).toContain('Each letter         d 1 · i 1 · m 1 · o 2 · r 2 · t 1 · y 1');
     expect(txt).toContain('Average length      4.5');
-    expect(txt).toContain('Every anagram       116 in Standard');
+    expect(txt).toContain('Every anagram       115 in Standard');
     expect(txt).toContain('TEXT AGAINST ANAGRAM');
     expect(txt).toContain('Words               1 / 2');
     expect(txt).toContain('adjective           0 / 1');
@@ -325,7 +337,7 @@ describe('the Build page’s export', () => {
       text: 'Dormitory',
       anagram: 'dirty room',
       tier: 'standard',
-      total: '116',
+      total: '115',
       totalIsFloor: false,
       generatedAt: '2026-09-18T05:00:00.000Z',
       generatedBy: 'Ars Magna',

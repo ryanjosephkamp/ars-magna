@@ -55,7 +55,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     {
       title: 'Solve',
       description:
-        'Every way the letters of `input` can be re-partitioned into English words, as phrases. Returns the exact total (a leading ">" means a floor) and the first `first` results in canonical order, longest words first.',
+        'Every way the letters of `input` can be re-partitioned into English words, as phrases. Returns the exact total (a leading ">" means a floor) and the first `first` results in canonical order, longest words first. The text itself, its words in any order, is never a result: `text_left_out` is true when that took a row out, so the total is one fewer than the letters alone would give.',
       inputSchema: {
         input: z.string().min(1),
         tier,
@@ -67,8 +67,14 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     },
     async (args) => {
       const e = await engine();
-      const { total, rows } = await e.solve(args.input, args, args.first);
-      return text({ input: args.input, letters: alphagram(args.input), total, results: rows.map((r) => r.join(' ')) });
+      const { total, rows, textLeftOut } = await e.solve(args.input, args, args.first);
+      return text({
+        input: args.input,
+        letters: alphagram(args.input),
+        total,
+        text_left_out: textLeftOut,
+        results: rows.map((r) => r.join(' ')),
+      });
     },
   );
 
@@ -76,7 +82,8 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     'count',
     {
       title: 'Count',
-      description: 'How many anagrams `input` has under these settings, without listing them.',
+      description:
+        'How many anagrams `input` has under these settings, without listing them. The text itself is never counted: `text_left_out` is true when that made the total one fewer.',
       inputSchema: {
         input: z.string().min(1),
         tier,
@@ -86,8 +93,8 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     },
     async (args) => {
       const e = await engine();
-      const { total } = await e.solve(args.input, args, 0);
-      return text({ input: args.input, total });
+      const { total, textLeftOut } = await e.solve(args.input, args, 0);
+      return text({ input: args.input, total, text_left_out: textLeftOut });
     },
   );
 

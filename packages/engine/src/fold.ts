@@ -70,3 +70,28 @@ export function foldLetters(input: string): Folded {
 export function normalizeLetters(input: string): string {
   return foldLetters(input).letters;
 }
+
+/**
+ * Where a text's words end: Unicode White_Space plus U+FEFF. Spelled out
+ * rather than `\s`, which leaves out U+0085, so that `text_words()` in
+ * `crates/anagram-core` splits on exactly the same characters.
+ */
+const WORD_BREAK = /[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/u;
+
+/**
+ * Text -> its words, each folded to its letters: what the engine is sent, so
+ * it knows what the text's own words are. The text itself, its words in any
+ * order, is never one of its results, while the same letters spaced
+ * differently are.
+ *
+ * Split on whitespace only. A hyphen or an apostrophe carries no letters, so
+ * "apple-sauce" is the one word `applesauce`; a piece that folds to nothing
+ * ("&", "2026") is not a word and is left out. Joined back together the words
+ * are exactly `normalizeLetters(input)`.
+ */
+export function foldWords(input: string): string[] {
+  return input
+    .split(WORD_BREAK)
+    .map(normalizeLetters)
+    .filter((word) => word.length > 0);
+}

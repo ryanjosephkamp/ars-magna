@@ -179,7 +179,9 @@ fn batch_writes_every_spelling_admits_listed_short_words_and_bounds_by_limit() {
     let listen: HashSet<Vec<&str>> =
         rows.iter().filter(|r| r["id"] == "listen:phrases").map(words_of).collect();
     assert!(listen.contains(&vec!["silent"]), "silent is written, not only the first spelling");
-    assert!(listen.contains(&vec!["listen"]));
+    assert!(listen.contains(&vec!["tinsel"]));
+    // All but the text's own: "Listen" is never an anagram of itself.
+    assert!(!listen.contains(&vec!["listen"]), "the text is one of its own rows");
 
     // Short words: listed ones are admitted, nothing else under three letters.
     let shoplifter: Vec<&serde_json::Value> = rows.iter().filter(|r| r["id"] == "ashoplifter:phrases").collect();
@@ -295,4 +297,91 @@ fn check_accepts_real_anagrams_and_names_the_failure_otherwise() {
     let generated_full = anagram(&["check", "abacteremicer", "abacteremicer", "--tier=full"]);
     assert!(!generated.status.success(), "a machine-generated word is Full-only");
     assert!(generated_full.status.success());
+}
+
+/// The text itself is never a row. A result that can only be spelled as the
+/// text is not written or counted, and the summary says so; one with other
+/// spellings is written with those.
+#[test]
+fn batch_never_writes_the_text_as_its_own_result() {
+    if !dict_built() {
+        return;
+    }
+    let dir = scratch("text");
+    let candidates = r#"{"id":"dormitory:phrases","input":"Dormitory","category":"phrases","source":"manual","first_seen":"2026-09-19","status":"new"}
+{"id":"dormitor-y:phrases","input":"Dormitor y","category":"phrases","source":"manual","first_seen":"2026-09-19","status":"new"}
+{"id":"listen:phrases","input":"Listen","category":"phrases","source":"manual","first_seen":"2026-09-19","status":"new"}
+{"id":"applehouse:phrases","input":"Apple house","category":"phrases","source":"manual","first_seen":"2026-09-19","status":"new","anchors":["apple"]}
+"#;
+    let (rows, summary, _) = wide_batch(&dir, "text", candidates, "100000");
+    assert_eq!(summary["text"], "excluded", "the summary names the counting convention");
+
+    let of = |id: &str| -> Vec<Vec<&str>> {
+        rows.iter().filter(|r| r["id"] == id).map(|r| { let mut w = words_of(r); w.sort(); w }).collect()
+    };
+    let summary_of = |id: &str| summary["candidates"].as_array().unwrap().iter().find(|c| c["id"] == id).unwrap().clone();
+    let count_of = |id: &str| -> u128 { summary_of(id)["count"].as_str().unwrap().parse().unwrap() };
+
+    // No other word has `dormitory`'s letters: the row is gone and the count says so.
+    assert!(!of("dormitory:phrases").contains(&vec!["dormitory"]));
+    assert_eq!(summary_of("dormitory:phrases")["text_dropped"], true);
+    // The same letters typed apart are not the word, so the word is a result of theirs.
+    assert!(of("dormitor-y:phrases").contains(&vec!["dormitory"]));
+    assert_eq!(summary_of("dormitor-y:phrases")["text_dropped"], false);
+    assert_eq!(count_of("dormitory:phrases") + 1, count_of("dormitor-y:phrases"));
+    // Indices still run from zero with no gap where the row was.
+    let indices: HashSet<u128> = rows
+        .iter()
+        .filter(|r| r["id"] == "dormitory:phrases")
+        .map(|r| r["index"].as_str().unwrap().parse().unwrap())
+        .collect();
+    assert_eq!(indices, (0..count_of("dormitory:phrases")).collect::<HashSet<u128>>());
+
+    // `listen` has other spellings: the row stays, written with every one but the text's.
+    assert!(of("listen:phrases").contains(&vec!["silent"]));
+    assert!(!of("listen:phrases").contains(&vec!["listen"]));
+    assert_eq!(summary_of("listen:phrases")["text_dropped"], false);
+
+    // Nothing anywhere is the text's own words, the anchor search included.
+    for row in &rows {
+        let mut words = words_of(row);
+        words.sort();
+        let mut text: Vec<String> = row["input"].as_str().unwrap().split_whitespace().map(|w| w.to_lowercase()).collect();
+        text.sort();
+        assert_ne!(words, text.iter().map(String::as_str).collect::<Vec<_>>(), "{}: the text is a row", row["id"]);
+    }
+    // `appel` is not an everyday word, so at Common "Apple house" has only itself
+    // to show: dropped from the main search, and from the search around `apple`.
+    let house = summary_of("applehouse:phrases");
+    assert_eq!(house["text_dropped"], true);
+    assert!(!of("applehouse:phrases").is_empty());
+    for anchor in house["anchors"].as_array().into_iter().flatten() {
+        assert_eq!(anchor["text_dropped"], true, "the anchor search holds the text's row too");
+    }
+
+    // One spelling per result: the text's row takes the spelling the search gives it.
+    let input = dir.join("first.jsonl");
+    fs::write(&input, candidates).unwrap();
+    let out = dir.join("first");
+    let output = anagram(&[
+        "batch",
+        &format!("--in={}", input.display()),
+        &format!("--out={}", out.display()),
+        "--tier=standard",
+        "--min-len=2",
+        "--max-words=5",
+        "--limit=100000",
+    ]);
+    assert!(output.status.success(), "batch failed: {}", String::from_utf8_lossy(&output.stderr));
+    let text = fs::read_to_string(out.join("raw.jsonl")).unwrap();
+    let first: Vec<serde_json::Value> = text.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    let listen: Vec<Vec<&str>> = first.iter().filter(|r| r["id"] == "listen:phrases").map(words_of).collect();
+    assert!(listen.contains(&vec!["silent"]), "the row is written as the search shows it");
+    assert!(!listen.contains(&vec!["listen"]));
+    let mut house: Vec<Vec<&str>> = first.iter().filter(|r| r["id"] == "applehouse:phrases").map(words_of).collect();
+    for row in &mut house {
+        row.sort();
+    }
+    assert!(house.contains(&vec!["appel", "house"]));
+    assert!(!house.contains(&vec!["apple", "house"]));
 }

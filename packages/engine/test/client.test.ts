@@ -120,8 +120,12 @@ describe('ArsMagnaClient', () => {
 
     // The reader keeps typing before the pangram search answers.
     let secondCount = '';
+    let secondLeftOut: boolean | null = null;
     const secondId = client.solve({ ...QUERY, input: 'dormitory' }, {
-      onCount: (total) => (secondCount = total),
+      onCount: (total, _candidates, textLeftOut) => {
+        secondCount = total;
+        secondLeftOut = textLeftOut;
+      },
     });
 
     expect(first!.terminated).toBe(true);
@@ -133,9 +137,11 @@ describe('ArsMagnaClient', () => {
 
     // The new worker answers; the old query's handlers are gone.
     ready(second, second.sent[0]!.id);
-    second.reply({ k: 'count', id: secondId, total: '3', candidates: 9 });
+    second.reply({ k: 'count', id: secondId, total: '3', candidates: 9, textLeftOut: true });
     second.reply({ k: 'solved', id: secondId, stats: { candidates: 9, elapsedMs: 1 } });
     expect(secondCount).toBe('3');
+    // The page is told when the text's own row was left out of the count.
+    expect(secondLeftOut).toBe(true);
     expect(client.busy).toBe(false);
     expect(firstDone).toBe(0);
 
@@ -169,8 +175,8 @@ describe('ArsMagnaClient', () => {
     expect(second).toMatchObject({ k: 'count', query: { mustInclude: ['shamed'] } });
     expect(first).not.toHaveProperty('maxNodes');
 
-    worker.reply({ k: 'count', id: first!.id, total: '40', candidates: 0 });
-    worker.reply({ k: 'count', id: second!.id, total: '11', candidates: 0 });
+    worker.reply({ k: 'count', id: first!.id, total: '40', candidates: 0, textLeftOut: false });
+    worker.reply({ k: 'count', id: second!.id, total: '11', candidates: 0, textLeftOut: false });
     await expect(sham).resolves.toBeNull();
     await expect(shamed).resolves.toBe('11');
 
@@ -206,7 +212,7 @@ describe('ArsMagnaClient', () => {
     ready(second, second.sent[0]!.id);
     second.reply({ k: 'solved', id: second.sent[1]!.id, stats: { candidates: 9, elapsedMs: 1 } });
     const answered = client.count({ ...QUERY, mustInclude: ['lens'] });
-    second.reply({ k: 'count', id: second.sent.at(-1)!.id, total: '2', candidates: 0 });
+    second.reply({ k: 'count', id: second.sent.at(-1)!.id, total: '2', candidates: 0, textLeftOut: false });
     await expect(answered).resolves.toBe('2');
     client.solve({ ...QUERY, input: 'silent' }, {});
     expect(workers).toHaveLength(2);

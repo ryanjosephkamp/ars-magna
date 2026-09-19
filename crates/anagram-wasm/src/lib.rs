@@ -20,7 +20,7 @@
 //! The memo is owned by the session and shared across all of it, so the
 //! expensive counting pass happens once per query rather than once per call.
 
-use anagram_core::{Cursor, Dict, Memo, Search, SolveOptions, Tier};
+use anagram_core::{Cursor, Dict, Memo, Search, SolveOptions, TextRow, Tier};
 use wasm_bindgen::prelude::*;
 
 fn tier_from(name: &str) -> Tier {
@@ -103,6 +103,26 @@ struct Session {
     cursor: Option<Cursor>,
 }
 
+/// What [`Engine::count_query`] found: the total in [`Engine::count`]'s
+/// format, and whether the text's own row was left out of it.
+#[wasm_bindgen]
+pub struct Counted {
+    total: String,
+    text_left_out: bool,
+}
+
+#[wasm_bindgen]
+impl Counted {
+    #[wasm_bindgen(getter)]
+    pub fn total(&self) -> String {
+        self.total.clone()
+    }
+    #[wasm_bindgen(getter, js_name = textLeftOut)]
+    pub fn text_left_out(&self) -> bool {
+        self.text_left_out
+    }
+}
+
 #[wasm_bindgen]
 pub struct QueryStats {
     candidates: usize,
@@ -160,6 +180,9 @@ impl Engine {
     /// Prepare a query. Returns the number of candidate classes, which is the
     /// only honest predictor of how hard the search will be — far better than
     /// input length, since letter *diversity* is what drives the explosion.
+    ///
+    /// `input` keeps its spaces: they say what the text's own words are, and
+    /// the text itself is never one of its results.
     #[wasm_bindgen]
     #[allow(clippy::too_many_arguments)]
     pub fn begin(
@@ -196,7 +219,7 @@ impl Engine {
     /// every result contain these words. Preparing it through [`Engine::begin`]
     /// would replace the list the reader is scrolling, so it gets a search and
     /// a memo of its own, dropped when the count is done. Same format as
-    /// [`Engine::count`], `>` and all.
+    /// [`Engine::count`], `>` and all, with whether the text was left out.
     #[wasm_bindgen(js_name = countQuery)]
     #[allow(clippy::too_many_arguments)]
     pub fn count_query(
@@ -208,7 +231,7 @@ impl Engine {
         must_include: Vec<String>,
         must_exclude: Vec<String>,
         max_nodes: f64,
-    ) -> Result<String, JsError> {
+    ) -> Result<Counted, JsError> {
         let search = Search::prepare(
             &self.dict,
             input,
@@ -217,7 +240,19 @@ impl Engine {
         .map_err(|e| JsError::new(&e.to_string()))?;
         let mut memo = Memo::new();
         let (total, saturated, stats) = search.count(&mut memo, max_nodes as u64);
-        Ok(total_text(total, saturated || stats.truncated))
+        Ok(Counted {
+            total: total_text(total, saturated || stats.truncated),
+            text_left_out: search.text_row() == TextRow::Dropped,
+        })
+    }
+
+    /// Whether the active query left the text's own row out: the text's words
+    /// are a way to write its letters, no other word shares any of theirs, and
+    /// the text is never its own result. The count is then one fewer than the
+    /// letters alone would give, and the page says so beside it.
+    #[wasm_bindgen(getter, js_name = textLeftOut)]
+    pub fn text_left_out(&self) -> bool {
+        self.session.as_ref().is_some_and(|s| s.search.text_row() == TextRow::Dropped)
     }
 
     /// Solution count as a decimal string.
