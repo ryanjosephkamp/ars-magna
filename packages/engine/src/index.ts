@@ -19,6 +19,7 @@ import type {
 export * from './protocol.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
 export { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters, type Folded } from './fold.ts';
+export { isRespacing, isTextItself, sameWords } from './identity.ts';
 
 export type SolveHandlers = {
   /**

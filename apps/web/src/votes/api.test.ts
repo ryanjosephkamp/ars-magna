@@ -256,6 +256,16 @@ describe('POST /api/promote and GET /api/promotions', () => {
     expect(await published.json()).toEqual({ error: 'published', message: 'That anagram is on Discover already. Vote for it instead.' });
     expect(await status({ ...PROMOTED, words: ['man', 'get', 'elan'] })).toEqual([403, 'blocked']);
 
+    // The text itself, from a search row: its own words in any order, or a re-spacing of it.
+    expect(await status({ input: 'A gentleman', words: ['a', 'gentleman'], tier: 'standard' })).toEqual([400, 'text-itself']);
+    expect(await status({ input: 'A gentleman', words: ['gentleman', 'a'], tier: 'standard' })).toEqual([400, 'text-itself']);
+    expect(await status({ input: 'Star Wars', words: ['star', 'wars'], tier: 'standard' })).toEqual([400, 'text-itself']);
+    expect(await status({ input: 'The Godfather', words: ['the', 'god', 'father'], tier: 'standard' })).toEqual([400, 'text-itself']);
+    const itself = await t.promote({ input: 'Apple sauce', words: ['sauce', 'apple'], tier: 'standard', voter: ALICE, pass: alice, on: true });
+    expect(await itself.json()).toEqual({ error: 'text-itself', message: 'That is the text itself, not an anagram of it.' });
+    // A different spelling of the same letters is an anagram, and goes through.
+    expect((await t.promote({ input: 'Apple sauce', words: ['cause', 'apple'], tier: 'standard', voter: ALICE, pass: alice, on: true })).status).toBe(200);
+
     // An accented input folds as the search folds it.
     expect(await status({ input: 'Beyoncé', words: ['obeyence'], tier: 'full' })).toEqual([400, 'not-an-anagram']);
     expect((await t.promote({ input: 'Beyoncé', words: ['boney', 'ec'], tier: 'full', voter: ALICE, pass: alice, on: true })).status).toBe(200);
@@ -409,15 +419,30 @@ describe('POST /api/promote with via "typed": a submission from the Build page',
     expect(rows(t)).toEqual([]);
   });
 
+  it('refuses the text itself, typed from Build as from a search', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    const itself = { ...SUBMITTED, input: 'Apple sauce', words: ['sauce', 'apple'] };
+    const refused = await t.promote({ ...itself, voter: ALICE, pass: alice, on: true });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error: 'text-itself', message: 'That is the text itself, not an anagram of it.' });
+    // A re-spacing is the text too, and nothing was written for either.
+    expect((await t.promote({ ...itself, words: ['applesauce'], voter: ALICE, pass: alice, on: true })).status).toBe(400);
+    expect(rows(t)).toEqual([]);
+    // Taking one back is never refused.
+    expect((await t.promote({ ...itself, voter: ALICE, pass: alice, on: false })).status).toBe(200);
+  });
+
   it('holds at most 80 letters, though a search can promote more', async () => {
     expect(MAX_TYPED_LETTERS).toBe(80);
     const t = setup();
     const alice = await t.passFor(ALICE);
-    const long = { input: 'ab'.repeat(41), words: ['ab'.repeat(20), 'ab'.repeat(21)], tier: 'extended' };
+    // Anagrams, not re-spacings: a promotion of the text itself is refused whatever its length.
+    const long = { input: 'ab'.repeat(41), words: ['ba'.repeat(20), 'ab'.repeat(20), 'ab'], tier: 'extended' };
     const refused = await t.promote({ ...SUBMITTED, ...long, voter: ALICE, pass: alice, on: true });
     expect([refused.status, await refused.json()]).toEqual([400, { error: 'too-long', message: 'A submission holds at most 80 letters.' }]);
     expect((await t.promote({ ...long, voter: ALICE, pass: alice, on: true })).status).toBe(200);
-    const eighty = { input: 'ab'.repeat(40), words: ['ab'.repeat(20), 'ab'.repeat(20)], tier: 'extended' };
+    const eighty = { input: 'ab'.repeat(40), words: ['ba'.repeat(20), 'ab'.repeat(20)], tier: 'extended' };
     expect((await t.promote({ ...SUBMITTED, ...eighty, voter: ALICE, pass: alice, on: true })).status).toBe(200);
   });
 

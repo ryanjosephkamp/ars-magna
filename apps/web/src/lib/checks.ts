@@ -49,6 +49,14 @@ export function wordsKnown(words: readonly string[], tierOf: TierOf, chosen: Tie
   return unknown.length === 0 ? { kind: 'known' } : { kind: 'unknown', words: unknown };
 }
 
+/**
+ * What the verdict line reads when the anagram is the text itself: its own
+ * words in any order, or a re-spacing of it. The letters match and the words
+ * are known, so both checks answer as they do; what the page will not do is
+ * offer to send the text to Discover as an anagram of itself.
+ */
+export const TEXT_ITSELF = 'That is the text itself.';
+
 export function lettersMatchLabel(l: Ledger): string {
   if (l.text.letters.length === 0 || l.anagram.letters.length === 0) return '—';
   return l.match ? 'Yes' : 'No';

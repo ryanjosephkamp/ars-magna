@@ -1,12 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Tier } from '@ars-magna/engine';
+import { isTextItself, type Tier } from '@ars-magna/engine';
 
 import { CheckToast } from '../components/CheckToast.tsx';
 import { TierPicker } from '../components/Controls.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { commonnessByWord, comparison, letterFigures, wordFigures, wordLengthRows } from '../lib/analysis.ts';
-import { lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } from '../lib/checks.ts';
+import { TEXT_ITSELF, lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } from '../lib/checks.ts';
 import { buildFileStem, buildJson, buildTxt, download, type BuildReport } from '../lib/exporters.ts';
 import { holdsLetter } from '../lib/letterChart.ts';
 import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.ts';
@@ -168,7 +168,10 @@ export function BuildPage() {
   }, [l, textWords, words, dictionary.factsOf]);
 
   const textLine = lettersLine(l.text);
-  const anagramVerdict = verdict(l);
+  // The text's own words in any order, or a re-spacing of it, are the text, not
+  // an anagram of it: the verdict line says so and no submission is offered.
+  const itself = useMemo(() => isTextItself(text, anagram), [text, anagram]);
+  const anagramVerdict = itself ? TEXT_ITSELF : verdict(l);
   const skippedInAnagram = l.anagram.skipped.length;
 
   return (
@@ -324,7 +327,7 @@ export function BuildPage() {
           </button>
         </div>
 
-        {l.match && (
+        {l.match && !itself && (
           <Submit
             text={text}
             words={words}
