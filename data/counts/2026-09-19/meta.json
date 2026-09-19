@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-19",
+  "taken_at": "2026-09-19T19:26:52.916Z",
+  "convention": "One promotion or vote per browser per anagram; one taken back is not counted. Counts as the database held them at taken_at. An anagram already published is counted in votes.jsonl, its promotions having become votes. promotions.jsonl lists an anagram by the SHA-256 of its key only when the engine finds every word in the site vocabulary and it is not blocked; the rest are counted in meta.",
+  "promotions": {
+    "anagrams": 0,
+    "listed": 0,
+    "total": 0,
+    "left_out": {
+      "unchecked": 0,
+      "blocked": 0
+    }
+  },
+  "votes": {
+    "hits": 14,
+    "total": 15
+  },
+  "dictionary": {
+    "repo": "ryanjosephkamp/english-openlist",
+    "rev": "368bf0e4460461c985fca8bde49e4062d56c1516"
+  }
+}
