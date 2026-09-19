@@ -3,11 +3,16 @@
  * judgement relates the anagram to its input. Pure, and shared by ingest,
  * publish and the tools that come after them, so the rule lives in one place.
  *
- *   relation 5                       Interesting, flagged for Greatest Hits
- *   relation 4                       Interesting
+ *   relation 5, reads 2 or 3         Interesting, flagged for Greatest Hits
+ *   relation 4, reads 2 or 3         Interesting
  *   relation 3, reads 2 or 3         A stretch
- *   relation 3 reads 1, relation 2   near miss: not added; kept in the queue's verdicts
+ *   any relation 3 to 5 that reads 1,
+ *   and relation 2                   near miss: not added; kept in the queue's verdicts
  *   relation 1                       nothing
+ *
+ * A phrase that reads as word salad is a near miss however apt one of its
+ * words is (D40, 2026-09-18). Hits published before that rule keep their
+ * shelves: `judgedShelf` reads relation alone.
  *
  * Greatest Hits is `featured`, which only the operator sets. Rubric v1 lines
  * map onto the same scale: relation is aptness, and reads is 3 for grammar
@@ -17,6 +22,12 @@ import type { Hit, Judgement } from './schema.ts';
 
 /** At most this many hits per input sit on a shelf; further qualifying rows are alternates. */
 export const SHELF_CAP = 3;
+
+/**
+ * At most this many alternates per input, counting the ones it already has;
+ * further qualifying rows stay near misses in the queue's verdicts (F0).
+ */
+export const ALTERNATE_CAP = 5;
 
 export type Scores = { relation: number; reads: number };
 export type Assessment = 'interesting' | 'stretch' | 'near' | 'none';
@@ -43,8 +54,9 @@ export function bestJudgement(judge: readonly Judgement[]): Judgement | undefine
 }
 
 export function assess({ relation, reads }: Scores): Assessment {
+  if (relation >= 3 && reads < 2) return 'near';
   if (relation >= 4) return 'interesting';
-  if (relation === 3) return reads >= 2 ? 'stretch' : 'near';
+  if (relation === 3) return 'stretch';
   if (relation === 2) return 'near';
   return 'none';
 }
@@ -80,14 +92,17 @@ export type Shelved<T> = { accepted: T[]; alternates: T[]; near: T[]; none: T[] 
 /**
  * Place one input's rows. The best qualifying rows fill the free slots, which
  * are the cap minus the hits this input already has on a shelf (`taken`); the
- * other qualifying rows become alternates. Each group is ordered by relation,
- * then reads, then key, so the result does not depend on input order.
+ * next best become alternates, up to `ALTERNATE_CAP` minus the alternates it
+ * already has (`alternatesTaken`), and the rest join the near misses. Each
+ * group is ordered by relation, then reads, then key, so the result does not
+ * depend on input order.
  */
 export function shelve<T>(
   rows: readonly T[],
   scores: (row: T) => Scores,
   key: (row: T) => string,
   taken = 0,
+  alternatesTaken = 0,
 ): Shelved<T> {
   const order = (a: T, b: T) => {
     const x = scores(a);
@@ -97,10 +112,11 @@ export function shelve<T>(
   const by = (wanted: Assessment[]) => rows.filter((r) => wanted.includes(assess(scores(r)))).sort(order);
   const qualifying = by(['interesting', 'stretch']);
   const slots = Math.max(0, SHELF_CAP - taken);
+  const alternates = slots + Math.max(0, ALTERNATE_CAP - alternatesTaken);
   return {
     accepted: qualifying.slice(0, slots),
-    alternates: qualifying.slice(slots),
-    near: by(['near']),
+    alternates: qualifying.slice(slots, alternates),
+    near: [...qualifying.slice(alternates), ...by(['near'])].sort(order),
     none: by(['none']),
   };
 }

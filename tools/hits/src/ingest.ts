@@ -1,5 +1,5 @@
 /**
- * `pnpm hits:ingest [--date=YYYY-MM-DD] [--model=NAME] [--threshold=11] [--no-engine-check]`
+ * `pnpm hits:ingest [--date=YYYY-MM-DD] --model=NAME --judged-by=routine|hand [--threshold=11] [--no-engine-check]`
  * `pnpm hits:ingest --from-issue=N`
  * `pnpm hits:ingest --date=YYYY-MM-DD --model=NAME --only=id,… [--status=accepted|proposed]`
  *
@@ -15,11 +15,18 @@
  *
  * Rubric v2 answers are shelved (`shelf.ts`). Up to three rows per input are
  * written `accepted`, counting the hits that input already has on a shelf.
- * Further qualifying rows are `proposed` alternates. Near misses stay in the
- * queue's `judge-output.jsonl`. The operator's merge of the pull request is
- * the approval. Rubric v1 answers, from older queues, keep the v1 rule: a
- * total of 11 or more is `proposed`. The candidates that were judged move to
- * `enumerated` so the next run skips them.
+ * Up to five further qualifying rows are `proposed` alternates, counting the
+ * alternates it already has. Near misses, and qualifying rows past those,
+ * stay in the queue's `judge-output.jsonl`. The operator's merge of the pull
+ * request is the approval. Rubric v1 answers, from older queues, keep the v1
+ * rule: a total of 11 or more is `proposed`. The candidates that were judged
+ * move to `enumerated` so the next run skips them, each recording the queue,
+ * its versions, the model and whether the routine or a person's session
+ * judged it.
+ *
+ * A verdict file whose justifications repeat once the words they quote are
+ * masked is refused before anything is written (`guards.ts`): sentences
+ * written from a template are not verdicts.
  *
  * The third form is the operator's promotion of named rows from a judged
  * queue's verdicts, usually near misses: it writes exactly those rows, past
@@ -34,6 +41,7 @@ import { execFileSync } from 'node:child_process';
 // build, which the judge routine's sandbox does not have (--no-engine-check).
 import { aboutProblem, candidateOf, syncAbout, tidySentence } from './about.ts';
 import { checkAnagram, sameLetters } from './check.ts';
+import { repeatMessage, repeatedJustifications } from './guards.ts';
 import { alphagram, candidateId, hitId } from './ids.ts';
 import { firstGlosses } from './glosses.ts';
 import { readJudgeSenses } from './sense.ts';
@@ -44,6 +52,7 @@ import { INGEST_REPORT, JUDGE_OUTPUT, flag, has, pickQueue, queueDate, readJudge
 import {
   CANDIDATES_PATH,
   HITS_PATH,
+  JUDGED_BY,
   TONES,
   appendJsonl,
   candidateSchema,
@@ -58,6 +67,7 @@ import {
   type Judgement,
   type JudgementV1,
   type JudgementV2,
+  type JudgedBy,
   type Tone,
 } from './schema.ts';
 import {
@@ -70,7 +80,7 @@ import {
 } from './requests.ts';
 import { screenedCandidateIds } from './screen.ts';
 import { addRun, queueName, queueSettings, readAdditionWords } from './settings.ts';
-import { assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
+import { ALTERNATE_CAP, assess, bestJudgement, scoresOf, shelve, type Scores } from './shelf.ts';
 
 async function fromIssue(number: string): Promise<void> {
   const raw = execFileSync('gh', ['issue', 'view', number, '--json', 'body,author,url'], { encoding: 'utf8' });
@@ -269,10 +279,19 @@ export function judgedAt(v: Pick<Verdict, 'judged_at'>, queueDay: string): strin
 /**
  * A verdict as a judge entry on a hit. With `words`, the phrase's words, a v2
  * entry keeps the senses the judge proposed for them that follow the rule;
- * without, those whose keys are words at all.
+ * without, those whose keys are words at all. With `judgedBy`, the entry
+ * records whether the routine or a person's session judged it.
  */
-export function toJudgement(v: Verdict, model: string, version: string, queueDay: string, words?: readonly string[]): Judgement {
+export function toJudgement(
+  v: Verdict,
+  model: string,
+  version: string,
+  queueDay: string,
+  words?: readonly string[],
+  judgedBy?: JudgedBy,
+): Judgement {
   const date = judgedAt(v, queueDay);
+  const by = judgedBy ? { judged_by: judgedBy } : {};
   if (isV2Verdict(v)) {
     const judgement: JudgementV2 = {
       model: v.model ?? model,
@@ -283,6 +302,7 @@ export function toJudgement(v: Verdict, model: string, version: string, queueDay
       subjects: [...new Set(v.subjects ?? [])],
       rationale: v.rationale.trim(),
       judged_at: date,
+      ...by,
     };
     if (hasText(v.justification)) judgement.justification = v.justification.trim();
     const keys = v.senses && typeof v.senses === 'object' && !Array.isArray(v.senses) ? Object.keys(v.senses).filter((k) => /^[a-z]+$/.test(k)) : [];
@@ -300,7 +320,17 @@ export function toJudgement(v: Verdict, model: string, version: string, queueDay
     total: v.aptness + v.grammar + v.memorability,
     rationale: v.rationale.trim(),
     judged_at: date,
+    ...by,
   };
+}
+
+/** The `--judged-by` flag's value; throws, saying what it must be, for anything else. */
+export function judgedByFlag(value: string | undefined): JudgedBy {
+  if (value !== undefined && (JUDGED_BY as readonly string[]).includes(value)) return value as JudgedBy;
+  throw new Error(
+    `--judged-by must say who judged the queue: routine for the judge routine, or hand for a session a person started ` +
+      `(judging by hand, a deep run)${value === undefined ? '' : `, not ${value}`}`,
+  );
 }
 
 export type IngestOptions = {
@@ -314,6 +344,10 @@ export type IngestOptions = {
   dictionary: { repo: string; rev: string };
   /** Hits each candidate already has on a shelf (accepted or featured), by candidate id. */
   taken?: ReadonlyMap<string, number>;
+  /** Alternates each candidate already has (proposed, tagged `alternate`), by candidate id. */
+  alternates?: ReadonlyMap<string, number>;
+  /** Whether the routine or a person's session judged the queue, recorded on every judge entry. */
+  judgedBy?: JudgedBy;
   /**
    * Ids already in data/hits.jsonl. Those rows keep the status the file gives
    * them: they are not placed again, and they do not use a second slot.
@@ -397,7 +431,7 @@ export function assessBatch(
   const byId = new Map<string, Judgement[]>();
   for (const v of verdicts) {
     const list = byId.get(v.id) ?? [];
-    list.push(toJudgement(v, options.model, options.version, options.queueDay, batch.get(v.id)!.words));
+    list.push(toJudgement(v, options.model, options.version, options.queueDay, batch.get(v.id)!.words, options.judgedBy));
     byId.set(v.id, list);
   }
 
@@ -422,7 +456,7 @@ export function assessBatch(
   }
 
   for (const [candidate, entries] of byCandidate) {
-    const shelved = shelve(entries, (e) => e.scores, (e) => e.row.id, options.taken?.get(candidate) ?? 0);
+    const shelved = shelve(entries, (e) => e.scores, (e) => e.row.id, options.taken?.get(candidate) ?? 0, options.alternates?.get(candidate) ?? 0);
     const subjects = options.subjects?.get(candidate);
     for (const e of shelved.accepted) {
       const placement = assess(e.scores) as 'interesting' | 'stretch';
@@ -479,7 +513,9 @@ export function promoteOnly(
       refused.push({ id, reason: 'already in data/hits.jsonl; change it with pnpm hits:set' });
       continue;
     }
-    const judge = verdicts.filter((v) => v.id === id).map((v) => toJudgement(v, options.model, options.version, options.queueDay, row.words));
+    const judge = verdicts
+      .filter((v) => v.id === id)
+      .map((v) => toJudgement(v, options.model, options.version, options.queueDay, row.words, options.judgedBy));
     const best = bestJudgement(judge);
     if (!best) {
       refused.push({ id, reason: 'no valid verdict in this queue' });
@@ -506,6 +542,17 @@ export function takenCounts(hits: readonly Hit[]): Map<string, number> {
     taken.set(candidate, (taken.get(candidate) ?? 0) + 1);
   }
   return taken;
+}
+
+/** How many alternates each candidate already has: proposed hits tagged `alternate`. */
+export function alternateCounts(hits: readonly Hit[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const hit of hits) {
+    if (hit.status !== 'proposed' || !hit.tags.includes('alternate')) continue;
+    const candidate = candidateOf(hit.id);
+    counts.set(candidate, (counts.get(candidate) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /** A sentence about an input, as the report lists it. */
@@ -637,7 +684,7 @@ export function renderReport(r: {
     ...section('A stretch', null, of('stretch')),
     ...section(
       'Alternates',
-      'These qualify, but their input already has three hits on a shelf. They are proposed; accept one with `pnpm hits:set --status=accepted <id>`.',
+      `These qualify, but their input already has three hits on a shelf. They are proposed; accept one with \`pnpm hits:set --status=accepted <id>\`. An input keeps at most ${ALTERNATE_CAP} alternates; qualifying rows past them are listed with the near misses.`,
       of('alternate'),
       true,
     ),
@@ -723,6 +770,9 @@ async function main(): Promise<void> {
   }
   const onlyIds = only === undefined ? null : [...new Set(only.split(',').map((s) => s.trim()).filter((s) => s.length > 0))];
   if (onlyIds && onlyIds.length === 0) throw new Error('--only needs at least one hit id');
+  // Who judged the queue is recorded on every verdict it becomes. --only
+  // promotes rows judged earlier, and reads it from the queue's record.
+  const judgedBy = onlyIds ? null : judgedByFlag(flag(argv, 'judged-by'));
 
   // The rows the judge saw: screened.jsonl for a screened queue, else prefiltered.jsonl.
   const batch = new Map<string, Prefiltered>((await readJudgedRows(dir)).map((row) => [row.id, row]));
@@ -737,6 +787,16 @@ async function main(): Promise<void> {
   const { parseVerdicts } = await import('./judge.ts');
   const verdicts = parseVerdicts(raw);
   const { version } = await rubric();
+
+  // Sentences written from a template are not verdicts: refuse the file
+  // before anything is checked or written. --only reads a queue that was
+  // ingested already.
+  const repeats = onlyIds ? [] : repeatedJustifications(verdicts);
+  if (repeats.length > 0) {
+    console.error(repeatMessage(repeats, resolve(dir, JUDGE_OUTPUT)));
+    process.exitCode = 1;
+    return;
+  }
 
   const { ok, rejected } = validateVerdicts(verdicts, batch);
 
@@ -774,6 +834,8 @@ async function main(): Promise<void> {
     if (!cv(c)) throw new Error(`refusing the judge's sentence about ${line.candidate}: ${line.text}`);
   }
 
+  const queue = queueName(dir);
+  const recorded = candidates.flatMap((c) => c.runs ?? []).find((r) => r.queue === queue)?.judged_by;
   const options: IngestOptions = {
     model,
     version,
@@ -782,6 +844,7 @@ async function main(): Promise<void> {
     threshold,
     dictionary: await dictionaryPin(),
     taken: takenCounts(known),
+    alternates: alternateCounts(known),
     existing: new Set(known.map((h) => h.id)),
     subjects: new Map(candidates.flatMap((c) => (c.subjects?.length ? [[c.id, c.subjects] as const] : []))),
     about: new Map(
@@ -789,6 +852,7 @@ async function main(): Promise<void> {
         c.about || c.wikipedia ? [[c.id, { ...(c.about ? { about: c.about } : {}), ...(c.wikipedia ? { wikipedia: c.wikipedia } : {}) }] as const] : [],
       ),
     ),
+    ...(judgedBy ? { judgedBy } : recorded ? { judgedBy: recorded } : {}),
   };
 
   if (onlyIds) {
@@ -838,7 +902,7 @@ async function main(): Promise<void> {
   // Candidates that were judged are done for now, and the ledger records
   // the queue and the versions they went through.
   const rubricKind = verified.length > 0 ? (verified.some(isV2Verdict) ? 'v2' : 'v1') : version === 'v1' ? 'v1' : 'v2';
-  const run = { queue: queueName(dir), settings: await queueSettings(dir), rubric: rubricKind, date };
+  const run = { queue, settings: await queueSettings(dir), rubric: rubricKind, date, model, ...(judgedBy ? { judged_by: judgedBy } : {}) };
   let moved = 0;
   for (const c of candidates) {
     if (!judgedCandidates.has(c.id)) continue;

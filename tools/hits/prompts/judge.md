@@ -33,6 +33,7 @@ Rules:
 
 - Judge every candidate you are given, once, by its `id`. Do not invent candidates, and do not skip any.
 - Judge the relation, not the polish. A loose but real link is a 3, even when the phrase is awkward. Most candidates have no link to their input and get a 1.
+- A word carried over from the input is not a link by itself. When the anagram keeps a word of the input ("Eternal Blue" → "eternal lube", "The Sheep Detectives" → "het sheep detectives"), those letters simply stayed where they were. Score what the rest of the phrase says about the input; if it says nothing, the relation is 1.
 - Judge rude, vulgar or offensive anagrams exactly like any other. Never lower a score for them; add the `rude` tone instead. Do not seek them out.
 - Output **JSONL only**: one line per candidate, no prose before or after, in exactly this shape:
 
