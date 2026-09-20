@@ -1328,6 +1328,15 @@ same pull request.
    keeps the link; publishing without it makes a separate page.
 4. If the URL ever changes, record the new one here and in `CLAUDE.md`.
 
+**An artifact belongs to the Claude account that published it.** Another account cannot open or update one, so
+if you ever work from a second account, either publish these pages from the account that owns them, or publish
+again from the new one and record the new URL here and in `CLAUDE.md`. The manual, the review desk and the
+audit are all rebuilt from this repository, so nothing is lost either way. `handoff/ARTIFACTS.md`, beside the
+repository, lists every page this project has published and the file each was built from; "Another Claude
+account, or another machine" in `docs/BOOTSTRAP.md` covers the rest of a move. The judge routine belongs to its
+account in the same way: it keeps running whichever account is coding, but only that one can pause or change
+it.
+
 The manual's artifact: https://claude.ai/code/artifact/e9d6ddc9-1c1b-4901-8341-7923708c416c
 
 Prompt: `docs/prompts/update-manual.md` (task_description).
