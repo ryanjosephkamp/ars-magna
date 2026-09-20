@@ -889,8 +889,10 @@ an anagram by themselves; once a month they nominate.
 **How the routine knows it is the month's turn**, with no schedule of its own: each review writes
 `data/votes/monthly/<month>.md` and `.jsonl`, which the routine's pull request carries. A run is the month's turn
 when neither `main` nor any open `hits/*` branch holds that month's record, so the first run of each UTC month does
-it and every later run that month finds it. If you close that pull request unmerged, the next run does the review
-again; a run that cannot see the open branches skips it rather than risk doing it twice. When nothing has 5 votes,
+it and every later run that month finds it. To have the month reviewed again, close that pull request unmerged
+and delete its branch: the check reads the `hits/*` branches on the remote, not the open pull requests, so a branch
+kept after closing still holds the turn (`pnpm promotions:apply` reads the same branches for what it has applied). A
+run that cannot see the branches skips the review rather than risk doing it twice. When nothing has 5 votes,
 the month is still recorded, saying so.
 
 **Review it** in the routine's pull request, which has the section in its body: the move with its sentence, every
@@ -1367,6 +1369,8 @@ account, or another machine" in `docs/BOOTSTRAP.md` covers the rest of a move. T
 account in the same way: it keeps running whichever account is coding, but only that one can pause or change
 it.
 
-The manual's artifact: https://claude.ai/code/artifact/e9d6ddc9-1c1b-4901-8341-7923708c416c
+The manual's artifact: https://claude.ai/artifact/69EsCS7wEfbzrTRYsUHiro (published 2026-09-20 by the account that took the project over that
+day; the earlier address, `claude.ai/code/artifact/e9d6ddc9-…`, stays with the previous account). The review desk, the
+audit and the voting plan were published again the same day, and `CLAUDE.md` records their addresses.
 
 Prompt: `docs/prompts/update-manual.md` (task_description).
