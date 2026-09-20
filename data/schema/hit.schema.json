@@ -26,7 +26,7 @@
       "items": { "type": "string", "pattern": "^[a-z]+$" },
       "description": "The words as a multiset, in the order they read best."
     },
-    "display": { "type": "string", "minLength": 1, "description": "The words joined with spaces, in reading order." },
+    "display": { "type": "string", "minLength": 1, "maxLength": 200, "description": "How the hit reads on Discover: the words in reading order, as themselves or as listed forms (I'm, don't), with apostrophe, hyphen, comma, full stop, question mark, colon, semicolon and quotation marks, and capitals for I, names, acronyms and the start of a sentence; never an exclamation mark. Set by hits:display or from the judge's checked suggestion; hits:order returns it to the words. The tools check it reads exactly the words." },
     "letters": { "type": "string", "pattern": "^[a-z]+$", "description": "The sorted letters (alphagram) the input and the words share." },
     "prefilter_score": { "type": "number" },
     "judge": {
@@ -136,6 +136,12 @@
         "senses": {
           "$ref": "#/$defs/senses",
           "description": "The senses the judge proposed for words of the phrase whose first dictionary sense would not explain the reading."
+        },
+        "display": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "The display the judge proposed, kept only when it passed the display rule with possessives refused; the hit's display took it when the hit was written."
         },
         "rationale": { "type": "string", "minLength": 1 },
         "judged_at": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" },

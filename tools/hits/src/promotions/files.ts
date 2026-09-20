@@ -95,6 +95,8 @@ export type ReviewVerdict = {
   justification?: string;
   rationale: string;
   senses?: Record<string, string>;
+  /** How the anagram reads on Discover, kept only when it passed the display rule with possessives refused. */
+  display?: string;
   about?: string;
   reader_about?: 'keep' | 'drop';
   credit?: 'keep' | 'drop';

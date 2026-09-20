@@ -289,7 +289,10 @@ when you promote a hit by name. Rude or offensive phrases are never scored down;
    change one with `pnpm hits:describe <candidate> "One factual sentence."` on the branch. Its **Senses**
    section lists, under each new hit, the sense the judge wrote for a word and the dictionary's first gloss
    it is read over (see "Senses on Discover"). Merging accepts those too; change one with
-   `pnpm hits:sense <id> <word> "One sentence."`, or remove it with `--clear`, on the branch.
+   `pnpm hits:sense <id> <word> "One sentence."`, or remove it with `--clear`, on the branch. Its **Display**
+   section lists each new hit the judge proposed a display for (a listed contraction, punctuation or capitals
+   over the same words, see "Display on a hit") beside its words; change one with `pnpm hits:display <id> "…"`,
+   or return it to the words with `--clear`, on the branch.
 2. Check out the branch and change only what you disagree with, one command per status:
 
    ```bash
@@ -398,6 +401,7 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 | justification | `pnpm hits:justify id "One plain sentence."` |
 | about the input | `pnpm hits:describe <candidate> "One factual sentence."`, after the justifications |
 | sense of a word | `pnpm hits:sense id word "One sentence."`, or `pnpm hits:sense id word --clear` for an emptied field, after what inputs are |
+| display on Discover | `pnpm hits:display id "I'm a dirty room."`, or `pnpm hits:display id --clear` for an emptied field, after the senses and after any word order |
 | tags | `pnpm hits:tag id +tone:pun -subject:actor` |
 | accept a near miss | `pnpm hits:ingest --date=<queue> --model=<judge> --only=id,… --status=accepted`; a row with no justification goes in as `proposed`, then `hits:justify` and `hits:set` |
 | word order | `pnpm hits:order id room dirty`, after the ingest that writes a promoted near miss |
@@ -406,9 +410,10 @@ kept in the browser that made them, so a phone and a laptop each hold their own.
 | block a promoted anagram | `pnpm promotions:block --code=<its code>`: the code alone, never the words |
 | deep run | `pnpm hits:requeue …`, then `hits:enumerate --preset=deep`, `hits:prefilter --per-input=all` and `hits:screen` |
 
-`hits:justify`, `hits:describe`, `hits:sense`, `hits:tag` and `hits:order` refuse an unknown id, an empty or over-long
-sentence, a tag the schema does not allow, and words that are not the hit's own, and write nothing then. `hits:order` changes
-only how the words read: the id, and so the hit's page address, stays the same. `hits:ingest --only` refuses
+`hits:justify`, `hits:describe`, `hits:sense`, `hits:display`, `hits:tag` and `hits:order` refuse an unknown id, an empty or
+over-long sentence, a tag the schema does not allow, a display that breaks its rule, and words that are not the hit's own, and
+write nothing then. `hits:order` changes only how the words read: the id, and so the hit's page address, stays the same, and a
+display set by hand is returned to the words, which the command says. `hits:ingest --only` refuses
 a row that is not in the queue, is already a hit, or has no valid verdict. An agent runs these only on what
 the operator named, and writes a justification only when a note asks for one.
 
@@ -446,8 +451,8 @@ the audit handles what the page already shows.
    section in that order or by **Most votes**, ties A to Z as on the site, from the newest vote counts in
    `data/counts/`; a hit with votes shows how many.
 3. Change a row's label to move it to another section or **Remove from the page** (`retired`), and edit its
-   justification, what its input is, the senses of its words, tags or word order, or add a note, as in the
-   review desk. Every row starts on its current label, so a prompt copied without changes changes nothing.
+   justification, what its input is, the senses of its words, how it reads on Discover, tags or word order, or
+   add a note, as in the review desk. Every row starts on its current label, so a prompt copied without changes changes nothing.
 4. Press **Copy prompt** and paste it into an agent session on the repository. It applies the changes on a
    new branch named `greatest-hits-audit-<date>` and opens a pull request. The page changes when you merge it.
 
@@ -567,6 +572,55 @@ fields until it is a hit; promoted with `hits:ingest --only`, it takes the judge
 **Where senses are kept.** `data/hits.jsonl` holds them on the hit as an object keyed by word, and the site's
 `hits.json` carries it on the hits that have one. The dataset publishes `senses` as a list of `word` and
 `sense` in reading order, or `null`, so the column keeps one type however many words get a sense.
+
+## Display on a hit
+
+How a hit reads on Discover, on its own page and as the anagram of the day: `display`, which the row, the
+page's title and the description show. The search page never shows it; its rows stay lowercase, spelled from
+the letters, and a hit's `words`, its id, its letters and its votes never change with the display.
+
+**The rule (D27).** A display is the hit's words, in the order they read, once each, as themselves or as
+listed forms of them (`I'm`, `don't`: see "Add a form to the vocabulary"), with these marks and no others:
+apostrophe, hyphen, comma, full stop, question mark, colon, semicolon and quotation marks, straight or
+typographic. Capitals for I, names, acronyms and the start of a sentence, and only at the start of a token
+(`Dirty`, `NASA`, `I'm`), never after a lowercase letter. **No exclamation marks**, which the site's voice
+leaves out. A possessive (`dog's` for `dogs`) appears only through your command, never from the judge. The
+tools check every display the same way (`displayProblem` in `tools/hits/src/desk/compose.ts`), and a typed
+one that breaks the rule writes nothing.
+
+**Who writes one.** Three ways, and nothing else writes a display:
+
+| Source | How |
+|---|---|
+| you | `pnpm hits:display`, or Display on Discover in the review desk or the audit. |
+| the judge | A verdict may carry `display` (the rubric, `tools/hits/prompts/judge.md`). Ingest keeps it only when it passes the rule with possessives refused, writes it on the hit and its judge entry, and the routine's pull request lists it under Display; one that breaks the rule is left off and the verdict kept, as a sense that breaks its rule is. The promotions review takes the same field, checked the same way at `promotions:ingest`, and `promotions:apply` writes it on the hit it places. |
+| `hits:order` | Returns the display to the words in their new order, since a display set by hand read the old one, and says so: set it again. |
+
+**Set or clear one:**
+
+```bash
+pnpm hits:display dormitory:phrases:dirty-room "Dirty room."
+pnpm hits:display darioamodei:people:ai-da-doomer-i "I da AI doomer"
+pnpm hits:display dormitory:phrases:dirty-room --clear
+```
+
+`hits:display` takes the hit id and the display in quotes, or `--clear`, which returns it to the words joined
+with spaces. It refuses an unknown id, `--clear` given with a display, and a display that breaks the rule (a
+word changed, added, left out or out of order; a mark outside the set; an exclamation mark; a capital after a
+lowercase letter; a token with an apostrophe or hyphen that is neither a listed form nor, by your command, a
+word of the hit with an apostrophe), and writes nothing then. To change the order the words read in, run
+`hits:order` first, then `hits:display`. The file is rewritten in its order, so the diff is the hit's one line.
+
+**In the desk and the audit.** Each hit's row has **Display on Discover**, closed until opened unless the hit
+reads other than its words: one field, prefilled with the display, checked as you type against the order
+chosen in Reorder words; emptying it returns the display to the words. Under it, "Proposed by the judge."
+marks a display the judge wrote, and "The judge proposed:" quotes one you have changed. The prompt runs
+`hits:order` before `hits:display`, so a display is checked against the words as reordered.
+
+**On Discover** the display is shown as written: `I'm a dirty room.` on the row, in the page title of
+`/hits/<slug>/` and in its description. The dataset publishes it in `display` beside `words`, which stay the
+letters. Build's Letters match drops apostrophes and hyphens, so a typed `dog's` passes as `dogs` and keeps its
+apostrophe only if you set it on the hit's display at review.
 
 ## Votes on Discover
 

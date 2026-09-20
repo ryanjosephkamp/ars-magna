@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { REVIEW_LIMIT, validators, type ExportLine, type ReviewLine } from '../src/promotions/files.ts';
+import { REVIEW_LIMIT, shortCode, validators, type ExportLine, type ReviewLine } from '../src/promotions/files.ts';
 import { exportLines, countFiles, type PromotionRow, type WordChecker } from '../src/promotions/export.ts';
 import { selectForReview } from '../src/promotions/select.ts';
 import { renderReview, reviewView } from '../src/promotions/review.ts';
@@ -270,6 +270,30 @@ describe('the review’s answers', () => {
     expect(report).not.toContain(`${MARK}private`);
     expect(report).toMatch(/## A private person \(1\)/);
   });
+
+  it('keeps a display that passes the rule, leaves off one that does not with the answer kept, and shows it in the report', async () => {
+    const { chosen } = selectForReview(await exported(), { hitKeys: new Set(), reviewed: [] });
+    const answers = answersFor(chosen, {
+      'A gentleman': { relation: 4, reads: 3, category: 'phrases', justification: 'A gentleman is courteous.', display: 'Entangle, am.' },
+      Dormitory: { relation: 5, reads: 3, justification: 'A dormitory is a room.', reader_about: 'keep', credit: 'drop', display: "Dirty room's!" },
+      'Jane Hood': { private: true, relation: 3, reads: 2, justification: 'Anything at all.', category: 'people', credit: 'drop' },
+      'Clarbot z': { requests: ['zorbl'], relation: 3, reads: 3, justification: 'A clarbot acts.' },
+    });
+    const { lines, problems, displaysSkipped } = reviewLines(chosen, answers, { ...CONTEXT, forms: { "it's": 'its' } });
+    expect(problems).toEqual([]);
+    const gentle = lines.find((l) => l.row?.input === 'A gentleman')!;
+    expect(gentle.verdict?.display).toBe('Entangle, am.');
+    const dorm = lines.find((l) => l.row?.input === 'Dormitory')!;
+    expect(dorm.verdict).not.toHaveProperty('display');
+    expect(dorm.outcome).toBe('place');
+    expect(displaysSkipped).toEqual([{ id: shortCode(dorm.key_sha256), reason: 'an exclamation mark is never shown' }]);
+    const valid = await validators.reviewLine();
+    for (const line of lines) expect(valid(line), JSON.stringify(valid.errors)).toBe(true);
+    const report = renderPrivateReport(CONTEXT.date, lines, chosen, { ...CONTEXT, displaysSkipped });
+    expect(report).toContain('A gentleman → entangle am · reads “Entangle, am.”');
+    expect(report).toContain('## Displays left off');
+    expect(report).toContain(`- \`${shortCode(dorm.key_sha256)}\`: an exclamation mark is never shown`);
+  });
 });
 
 describe('applying a merged review', () => {
@@ -284,6 +308,24 @@ describe('applying a merged review', () => {
     return reviewLines(chosen, answers, CONTEXT).lines;
   }
   const context = (known: Hit[] = [], candidates: Candidate[] = [], applied = new Set<string>()) => ({ known, candidates, applied, date: '2026-09-22', dictionary: DICTIONARY });
+
+  it('writes the review’s display on the hit it places, and the words in order without one', async () => {
+    const { chosen } = selectForReview(await exported(), { hitKeys: new Set(), reviewed: [] });
+    const answers = answersFor(chosen, {
+      'A gentleman': { relation: 4, reads: 3, category: 'phrases', justification: 'A gentleman is courteous.', display: 'Entangle, am.' },
+      Dormitory: { relation: 5, reads: 3, justification: 'A dormitory is a room.', reader_about: 'drop', credit: 'drop' },
+      'Jane Hood': { private: true, category: 'people', credit: 'drop' },
+      'Clarbot z': { requests: ['zorbl'] },
+    });
+    const applied = applyReviews(reviewLines(chosen, answers, CONTEXT).lines, context());
+    const gentle = applied.hits.find((h) => h.id === 'agentleman:phrases:am-entangle')!;
+    expect(gentle.display).toBe('Entangle, am.');
+    expect(gentle.words).toEqual(['entangle', 'am']);
+    expect((gentle.judge[0] as { display?: string }).display).toBe('Entangle, am.');
+    const dorm = applied.hits.find((h) => h.id === 'dormitory:phrases:dirty-room')!;
+    expect(dorm.display).toBe(dorm.words.join(' '));
+    expect(dorm.judge[0]).not.toHaveProperty('display');
+  });
 
   it('places each on its shelf, makes a candidate only for an input with a hit, and publishes decisions with no text', async () => {
     const lines = await reviewed();

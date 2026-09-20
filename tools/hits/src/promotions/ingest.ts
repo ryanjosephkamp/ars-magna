@@ -24,6 +24,7 @@ import { judgedByFlag, problemV2 } from '../ingest.ts';
 import { parseVerdicts, rubric, type VerdictV2 } from '../judge.ts';
 import { flag } from '../queue.ts';
 import { readJudgeSenses } from '../sense.ts';
+import { readFormsMap, readJudgeDisplay } from '../display.ts';
 import { assess } from '../shelf.ts';
 import { TONES, today, type JudgedBy } from '../schema.ts';
 import { reviewPrompt, reviewView } from './review.ts';
@@ -48,6 +49,9 @@ export type ReviewAnswer = VerdictV2 & {
   credit?: unknown;
   requests?: unknown;
 };
+
+/** A display the review proposed that could not be kept, by the row's code, and why. */
+export type SkippedDisplay = { id: string; reason: string };
 
 const tones = TONES as readonly string[];
 
@@ -88,8 +92,10 @@ export function outcomeOf(answer: ReviewAnswer, line: ExportLine): ReviewOutcome
 export function reviewLines(
   selection: readonly ExportLine[],
   answers: readonly ReviewAnswer[],
-  context: { date: string; model: string; rubricVersion: string; reviewVersion: string; judgedBy: JudgedBy },
-): { lines: ReviewLine[]; problems: string[] } {
+  context: { date: string; model: string; rubricVersion: string; reviewVersion: string; judgedBy: JudgedBy; forms?: Readonly<Record<string, string>> },
+): { lines: ReviewLine[]; problems: string[]; displaysSkipped: SkippedDisplay[] } {
+  const forms = context.forms ?? {};
+  const displaysSkipped: SkippedDisplay[] = [];
   const byCode = new Map(selection.map((l) => [shortCode(l.key_sha256), l]));
   const problems: string[] = [];
   const seen = new Map<string, ReviewAnswer>();
@@ -112,7 +118,7 @@ export function reviewLines(
   for (const repeat of repeatedJustifications(answers)) {
     problems.push(`${repeat.count} justifications repeat once the words they quote are masked (more than ${REPEAT_CAP}): ${repeat.ids.join(', ')}`);
   }
-  if (problems.length > 0) return { lines: [], problems };
+  if (problems.length > 0) return { lines: [], problems, displaysSkipped };
 
   const lines: ReviewLine[] = selection.map((line) => {
     const answer = seen.get(shortCode(line.key_sha256))!;
@@ -131,6 +137,9 @@ export function reviewLines(
     if (outcome === 'private') return base;
     const view = reviewView(line, []);
     const note = line.submissions[0];
+    // The display the review proposed, by the same rule as the queue's: a possessive, or anything else that breaks it, is left off and the answer kept.
+    const proposed = readJudgeDisplay(answer.display, view.words, forms);
+    if (proposed.skipped) displaysSkipped.push({ id: shortCode(line.key_sha256), reason: proposed.skipped.reason });
     const verdict: ReviewVerdict = {
       relation: answer.relation,
       reads: answer.reads,
@@ -140,6 +149,7 @@ export function reviewLines(
       rationale: answer.rationale.trim(),
       ...(typeof answer.justification === 'string' && answer.justification.trim() ? { justification: answer.justification.trim() } : {}),
       ...(Object.keys(readJudgeSenses(answer.senses, view.words).senses).length > 0 ? { senses: readJudgeSenses(answer.senses, view.words).senses } : {}),
+      ...(proposed.display !== null ? { display: proposed.display } : {}),
       ...(typeof answer.about === 'string' && answer.about.trim() ? { about: answer.about.trim() } : {}),
       ...(answer.reader_about === 'keep' || answer.reader_about === 'drop' ? { reader_about: answer.reader_about } : {}),
       ...(answer.credit === 'keep' || answer.credit === 'drop' ? { credit: answer.credit } : {}),
@@ -160,13 +170,18 @@ export function reviewLines(
       verdict,
     };
   });
-  return { lines, problems };
+  return { lines, problems, displaysSkipped };
 }
 
 const cell = (text: string): string => text.replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
 
 /** The review in plain words, for the operator's merge in the private repository. */
-export function renderPrivateReport(date: string, lines: readonly ReviewLine[], selection: readonly ExportLine[], context: { model: string; judgedBy: JudgedBy }): string {
+export function renderPrivateReport(
+  date: string,
+  lines: readonly ReviewLine[],
+  selection: readonly ExportLine[],
+  context: { model: string; judgedBy: JudgedBy; displaysSkipped?: readonly SkippedDisplay[] },
+): string {
   const byCode = new Map(selection.map((l) => [l.key_sha256, l]));
   const of = (o: ReviewOutcome) => lines.filter((l) => l.outcome === o);
   const note = (line: ReviewLine) => {
@@ -184,7 +199,7 @@ export function renderPrivateReport(date: string, lines: readonly ReviewLine[], 
     const row = line.row!;
     return [
       `- \`${shortCode(line.key_sha256)}\` · ${line.promotions} ${line.promotions === 1 ? 'promotion' : 'promotions'} · ${row.kind} · relation ${v.relation}, reads ${v.reads} · ${v.category}`,
-      `  ${cell(row.input)} → ${row.words.join(' ')}`,
+      `  ${cell(row.input)} → ${row.words.join(' ')}${v.display ? ` · reads “${cell(v.display)}”` : ''}`,
       `  ${detail}`,
       ...note(line),
     ];
@@ -210,6 +225,9 @@ export function renderPrivateReport(date: string, lines: readonly ReviewLine[], 
     ...(of('private').length
       ? [`## A private person (${of('private').length})`, '', 'Never added. Kept as a code, a count and this outcome only.', '', ...of('private').map((l) => `- \`${shortCode(l.key_sha256)}\``), '']
       : []),
+    ...(context.displaysSkipped?.length
+      ? ['## Displays left off', '', 'Proposed by the review and refused by the display rule; the answers stand without them.', '', ...context.displaysSkipped.map((d) => `- \`${d.id}\`: ${d.reason}`), '']
+      : []),
   ].join('\n');
 }
 
@@ -230,12 +248,13 @@ async function main(argv: readonly string[]): Promise<void> {
   if (selection.length === 0) throw new Error('nothing was chosen; run pnpm promotions:review first');
   const { readFile } = await import('node:fs/promises');
   const answers = parseVerdicts(await readFile(resolve(LOCAL_DIR, 'review-output.jsonl'), 'utf8')) as ReviewAnswer[];
-  const { lines, problems } = reviewLines(selection, answers, {
+  const { lines, problems, displaysSkipped } = reviewLines(selection, answers, {
     date,
     model,
     rubricVersion: (await rubric()).version,
     reviewVersion: (await reviewPrompt()).version,
     judgedBy,
+    forms: await readFormsMap(),
   });
   if (problems.length > 0) {
     console.error(`promotions:ingest: the answers are refused, and nothing was written. ${problems.length} problems:\n  ${problems.join('\n  ')}`);
@@ -245,7 +264,8 @@ async function main(argv: readonly string[]): Promise<void> {
   }
   await writeLines(out, lines, await validators.reviewLine());
   await mkdir(resolve(from, 'reviews'), { recursive: true });
-  await writeFile(resolve(from, 'reviews', `${date}.md`), renderPrivateReport(date, lines, selection, { model, judgedBy }));
+  await writeFile(resolve(from, 'reviews', `${date}.md`), renderPrivateReport(date, lines, selection, { model, judgedBy, displaysSkipped }));
+  for (const d of displaysSkipped) console.error(`display left off: ${d.id}: ${d.reason}`);
   const count = (o: ReviewOutcome) => lines.filter((l) => l.outcome === o).length;
   console.log(
     `promotions:ingest ${date}: ${lines.length} reviewed: ${count('place')} to place, ${count('near')} near, ${count('none')} no link, ` +

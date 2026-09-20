@@ -164,6 +164,7 @@ export function applyReviews(
         judged_by: line.judged_by,
         ...(v.justification ? { justification: v.justification } : {}),
         ...(v.senses ? { senses: v.senses } : {}),
+        ...(v.display ? { display: v.display } : {}),
       };
       const credit = row.kind === 'submission' && v.credit === 'keep' && row.credit_reader?.trim() ? row.credit_reader.trim() : null;
       if (credit) fromReaders.push({ id, credit });
@@ -172,7 +173,8 @@ export function applyReviews(
         input,
         category: v.category,
         words: row.words,
-        display: row.words.join(' '),
+        // The review's checked display, else the words in order.
+        display: v.display ?? row.words.join(' '),
         letters: alphagram(input),
         prefilter_score: 0,
         judge: [judgement],

@@ -96,6 +96,8 @@ export type JudgementV2 = {
   justification?: string;
   /** The senses the judge proposed, keyed by word of the phrase. */
   senses?: Record<string, string>;
+  /** The display the judge proposed, kept only when it passed the display rule. */
+  display?: string;
   rationale: string;
   judged_at: string;
   /** Whether the judge routine or a session a person started judged it. From F0 on. */
@@ -117,6 +119,7 @@ export type Hit = {
   input: string;
   category: Category;
   words: string[];
+  /** How the hit reads on Discover: the words in order, as themselves or listed forms, with the allowed marks and capitals. */
   display: string;
   letters: string;
   prefilter_score: number;

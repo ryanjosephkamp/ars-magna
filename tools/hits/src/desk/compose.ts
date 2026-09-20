@@ -17,6 +17,8 @@ export type JustifyDecision = { kind: 'justify'; id: string; text: string };
 export type DescribeDecision = { kind: 'describe'; id: string; text: string };
 /** The sense one word of a hit reads in, in that anagram; empty text clears it. */
 export type SenseDecision = { kind: 'sense'; id: string; word: string; text: string };
+/** How a hit reads on Discover, with listed forms, punctuation and capitals; empty text returns it to the words in order. */
+export type DisplayDecision = { kind: 'display'; id: string; text: string };
 export type TagDecision = { kind: 'tag'; id: string; add: string[]; remove: string[] };
 /**
  * A row of a judged queue that is not in data/hits.jsonl, put there by name.
@@ -62,6 +64,7 @@ export type Decision =
   | JustifyDecision
   | DescribeDecision
   | SenseDecision
+  | DisplayDecision
   | TagDecision
   | PromoteDecision
   | OrderDecision
@@ -168,6 +171,77 @@ export function parseSeeds(text: string, known: readonly string[]): { seeds: See
   return { seeds, problems };
 }
 
+/**
+ * The punctuation a hit's display may carry (decision D27): apostrophe, hyphen,
+ * comma, full stop, question mark, colon, semicolon and quotation marks, the
+ * typographic marks included. Never an exclamation mark, which the site's
+ * voice leaves out. Everything else in a display is a letter or a space.
+ */
+export const DISPLAY_MARKS = "'’-,.?:;\"“”‘";
+/** The marks that may open or close a token: everything but the apostrophe and the hyphen, which belong inside a form. */
+const EDGE_MARKS = ',.?:;"“”‘’';
+
+/** A display's apostrophes as the forms file spells them, so `don’t` finds `don't`. */
+function straightApostrophes(text: string): string {
+  return text.replace(/’/g, "'");
+}
+
+/**
+ * Why a display cannot stand for a hit's words, or null when it can. Pure, and
+ * the one rule `hits:display`, ingest, the promotions review and the desk all
+ * apply.
+ *
+ * A display reads the hit's words, in the order they read, once each, as the
+ * words themselves or as listed forms of them (`forms` maps a form to the
+ * word its letters spell: `it's` to `its`), with the marks `DISPLAY_MARKS`
+ * and capitals for I, names, acronyms and the start of a sentence: the
+ * capitals of a token come first (`Dirty`, `NASA`, `I'm`), never after a
+ * lowercase letter. A token with an apostrophe or hyphen that is no listed
+ * form (a possessive, `dog's` for `dogs`) is refused unless `possessives` is
+ * set, which only the operator's own command sets: the judge may suggest a
+ * listed form, never a possessive. The letters of the whole display are the
+ * hit's letters, which the word rule already guarantees and this states.
+ */
+export function displayProblem(
+  display: string,
+  words: readonly string[],
+  forms: Readonly<Record<string, string>>,
+  options: { possessives?: boolean } = {},
+): string | null {
+  const text = display.replace(/\s+/g, ' ').trim();
+  if (text.length === 0) return 'the display is empty';
+  if (/!/.test(text)) return 'an exclamation mark is never shown';
+  for (const char of text) {
+    if (/[a-zA-Z ]/.test(char) || DISPLAY_MARKS.includes(char)) continue;
+    return `“${char}” is not a letter or one of the marks a display may carry (${DISPLAY_MARKS.replace(/(.)/g, '$1 ').trim()})`;
+  }
+  const read: string[] = [];
+  for (const token of text.split(' ')) {
+    let core = token;
+    while (core.length > 0 && EDGE_MARKS.includes(core[0]!)) core = core.slice(1);
+    while (core.length > 0 && EDGE_MARKS.includes(core[core.length - 1]!)) core = core.slice(0, -1);
+    if (core.length === 0) return `“${token}” has no letters`;
+    const letters = core.replace(/[^a-zA-Z]/g, '');
+    if (letters.length === 0) return `“${token}” has no letters`;
+    if (/[a-z][A-Z]/.test(letters)) return `“${token}” has a capital after a lowercase letter`;
+    const lower = letters.toLowerCase();
+    const spelled = straightApostrophes(core.toLowerCase());
+    if (/['’-]/.test(spelled)) {
+      const listed = forms[spelled];
+      if (listed !== undefined) {
+        if (listed !== lower) return `“${token}” is the listed form of ${listed}, not of ${lower}`;
+      } else if (!options.possessives) {
+        return `“${token}” is not a listed form (a possessive appears only by the operator's command)`;
+      }
+    }
+    read.push(lower);
+  }
+  if (read.join(' ') !== words.join(' ')) {
+    return `the display reads ${read.join(' ')}, not the words ${words.join(' ')} in their order`;
+  }
+  return null;
+}
+
 /** The last decision of a kind for each key, in the order the last ones were made. */
 function lastBy<T extends Decision>(decisions: readonly Decision[], kind: T['kind'], key: (d: T) => string): T[] {
   const latest = new Map<string, T>();
@@ -183,7 +257,7 @@ function lastBy<T extends Decision>(decisions: readonly Decision[], kind: T['kin
 /**
  * The commands for a set of decisions, grouped so each runs after what it
  * needs: seeds and requeues, a deep run, rows promoted from a queue, word
- * orders, then justifications, what inputs are, senses, tags, shelves and statuses, then blocks, then hits added by hand. A
+ * orders, then justifications, what inputs are, senses, displays, tags, shelves and statuses, then blocks, then hits added by hand. A
  * later decision about the same thing replaces an earlier one. The notes on
  * rows come out as a list for the prompt, each with the row's chosen order.
  */
@@ -281,6 +355,12 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   for (const d of lastBy<SenseDecision>(decisions, 'sense', (x) => `${x.id} ${x.word}`)) {
     const text = d.text.trim();
     commands.push(`pnpm hits:sense ${d.id} ${d.word} ${text ? shellQuote(text) : '--clear'}`);
+  }
+
+  // After the word orders, which rewrite a display, and the senses: the display reads the words in their chosen order.
+  for (const d of lastBy<DisplayDecision>(decisions, 'display', (x) => x.id)) {
+    const text = d.text.replace(/\s+/g, ' ').trim();
+    commands.push(`pnpm hits:display ${d.id} ${text ? shellQuote(text) : '--clear'}`);
   }
 
   for (const t of lastBy<TagDecision>(decisions, 'tag', (d) => d.id)) {

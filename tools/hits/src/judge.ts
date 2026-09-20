@@ -74,6 +74,13 @@ export type VerdictV2 = {
    * phrase does not contain, and leaves off a sense that breaks the rule.
    */
   senses?: unknown;
+  /**
+   * How the anagram reads on Discover, with listed forms (`I'm`, `don't`),
+   * the allowed punctuation and capitals. Unchecked here: ingest keeps it
+   * only when it reads exactly the phrase's words by the display rule, with
+   * possessives refused, and leaves it off otherwise, keeping the verdict.
+   */
+  display?: unknown;
 };
 
 export type Verdict = VerdictV1 | VerdictV2;

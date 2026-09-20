@@ -18,6 +18,7 @@ import {
 } from '../src/schema.ts';
 import { alphagram, candidateId, hitId } from '../src/ids.ts';
 import { sensesProblem } from '../src/sense.ts';
+import { displayProblemFor, readFormsMap } from '../src/display.ts';
 
 const candidate = (over: Partial<Candidate> = {}): Candidate => ({
   id: 'dormitory:phrases',
@@ -163,11 +164,17 @@ describe('schemas', () => {
     expect(hv(hit({ judge: [{ ...v2, senses: { room: 'A space to move in.' } } as never] })), JSON.stringify(hv.errors)).toBe(true);
     expect(hv(hit({ judge: [{ ...v2, senses: { room: 'No full stop' } } as never] }))).toBe(false);
     expect(hv(hit({ judge: [{ ...v2, senses: {} } as never] }))).toBe(false);
+    // A v2 judge entry records the display it proposed; a hit's display holds at most 200 characters.
+    expect(hv(hit({ judge: [{ ...v2, display: 'Dirty room.' } as never] })), JSON.stringify(hv.errors)).toBe(true);
+    expect(hv(hit({ judge: [{ ...v2, display: '' } as never] }))).toBe(false);
+    expect(hv(hit({ display: 'Dirty room.' })), JSON.stringify(hv.errors)).toBe(true);
+    expect(hv(hit({ display: 'd'.repeat(201) }))).toBe(false);
   });
 
   it('validate every committed line of both data files', async () => {
     const candidates = await readJsonl(CANDIDATES_PATH, await candidateSchema());
     const hits = await readJsonl(HITS_PATH, await hitSchema());
+    const forms = await readFormsMap();
     expect(candidates.length).toBeGreaterThanOrEqual(40);
     expect(hits.length).toBeGreaterThanOrEqual(5);
     for (const c of candidates) expect(c.id).toBe(candidateId(c.input, c.category));
@@ -175,7 +182,8 @@ describe('schemas', () => {
       expect(h.id).toBe(hitId(h.input, h.category, h.words));
       expect(h.letters).toBe(alphagram(h.input));
       expect(alphagram(h.words.join(''))).toBe(h.letters);
-      expect(h.display.split(' ').sort()).toEqual([...h.words].sort());
+      // The display reads exactly the words in their order, with listed forms, the allowed marks and capitals at most.
+      expect(displayProblemFor(h.display, h.words, forms, { possessives: true }), `${h.id} displays "${h.display}"`).toBeNull();
       expect(sensesProblem(h)).toBeNull();
     }
   });

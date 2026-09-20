@@ -3,9 +3,12 @@
  *
  * Set the order a hit's words read in. The words must be the hit's own, each
  * as many times, so the id (its words sorted) and the letters stay the same;
- * only `words` and `display` change. An unknown id, or words that are not the
- * hit's, writes nothing. The file is rewritten through the schema in its
- * existing order, so the diff is the one line.
+ * only `words` and `display` change. The display becomes the words in their
+ * new order: a display set with `hits:display` (forms, punctuation, capitals)
+ * read the old order, so it is replaced and the command says so, for the
+ * operator to set it again. An unknown id, or words that are not the hit's,
+ * writes nothing. The file is rewritten through the schema in its existing
+ * order, so the diff is the one line.
  */
 import { HITS_PATH, hitSchema, readJsonl, writeJsonl, type Hit } from './schema.ts';
 
@@ -21,7 +24,13 @@ export function parseOrderArgs(argv: readonly string[]): { id: string; words: st
   return { id, words };
 }
 
-export type OrderResult = { hits: Hit[]; from: string; changed: boolean };
+export type OrderResult = {
+  hits: Hit[];
+  from: string;
+  changed: boolean;
+  /** The display was one set by hand or the judge, not the words in order, and the new order replaced it. */
+  displayReplaced: boolean;
+};
 
 const sorted = (words: readonly string[]) => [...words].sort().join(' ');
 
@@ -33,8 +42,13 @@ export function setOrder(hits: readonly Hit[], id: string, words: readonly strin
     throw new Error(`the words of ${id} are ${hit.words.join(' ')}; give those words, each once, in any order`);
   }
   const from = hit.display;
-  if (hit.words.join(' ') === words.join(' ')) return { hits: [...hits], from, changed: false };
-  return { hits: hits.map((h) => (h.id === id ? { ...h, words: [...words], display: words.join(' ') } : h)), from, changed: true };
+  if (hit.words.join(' ') === words.join(' ')) return { hits: [...hits], from, changed: false, displayReplaced: false };
+  return {
+    hits: hits.map((h) => (h.id === id ? { ...h, words: [...words], display: words.join(' ') } : h)),
+    from,
+    changed: true,
+    displayReplaced: from !== hit.words.join(' '),
+  };
 }
 
 /** Read the file, set the order, and rewrite it only if it changed. */
@@ -47,12 +61,15 @@ export async function applyOrder(path: string, id: string, words: readonly strin
 
 async function main(): Promise<void> {
   const { id, words } = parseOrderArgs(process.argv.slice(2));
-  const { from, changed } = await applyOrder(HITS_PATH, id, words);
+  const { from, changed, displayReplaced } = await applyOrder(HITS_PATH, id, words);
   if (!changed) {
     console.log(`${id}  already reads "${from}" · data/hits.jsonl left as it was`);
     return;
   }
   console.log(`${id}\n  was: ${from}\n  now: ${words.join(' ')}\ndata/hits.jsonl rewritten`);
+  if (displayReplaced) {
+    console.log(`  the display "${from}" had been set by hand and read the old order; set it again with pnpm hits:display ${id} "…"`);
+  }
 }
 
 if (process.argv[1] && import.meta.filename === process.argv[1]) {

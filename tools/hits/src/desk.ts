@@ -37,6 +37,7 @@ import { datedFiles, newestVotes, readBlocks, readDecisions, readLines, readRevi
 
 export { newestVotes } from './promotions/files.ts';
 import { firstGlosses } from './glosses.ts';
+import { readFormsMap } from './display.ts';
 import { parseVerdicts } from './judge.ts';
 import { JUDGE_OUTPUT, flag, queueDates, queueDir, readJudgedRows } from './queue.ts';
 import { CANDIDATES_PATH, HITS_PATH, REPO_ROOT, SCHEMA_DIR, candidateSchema, hitSchema, readJsonl, today } from './schema.ts';
@@ -130,6 +131,7 @@ export async function buildDesk(options: {
     senseRule: await senseRule(),
     // Each word's first gloss, the hint beside its sense, read off the site's definition shards.
     glosses: await firstGlosses(hits.flatMap((h) => h.words)),
+    forms: await readFormsMap(),
     applyDesk: await readFile(APPLY_DESK_PROMPT, 'utf8'),
     deepRun: await readFile(DEEP_RUN_PROMPT, 'utf8'),
     deepPerInput: PRESETS.deep.perInput,
