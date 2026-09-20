@@ -17,11 +17,18 @@
  * enumeration up to a limit with a sample and anchor searches above it, and a
  * model screen in place of the fluency cap.
  *
- * s3: s2 plus the site's own additions, searched beside Common. An addition
- * lives only in Extended, so before s3 no machine-generated candidate could
- * contain one. Adding a word to `data/vocabulary/additions.jsonl` therefore
- * changes what enumeration finds, which is why the queue keeps its own copy
- * of the list it used.
+ * s3 (to 2026-09-20): s2 plus the site's own additions, searched beside
+ * Common. An addition lives only in Extended, so before s3 no
+ * machine-generated candidate could contain one. Adding a word to
+ * `data/vocabulary/additions.jsonl` therefore changes what enumeration finds,
+ * which is why the queue keeps its own copy of the list it used.
+ *
+ * s4: s3 plus the listed forms (`data/vocabulary/forms.jsonl`), whose
+ * letters-words are in every tier, Common included: `dont`, `youre`, `thats`
+ * can appear in a phrase from this version on (`im` cannot: the short-word
+ * allowlist is unchanged). The queue's `summary.json` also records the
+ * dictionary it was enumerated with, its pinned revision and the built list's
+ * hash, from this version on.
  */
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
@@ -31,7 +38,7 @@ import { REPO_ROOT, type Candidate, type CandidateRun } from './schema.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export const SETTINGS_VERSION = 's3';
+export const SETTINGS_VERSION = 's4';
 
 /** A candidate processed before runs were recorded counts as this. */
 export const LEGACY_RUN: Pick<CandidateRun, 'settings' | 'rubric'> = { settings: 's1', rubric: 'v1' };

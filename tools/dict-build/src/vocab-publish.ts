@@ -23,7 +23,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { REPO_ROOT } from './paths.ts';
-import { committedDictionary, readAdditions, type Addition } from './vocab.ts';
+import { committedDictionary, readAdditions, readForms, type Addition, type Form } from './vocab.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(here, '../templates/vocabulary-card.md');
@@ -33,26 +33,37 @@ export const DEFAULT_OUT = resolve(REPO_ROOT, 'dataset-vocabulary');
 
 /** An addition as published: its own fields, plus the pin it sits on top of. */
 export type PublishedAddition = Addition & { pinned_repo: string; pinned_rev: string };
+/** A form as published, the same way. */
+export type PublishedForm = Form & { pinned_repo: string; pinned_rev: string };
 
 export function publishAddition(addition: Addition, source: { repo: string; rev: string }): PublishedAddition {
   return { ...addition, pinned_repo: source.repo, pinned_rev: source.rev };
 }
 
+export function publishForm(form: Form, source: { repo: string; rev: string }): PublishedForm {
+  return { ...form, pinned_repo: source.repo, pinned_rev: source.rev };
+}
+
 /**
- * Every word the additions claim, checked against the artifact that will be
- * published beside them.
+ * Every word the additions claim, and every letters-word the forms spell,
+ * checked against the artifact that will be published beside them.
  *
- * An addition missing from the built dictionary means the artifacts predate
- * it: publishing then would announce a word the site cannot actually find.
+ * One missing from the built dictionary means the artifacts predate it:
+ * publishing then would announce a word the site cannot actually find.
  */
-export function missingFromDictionary(additions: readonly Addition[], words: ReadonlySet<string>): string[] {
-  return additions.map((a) => a.word).filter((word) => !words.has(word));
+export function missingFromDictionary(
+  additions: readonly Addition[],
+  words: ReadonlySet<string>,
+  forms: readonly Form[] = [],
+): string[] {
+  return [...additions.map((a) => a.word), ...forms.map((f) => f.letters)].filter((word) => !words.has(word));
 }
 
 export async function renderCard(options: {
   total: number;
   pinned: number;
   additions: number;
+  forms: number;
   source: { repo: string; rev: string };
   datasetId: string;
   date: string;
@@ -62,6 +73,7 @@ export async function renderCard(options: {
     .replaceAll('{{TOTAL}}', options.total.toLocaleString('en-US'))
     .replaceAll('{{PINNED}}', options.pinned.toLocaleString('en-US'))
     .replaceAll('{{ADDITIONS}}', String(options.additions))
+    .replaceAll('{{FORMS}}', String(options.forms))
     .replaceAll('{{SOURCE_REPO}}', options.source.repo)
     .replaceAll('{{REV_SHORT}}', options.source.rev.slice(0, 7))
     .replaceAll('{{REV}}', options.source.rev)
@@ -74,12 +86,14 @@ export async function buildDataset(options: {
   words: readonly string[];
   pinned: ReadonlySet<string>;
   additions: readonly Addition[];
+  forms?: readonly Form[];
   source: { repo: string; rev: string };
   out: string;
   datasetId: string;
   date: string;
 }): Promise<string[]> {
   await mkdir(options.out, { recursive: true });
+  const forms = options.forms ?? [];
 
   const sorted = [...options.words].sort();
   await writeFile(resolve(options.out, 'vocabulary.txt'), sorted.map((w) => `${w}\n`).join(''));
@@ -88,17 +102,22 @@ export async function buildDataset(options: {
     options.additions.map((a) => JSON.stringify(publishAddition(a, options.source)) + '\n').join(''),
   );
   await writeFile(
+    resolve(options.out, 'forms.jsonl'),
+    forms.map((f) => JSON.stringify(publishForm(f, options.source)) + '\n').join(''),
+  );
+  await writeFile(
     resolve(options.out, 'README.md'),
     await renderCard({
       total: sorted.length,
       pinned: options.pinned.size,
       additions: options.additions.length,
+      forms: forms.length,
       source: options.source,
       datasetId: options.datasetId,
       date: options.date,
     }),
   );
-  return ['vocabulary.txt', 'additions.jsonl', 'README.md'];
+  return ['vocabulary.txt', 'additions.jsonl', 'forms.jsonl', 'README.md'];
 }
 
 async function token(): Promise<string> {
@@ -132,11 +151,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const additions = await readAdditions();
+  const forms = await readForms();
 
-  const missing = missingFromDictionary(additions, new Set(dictionary.words));
+  const missing = missingFromDictionary(additions, new Set(dictionary.words), forms);
   if (missing.length > 0) {
     console.error(`the committed dictionary does not carry ${missing.join(', ')}`);
-    console.error('the artifacts are older than additions.jsonl; run pnpm dict:build && pnpm dict:shards first');
+    console.error('the artifacts are older than additions.jsonl or forms.jsonl; run pnpm dict:build && pnpm dict:shards first');
     process.exit(1);
   }
 
@@ -145,15 +165,18 @@ async function main(): Promise<void> {
     words: dictionary.words,
     pinned: dictionary.pinned,
     additions,
+    forms,
     source: dictionary.source,
     out,
     datasetId: repo,
     date,
   });
 
+  const formOnly = dictionary.forms.filter((f) => f.shown).length;
   console.log(
     `${dictionary.words.length.toLocaleString('en-US')} words ` +
-      `(${dictionary.pinned.size.toLocaleString('en-US')} pinned at ${dictionary.source.rev.slice(0, 7)} + ${additions.length} added) ` +
+      `(${dictionary.pinned.size.toLocaleString('en-US')} pinned at ${dictionary.source.rev.slice(0, 7)} + ${additions.length} added + ` +
+      `${formOnly} from the ${forms.length} listed forms) ` +
       `-> ${out}/{${files.join(',')}}`,
   );
   if (dryRun) {
@@ -171,7 +194,7 @@ async function main(): Promise<void> {
   await uploadFiles({
     repo: repoRef,
     accessToken,
-    commitTitle: `Publish ${dictionary.words.length} words, ${additions.length} of them the site's own (${date})`,
+    commitTitle: `Publish ${dictionary.words.length} words, ${additions.length} of them the site's own, with ${forms.length} listed forms (${date})`,
     files: await Promise.all(
       files.map(async (file) => ({
         path: file,

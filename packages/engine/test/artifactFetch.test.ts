@@ -105,7 +105,7 @@ describe.skipIf(!built)('artifact fetching', () => {
   it('prefers the compressed sibling and never asks for the plain file', async () => {
     const { port, seen } = await boot('decoded');
 
-    expect(port.last('ready')?.counts.full).toBe(378_844);
+    expect(port.last('ready')?.counts.full).toBe(378_879);
     expect(seen).toContain(`/dict/${manifest.files.full!.name}.br`);
     expect(seen).not.toContain(`/dict/${manifest.files.full!.name}`);
     expect(seen).not.toContain(`/dict/${manifest.files.tiers!.name}`);
@@ -115,7 +115,7 @@ describe.skipIf(!built)('artifact fetching', () => {
     const { port, seen } = await boot('undeclared');
 
     // The point: still ready, still correct, just at full transfer size.
-    expect(port.last('ready')?.counts.full).toBe(378_844);
+    expect(port.last('ready')?.counts.full).toBe(378_879);
     expect(port.last('error')).toBeUndefined();
     expect(seen).toContain(`/dict/${manifest.files.full!.name}.br`);
     expect(seen).toContain(`/dict/${manifest.files.full!.name}`);
@@ -124,7 +124,7 @@ describe.skipIf(!built)('artifact fetching', () => {
   it('falls back when no compressed sibling was deployed', async () => {
     const { port, seen } = await boot('missing');
 
-    expect(port.last('ready')?.counts.full).toBe(378_844);
+    expect(port.last('ready')?.counts.full).toBe(378_879);
     expect(port.last('error')).toBeUndefined();
     expect(seen).toContain(`/dict/${manifest.files.full!.name}`);
   });

@@ -22,7 +22,7 @@ import { DEFS_DIR, FACTS_CACHE, META_PATH, WORDNET_DICT, WORDS_PATH } from './pa
 import { normalize } from './normalize.ts';
 import { loadFacts } from './facts.ts';
 import { loadSenses, type Sense } from './wordnet.ts';
-import { readAdditions } from './vocab.ts';
+import { readAdditions, readForms } from './vocab.ts';
 import { shardOf } from './hash.ts';
 
 /** 512 keeps each shard around 20–40 KB — one fetch, no meaningful latency. */
@@ -41,6 +41,11 @@ const PROVENANCE = {
   other: 'o',
   /** A word the site added; its gloss is written from the additions file. */
   addition: 'x',
+  /**
+   * The letters of a listed form that are no word without their apostrophe
+   * (`dont` for `don't`); its gloss is the form's, from the forms file.
+   */
+  form: 'f',
 } as const;
 
 type Shard = {
@@ -53,6 +58,13 @@ type Shard = {
    * implying the gloss was written about the inflected word.
    */
   d: Record<string, ([string, string] | [string, string, string])[]>;
+  /**
+   * Word -> the listed forms that spell it, each `[form, gloss]`: `its` ->
+   * `[["it's", "Contraction of it is or it has."]]`. The word panel lists them
+   * beside the word; for a form-only word the same gloss is its definition
+   * above, so the panel shows it once. Absent from a shard with none.
+   */
+  f?: Record<string, [string, string][]>;
 };
 
 function human(bytes: number): string {
@@ -69,12 +81,20 @@ async function main(): Promise<void> {
   // but the provenance written beside it comes from arrays parallel to this
   // list, so the two have to be built the same way.
   const additions = await readAdditions();
+  const forms = await readForms();
   const glossOf = new Map(additions.map((a) => [a.word, a.gloss]));
-  const words = [...new Set([...pinned, ...glossOf.keys()])].sort();
+  const pinnedSet = new Set(pinned);
+  // Every form, by the word it spells; and the words that are only a form's
+  // letters, whose definition is the form's gloss.
+  const formsOf = new Map<string, [string, string][]>();
+  for (const f of forms) formsOf.set(f.letters, [...(formsOf.get(f.letters) ?? []), [f.form, f.gloss]]);
+  const formOnly = new Set([...formsOf.keys()].filter((letters) => !pinnedSet.has(letters)));
+  const words = [...new Set([...pinned, ...glossOf.keys(), ...formOnly])].sort();
   const indexOf = new Map(words.map((w, i) => [w, i]));
   console.log(
     `   ${words.length.toLocaleString()} words ` +
-      `(${glossOf.size} site addition${glossOf.size === 1 ? '' : 's'})`,
+      `(${glossOf.size} site addition${glossOf.size === 1 ? '' : 's'}, ${forms.length} listed form${forms.length === 1 ? '' : 's'}, ` +
+      `${formOnly.size} of them words the pin lacks)`,
   );
 
   console.log('\n2. provenance');
@@ -114,25 +134,35 @@ async function main(): Promise<void> {
     const fact = facts[i]!;
     const gloss = glossOf.get(word);
 
+    const spellings = formsOf.get(word);
     const code =
       gloss !== undefined
         ? PROVENANCE.addition
-        : fact.generated
-          ? PROVENANCE.generated
-          : fact.twl
-            ? PROVENANCE.twl
-            : fact.nValid > 0
-              ? null // attested — the default, not written
-              : PROVENANCE.other;
+        : formOnly.has(word)
+          ? PROVENANCE.form
+          : fact.generated
+            ? PROVENANCE.generated
+            : fact.twl
+              ? PROVENANCE.twl
+              : fact.nValid > 0
+                ? null // attested — the default, not written
+                : PROVENANCE.other;
 
     if (code !== null) (shard.p[code] ??= []).push(word);
+    if (spellings) (shard.f ??= {})[word] = spellings;
 
     // An addition's gloss is its definition, and it carries no part of speech:
     // `kind` — slang, a coinage, an abbreviation — is not one, and asking a
     // proposer to supply one would invite a wrong answer. The word panel names
-    // it a site addition instead.
+    // it a site addition instead. A form-only word's definition is its form's
+    // gloss the same way, and the panel names it a site form.
     if (gloss !== undefined) {
       shard.d[word] = [['', gloss]];
+      defined++;
+      continue;
+    }
+    if (formOnly.has(word) && spellings) {
+      shard.d[word] = spellings.map(([, formGloss]) => ['', formGloss] as [string, string]);
       defined++;
       continue;
     }
@@ -180,6 +210,7 @@ async function main(): Promise<void> {
           g: 'machine_generated',
           o: 'unattested',
           x: 'site_addition',
+          f: 'site_form',
           a: 'attested',
         },
       },

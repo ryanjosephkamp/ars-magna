@@ -14,6 +14,7 @@ import { displayOrder, type Chosen } from '../lib/chosen.ts';
 import type { Shareable } from '../lib/share.ts';
 import { buildHref } from '../lib/urlState.ts';
 import { discoveryFor, type Discovered, type RowDiscovery } from '../lib/inDiscoveries.ts';
+import { displayPhrase, type Forms } from '../lib/forms.ts';
 import type { Votes } from '../hits/useVotes.ts';
 import type { Promotions } from '../state/usePromotions.ts';
 import { useBlocked } from '../state/usePublishedHits.ts';
@@ -27,6 +28,8 @@ const ORDERINGS_SHOWN = 48;
 
 type Props = {
   rows: readonly Row[];
+  /** The dictionary's listed forms, by the word they spell: how a row reads `dont` as `don't`. */
+  forms: Forms;
   total: string;
   hasMore: boolean;
   onLoadMore(): void;
@@ -65,6 +68,7 @@ export type ShareContext = {
  */
 export function ResultList({
   rows,
+  forms,
   total,
   hasMore,
   onLoadMore,
@@ -225,6 +229,7 @@ export function ResultList({
             >
               <ResultRow
                 row={row}
+                forms={forms}
                 index={item.index}
                 expanded={expanded === item.index}
                 onToggle={toggle}
@@ -232,7 +237,7 @@ export function ResultList({
                 wordDetails={wordDetails}
                 wordMasks={wordMasks}
                 shown={displayOrder(chosen, row)}
-                isPinned={pinnedSet.has(displayOrder(chosen, row).join(' '))}
+                isPinned={pinnedSet.has(displayPhrase(forms, displayOrder(chosen, row)))}
                 onTogglePin={onTogglePin}
                 copied={copied}
                 onCopy={onCopy}
@@ -258,6 +263,7 @@ export function ResultList({
 
 function ResultRow({
   row,
+  forms,
   shown,
   index,
   expanded,
@@ -277,7 +283,8 @@ function ResultRow({
 }: {
   /** The engine's order: the row's identity and the root of its orderings. */
   row: Row;
-  /** The order on display: the reader's choice, or `row`. */
+  forms: Forms;
+  /** The order on display: the reader's choice, or `row`, as letters-words. */
   shown: readonly string[];
   index: number;
   expanded: boolean;
@@ -297,7 +304,10 @@ function ResultRow({
   /** Null until the page knows which rows are published, so no row offers Promote for one that is. */
   promotions: Promotions | null;
 }) {
-  const phrase = shown.join(' ');
+  // What the reader sees and copies: the words in the shown order, a listed
+  // form in place of a word that has no other spelling. Promote and the
+  // orderings work from the letters-words underneath.
+  const phrase = displayPhrase(forms, shown);
   const [details, setDetails] = useState<WordDetail[] | null>(null);
   const [masks, setMasks] = useState<number[] | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -413,7 +423,7 @@ function ResultRow({
               </p>
               <ul className="flex flex-wrap gap-x-4 gap-y-1">
                 {orders.map((order) => {
-                  const text = order.join(' ');
+                  const text = displayPhrase(forms, order);
                   const current = text === phrase;
                   return (
                     <li key={text}>

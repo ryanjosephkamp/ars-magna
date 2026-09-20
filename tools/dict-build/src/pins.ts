@@ -130,4 +130,7 @@ export const EXPECTED = {
    *  rather than a count: the list grows one reviewed word at a time, and the
    *  upper bound is the cap `vocab:check` enforces. */
   additionsRange: [0, 2_000],
+  /** The listed forms (`it's`, `don't`), which share the additions' cap. The
+   *  build also holds the two lists together under it. */
+  formsRange: [0, 2_000],
 } as const;

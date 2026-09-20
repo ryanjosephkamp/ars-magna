@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { buildDataset, missingFromDictionary, publishAddition, renderCard } from '../src/vocab-publish.ts';
-import type { Addition } from '../src/vocab.ts';
+import type { Addition, Form } from '../src/vocab.ts';
 
 const source = { repo: 'ryanjosephkamp/english-openlist', rev: '368bf0e4460461c985fca8bde49e4062d56c1516' };
 
@@ -49,7 +49,7 @@ describe('the dataset folder', () => {
       datasetId: 'ryanjosephkamp/ars-magna-vocabulary',
       date: '2026-09-16',
     });
-    expect(files).toEqual(['vocabulary.txt', 'additions.jsonl', 'README.md']);
+    expect(files).toEqual(['vocabulary.txt', 'additions.jsonl', 'forms.jsonl', 'README.md']);
 
     // Sorted, one per line, trailing newline: a reader splits on whitespace.
     expect(await readFile(join(out, 'vocabulary.txt'), 'utf8')).toBe('apple\ndoomer\nzebra\n');
@@ -61,8 +61,45 @@ describe('the dataset folder', () => {
     const card = await readFile(join(out, 'README.md'), 'utf8');
     expect(card).not.toMatch(/\{\{[A-Z_]+\}\}/);
     expect(card).toContain('| `vocabulary.txt` | 3 |');
+    expect(card).toContain('| `forms.jsonl` | 0 |');
     expect(card).toContain('2 of these words come from');
     expect(card).toContain(source.rev);
+    // No forms given: the file is still written, empty, so the card's config always resolves.
+    expect(await readFile(join(out, 'forms.jsonl'), 'utf8')).toBe('');
+  });
+
+  it('writes the forms beside the additions, each with the pin it sits on top of', async () => {
+    const out = await mkdtemp(join(tmpdir(), 'ars-magna-vocab-ds-'));
+    const form: Form = {
+      form: "don't",
+      letters: 'dont',
+      kind: 'contraction',
+      gloss: 'Contraction of do not.',
+      trace: 'https://en.wiktionary.org/wiki/don%27t',
+      proposed_by: 'ryanjosephkamp',
+      added: '2026-09-20',
+      pos: ['verb'],
+    };
+    await buildDataset({
+      words: ['dont', 'its', 'doomer'],
+      pinned: new Set(['its']),
+      additions: [addition()],
+      forms: [form, { ...form, form: "it's", letters: 'its', gloss: 'Contraction of it is or it has.', pos: ['pron', 'verb'] }],
+      source,
+      out,
+      datasetId: 'ryanjosephkamp/ars-magna-vocabulary',
+      date: '2026-09-20',
+    });
+    const rows = (await readFile(join(out, 'forms.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l));
+    expect(rows.map((r) => [r.form, r.letters, r.pinned_rev])).toEqual([
+      ["don't", 'dont', source.rev],
+      ["it's", 'its', source.rev],
+    ]);
+    const card = await readFile(join(out, 'README.md'), 'utf8');
+    expect(card).toContain('| `forms.jsonl` | 2 |');
+    expect(card).toContain('Possessives are never listed');
+    // A form's letters the dictionary lacks is a stale build, as an addition's word is.
+    expect(missingFromDictionary([], new Set(['its']), [form])).toEqual(['dont']);
   });
 
   it('says English OpenList is credited rather than republished', async () => {
@@ -70,6 +107,7 @@ describe('the dataset folder', () => {
       total: 378_845,
       pinned: 378_844,
       additions: 1,
+      forms: 0,
       source,
       datasetId: 'ryanjosephkamp/ars-magna-vocabulary',
       date: '2026-09-16',

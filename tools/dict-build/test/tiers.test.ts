@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { COMMON_RANK_CUTOFF, frequencyRanks, inCommon } from '../src/tiers.ts';
+import { COMMON_RANK_CUTOFF, frequencyRanks, inCommon, inFull, inStandard } from '../src/tiers.ts';
 
 describe('frequency ranks', () => {
   it('rank by descending occurrences, break ties by list order, and give an absent word 0', () => {
@@ -21,5 +21,16 @@ describe('frequency ranks', () => {
     const atCutoff = { word: 'transients', facts: { twl: true, generated: false, nValid: 1 }, addition: false };
     expect(inCommon({ ...atCutoff, freqRank: COMMON_RANK_CUTOFF })).toBe(true);
     expect(inCommon({ ...atCutoff, freqRank: COMMON_RANK_CUTOFF + 1 })).toBe(false);
+  });
+
+  it('put the letters of a listed form in every tier by listing, never by rank', () => {
+    // `dont` has no provenance record and no rank; it is in Common, Standard and Full because it is listed.
+    const dont = { word: 'dont', facts: { twl: false, generated: false, nValid: 0 }, freqRank: 0, addition: false, form: true };
+    expect(inCommon(dont)).toBe(true);
+    expect(inStandard(dont)).toBe(true);
+    expect(inFull(dont)).toBe(true);
+    // Without the listing the same word is nowhere: that is what an unlisted `dont` was until 2026-09-20.
+    expect(inCommon({ ...dont, form: false })).toBe(false);
+    expect(inStandard({ ...dont, form: false })).toBe(true);
   });
 });

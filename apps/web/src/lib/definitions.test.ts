@@ -27,6 +27,10 @@ describe('provenance labels', () => {
     expect(PROVENANCE_LABEL.twl).toBe('No definition found — valid in tournament play.');
     expect(PROVENANCE_LABEL.generated).toBe('No definition found — a machine-derived form in English OpenList.');
     expect(PROVENANCE_LABEL.unattested).toBe('No definition found — and no source confirms this word.');
+    // A site addition and a listed form both have a gloss; the label says why the list has them.
+    expect(PROVENANCE_LABEL.addition).toBe('Site addition, not in English OpenList.');
+    expect(PROVENANCE_LABEL.form).toBe('Site form, not in English OpenList.');
+    expect(shouldExplain({ word: 'dont', senses: [{ pos: '', gloss: 'Contraction of do not.' }], provenance: 'form', forms: [] })).toBe(true);
   });
 });
 
@@ -81,6 +85,18 @@ describe.skipIf(!built)('Definitions', () => {
     });
     fetches = [];
     defs = new Definitions('/defs');
+  });
+
+  it('reads a listed form beside its word, and a form-only word as a site form with the form\'s gloss', async () => {
+    const its = await defs.lookup('its');
+    expect(its.provenance).toBe('twl');
+    expect(its.forms).toEqual([{ form: "it's", gloss: 'Contraction of it is or it has.' }]);
+    const dont = await defs.lookup('dont');
+    expect(dont.provenance).toBe('form');
+    expect(dont.senses).toEqual([{ pos: '', gloss: 'Contraction of do not.' }]);
+    expect(dont.forms).toEqual([{ form: "don't", gloss: 'Contraction of do not.' }]);
+    expect(shouldExplain(dont)).toBe(true);
+    expect((await defs.lookup('dormitory')).forms).toEqual([]);
   });
 
   it('finds a definition for an ordinary word', async () => {

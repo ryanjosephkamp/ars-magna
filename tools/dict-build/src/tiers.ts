@@ -70,8 +70,10 @@ export const COMMON_RANK_CUTOFF = 40_000;
  * Only English OpenList's own words take a place. A site addition is never in
  * Common, but if it held a rank it would still push the word at rank 40,000 out
  * of Common: `onsen`, the first addition the corpus knows, took `transients`'
- * place until 2026-09-16. Common, Standard and Full stay exactly as the pinned
- * list defines them, whatever the additions are.
+ * place until 2026-09-16. A form's letters-word (`dont`, 9,523 occurrences in
+ * the corpus, which strips apostrophes) is in Common by listing, and takes no
+ * place either. Common, Standard and Full stay exactly as the pinned list
+ * defines them, plus the listed forms, whatever the additions are.
  */
 export function frequencyRanks(occurrences: Float64Array, ranked: (index: number) => boolean): Int32Array {
   const present: number[] = [];
@@ -103,9 +105,17 @@ export type TierInputs = {
   readonly freqRank: number;
   /** A word the site added, absent from English OpenList at the pinned revision. */
   readonly addition: boolean;
+  /**
+   * The letters of a listed form that are no word without their apostrophe
+   * or hyphen: `dont` for `don't`. A contraction is everyday English, so it is
+   * in every tier, Common included (decision D24), by listing rather than by
+   * rank, the way the short words are.
+   */
+  readonly form?: boolean;
 };
 
-export function inCommon({ word, facts, freqRank, addition }: TierInputs): boolean {
+export function inCommon({ word, facts, freqRank, addition, form }: TierInputs): boolean {
+  if (form) return true;
   if (addition) return false;
   if (facts.generated) return false;
   if (SHORT_ALLOWLIST.has(word)) return true;
@@ -125,19 +135,24 @@ export function inCommon({ word, facts, freqRank, addition }: TierInputs): boole
  * as "the list without the generated entries"; now it is.
  */
 export function inStandard(input: TierInputs): boolean {
+  if (input.form) return true;
   return !input.addition && !input.facts.generated;
 }
 
 /**
- * Full is English OpenList at the pinned revision, and nothing else.
+ * Full is English OpenList at the pinned revision, plus the listed forms, and
+ * nothing else.
  *
  * It used to be the whole shipped list, which is why it needed no bitset at all.
  * Extended is that tier now — the pinned list plus the site's own additions — so
  * Full has to be stated rather than assumed. An addition carries no provenance
  * record from the source metadata, so without this it would fall through
- * `inStandard`'s "not generated" test and land in the default tier.
+ * `inStandard`'s "not generated" test and land in the default tier. A form's
+ * letters-word is in every tier, so the Full bitset holds it too; `vocab.ts`
+ * takes the forms back out when it reports what the pin holds.
  */
 export function inFull(input: TierInputs): boolean {
+  if (input.form) return true;
   return !input.addition;
 }
 

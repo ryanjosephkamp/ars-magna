@@ -5,7 +5,7 @@ import { clock } from '../lib/testClock.ts';
 import { CountWorker, type Counter } from './countWorker.ts';
 
 const QUERY = { ...DEFAULT_QUERY, input: 'William Shakespeare the playwright' };
-const READY: EngineStatus = { state: 'ready', counts: { common: 1, standard: 1, full: 1, extended: 1, signatures: 1 }, builtAt: '' };
+const READY: EngineStatus = { state: 'ready', counts: { common: 1, standard: 1, full: 1, extended: 1, signatures: 1 }, builtAt: '', forms: [] };
 
 /**
  * Engines started on demand, each counting `rate` nodes a millisecond: exact

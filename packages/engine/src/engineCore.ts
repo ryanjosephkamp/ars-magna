@@ -10,6 +10,7 @@ import initWasm, { Engine, type InitInput } from './wasm/anagram.js';
 import type { Manifest, ManifestFile, Query, Request, Response, Tier } from './protocol.ts';
 import { bestOrder } from './wordOrder.ts';
 import { foldWords, normalizeLetters } from './fold.ts';
+import { readForms } from './dictForms.ts';
 
 export type Port = {
   post(message: Response): void;
@@ -217,7 +218,8 @@ export class EngineCore {
       fetchArtifact(baseUrl, tiers, fetchImpl),
     ]);
 
-    this.#engine = new Engine(new Uint8Array(dictBytes), new Uint8Array(tierBytes));
+    const dict = new Uint8Array(dictBytes);
+    this.#engine = new Engine(dict, new Uint8Array(tierBytes));
     this.#manifest = manifest;
 
     this.#port.post({
@@ -226,6 +228,9 @@ export class EngineCore {
       counts: manifest.counts,
       builtAt: manifest.builtAt,
       loadMs: Math.round(performance.now() - started),
+      // The forms travel beside the letters: results stay [a-z]+, and the
+      // page shows `don't` for `dont` from this list.
+      forms: readForms(dict),
     });
   }
 

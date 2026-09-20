@@ -22,12 +22,20 @@ export type Sense = {
   readonly base?: string;
 };
 
-export type Provenance = 'attested' | 'twl' | 'generated' | 'unattested' | 'addition';
+export type Provenance = 'attested' | 'twl' | 'generated' | 'unattested' | 'addition' | 'form';
+
+/** A listed form that spells the word, with its own meaning: `it's` beside `its`. */
+export type FormSense = {
+  readonly form: string;
+  readonly gloss: string;
+};
 
 export type WordInfo = {
   readonly word: string;
   readonly senses: readonly Sense[];
   readonly provenance: Provenance;
+  /** The listed forms whose letters are this word; empty for most words. */
+  readonly forms: readonly FormSense[];
 };
 
 const PROVENANCE_OF: Record<string, Provenance> = {
@@ -35,6 +43,7 @@ const PROVENANCE_OF: Record<string, Provenance> = {
   g: 'generated',
   o: 'unattested',
   x: 'addition',
+  f: 'form',
 };
 
 /**
@@ -50,7 +59,10 @@ const PROVENANCE_OF: Record<string, Provenance> = {
  * `addition` is the exception, and reads differently for it: a site addition
  * always has a gloss, so its label is not standing in for a definition. It
  * answers the question the gloss raises — why is this word here, when the
- * dictionary this site names does not carry it.
+ * dictionary this site names does not carry it. `form` is the same for the
+ * letters of a listed contraction (`dont`, shown as `don't`), and the label
+ * also goes beside a form listed under a word the pin does have (`it's` under
+ * `its`).
  */
 export const PROVENANCE_LABEL: Record<Provenance, string | null> = {
   // The ordinary case needs no explanation; saying so would be noise on most rows.
@@ -59,6 +71,7 @@ export const PROVENANCE_LABEL: Record<Provenance, string | null> = {
   generated: 'No definition found — a machine-derived form in English OpenList.',
   unattested: 'No definition found — and no source confirms this word.',
   addition: 'Site addition, not in English OpenList.',
+  form: 'Site form, not in English OpenList.',
 };
 
 /**
@@ -76,18 +89,21 @@ export function shouldExplain(info: WordInfo): boolean {
   // what the word means, the label says why this dictionary has it when English
   // OpenList does not. Every other label stands in place of a definition, so it
   // is suppressed the moment there is one.
-  if (info.provenance === 'addition') return true;
+  if (info.provenance === 'addition' || info.provenance === 'form') return true;
   return info.senses.length === 0 && PROVENANCE_LABEL[info.provenance] !== null;
 }
 
 type RawShard = {
   p?: Record<string, string[]>;
   d?: Record<string, ([string, string] | [string, string, string])[]>;
+  /** Word -> the listed forms that spell it, each `[form, gloss]`. */
+  f?: Record<string, [string, string][]>;
 };
 
 type Shard = {
   provenance: Map<string, Provenance>;
   senses: Map<string, Sense[]>;
+  forms: Map<string, FormSense[]>;
 };
 
 /**
@@ -120,7 +136,12 @@ function parseShard(raw: RawShard): Shard {
     );
   }
 
-  return { provenance, senses };
+  const forms = new Map<string, FormSense[]>();
+  for (const [word, list] of Object.entries(raw.f ?? {})) {
+    forms.set(word, list.map(([form, gloss]) => ({ form, gloss })));
+  }
+
+  return { provenance, senses, forms };
 }
 
 export class Definitions {
@@ -187,6 +208,7 @@ export class Definitions {
       // Absence from the provenance map is what "attested" means; it is the
       // common case and is left out of the shards to save space.
       provenance: shard?.provenance.get(word) ?? 'attested',
+      forms: shard?.forms.get(word) ?? [],
     };
   }
 

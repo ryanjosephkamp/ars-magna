@@ -28,15 +28,15 @@ anagrams    →  ars magna
 ## Dictionary
 
 Word validity is judged against [English OpenList][eol], pinned to a specific revision so
-results are reproducible, plus a short public list of words this site has added. Four
-nested tiers are available in the UI:
+results are reproducible, plus a short public list of words this site has added, and its listed
+forms, the contractions whose letters the search knows. Four nested tiers are available in the UI:
 
 | Tier | Words | What it is |
 |---|---|---|
-| Common | 39,951 | Everyday vocabulary: the 40,000 most frequent words, plus the tournament two-letter list |
-| **Standard** (default) | 314,007 | Every attested word |
-| Full | 378,844 | English OpenList at the pinned revision |
-| Extended | 378,846 | The pinned list plus the site's own additions |
+| Common | 39,986 | Everyday vocabulary: the 40,000 most frequent words, plus the tournament two-letter list and the listed forms |
+| **Standard** (default) | 314,042 | Every attested word, plus the listed forms |
+| Full | 378,879 | English OpenList at the pinned revision, plus the listed forms |
+| Extended | 378,881 | The pinned list plus the site's own additions |
 
 Standard is the list minus the 64,837 algorithmically generated entries in the source data
 (`abacteremicer`, `nonlivabler`), which otherwise flood results with unrecognizable words.
@@ -50,10 +50,20 @@ Extended adds the site's own words on top of the pinned list. Every one is a lin
 file honest in CI, and the word panel labels such a word as a site addition, so the
 vocabulary stays something a reader can look up rather than guess at.
 
+Apostrophes, hyphens and punctuation carry no letters: they are dropped from a text, never
+required in an anagram, and shown only inside a listed form. A form is a spelling with an
+apostrophe or hyphen whose letters are one word, `it's` for `its` and `don't` for `dont`, listed in
+`data/vocabulary/forms.jsonl` with a meaning and a source under the additions' cap. Where the letters
+are already a word, the form adds a spelling and the word panel lists it beside the word; where they
+are not (`dont`, 35 of the 53 forms), the letters-word joins every tier, since a contraction is
+everyday English, and a row shows `don't` with its apostrophe. The dictionary artifact carries the
+forms in a section of their own beside the letters-only word list, so the search engine never sees an
+apostrophe; results, promotion keys and hit ids carry the letters alone. Possessives are never listed.
+
 ## Definitions
 
 English OpenList carries no definitions despite its dataset card advertising them, so
-glosses come from [WordNet 3.1][wordnet] instead. 119,593 words (31.6% of the list) are
+glosses come from [WordNet 3.1][wordnet] instead. 119,597 words (31.6% of the list) are
 covered; a little over half of those are reached through WordNet's own morphology, so
 `dormitories` gets `dormitory`'s definition and says that it did. Words with no gloss fall
 back to explaining their provenance.

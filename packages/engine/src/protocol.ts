@@ -43,11 +43,27 @@ export const DEFAULT_QUERY: Omit<Query, 'input'> = {
 export type DictCounts = {
   readonly common: number;
   readonly standard: number;
-  /** English OpenList at the pinned revision. */
+  /** English OpenList at the pinned revision, plus the listed forms' letters-words. */
   readonly full: number;
   /** The pinned list plus the site's own additions: every word that ships. */
   readonly extended: number;
   readonly signatures: number;
+  /** The listed forms the dictionary carries; absent from an artifact built before them. */
+  readonly forms?: number;
+  /** How many of the forms are words the pinned list lacks, which every tier gains. */
+  readonly formOnly?: number;
+};
+
+/**
+ * One listed form, as the dictionary carries it beside the letters-word: the
+ * page shows `don't` for `dont` and lists `it's` beside `its`. Results, keys
+ * and ids carry the letters alone.
+ */
+export type DictForm = {
+  readonly letters: string;
+  readonly form: string;
+  /** Rows show the form: it is the only spelling of its letters. */
+  readonly shown: boolean;
 };
 
 export type ManifestFile = {
@@ -146,6 +162,8 @@ export type Response =
       readonly counts: DictCounts;
       readonly builtAt: string;
       readonly loadMs: number;
+      /** The listed forms, read from the artifact once; empty for one built without them. */
+      readonly forms: readonly DictForm[];
     }
   | {
       readonly k: 'count';

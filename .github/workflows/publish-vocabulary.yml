@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'data/vocabulary/additions.jsonl'
+      - 'data/vocabulary/forms.jsonl'
       - 'apps/web/public/dict/manifest.json'
       - 'tools/dict-build/src/vocab-publish.ts'
       - 'tools/dict-build/templates/vocabulary-card.md'

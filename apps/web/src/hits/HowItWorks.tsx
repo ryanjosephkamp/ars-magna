@@ -145,6 +145,14 @@ export function HowItWorks() {
             The vocabulary is always something you can look up rather than guess at.
           </p>
           <p className="mt-3 max-w-prose text-sm text-ink-soft">
+            Apostrophes, hyphens and other punctuation carry no letters: they are dropped from the text, never required in an anagram,
+            and appear only inside a listed form. A form is a spelling with an apostrophe or hyphen whose letters are one word:{' '}
+            <i>it's</i> is the letters <i>its</i>, and <i>don't</i> is the letters <i>dont</i>. The site lists its forms with a meaning
+            and a source, and they are searchable in every dictionary. A row shows <i>don't</i> with its apostrophe, since nothing else
+            spells those letters; a row spells <i>its</i> as the word, and the word panel lists <i>it's</i> beside it. Possessives are
+            never listed: <i>dog's</i> is the letters of <i>dogs</i>, which the search already finds.
+          </p>
+          <p className="mt-3 max-w-prose text-sm text-ink-soft">
             On the search page, Must exclude takes a word out of the dictionary for that search alone and leaves its other spellings, so
             every count is still exact.
           </p>

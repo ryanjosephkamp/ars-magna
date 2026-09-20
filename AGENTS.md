@@ -10,7 +10,8 @@ Code) adds only what is specific to that harness and never restates a rule from 
 ## Rules that never change
 
 - **Never modify the English OpenList (EOL) or CEOL repositories, datasets, or directories anywhere on
-  this machine.** Dictionary inputs change only through `tools/dict-build/src/pins.ts` and `tiers.ts`,
+  this machine.** Dictionary inputs change only through `tools/dict-build/src/pins.ts` and `tiers.ts` and
+  the vocabulary files `data/vocabulary/additions.jsonl` and `forms.jsonl` (`pnpm vocab:add`, `vocab:form`),
   and a rebuilt dictionary is committed with `[dict]` in the message so CI verifies it.
 - Nothing enters the published dataset without a person's merge. A hit is published when a person
   merges the pull request that makes it `accepted`, whether the judge routine shelved it or

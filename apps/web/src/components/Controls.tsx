@@ -17,10 +17,10 @@ const TIER_LABEL: Record<Tier, string> = {
 };
 
 const TIER_HINT: Record<Tier, string> = {
-  common: 'Everyday words only.',
-  standard: 'Every attested word: the list without its machine-derived forms.',
-  full: 'Every word in English OpenList, including rare and machine-derived forms.',
-  extended: "Every word in English OpenList, plus the site's own additions.",
+  common: "Everyday words, plus the site's listed contractions.",
+  standard: "Every attested word, the list without its machine-derived forms, plus the site's listed contractions.",
+  full: "Every word in English OpenList, including rare and machine-derived forms, plus the site's listed contractions.",
+  extended: "Every word in English OpenList, plus the site's own additions and its listed contractions.",
 };
 
 function compact(n: number): string {

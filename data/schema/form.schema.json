@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/form.schema.json",
+  "title": "Form",
+  "description": "One listed form: a spelling with an apostrophe or hyphen whose letters are one word of the vocabulary. One line of data/vocabulary/forms.jsonl. Apostrophes, hyphens and punctuation carry no letters, so the search knows only the letters-word; the form is how that word is shown when it is the only spelling of its letters, and is listed beside the word otherwise. Every form is public, carries a meaning a reader can read, and names where it is attested; the operator accepts it by merging the pull request that adds it. Possessives are never listed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["form", "letters", "kind", "gloss", "trace", "proposed_by", "added"],
+  "properties": {
+    "form": {
+      "type": "string",
+      "pattern": "^[a-z'-]*['-][a-z'-]*$",
+      "maxLength": 45,
+      "description": "The spelling as it reads: lowercase letters with at least one apostrophe or hyphen, nothing else. Capitals belong to a hit's display, never to a form."
+    },
+    "letters": {
+      "type": "string",
+      "pattern": "^[a-z]+$",
+      "maxLength": 45,
+      "description": "The word the form's letters spell, as the search knows it: the form with its apostrophes and hyphens dropped. The tools derive and check it."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["contraction", "hyphenated"],
+      "description": "contraction: an apostrophe stands for letters left out (it's, don't). hyphenated: a term written with hyphens (jack-o'-lantern)."
+    },
+    "gloss": {
+      "type": "string",
+      "maxLength": 160,
+      "pattern": "^[A-Z][^\\n]*\\.$",
+      "description": "What the form means, in one sentence. A reader sees this in the word panel, so PRODUCT.md's rule applies: a capital letter at the start and a full stop at the end."
+    },
+    "trace": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where the form is attested: a public URL, usually its Wiktionary entry."
+    },
+    "proposed_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who proposed it. The routine and the Build page propose; only a merge admits."
+    },
+    "added": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "pos": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 1,
+      "items": { "type": "string", "enum": ["det", "pron", "prep", "conj", "adj", "adv", "noun", "verb", "interj"] },
+      "description": "The parts of speech the form can be, for the order words read in. Used only when the letters-word is not in English OpenList, which has no tags for it; a word the pinned list has keeps the dictionary's own."
+    },
+    "note": {
+      "type": "string",
+      "description": "Anything else worth recording about the admission."
+    }
+  }
+}
