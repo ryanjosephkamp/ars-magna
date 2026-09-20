@@ -1245,6 +1245,36 @@ Turn the routine off on its page, or use `docs/prompts/pause-routine.md`; it kee
 history. While it is off the nightly still commits queues. When it is back on, a run judges only the
 newest unjudged queue, so judge any older ones by hand.
 
+### Move it to another Claude account
+
+A routine belongs to the account that created it: it bills to that plan, only that account can pause or change
+it, and there is no way to hand one over. Moving it means creating the same routine on the other account and
+turning this one off. Everything it needs is in this repository, so nothing has to be exported first.
+
+1. **Turn this one off first.** Two enabled routines would judge the same queue twice and race for the same
+   branch: the second push fails because `hits/<date>` already exists, as a test run found on 2026-09-19.
+2. On the other account, give the Claude GitHub App access to **both** repositories, `ars-magna` and the
+   private `ars-magna-promotions`.
+3. Create the routine there with the settings in the table above: the same schedule (`0 7 * * *`), model
+   (`claude-sonnet-5`), tools (Bash, Read, Write, Edit, Glob, Grep) and both repositories as sources, and the
+   prompt copied from `automation/judge-routine.md`, everything above its closing HTML comment. Creating it
+   this way is also a carry-over, so the file and the routine agree from the start.
+4. Read it back, confirm its next run time, and record the new `trig_…` id here and in `CLAUDE.md`, replacing
+   the old one. The old routine's id, runs and logs stay with the old account.
+
+The nightly Action, the export Action and the two datasets are GitHub's and Cloudflare's, not Claude's, so they
+are unaffected by any of this: the queue still arrives every morning, and the pull request still lands in this
+repository whichever account judged it. Reviewing it needs no particular account either — the review desk is
+built from the repository by `pnpm hits:desk`, and publishing it from another account simply makes a second
+Artifact, whose URL you record as "Update this manual and republish it" describes.
+
+**If the account that owns the routine runs out of its plan's usage**, the run cannot do the work and no
+`Greatest Hits: <N> new for <date>` pull request appears that morning. That looks like a thin night but is not
+one: a thin night leaves a queue folder holding only `summary.json`, and the routine rightly opens nothing (see
+"A thin night"). Tell them apart on the routine's page, or with the remote-trigger tool's `list_runs`: a night
+with a queue and no pull request, and no successful run behind it, is a run that could not happen. Judge that
+queue by hand when there is usage again ("Judge a queue by hand", naming the folder), or move the routine.
+
 The rest of the automation pauses separately:
 
 ```bash
@@ -1327,6 +1357,15 @@ same pull request.
    `main`, and publish it to the URL below, titled "Ars Magna Operator Manual". Publishing to that URL
    keeps the link; publishing without it makes a separate page.
 4. If the URL ever changes, record the new one here and in `CLAUDE.md`.
+
+**An artifact belongs to the Claude account that published it.** Another account cannot open or update one, so
+if you ever work from a second account, either publish these pages from the account that owns them, or publish
+again from the new one and record the new URL here and in `CLAUDE.md`. The manual, the review desk and the
+audit are all rebuilt from this repository, so nothing is lost either way. `handoff/ARTIFACTS.md`, beside the
+repository, lists every page this project has published and the file each was built from; "Another Claude
+account, or another machine" in `docs/BOOTSTRAP.md` covers the rest of a move. The judge routine belongs to its
+account in the same way: it keeps running whichever account is coding, but only that one can pause or change
+it.
 
 The manual's artifact: https://claude.ai/code/artifact/e9d6ddc9-1c1b-4901-8341-7923708c416c
 

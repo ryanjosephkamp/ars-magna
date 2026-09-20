@@ -62,6 +62,9 @@ Verifying votes:
 https://claude.ai/code/artifact/e9d6ddc9-1c1b-4901-8341-7923708c416c. Republish
 to that URL when the file or a template in `docs/prompts/` changes on `main`.
 
+Artifacts belong to the account that published them. `handoff/ARTIFACTS.md` lists every page and the file it
+was built from, and "Another Claude account, or another machine" in `docs/BOOTSTRAP.md` says what a move takes.
+
 ## Review desk
 
 The review desk for a phone is the private artifact "Ars Magna Review Desk":
