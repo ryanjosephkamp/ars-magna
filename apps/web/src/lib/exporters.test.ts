@@ -14,6 +14,7 @@ import {
   type ExportInput,
 } from './exporters.ts';
 import { commonnessByWord, comparison, letterFigures, wordFigures, wordLengthRows } from './analysis.ts';
+import { formsFrom } from './forms.ts';
 import { nestCounts, type TextCount } from './textCount.ts';
 
 const exact = (total: string): TextCount => ({ kind: 'exact', total });
@@ -42,6 +43,14 @@ describe('toTxt', () => {
 
   it('stays parseable when the list is empty', () => {
     expect(toTxt(input({ rows: [] }))).toBe('\n');
+  });
+
+  it('spells a listed form as the page does in the files a person reads, and keeps the letters in the JSON', () => {
+    const forms = formsFrom([{ letters: 'dont', form: "don't", shown: true }, { letters: 'its', form: "it's", shown: false }]);
+    const withForm = input({ rows: [['dont', 'doit'], ['its', 'dot', 'no']], forms });
+    expect(toTxt(withForm)).toBe("don't doit\nits dot no\n");
+    expect(toCsv(withForm)).toContain("\ndon't doit,2,don't\n");
+    expect(JSON.parse(toJson(withForm)).anagrams).toEqual([['dont', 'doit'], ['its', 'dot', 'no']]);
   });
 });
 

@@ -16,6 +16,7 @@ import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
 import { applyView, countLineOf, type SortMode } from './lib/resultView.ts';
+import { displayPhrase, displayWord, formsFrom } from './lib/forms.ts';
 import {
   FILTER_COUNT_LIMIT_MS,
   containingKey,
@@ -86,11 +87,15 @@ export function App() {
   const letters = folded.letters;
 
   const {
-    engine, searching, error, candidates, countedLetters, textLeftOut, answered, loadMore, collect, at, surpriseMe, spellings,
-    masks, has,
+    engine, searching, error, candidates, countedLetters, textLeftOut, answered, forms: formList, loadMore, collect, at, surpriseMe,
+    spellings, masks, has,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
+  // The dictionary's listed forms, by the word they spell: how `dont` reads as
+  // `don't` on this page. The engine and every key know the letters alone.
+  const forms = useMemo(() => formsFrom(formList), [formList]);
+  const surpriseText = surprise ? displayPhrase(forms, surprise) : '';
 
   // One instance for the session, so its shard cache survives across rows.
   const definitions = useMemo(() => new Definitions('/defs'), []);
@@ -111,11 +116,12 @@ export function App() {
       const shown = (list: string[] | undefined) => (list ?? []).filter((w) => !query.mustExclude.includes(w));
       return words.map((word, i) => ({
         word,
-        spellings: shown(spellingLists[i]).length ? shown(spellingLists[i]) : [word],
+        display: displayWord(forms, word),
+        spellings: (shown(spellingLists[i]).length ? shown(spellingLists[i]) : [word]).map((w) => displayWord(forms, w)),
         info: infos[i]!,
       }));
     },
-    [definitions, spellings, query.mustExclude],
+    [definitions, spellings, query.mustExclude, forms],
   );
 
   useEffect(() => syncUrl(query), [query]);
@@ -368,6 +374,7 @@ export function App() {
           total,
           textLeftOut,
           rows: view,
+          forms,
           generatedAt: new Date(),
         });
         download(blob, `${fileStem(query)}.${format}`);
@@ -375,7 +382,7 @@ export function App() {
         setExporting(null);
       }
     },
-    [collect, filter, sort, query, letters, total, textLeftOut],
+    [collect, filter, sort, query, letters, total, textLeftOut, forms],
   );
 
   return (
@@ -499,16 +506,16 @@ export function App() {
 
               {surprise && (
                 <div className="settle flex items-baseline justify-between gap-4 border-b border-rule bg-accent-wash px-3 py-3">
-                  <span className="font-display text-xl text-ink">{surprise.join(' ')}</span>
+                  <span className="font-display text-xl text-ink">{surpriseText}</span>
                   <span className="flex shrink-0 gap-3">
                     <TextButton
                       small
-                      onClick={() => copy(surprise.join(' '), surprise.join(' '))}
-                      active={copied === surprise.join(' ')}
+                      onClick={() => copy(surpriseText, surpriseText)}
+                      active={copied === surpriseText}
                     >
-                      {copied === surprise.join(' ') ? 'Copied' : 'Copy'}
+                      {copied === surpriseText ? 'Copied' : 'Copy'}
                     </TextButton>
-                    <TextButton small onClick={() => togglePin(surprise.join(' '))}>
+                    <TextButton small onClick={() => togglePin(surpriseText)}>
                       Pin
                     </TextButton>
                     <TextButton small onClick={() => setSurprise(null)}>
@@ -550,6 +557,7 @@ export function App() {
                   />
                   <ResultList
                     rows={visibleRows}
+                    forms={forms}
                     total={formatCount(total)}
                     hasMore={results.hasMore && filter.trim().length === 0}
                     onLoadMore={loadMore}

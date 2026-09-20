@@ -21,6 +21,9 @@ describe('wordsOf', () => {
   it('reads the chunks between spaces as words, folded, apostrophes and hyphens carrying no letters', () => {
     expect(wordsOf('  I da   AI doomer ')).toEqual(['i', 'da', 'ai', 'doomer']);
     expect(wordsOf("it's a jack-o'-lantern")).toEqual(['its', 'a', 'jackolantern']);
+    // A typed form is its letters-word, which the dictionary lists in every tier; a possessive is the plural's letters.
+    expect(wordsOf("don't")).toEqual(['dont']);
+    expect(wordsOf("dog's")).toEqual(['dogs']);
     expect(wordsOf('Beyoncé 4 & !')).toEqual(['beyonce']);
     expect(wordsOf(' - ')).toEqual([]);
   });

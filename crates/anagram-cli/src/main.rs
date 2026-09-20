@@ -29,7 +29,20 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Which dictionary the artifacts are: the pinned English OpenList revision
+/// and the hash of the word list as built, so a queue's summary can say what
+/// it was enumerated with (the plan's first data rule).
+#[derive(Serialize, Clone)]
+struct DictionaryId {
+    rev: String,
+    full_sha256: String,
+}
+
 fn load_dict() -> Result<Dict, Box<dyn std::error::Error>> {
+    Ok(load_dict_with_id()?.0)
+}
+
+fn load_dict_with_id() -> Result<(Dict, DictionaryId), Box<dyn std::error::Error>> {
     let dist = repo_root().join("apps/web/public/dict");
     let manifest = fs::read_to_string(dist.join("manifest.json")).map_err(|_| {
         format!(
@@ -38,25 +51,32 @@ fn load_dict() -> Result<Dict, Box<dyn std::error::Error>> {
         )
     })?;
 
-    let name_of = |key: &str| -> Option<String> {
-        // Small hand-rolled extraction; the manifest is tiny and stable.
+    // Small hand-rolled extraction; the manifest is tiny and stable. `field_of`
+    // reads the string that follows the first `"field"` after `"key"`.
+    let field_of = |key: &str, field: &str| -> Option<String> {
         let anchor = format!("\"{key}\"");
         let start = manifest.find(&anchor)? + anchor.len();
         let rest = &manifest[start..];
-        let name_at = rest.find("\"name\"")? + "\"name\"".len();
-        let after = &rest[name_at..];
+        let field_anchor = format!("\"{field}\"");
+        let field_at = rest.find(&field_anchor)? + field_anchor.len();
+        let after = &rest[field_at..];
         let open = after.find('"')? + 1;
         let close = after[open..].find('"')?;
         Some(after[open..open + close].to_owned())
     };
+    let name_of = |key: &str| field_of(key, "name");
 
     let full = name_of("full").ok_or("manifest is missing the full artifact")?;
     let tiers = name_of("tiers").ok_or("manifest is missing the tiers artifact")?;
+    let id = DictionaryId {
+        rev: field_of("source", "rev").unwrap_or_default(),
+        full_sha256: field_of("full", "sha256").unwrap_or_default(),
+    };
 
     let dict_bytes = fs::read(dist.join(&full))?;
     let tier_bytes = fs::read(dist.join(&tiers))?;
 
-    Ok(Dict::decode(&dict_bytes, Some(&tier_bytes))?)
+    Ok((Dict::decode(&dict_bytes, Some(&tier_bytes))?, id))
 }
 
 fn tier_from(name: &str) -> Tier {
@@ -392,6 +412,10 @@ struct Summary {
     /// before s3, which had none.
     #[serde(skip_serializing_if = "Option::is_none")]
     additions: Option<usize>,
+    /// The dictionary the queue was enumerated with: the pinned revision and
+    /// the built word list's hash. Absent on a queue from before s4.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dictionary: Option<DictionaryId>,
     max_words: u8,
     spellings: &'static str,
     expand_cap: usize,
@@ -717,7 +741,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
     };
     let only_status = argv.get("status").unwrap_or("new");
 
-    let mut dict = load_dict()?;
+    let (mut dict, dictionary) = load_dict_with_id()?;
     // The site's additions, searched alongside `--tier`. An addition lives
     // only in Extended, so without this a Common run can never reach one.
     // Words the artifact does not carry are ignored, which is the state
@@ -854,6 +878,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
         min_word_len: config.min_word_len,
         short_words: config.short_words.len(),
         additions: (!additions.is_empty()).then_some(admitted),
+        dictionary: Some(dictionary),
         max_words: config.max_words,
         spellings: if config.all_spellings { "all" } else { "first" },
         expand_cap: config.expand_cap,

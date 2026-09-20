@@ -41,7 +41,8 @@ describe('presets', () => {
       '--seed=1',
       '--status=new',
     ]);
-    expect(SETTINGS_VERSION).toBe('s3');
+    // s4: the listed forms' letters-words are in every tier the batch searches (2026-09-20).
+    expect(SETTINGS_VERSION).toBe('s4');
   });
 
   it('take the deep preset and explicit overrides, and refuse an unknown preset', () => {

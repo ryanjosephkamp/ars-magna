@@ -3,6 +3,7 @@ import {
   ArsMagnaClient,
   DEFAULT_QUERY,
   normalizeLetters,
+  type DictForm,
   type EngineStatus,
   type ErrorCode,
   type Query,
@@ -206,7 +207,10 @@ export function useEngine(query: Query) {
     }
   }, []);
 
-  return { ...state, loadMore, collect, at, surpriseMe, spellings, masks, has };
+  return { ...state, forms: state.engine.state === 'ready' ? state.engine.forms : NO_DICT_FORMS, loadMore, collect, at, surpriseMe, spellings, masks, has };
 }
+
+/** One empty list for every render before the dictionary is ready, so it is stable. */
+const NO_DICT_FORMS: readonly DictForm[] = [];
 
 export { DEFAULT_QUERY };

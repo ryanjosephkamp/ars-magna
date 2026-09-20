@@ -26,7 +26,7 @@ import { normalize, signature } from './normalize.ts';
 import { loadFacts } from './facts.ts';
 import { COMMON_RANK_CUTOFF, frequencyRanks, inCommon, inFull, inStandard, zipfByte, type WordFacts } from './tiers.ts';
 import { buildPos } from './pos.ts';
-import { readAdditions } from './vocab.ts';
+import { ADDITIONS_CAP, readAdditions, readForms } from './vocab.ts';
 import {
   bitsetCount,
   bitsetGet,
@@ -35,6 +35,7 @@ import {
   encodeBitsets,
   encodeDict,
   makeBitset,
+  type DictForm,
 } from './format.ts';
 
 /**
@@ -220,12 +221,20 @@ async function main(): Promise<void> {
 
   // Every tripwire above is measured against the pin alone, before the site's
   // own words join it. A pin that moved has to be caught, and it would not be if
-  // the two lists were counted together.
-  console.log('\n3. additions');
+  // the lists were counted together.
+  console.log('\n3. additions and forms');
   const additions = await readAdditions();
+  const forms = await readForms();
   const [fewest, most] = EXPECTED.additionsRange;
   if (additions.length < fewest || additions.length > most) {
     throw new Error(`${additions.length} additions outside the expected band ${fewest}–${most}`);
+  }
+  const [fewestForms, mostForms] = EXPECTED.formsRange;
+  if (forms.length < fewestForms || forms.length > mostForms) {
+    throw new Error(`${forms.length} forms outside the expected band ${fewestForms}–${mostForms}`);
+  }
+  if (additions.length + forms.length > ADDITIONS_CAP) {
+    throw new Error(`${additions.length} additions and ${forms.length} forms are over the cap of ${ADDITIONS_CAP} together`);
   }
 
   const pinnedSet = new Set(pinned.words);
@@ -236,18 +245,38 @@ async function main(): Promise<void> {
   }
 
   const isAddition = new Set(additions.map((a) => a.word));
-  const words = [...pinned.words, ...isAddition].sort();
+  // A form whose letters the pin already has (`it's`, `its`) adds a spelling
+  // and nothing to the list; one whose letters it lacks (`don't`, `dont`) adds
+  // the letters-word, in every tier. Rows show the form only for the latter.
+  const isFormOnly = new Set(forms.map((f) => f.letters).filter((letters) => !pinnedSet.has(letters)));
+  for (const form of forms) {
+    if (isAddition.has(form.letters)) {
+      throw new Error(`${form.form}: its letters ${form.letters} are a site addition, not a word a form can spell`);
+    }
+  }
+  const dictForms: DictForm[] = forms.map((f) => ({ letters: f.letters, form: f.form, shown: isFormOnly.has(f.letters) }));
+  const formPos = new Map<string, readonly string[]>();
+  for (const f of forms) if (isFormOnly.has(f.letters) && f.pos) formPos.set(f.letters, f.pos);
+
+  const words = [...pinned.words, ...isAddition, ...isFormOnly].sort();
   const indexOf = new Map<string, number>();
   words.forEach((w, i) => indexOf.set(w, i));
   // An addition usually joins a class that already exists — `doomer` lands with
   // `moored` — but it may open a new one, so the count the manifest reports is
   // taken over the union while the tripwire above stays on the pin.
   for (const word of isAddition) signatures.add(signature(word));
+  for (const word of isFormOnly) signatures.add(signature(word));
   console.log(
     additions.length === 0
-      ? '   none'
+      ? '   no additions'
       : `   ${additions.length} site addition${additions.length === 1 ? '' : 's'}: ` +
           additions.map((a) => a.word).join(', '),
+  );
+  console.log(
+    forms.length === 0
+      ? '   no forms'
+      : `   ${forms.length} listed form${forms.length === 1 ? '' : 's'}, ${isFormOnly.size} of them ` +
+          `word${isFormOnly.size === 1 ? '' : 's'} the pin lacks: ${[...isFormOnly].join(', ')}`,
   );
 
   console.log('\n4. provenance');
@@ -267,7 +296,14 @@ async function main(): Promise<void> {
   );
 
   console.log('\n5. frequency');
-  const { rank, zipf, attested } = await loadFrequency(indexOf, words.length, (index) => isAddition.has(words[index]!));
+  // Neither an addition nor a form's letters-word takes a rank: Common's top
+  // 40,000 are the pin's own, and `dont` at 9,523 occurrences would push the
+  // 40,000th out. A form is in Common by listing instead.
+  const { rank, zipf, attested } = await loadFrequency(
+    indexOf,
+    words.length,
+    (index) => isAddition.has(words[index]!) || isFormOnly.has(words[index]!),
+  );
   console.log(
     `   ${attested.toLocaleString()} words carry frequency data ` +
       `(${FREQUENCY.repo}@${FREQUENCY.rev.slice(0, 8)})`,
@@ -280,7 +316,7 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < words.length; i++) {
     const word = words[i]!;
-    const input = { word, facts: facts[i]!, freqRank: rank[i]!, addition: isAddition.has(word) };
+    const input = { word, facts: facts[i]!, freqRank: rank[i]!, addition: isAddition.has(word), form: isFormOnly.has(word) };
     if (inCommon(input)) bitsetSet(commonSet, i);
     if (inStandard(input)) bitsetSet(standardSet, i);
     if (inFull(input)) bitsetSet(fullSet, i);
@@ -298,8 +334,11 @@ async function main(): Promise<void> {
   if (standardCount < low || standardCount > high) {
     throw new Error(`standard tier ${standardCount} outside expected band ${low}–${high}`);
   }
-  if (fullCount !== EXPECTED.normalizedWords) {
-    throw new Error(`full tier ${fullCount} is not the pinned list's ${EXPECTED.normalizedWords}`);
+  // Full is the pin plus the forms' letters-words the pin lacks, exactly.
+  if (fullCount !== EXPECTED.normalizedWords + isFormOnly.size) {
+    throw new Error(
+      `full tier ${fullCount} is not the pinned list's ${EXPECTED.normalizedWords} plus the ${isFormOnly.size} form-only words`,
+    );
   }
   // Counts alone would let a word slip sideways between tiers unnoticed, so the
   // nesting is checked word by word: Common ⊆ Standard ⊆ Full. Extended is the
@@ -314,10 +353,11 @@ async function main(): Promise<void> {
   }
 
   console.log('\n7. parts of speech');
-  const pos = await buildPos({ dir: WORDNET_DICT, words });
+  const pos = await buildPos({ dir: WORDNET_DICT, words, formPos });
   console.log(
     `   ${pos.fromCurated.toLocaleString()} curated · ` +
       `${pos.fromWordNet.toLocaleString()} WordNet · ` +
+      `${pos.fromForms.toLocaleString()} forms · ` +
       `${pos.fromSuffix.toLocaleString()} suffix · ` +
       `${pos.unknown.toLocaleString()} unknown`,
   );
@@ -330,7 +370,7 @@ async function main(): Promise<void> {
   // bitset lookup over the one list. The artifact keys stay `full` and `tiers`:
   // they name files the engine and the CLI already ask for, and renaming them
   // would buy nothing.
-  const fullBin = encodeDict({ words, zipf, pos: pos.bytes, tier: TIER_EXTENDED });
+  const fullBin = encodeDict({ words, zipf, pos: pos.bytes, forms: dictForms, tier: TIER_EXTENDED });
   const bits = encodeBitsets(words.length, [commonSet, standardSet, fullSet]);
 
   // Round-trip every artifact before it is written. A silent encoder bug here
@@ -342,6 +382,7 @@ async function main(): Promise<void> {
       throw new Error(`round-trip: word ${i} "${roundTrip.words[i]}" != "${words[i]}"`);
     }
   }
+  if (JSON.stringify(roundTrip.forms) !== JSON.stringify(dictForms)) throw new Error('round-trip: the forms differ');
   console.log('   round-trip ✓');
 
   const artifacts = [await emit('full', 'bin', fullBin), await emit('tiers', 'bits', bits)];
@@ -366,6 +407,9 @@ async function main(): Promise<void> {
       extended: words.length,
       signatures: signatures.size,
       withFrequency: attested,
+      /** The listed forms, and how many of them are words the pin lacks, which every tier gains. */
+      forms: forms.length,
+      formOnly: isFormOnly.size,
     },
     files: Object.fromEntries(
       artifacts.map((a) => [

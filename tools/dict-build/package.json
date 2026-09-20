@@ -10,6 +10,7 @@
     "verify": "node --max-old-space-size=2048 --experimental-strip-types src/build.ts --verify",
     "shards": "node --max-old-space-size=2048 --experimental-strip-types src/shards.ts",
     "vocab:add": "node --experimental-strip-types src/vocab-add.ts",
+    "vocab:form": "node --experimental-strip-types src/vocab-form.ts",
     "vocab:check": "node --experimental-strip-types src/vocab-check.ts",
     "vocab:publish": "node --experimental-strip-types src/vocab-publish.ts"
   },

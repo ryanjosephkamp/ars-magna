@@ -3,10 +3,11 @@
  * Words known, which the dictionary answers one word at a time.
  *
  * A word is a chunk of the anagram between spaces, folded as the search folds
- * letters: `it's` is the word `its`, and a hyphenated `jack-o'-lantern` is the
- * one word `jackolantern`. Phase P teaches this to accept the site's listed
- * forms. Pure: the page looks each word's tiers up in the engine and hands
- * this module the answers.
+ * letters: `it's` is the word `its`, a typed `don't` the word `dont`, and a
+ * hyphenated `jack-o'-lantern` the one word `jackolantern`. A listed form's
+ * letters-word is in every tier of the dictionary, so a typed `don't` is
+ * known at Common; a possessive `dog's` is the word `dogs`. Pure: the page
+ * looks each word's tiers up in the engine and hands this module the answers.
  */
 import { TIERS, normalizeLetters, type Tier } from '@ars-magna/engine';
 

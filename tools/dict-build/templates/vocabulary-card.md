@@ -10,6 +10,8 @@ tags:
 configs:
   - config_name: additions
     data_files: additions.jsonl
+  - config_name: forms
+    data_files: forms.jsonl
 ---
 
 # Ars Magna Vocabulary
@@ -17,8 +19,9 @@ configs:
 The exact vocabulary [Ars Magna](https://ars-magna.pages.dev) judges words against, so that its
 claim to find *every* anagram of your letters can be checked rather than taken on trust.
 
-It is two things: **English OpenList at one pinned revision**, and a short, public list of
-**the site's own additions**. Nothing else. A word the site accepts is in one of them.
+It is three things: **English OpenList at one pinned revision**, a short, public list of
+**the site's own additions**, and a short list of **the site's listed forms**, the contractions
+whose letters the search knows. Nothing else. A word the site accepts is in one of them.
 
 ## What is here
 
@@ -26,6 +29,7 @@ It is two things: **English OpenList at one pinned revision**, and a short, publ
 |---|---|---|
 | `vocabulary.txt` | {{TOTAL}} | Every word the site accepts, one per line, sorted. The union below. |
 | `additions.jsonl` | {{ADDITIONS}} | The site's own words, each with a meaning and a source. |
+| `forms.jsonl` | {{FORMS}} | The site's listed forms: spellings with an apostrophe or hyphen, each with the word its letters spell, a meaning and a source. |
 
 ## The pin
 
@@ -56,19 +60,38 @@ Nothing is added automatically. The site's pipeline and its submission form **pr
 word joins the vocabulary only when the operator accepts it by name and merges the change. Words
 under consideration are not here — only accepted ones.
 
+## The forms
+
+Apostrophes, hyphens and punctuation carry no letters: the site drops them from a text, never
+requires them in an anagram, and shows them only inside a listed form. A form is a spelling with an
+apostrophe or hyphen whose letters are one word: `it's` is the letters `its`, and `don't` is the
+letters `dont`. Where the letters are already a word of the pin, the form adds a spelling; where
+they are not, the letters-word (`dont`) is in `vocabulary.txt` and in every one of the site's
+dictionaries, since a contraction is everyday English. Possessives are never listed: `dog's` is the
+letters of `dogs`, which the search already finds. Each of the {{FORMS}} rows carries:
+
+| Field | What it holds |
+|---|---|
+| `form` | The spelling as it reads: lowercase letters with at least one apostrophe or hyphen. |
+| `letters` | The word its letters spell, as the search knows it. |
+| `kind` | `contraction` or `hyphenated`. |
+| `gloss`, `trace`, `proposed_by`, `added` | As for an addition. |
+| `pos` | The parts of speech the form can be, where given. |
+| `pinned_repo`, `pinned_rev` | The revision it was added on top of. |
+
 ## The tiers
 
 The site offers four nested dictionaries. This dataset is the widest of them:
 
 | Tier | What it is |
 |---|---|
-| Common | Everyday words. |
-| Standard | The default. |
-| Full | Every word in English OpenList at the pin. |
+| Common | Everyday words, plus the listed forms. |
+| Standard | The default: every attested word, plus the listed forms. |
+| Full | Every word in English OpenList at the pin, plus the listed forms. |
 | **Extended** | Full plus the additions. **This dataset.** |
 
-Common, Standard and Full are exactly English OpenList's; only Extended contains anything of the
-site's own.
+Common, Standard and Full are exactly English OpenList's plus the listed forms; only Extended
+contains the additions.
 
 ## Using it
 
@@ -77,6 +100,9 @@ from datasets import load_dataset
 
 additions = load_dataset("{{DATASET_ID}}", "additions", split="train")
 print(additions[0]["word"], "—", additions[0]["gloss"])
+
+forms = load_dataset("{{DATASET_ID}}", "forms", split="train")
+print(forms[0]["form"], "is the letters", forms[0]["letters"])
 ```
 
 `vocabulary.txt` is a plain sorted word list, one word per line:

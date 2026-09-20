@@ -133,7 +133,8 @@ export function createServer(deps: ServerDeps = {}): McpServer {
       const info = await definitions.lookup(word);
       const inTier = await e.has(word, args.tier as Tier);
       const spellings = await e.spellings(word, args.tier as Tier);
-      return text({ word, inDictionary: inTier, tier: args.tier, senses: info.senses, provenance: info.provenance, spellings });
+      // A listed form that spells the word (`it's` for `its`, `don't` for `dont`), with its meaning, beside the word's own.
+      return text({ word, inDictionary: inTier, tier: args.tier, senses: info.senses, provenance: info.provenance, forms: info.forms, spellings });
     },
   );
 

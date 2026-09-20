@@ -21,6 +21,9 @@ const FORMAT_VERSION: u16 = 1;
 const SECTION_WORDS: u32 = 1;
 const SECTION_ZIPF: u32 = 3;
 const SECTION_POS: u32 = 4;
+// Section 5 carries the site's listed forms (`don't` beside `dont`) for the
+// page; the search knows only the letters-word, so it is skipped here like any
+// section this reader does not know.
 
 #[derive(Debug)]
 pub enum DictError {

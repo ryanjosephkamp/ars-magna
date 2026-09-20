@@ -31,6 +31,7 @@ import {
 } from './analysis.ts';
 import { englishCount, englishFigure } from './letterChart.ts';
 import { MAP_LIMIT, letterMap, mapFits, mapLine } from './letterMap.ts';
+import { NO_FORMS, displayPhrase, displayRow, type Forms } from './forms.ts';
 import { addsNone, countLine, countNotes, exportTotal, tierLine, type TextCount } from './textCount.ts';
 import { createZip } from './zip.ts';
 
@@ -53,7 +54,14 @@ export type ExportInput = {
    * page that would have said it.
    */
   readonly textLeftOut: boolean;
+  /** The rows as the engine gives them: letters only. */
   readonly rows: readonly (readonly string[])[];
+  /**
+   * The dictionary's listed forms, so the files a person reads (TXT, CSV) spell
+   * `don't` as the page does. The JSON keeps the letters-words: it is data,
+   * and `vocabulary.txt` is letters-only.
+   */
+  readonly forms?: Forms;
   readonly generatedAt: Date;
 };
 
@@ -90,9 +98,10 @@ function metadata(input: ExportInput) {
   };
 }
 
-/** One anagram per line, nothing else. */
+/** One anagram per line, nothing else, spelled as the page shows it. */
 export function toTxt(input: ExportInput): string {
-  return `${input.rows.map((row) => row.join(' ')).join('\n')}\n`;
+  const forms = input.forms ?? NO_FORMS;
+  return `${input.rows.map((row) => displayPhrase(forms, row)).join('\n')}\n`;
 }
 
 /**
@@ -126,9 +135,13 @@ export function toCsv(input: ExportInput): string {
   );
   lines.push('anagram,word_count,longest_word');
 
+  const forms = input.forms ?? NO_FORMS;
   for (const row of input.rows) {
-    const longest = row.reduce((best, word) => (word.length > best.length ? word : best), '');
-    lines.push([csvCell(row.join(' ')), String(row.length), csvCell(longest)].join(','));
+    const shown = displayRow(forms, row);
+    // The longest word by its letters, spelled as shown.
+    let longest = 0;
+    for (let i = 1; i < row.length; i++) if (row[i]!.length > row[longest]!.length) longest = i;
+    lines.push([csvCell(shown.join(' ')), String(row.length), csvCell(shown[longest] ?? '')].join(','));
   }
 
   return `${lines.join('\n')}\n`;

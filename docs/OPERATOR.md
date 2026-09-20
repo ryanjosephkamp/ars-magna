@@ -121,6 +121,65 @@ a deep-run decision, taken on its own:
 pnpm hits:requeue --settings-before=s3
 ```
 
+## Add a form to the vocabulary
+
+When a contraction or a hyphenated term should be searchable, or shown with its apostrophe. Apostrophes,
+hyphens and punctuation carry no letters: the search drops them from a text, never requires them in an
+anagram, and shows them only inside a listed form. A form is a spelling with an apostrophe or hyphen whose
+letters are one word: `it's` is the letters `its`, and `don't` is the letters `dont`. The list is
+`data/vocabulary/forms.jsonl`, public like the additions, and shares their cap of 2,000.
+
+**Two kinds of form.** Where the letters are already a word of English OpenList (`its`, `well`, `cant`),
+the form adds a spelling: a search row keeps the word, and the word panel lists the form beside it with
+its meaning and the label `Site form, not in English OpenList.`; no count changes. Where the letters are
+not a word (`dont`, `youre`, `thats`), the form adds the letters-word to **every** tier, Common included,
+since a contraction is everyday English: a row shows `don't` with its apostrophe, and a count changes
+wherever those letters fit, at every tier, when the letters open an anagram class of their own (`dont`;
+20 of the 53 seeded on 2026-09-20), or at Common alone when they join a class that Common lacked (`im`
+with `mi`). `dormitory` still reads 115 and `Demis Hassabis` 15,202 at Standard. A form's letters-word
+takes no place in Common's ranking, so no pinned word leaves Common for it.
+
+**What may be listed.** A gloss and a public trace, as for an addition, usually the form's Wiktionary
+entry; `contraction` or `hyphenated`; and, where the letters are no word of the pin, the parts of speech
+the form can be, so the words of a result still read in an order (`don't` is a verb). **Never a
+possessive**: `dog's` is the letters of `dogs`, which the search already finds, and a possessive appears on
+the site only in a hit's display, by your command (see "Display on a hit", from phase P2). Capitals belong to
+a hit's display too, never to a form. No tool admits a form: the routine and Build submissions propose, and
+a form joins the dictionary when you merge the pull request that adds it.
+
+1. Propose it. The letters are derived from the form and checked, never typed:
+
+   ```bash
+   pnpm vocab:form "don't" --kind=contraction --gloss="Contraction of do not." --trace=https://en.wiktionary.org/wiki/don%27t --pos=verb
+   ```
+
+   It refuses a form with no apostrophe or hyphen, one listed already, one whose letters are a site
+   addition, and a list that would take the two files over the cap together, and it says whether the
+   letters are a word of the pin or a word the form adds.
+
+2. Rebuild the dictionary and the definition shards, exactly as "Add a word to the vocabulary" says:
+
+   ```bash
+   pnpm dict:fetch && pnpm dict:build && pnpm dict:shards
+   ```
+
+   The build carries the forms in a section of the word-list artifact beside the letters-words; the words
+   themselves stay letters-only, so the search engine never sees an apostrophe. The build holds the Full
+   tier to the pin plus the forms' new letters-words, exactly.
+
+3. Run the four suites, commit everything including `apps/web/public/dict/` and `apps/web/public/defs/`
+   with **`[dict]`** in the message, and open a pull request whose body states the artifacts' hashes
+   before and after. Merging is what admits the form.
+
+`pnpm vocab:check` covers both files on every pull request. **On the site:** the tier hints say "plus the
+site's listed contractions"; How it works has a paragraph; Build's Words known reads a typed `don't` as
+`dont`, known at every tier. **In the pipeline:** the nightly searches Common, so a form of three letters or
+more (`dont`, `thats`) can appear in a machine-generated phrase from the next queue on, spelled as its
+letters; `im` cannot, since the short-word allowlist (`tools/hits/src/short-words.txt`) is unchanged. The
+settings version is `s4` from 2026-09-20, and each queue's `summary.json` now records the dictionary it was
+enumerated with (`dictionary`: the pinned revision and the word list's hash). A hit's words are always the
+letters; its display carries the form only by your command (phase P2).
+
 ## Word requests
 
 A request is a word the pipeline thinks the vocabulary is missing. It is a proposal and nothing
@@ -170,15 +229,16 @@ in the site footer under "The words". Two files, plus a card naming the pinned r
 
 | File | What it is |
 |---|---|
-| `vocabulary.txt` | Every word the site accepts, sorted, one per line: the union the engine searches. |
+| `vocabulary.txt` | Every word the site accepts, sorted, one per line: the union the engine searches, the forms' letters-words included. |
 | `additions.jsonl` | The site's own words, each with its gloss, trace, and the revision it was added on top of. |
+| `forms.jsonl` | The site's listed forms (`it's`, `don't`), each with the word its letters spell, its gloss, trace, and the revision it was added on top of. |
 
 **English OpenList is credited, never republished as itself and never modified.** The union is a
 derived artifact, published because a claim to find every anagram is only checkable against a
 stated word list. The card sends a reader to English OpenList's own dataset for the list itself.
 
 The **Publish vocabulary** Action does it, on a merge to `main` that changes
-`data/vocabulary/additions.jsonl` or rebuilds the dictionary. It uses the same `HF_TOKEN` secret as
+`data/vocabulary/additions.jsonl` or `forms.jsonl`, or rebuilds the dictionary. It uses the same `HF_TOKEN` secret as
 the hits dataset, and creates the dataset on Hugging Face the first time it runs. Pause it with
 `gh variable set PUBLISH_VOCABULARY --body off`, and resume with `gh variable delete
 PUBLISH_VOCABULARY`.
@@ -190,9 +250,9 @@ pnpm vocab:publish --dry-run
 ```
 
 It reads the **committed artifacts**, not the pinned sources, so it needs no 330 MB fetch and
-publishes exactly what the site ships. It refuses to run when an addition is missing from those
-artifacts: that means the dictionary has not been rebuilt since the word was added, and publishing
-would announce a word the site cannot find.
+publishes exactly what the site ships. It refuses to run when an addition, or a form's letters-word, is
+missing from those artifacts: that means the dictionary has not been rebuilt since the word was added, and
+publishing would announce a word the site cannot find.
 
 ## Review a routine pull request
 
@@ -627,7 +687,9 @@ it splits a text into words as the engine does (`foldWords`). The search still l
 apostrophes, hyphens and punctuation carry no letters, and digits, symbols and letters of other scripts are
 listed as skipped. *Words known* reads each word between spaces against the tier the reader picks, and names a
 word it lacks: `doomer is in Extended, not Standard` for a word a wider tier has, `qzx is not in the dictionary`
-for one no tier has.
+for one no tier has. A typed `don't` is the word `dont`, a listed form's letters, known at every tier (see
+"Add a form to the vocabulary"); a typed `dog's` is the word `dogs`, and keeps its apostrophe only if you set it
+on the hit's display at review.
 
 **The analysis** beneath the boxes counts the letters and the words of each side, names the parts of speech
 the dictionary gives each word and how common it is, and, for the text alone, states how many anagrams the

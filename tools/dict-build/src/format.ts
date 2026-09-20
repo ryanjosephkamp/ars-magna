@@ -30,12 +30,40 @@ export const SECTION_ZIPF = 3;
  * falls back to whatever the search emitted.
  */
 export const SECTION_POS = 4;
+/**
+ * The site's listed forms: spellings with an apostrophe or hyphen whose
+ * letters are one word of the list (`it's` for `its`, `don't` for `dont`).
+ * `u32 count`, then per entry `u8 flags`, `u8 lettersLength`, the
+ * letters-word, `u8 formLength`, the form, both as bytes. Bit 0 of the flags
+ * says the form is the only spelling of its letters (`dont` is no word
+ * without its apostrophe), so a row shows the form; without it the row shows
+ * the word and the panel lists the form beside it. Several entries may name
+ * one letters-word.
+ *
+ * The words payload stays letters-only: the Rust search never sees an
+ * apostrophe, and skips this section as it skips any kind it does not know.
+ * The letters-word is carried rather than its index so the worker can read
+ * the entries without decoding the front-coded list. Optional, like POS.
+ */
+export const SECTION_FORMS = 5;
 
 export const FLAG_HAS_ZIPF = 1 << 0;
 export const FLAG_HAS_POS = 1 << 1;
+export const FLAG_HAS_FORMS = 1 << 2;
+/** Bit 0 of a form entry's flags: rows show the form, since nothing else spells its letters. */
+export const FORM_SHOWN = 1 << 0;
 
 const HEADER_BYTES = 24;
 const SECTION_ENTRY_BYTES = 12;
+
+/** One listed form as the artifact carries it. */
+export type DictForm = {
+  /** The word the search knows: the form with its apostrophes and hyphens dropped. */
+  readonly letters: string;
+  readonly form: string;
+  /** Rows show the form: it is the only spelling of its letters. */
+  readonly shown: boolean;
+};
 
 export type DictSections = {
   /** Lexicographically sorted, normalized, unique. */
@@ -44,6 +72,8 @@ export type DictSections = {
   readonly zipf: Uint8Array | null;
   /** Two bytes per word, little-endian; 0 means "no part of speech known". */
   readonly pos?: Uint8Array | null;
+  /** The listed forms, in file order; each `letters` is a word of `words`. */
+  readonly forms?: readonly DictForm[] | null;
   /** Identifies which tier this file carries. */
   readonly tier: number;
 };
@@ -87,12 +117,60 @@ function frontCode(words: readonly string[]): { payload: Uint8Array; restarts: U
   return { payload: payload.subarray(0, out), restarts };
 }
 
-export function encodeDict({ words, zipf, pos, tier }: DictSections): Uint8Array {
+/** The FORMS section's bytes. Every string is ASCII by construction (letters, `'`, `-`); the length bytes count UTF-8 bytes either way. */
+export function encodeForms(forms: readonly DictForm[]): Uint8Array {
+  const encoder = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  for (const { letters, form, shown } of forms) {
+    const l = encoder.encode(letters);
+    const f = encoder.encode(form);
+    if (l.length === 0 || l.length > 255 || f.length === 0 || f.length > 255) {
+      throw new Error(`form ${form} (${letters}) does not fit a length byte`);
+    }
+    parts.push(Uint8Array.of(shown ? FORM_SHOWN : 0, l.length), l, Uint8Array.of(f.length), f);
+  }
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(4 + total);
+  new DataView(out.buffer).setUint32(0, forms.length, true);
+  let at = 4;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+/** The FORMS section read back. `decodeForms` in `packages/engine/src/dictForms.ts` is the shipped twin; a test holds the two to one answer. */
+export function decodeForms(data: Uint8Array): DictForm[] {
+  const decoder = new TextDecoder();
+  const count = new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0, true);
+  const out: DictForm[] = [];
+  let at = 4;
+  for (let i = 0; i < count; i++) {
+    const flags = data[at++]!;
+    const lettersLength = data[at++]!;
+    const letters = decoder.decode(data.subarray(at, at + lettersLength));
+    at += lettersLength;
+    const formLength = data[at++]!;
+    const form = decoder.decode(data.subarray(at, at + formLength));
+    at += formLength;
+    out.push({ letters, form, shown: (flags & FORM_SHOWN) !== 0 });
+  }
+  return out;
+}
+
+export function encodeDict({ words, zipf, pos, forms, tier }: DictSections): Uint8Array {
   if (zipf && zipf.length !== words.length) {
     throw new Error(`zipf length ${zipf.length} != word count ${words.length}`);
   }
   if (pos && pos.length !== words.length * 2) {
     throw new Error(`pos length ${pos.length} != 2 x word count ${words.length}`);
+  }
+  if (forms) {
+    const known = new Set(words);
+    for (const { letters, form } of forms) {
+      if (!known.has(letters)) throw new Error(`form ${form}: its letters ${letters} are not a word of the list`);
+    }
   }
 
   const { payload, restarts } = frontCode(words);
@@ -104,6 +182,7 @@ export function encodeDict({ words, zipf, pos, tier }: DictSections): Uint8Array
   ];
   if (zipf) sections.push({ kind: SECTION_ZIPF, data: zipf });
   if (pos) sections.push({ kind: SECTION_POS, data: pos });
+  if (forms) sections.push({ kind: SECTION_FORMS, data: encodeForms(forms) });
 
   const tableBytes = sections.length * SECTION_ENTRY_BYTES;
   let cursor = align4(HEADER_BYTES + tableBytes);
@@ -120,7 +199,7 @@ export function encodeDict({ words, zipf, pos, tier }: DictSections): Uint8Array
   for (let i = 0; i < 8; i++) out[i] = MAGIC_DICT.charCodeAt(i);
   view.setUint16(8, FORMAT_VERSION, true);
   out[10] = tier;
-  out[11] = (zipf ? FLAG_HAS_ZIPF : 0) | (pos ? FLAG_HAS_POS : 0);
+  out[11] = (zipf ? FLAG_HAS_ZIPF : 0) | (pos ? FLAG_HAS_POS : 0) | (forms ? FLAG_HAS_FORMS : 0);
   view.setUint32(12, words.length, true);
   view.setUint16(16, BLOCK_SIZE, true);
   view.setUint16(18, placed.length, true);
@@ -144,6 +223,8 @@ export function decodeDict(buf: Uint8Array): {
   words: string[];
   zipf: Uint8Array | null;
   pos: Uint8Array | null;
+  /** Empty for a dictionary built without the section. */
+  forms: DictForm[];
 } {
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
@@ -159,6 +240,7 @@ export function decodeDict(buf: Uint8Array): {
   let words: Uint8Array | null = null;
   let zipf: Uint8Array | null = null;
   let pos: Uint8Array | null = null;
+  let forms: DictForm[] = [];
 
   for (let i = 0; i < sectionCount; i++) {
     const at = HEADER_BYTES + i * SECTION_ENTRY_BYTES;
@@ -169,6 +251,7 @@ export function decodeDict(buf: Uint8Array): {
     if (kind === SECTION_WORDS) words = slice;
     else if (kind === SECTION_ZIPF) zipf = slice;
     else if (kind === SECTION_POS) pos = slice;
+    else if (kind === SECTION_FORMS) forms = decodeForms(slice);
   }
   if (!words) throw new Error('missing WORDS section');
 
@@ -188,7 +271,7 @@ export function decodeDict(buf: Uint8Array): {
     out[i] = String.fromCharCode(...scratch.subarray(0, length));
   }
 
-  return { words: out, zipf, pos };
+  return { words: out, zipf, pos, forms };
 }
 
 /**

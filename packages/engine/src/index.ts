@@ -8,6 +8,7 @@
  */
 import type {
   DictCounts,
+  DictForm,
   ErrorCode,
   Query,
   Request,
@@ -17,6 +18,7 @@ import type {
 } from './protocol.ts';
 
 export * from './protocol.ts';
+export { readForms } from './dictForms.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
 export { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters, type Folded } from './fold.ts';
 export { isRespacing, isTextItself, sameWords } from './identity.ts';
@@ -43,7 +45,7 @@ export type CountAnswer = { readonly total: string; readonly textLeftOut: boolea
 
 export type EngineStatus =
   | { readonly state: 'loading' }
-  | { readonly state: 'ready'; readonly counts: DictCounts; readonly builtAt: string }
+  | { readonly state: 'ready'; readonly counts: DictCounts; readonly builtAt: string; readonly forms: readonly DictForm[] }
   | { readonly state: 'failed'; readonly code: ErrorCode; readonly message: string };
 
 export class ArsMagnaClient {
@@ -304,7 +306,7 @@ export class ArsMagnaClient {
     }
 
     if (message.k === 'ready') {
-      this.#setStatus({ state: 'ready', counts: message.counts, builtAt: message.builtAt });
+      this.#setStatus({ state: 'ready', counts: message.counts, builtAt: message.builtAt, forms: message.forms });
       this.#readyResolve?.();
       this.#readyResolve = null;
       return;

@@ -1,8 +1,11 @@
 import { PROVENANCE_LABEL, shouldExplain, type WordInfo } from '../lib/definitions.ts';
 
 export type WordDetail = {
+  /** The word as the engine knows it: letters only. */
   readonly word: string;
-  /** Every spelling of the anagram class this word belongs to, including itself. */
+  /** The word as the row shows it: a listed form (`don't`) where it is the only spelling of its letters, else the word. */
+  readonly display?: string;
+  /** Every spelling of the anagram class this word belongs to, including itself, as rows show them. */
   readonly spellings: readonly string[];
   readonly info: WordInfo;
   /** The sense the word reads in, in one anagram on Discover; shown before the dictionary's. */
@@ -37,13 +40,17 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
 
   return (
     <dl className="space-y-2.5">
-      {details.map(({ word, spellings, info, sense: reading }) => {
-        const others = spellings.filter((s) => s !== word);
+      {details.map(({ word, display = word, spellings, info, sense: reading }) => {
+        const others = spellings.filter((s) => s !== display);
         const explain = shouldExplain(info);
+        // A listed form under a word the dictionary has of its own (`it's` under
+        // `its`), with its meaning. A form that is the row's spelling already
+        // (`don't`) has its gloss as the definition above, so it is not repeated.
+        const listed = info.forms.filter((f) => f.form !== display);
 
         return (
           <div key={word} className="sm:flex sm:gap-3">
-            <dt className="font-display shrink-0 text-base text-ink sm:w-32">{word}</dt>
+            <dt className="font-display shrink-0 text-base text-ink sm:w-32">{display}</dt>
             <dd className="min-w-0 flex-1">
               {/* The reading this anagram uses, where the dictionary's first
                   sense would not explain it. The dictionary keeps its own order
@@ -78,9 +85,20 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
               )}
 
               {/* Usually this stands in place of a definition. For a site
-                  addition it sits under one: the gloss says what the word
-                  means, this says why the dictionary has it. */}
+                  addition or form it sits under one: the gloss says what the
+                  word means, this says why the dictionary has it. */}
               {explain && <p className="text-ink-faint">{PROVENANCE_LABEL[info.provenance]}</p>}
+
+              {listed.length > 0 && (
+                <ul className="mt-0.5 space-y-0.5">
+                  {listed.map((f) => (
+                    <li key={f.form} className="text-ink-soft">
+                      <span className="font-display text-ink">{f.form}</span> {f.gloss}{' '}
+                      <span className="text-ink-faint">{PROVENANCE_LABEL.form}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {others.length > 0 && (
                 <p className="mt-0.5 text-ink-faint">

@@ -91,10 +91,24 @@ describe.skipIf(!built)('EngineCore', () => {
   it('loads the dictionary and reports its counts', () => {
     const ready = port.last('ready');
     expect(ready).toBeDefined();
-    expect(ready!.counts.full).toBe(378_844);
-    expect(ready!.counts.signatures).toBe(350_469);
+    // The pin's 378,844 plus the 35 listed forms whose letters are no word without their apostrophe.
+    expect(ready!.counts.full).toBe(378_879);
+    expect(ready!.counts.formOnly).toBe(35);
+    // 20 of those open a class of their own (`dont`); the rest join one (`im` with `mi`).
+    expect(ready!.counts.signatures).toBe(350_489);
     expect(ready!.counts.common).toBeLessThan(ready!.counts.standard);
     expect(ready!.counts.standard).toBeLessThan(ready!.counts.full);
+  });
+
+  it('sends the listed forms with ready, and keeps every result letters-only', async () => {
+    const ready = port.last('ready')!;
+    expect(ready.forms).toHaveLength(53);
+    expect(ready.forms).toContainEqual({ letters: 'dont', form: "don't", shown: true });
+    expect(ready.forms).toContainEqual({ letters: 'its', form: "it's", shown: false });
+    // A search whose letters fit don't lists dont, at Common, as letters.
+    const rows = rowsOf(await solve("don't do it", { tier: 'common', minWordLen: 2 }));
+    expect(rows.some((row) => row.includes('dont'))).toBe(true);
+    for (const row of rows) for (const word of row) expect(word).toMatch(/^[a-z]+$/);
   });
 
   it('solves the name it is named after', async () => {

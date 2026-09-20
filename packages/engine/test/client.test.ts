@@ -52,6 +52,7 @@ const ready = (worker: FakeWorker, id: number) =>
     counts: { common: 1, standard: 2, full: 3, extended: 4, signatures: 4 },
     builtAt: 'now',
     loadMs: 1,
+    forms: [],
   });
 
 describe('ArsMagnaClient', () => {

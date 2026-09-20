@@ -20,6 +20,7 @@
     "dict:verify": "pnpm --filter @ars-magna/dict-build run verify",
     "dict:shards": "pnpm --filter @ars-magna/dict-build run shards",
     "vocab:add": "pnpm --filter @ars-magna/dict-build run vocab:add",
+    "vocab:form": "pnpm --filter @ars-magna/dict-build run vocab:form",
     "vocab:check": "pnpm --filter @ars-magna/dict-build run vocab:check",
     "vocab:publish": "pnpm --filter @ars-magna/dict-build run vocab:publish",
     "vocab:request": "pnpm --filter @ars-magna/hits run request",
