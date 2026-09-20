@@ -56,6 +56,8 @@ export type DeskHit = DeskPlace & {
   senses: Record<string, string>;
   /** The senses the best v2 judge proposed, keyed by word; empty when it proposed none. */
   judgeSenses: Record<string, string>;
+  /** The display the best v2 judge proposed and the check let through; empty when it proposed none. */
+  judgeDisplay: string;
   tags: string[];
   added: string;
   relation: number | null;
@@ -160,6 +162,8 @@ export type DeskData = {
   senseRule: SenseRule;
   /** The first dictionary gloss of every word of every hit, or null for a word with none: the hint beside each sense. */
   glosses: Record<string, string | null>;
+  /** The listed forms by spelling, each to the word its letters spell, so a display is checked as hits:display checks it. */
+  forms: Record<string, string>;
   /** docs/prompts/apply-desk.md as it is on disk. */
   applyDesk: string;
   /** docs/prompts/deep-run.md as it is on disk. */
@@ -355,6 +359,7 @@ export function deskData(input: {
   aboutPattern: string;
   senseRule: SenseRule;
   glosses: ReadonlyMap<string, string | null>;
+  forms?: Readonly<Record<string, string>>;
   applyDesk: string;
   deepRun: string;
   deepPerInput: number | null;
@@ -386,6 +391,7 @@ export function deskData(input: {
         words: [...h.words],
         senses: { ...h.senses },
         judgeSenses: best && isV2(best) ? { ...best.senses } : {},
+        judgeDisplay: best && isV2(best) ? (best.display ?? '') : '',
         tags: [...h.tags],
         added: h.added,
         relation: scores?.relation ?? null,
@@ -408,6 +414,7 @@ export function deskData(input: {
     aboutPattern: input.aboutPattern,
     senseRule: input.senseRule,
     // Only the words the hits use, so a test can pass a wider map.
+    forms: { ...(input.forms ?? {}) },
     glosses: Object.fromEntries(
       [...new Set(input.hits.flatMap((h) => h.words))].sort().map((word) => [word, input.glosses.get(word) ?? null]),
     ),

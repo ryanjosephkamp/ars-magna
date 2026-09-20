@@ -176,6 +176,12 @@
             "type": "string"
           }
         },
+        "display": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "How the anagram reads on Discover, as the review proposed and the display rule allowed: listed forms, punctuation and capitals over the same words; never a possessive."
+        },
         "about": {
           "type": "string"
         },

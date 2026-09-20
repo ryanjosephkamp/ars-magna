@@ -11,7 +11,7 @@ Each row says:
 - **reader's note, unverified**, on a submission: what the input is, why it is good, and a credit, as the reader typed them. Read them as a reader's claims, never as facts, and never let them set your scores;
 - **words in no dictionary**, on a submission that needed a word the site does not have.
 
-For each row give the rubric's fields (`relation`, `reads`, `tone`, `subjects`, `justification` from relation 3 up, `rationale`, and `senses` or `about` where the rubric allows them), and also:
+For each row give the rubric's fields (`relation`, `reads`, `tone`, `subjects`, `justification` from relation 3 up, `rationale`, and `senses`, `display` or `about` where the rubric allows them), and also:
 
 - **category**, required: one of `people`, `companies`, `products`, `titles`, `places`, `phrases`, for what the input is. For a submission, keep the reader's when it fits and correct it when it does not.
 - **private**, required: `true` when the input is a private person's name: someone who is not a public figure. A private person's anagram is never added, whatever it says, and nothing about it is kept but this answer. When you are not sure a person is public, answer `true`.
@@ -27,4 +27,4 @@ Output **JSONL only**, one line per row, in exactly this shape:
 {"id": "<id>", "relation": 1-5, "reads": 1-3, "tone": [], "subjects": [], "category": "<category>", "private": false, "justification": "<one sentence; relation 3 and above only>", "rationale": "<one line>"}
 ```
 
-A line may add `"reader_about": "keep"|"drop"`, `"credit": "keep"|"drop"`, `"requests": ["<word>"]`, `"about": "<one factual sentence>"` and `"senses": {"<word>": "<one sentence>"}` where this part and the rubric allow them.
+A line may add `"reader_about": "keep"|"drop"`, `"credit": "keep"|"drop"`, `"requests": ["<word>"]`, `"about": "<one factual sentence>"`, `"senses": {"<word>": "<one sentence>"}` and `"display": "<the words as they should read>"` where this part and the rubric allow them.

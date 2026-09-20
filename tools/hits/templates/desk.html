@@ -311,7 +311,7 @@
 
   function keyOf(d) {
     switch (d.kind) {
-      case 'status': case 'justify': case 'describe': case 'tag': case 'order': case 'note': case 'shelf': return d.kind + ':' + d.id;
+      case 'status': case 'justify': case 'describe': case 'tag': case 'order': case 'note': case 'shelf': case 'display': return d.kind + ':' + d.id;
       case 'sense': return 'sense:' + d.id + ':' + d.word;
       case 'promote': return 'promote:' + d.id;
       case 'block': return 'block:' + d.id;
@@ -346,6 +346,7 @@
       case 'justify': return d.id + ': new justification';
       case 'describe': return d.id + ': what the input is';
       case 'sense': return d.id + ': ' + (d.text ? 'sense of ' : 'clear the sense of ') + d.word;
+      case 'display': return d.id + (d.text ? ' shown as "' + d.text + '"' : ': display back to the words');
       case 'tag': return d.id + ': ' + d.add.map(function (t) { return '+' + t; }).concat(d.remove.map(function (t) { return '-' + t; })).join(' ');
       case 'promote': return d.id + ' from ' + d.queue + ', ' + d.status;
       case 'order': return d.id + ' reads "' + d.words.join(' ') + '"' + (d.hit || find('promote:' + d.id) ? '' : ', once it is promoted');
@@ -508,6 +509,58 @@
       problem);
   }
 
+  /*
+   * How a hit reads on Discover: its words in order, as themselves or as
+   * listed forms (I'm, don't), with the marks the site allows and capitals for
+   * I, names, acronyms and the start of a sentence; never an exclamation mark
+   * (decision D27). Checked as hits:display checks it, against the order
+   * chosen above when one is pending. An emptied field returns the display to
+   * the words; a field put back as it was makes no decision. Closed until
+   * opened, unless the hit reads other than its words or a decision is pending.
+   */
+  function displayControl(hit) {
+    var key = 'display:' + hit.id;
+    var plain = hit.words.join(' ');
+    var was = hit.display;
+    var pending = find(key);
+    var shown = was !== plain || !!pending;
+    var field = h('input', { type: 'text', 'aria-label': 'How ' + plain + ' reads on Discover', placeholder: plain });
+    field.value = pending ? pending.text : was;
+    var problem = h('p', { class: 'problem', role: 'status' });
+    var byJudge = h('div', { class: 'small' });
+    function showJudge() {
+      var now = field.value.replace(/\s+/g, ' ').trim();
+      byJudge.textContent = !hit.judgeDisplay ? '' : now === hit.judgeDisplay ? 'Proposed by the judge.' : 'The judge proposed: ' + hit.judgeDisplay;
+      byJudge.hidden = !hit.judgeDisplay;
+    }
+    function wordsNow() {
+      var order = find('order:' + hit.id);
+      return order ? order.words : hit.words;
+    }
+    field.addEventListener('change', function () {
+      var text = field.value.replace(/\s+/g, ' ').trim();
+      var target = text || wordsNow().join(' ');
+      var bad = target === was ? '' : displayProblem(target, wordsNow(), DATA.forms, { possessives: true }) || '';
+      problem.textContent = bad ? bad.charAt(0).toUpperCase() + bad.slice(1) + '.' : '';
+      if (bad || target === was) drop(key);
+      else upsert({ kind: 'display', id: hit.id, text: text });
+      showJudge();
+      markRow(field, hit.id);
+    });
+    showJudge();
+    var box = h('div', { class: 'senses', hidden: !shown },
+      h('label', {}, h('span', { class: 'label' }, 'Display on Discover'), field),
+      h('div', { class: 'small' }, 'The words in order, as themselves or as listed forms, with apostrophe, hyphen, comma, full stop, question mark, colon, semicolon or quotation marks, and capitals for I, names, acronyms and the start of a sentence. Empty returns it to the words.'),
+      byJudge,
+      problem);
+    var open = h('button', { class: 'link', type: 'button', hidden: shown, onclick: function () {
+      open.hidden = true;
+      box.hidden = false;
+      field.focus();
+    } }, 'Display on Discover');
+    return h('div', {}, open, box);
+  }
+
   /* An article's title from its address, as Wikipedia shows it. */
   function articleTitle(url) {
     var path = url.replace('https://en.wikipedia.org/wiki/', '');
@@ -539,24 +592,26 @@
    * word it can be reordered: tap the words in the order they should read.
    * Back in the order it had, the decision goes.
    */
-  function phraseCell(id, display, hit) {
+  function phraseCell(id, words, hit, display) {
     var key = 'order:' + id;
-    var original = display.split(' ');
+    var original = words.split(' ');
+    /* How the row reads: a hit's display (forms, punctuation, capitals) over the same words, else the words. */
+    var shown = display || words;
     var reading = h('span', {});
     var was = h('span', { class: 'reading-was' });
     var panel = h('div', { class: 'reorder', hidden: true });
     var open = h('button', { class: 'link', type: 'button', 'aria-expanded': 'false' }, 'Reorder words');
     var cell = h('td', { class: 'phrase' }, reading, was);
-    if (new Set(original).size < 2) { reading.textContent = display; return cell; }
+    if (new Set(original).size < 2) { reading.textContent = shown; return cell; }
 
     function current() {
       var pending = find(key);
       return pending ? pending.words : original;
     }
     function show() {
-      var words = current();
-      reading.textContent = words.join(' ');
-      was.textContent = words.join(' ') === display ? '' : 'was "' + display + '"';
+      var pending = find(key);
+      reading.textContent = pending ? pending.words.join(' ') : shown;
+      was.textContent = pending ? 'was "' + shown + '"' : '';
     }
     function close() {
       panel.hidden = true;
@@ -576,7 +631,7 @@
             placed.push(word);
             left.splice(i, 1);
             if (left.length) { draw(); buttons.querySelector('button').focus(); return; }
-            if (placed.join(' ') === display) drop(key);
+            if (placed.join(' ') === words) drop(key);
             else upsert({ kind: 'order', id: id, words: placed, hit: hit });
             show();
             close();
@@ -591,7 +646,7 @@
         buttons,
         h('div', { class: 'actions' },
           h('button', { class: 'link', type: 'button', onclick: function () { placed = []; left = current().slice(); draw(); } }, 'Start again'),
-          find(key) ? h('button', { class: 'link', type: 'button', onclick: function () { drop(key); show(); close(); markRow(cell, id); open.focus(); } }, 'Back to "' + display + '"') : null,
+          find(key) ? h('button', { class: 'link', type: 'button', onclick: function () { drop(key); show(); close(); markRow(cell, id); open.focus(); } }, 'Back to "' + shown + '"') : null,
           h('button', { class: 'link', type: 'button', onclick: function () { close(); open.focus(); } }, 'Cancel')));
       draw();
       panel.hidden = false;
@@ -702,7 +757,7 @@
       });
       markRow(tags, hit.id);
     });
-    return h('div', { class: 'control' }, status, text, aboutControl(hit.id, hit.about, hit.wikipedia, hit.display), senseControl(hit), tags, problem, noteControl(hit.id, hit.display, true));
+    return h('div', { class: 'control' }, status, text, aboutControl(hit.id, hit.about, hit.wikipedia, hit.display), senseControl(hit), displayControl(hit), tags, problem, noteControl(hit.id, hit.display, true));
   }
 
   function nearControls(row, queue) {
@@ -734,7 +789,7 @@
       var where = whereOf(r.hit);
       return h('tr', rowAttrs(r.id),
         withQueue ? [h('td', { class: 'scores', 'data-label': 'Queue' }, r.queue), h('td', { 'data-label': 'Input' }, r.input)] : null,
-        phraseCell(r.id, hit ? hit.display : r.display, !!hit),
+        phraseCell(r.id, hit ? hit.words.join(' ') : r.display, !!hit, hit ? hit.display : ''),
         h('td', { class: 'scores', 'data-label': 'Scores' }, 'relation ' + r.relation, h('br'), 'reads ' + r.reads),
         h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
           r.tone.length ? h('div', { class: 'small' }, r.tone.map(function (t) { return 'tone:' + t; }).join(' ')) : null),
@@ -811,7 +866,7 @@
         var where = whereOf(x);
         return h('tr', rowAttrs(x.id),
           h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
-          phraseCell(x.id, x.display, true),
+          phraseCell(x.id, x.words.join(' '), true, x.display),
           h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
             x.relation !== null ? h('div', { class: 'small' }, 'relation ' + x.relation + ', reads ' + x.reads) : null,
             x.votes ? h('div', { class: 'small' }, votesText(x.votes)) : null),
@@ -950,7 +1005,7 @@
           searchedAs.length ? h('div', { class: 'small' }, 'Searched as ' + searchedAs.map(function (s) { return s.input + ' (' + s.n + ')'; }).join(', ')) : null,
           h('div', { class: 'small' }, [p.fromSearch && p.fromSearch + ' from a search', p.typed && p.typed + ' from Build'].filter(Boolean).join(', ')),
           h('div', { class: 'small' }, p.first === p.last ? p.first : p.first + ' to ' + p.last)),
-        hit ? phraseCell(hit.id, hit.display, true) : h('td', { class: 'phrase', 'data-label': 'Anagram' }, p.words.join(' '),
+        hit ? phraseCell(hit.id, hit.words.join(' '), true, hit.display) : h('td', { class: 'phrase', 'data-label': 'Anagram' }, p.words.join(' '),
           p.unknown.length ? h('span', { class: 'reading-was' }, 'Not in the dictionary: ' + p.unknown.join(', ')) : null),
         h('td', { class: 'readers', 'data-label': 'From readers' },
           p.notes.length ? p.notes.map(noteList) : h('span', { class: 'small' }, 'Promoted from a search, with no note.')),
@@ -1126,7 +1181,7 @@
     function row(x) {
       return h('tr', rowAttrs(x.id),
         h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
-        phraseCell(x.id, x.display, true),
+        phraseCell(x.id, x.words.join(' '), true, x.display),
         h('td', { class: 'small', 'data-label': 'Judge' },
           x.relation !== null ? 'relation ' + x.relation + ', reads ' + x.reads : 'not judged',
           x.votes ? h('div', {}, votesText(x.votes)) : null,
@@ -1164,7 +1219,7 @@
       h('h2', {}, 'The Discover page'),
       h('p', { class: 'small' }, 'Every anagram the site shows, ' + total + ' in all, each labelled with the section it is in now: ' + greatest.length +
         ' in Greatest Hits, ' + interesting.length + ' in Interesting and ' + stretch.length + ' in A stretch. A prompt copied without changes changes nothing. ' +
-        'Change a label to move an anagram to another section or off the page, and edit a justification, what its input is or the sense a word reads in, reorder the words or add a note as in the review desk.'),
+        'Change a label to move an anagram to another section or off the page, and edit a justification, what its input is, the sense a word reads in or how it reads on Discover, reorder the words or add a note as in the review desk.'),
       h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show), field('Order', order)),
       list);
     draw();
@@ -1238,7 +1293,7 @@
     if (!count) {
       aside.append(h('p', { class: 'empty' }, AUDIT
         ? 'Nothing changed yet. Every anagram keeps its label until you change it here.'
-        : 'Nothing decided yet. Change a status, edit a justification, what an input is or the sense a word reads in, reorder the words, add a note or promote a near miss, and it appears here.'));
+        : 'Nothing decided yet. Change a status, edit a justification, what an input is, the sense a word reads in or how it reads on Discover, reorder the words, add a note or promote a near miss, and it appears here.'));
     } else {
       aside.append(
         h('ul', { class: 'decisions' }, state.decisions.map(function (d) {
