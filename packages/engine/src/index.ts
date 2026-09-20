@@ -59,6 +59,13 @@ export class ArsMagnaClient {
   #counting = new Set<number>();
   /** The query the worker is busy with, or 0 once it has answered. */
   #inFlight = 0;
+  /**
+   * The offset of the page asked for and not yet answered, or -1. The list
+   * asks for the next page on every frame it draws near its end, and a page
+   * takes longer than a frame, so without this one scroll to the end sent the
+   * same request a dozen times: one request per offset per query.
+   */
+  #pagePending = -1;
   #handlers = new Map<number, SolveHandlers>();
   #pending = new Map<number, { resolve(value: never): void; reject(error: Error): void }>();
   #status: EngineStatus = { state: 'loading' };
@@ -135,14 +142,20 @@ export class ArsMagnaClient {
     const id = this.#nextId++;
     this.#activeQuery = id;
     this.#inFlight = id;
+    this.#pagePending = -1;
     this.#handlers.set(id, handlers);
     this.#send(maxNodes === undefined ? { k: 'solve', id, query, first } : { k: 'solve', id, query, first, maxNodes });
     return id;
   }
 
-  /** Request more results for the active query. */
+  /**
+   * Request more results for the active query. A page already asked for and
+   * not yet answered is not asked for again; it is asked again only after its
+   * batch arrives, or once a new query replaces the one it belonged to.
+   */
   page(offset: number, len: number): void {
-    if (this.#activeQuery === 0) return;
+    if (this.#activeQuery === 0 || offset === this.#pagePending) return;
+    this.#pagePending = offset;
     this.#send({ k: 'page', id: this.#nextId++, offset, len });
   }
 
@@ -233,6 +246,7 @@ export class ArsMagnaClient {
     // not be left waiting for an onDone that will never come.
     this.#handlers.clear();
     this.#inFlight = 0;
+    this.#pagePending = -1;
     this.#counting.clear();
 
     this.#worker = this.#respawn!();
@@ -309,6 +323,9 @@ export class ArsMagnaClient {
         handlers.onCount?.(message.total, message.candidates, message.textLeftOut);
         break;
       case 'batch':
+        // Paging replies carry the query's id, so the page is told from its
+        // offset: the one waited for has arrived, and may be asked for again.
+        if (message.offset === this.#pagePending) this.#pagePending = -1;
         handlers.onBatch?.(message.offset, message.rows, message.done, message.truncated);
         break;
       case 'solved':
@@ -317,6 +334,7 @@ export class ArsMagnaClient {
         break;
       case 'error':
         if (message.id === this.#inFlight) this.#inFlight = 0;
+        this.#pagePending = -1;
         handlers.onError?.(message.code, message.message);
         this.#handlers.delete(message.id);
         break;

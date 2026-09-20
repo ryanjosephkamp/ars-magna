@@ -34,6 +34,15 @@ export type SearchState = {
    * than the letters alone would give. The page says so beside the count.
    */
   textLeftOut: boolean;
+  /**
+   * The query has its answer: its count, or an error. Until then the total in
+   * the buffer is nobody's: 0 from the reset, or the previous query's while
+   * the typing debounce runs. A query not yet answered is not a zero, so the
+   * page shows the searching state in the count's place rather than
+   * `0 anagrams` and `Nothing spells`, which on a page load stood for the 180
+   * milliseconds between the dictionary arriving and the first search.
+   */
+  answered: boolean;
 };
 
 export function useResults() {
@@ -50,6 +59,7 @@ export function useEngine(query: Query) {
     candidates: 0,
     countedLetters: null,
     textLeftOut: false,
+    answered: false,
   });
 
   // Boot the worker once.
@@ -77,27 +87,29 @@ export function useEngine(query: Query) {
 
     if (normalizeLetters(query.input).length === 0) {
       results.reset();
-      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false }));
+      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false, answered: false }));
       return;
     }
 
     const timer = setTimeout(() => {
       results.reset();
-      setState((s) => ({ ...s, searching: true, error: null, textLeftOut: false }));
+      setState((s) => ({ ...s, searching: true, error: null, textLeftOut: false, answered: false }));
 
       client.solve(
         query,
         {
           onCount: (total, candidates, textLeftOut) => {
             results.setTotal(total);
-            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input), textLeftOut }));
+            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input), textLeftOut, answered: true }));
           },
           onBatch: (offset, rows, done, truncated) =>
             results.append(offset, rows, done, truncated),
           onDone: () => setState((s) => ({ ...s, searching: false })),
           onError: (code, message) => {
             results.reset();
-            setState((s) => ({ ...s, searching: false, error: { code, message } }));
+            // An error is an answer: a word that is not in the tier, or does
+            // not fit the letters, leaves the query with no results.
+            setState((s) => ({ ...s, searching: false, error: { code, message }, answered: true }));
           },
         },
         PAGE,

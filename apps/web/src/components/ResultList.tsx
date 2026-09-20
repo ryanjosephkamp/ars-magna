@@ -109,6 +109,9 @@ export function ResultList({
   const items = virtualizer.getVirtualItems();
   const last = items.at(-1);
 
+  // Asked on every frame drawn near the end, since `last` is a new item each
+  // frame; the client sends one request per offset and drops the rest until
+  // that page arrives, so a scroll to the end asks for each page once.
   useEffect(() => {
     if (hasMore && last && last.index >= rows.length - 20) onLoadMore();
   }, [hasMore, last, rows.length, onLoadMore]);

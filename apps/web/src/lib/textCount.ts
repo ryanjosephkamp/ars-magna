@@ -33,12 +33,15 @@ export type TextCount =
   /** Every anagram, counted. */
   | { readonly kind: 'exact'; readonly total: string }
   /**
-   * At least this many; the time or the last budget ran out first. Digits
+   * A bound, not the count: the time or the last budget ran out first. Digits
    * only, no `>`. `from` names a narrower dictionary whose figure this is,
    * when that one reached further than this one's own count, or this one was
-   * not counted because that one stopped.
+   * not counted because that one stopped. `inclusive` says the count may be
+   * this figure itself: it is a narrower dictionary's exact count, which this
+   * one holds and may add nothing to, as `adds none` shows it often does. An
+   * engine floor, own or carried, is never inclusive: the count went past it.
    */
-  | { readonly kind: 'floor'; readonly total: string; readonly from?: Tier }
+  | { readonly kind: 'floor'; readonly total: string; readonly from?: Tier; readonly inclusive?: true }
   /**
    * The time ran out before the engine had found a single anagram to count.
    * `from` names the narrower dictionary that stopped, when this one was not
@@ -92,8 +95,9 @@ export async function climb(
 
 /**
  * The line `Every anagram of the text` reads: `115 in Standard`, `more than
- * 39,233,467,955 in Standard`, or a sentence when the text is too long to
- * count in the time the page allows.
+ * 39,233,467,955 in Standard`, `at least 58 in Extended` when the figure is a
+ * narrower dictionary's exact count, or a sentence when the text is too long
+ * to count in the time the page allows.
  */
 export function countLine(count: TextCount, tier: Tier, limitMs = BUILD_COUNT_LIMIT_MS): string {
   switch (count.kind) {
@@ -104,7 +108,7 @@ export function countLine(count: TextCount, tier: Tier, limitMs = BUILD_COUNT_LI
     case 'exact':
       return `${formatCount(count.total)} in ${TIER_LABEL[tier]}`;
     case 'floor':
-      return `more than ${formatCount(count.total)} in ${TIER_LABEL[tier]}`;
+      return `${count.inclusive ? 'at least' : 'more than'} ${formatCount(count.total)} in ${TIER_LABEL[tier]}`;
     case 'too-long': {
       const seconds = limitMs / 1000;
       return `The text is too long to count here; the page stops counting after ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`;
@@ -146,6 +150,15 @@ export function nextTier(chosen: Tier, counted: Readonly<Partial<Record<Tier, Te
 /** Whether digits `a` stand for a larger number than digits `b`. */
 const larger = (a: string, b: string): boolean => BigInt(a) > BigInt(b);
 
+/** A figure carried down to the wider dictionaries: the bound, which dictionary counted it, and whether the count may be the figure itself. */
+type Carried = { total: string; from: Tier; inclusive: boolean };
+
+/**
+ * Whether bound `a` says more than bound `b`: a larger figure, or the same
+ * figure passed (`more than 58`) rather than merely reached (`at least 58`).
+ */
+const tighter = (a: Carried, b: Carried): boolean => larger(a.total, b.total) || (a.total === b.total && !a.inclusive && b.inclusive);
+
 /**
  * Every dictionary's figure as the page shows it, from the counts that have
  * come in. A wider dictionary holds every anagram of a narrower one, so its
@@ -153,25 +166,36 @@ const larger = (a: string, b: string): boolean => BigInt(a) > BigInt(b);
  * rises to it, and a dictionary that stopped before finding one anagram reads
  * the narrower figure as its floor. One not yet counted reads `counting`,
  * unless a narrower dictionary's stop settles it, when it reads that figure,
- * or `too-long` when there is none. An exact count is never changed.
+ * or `too-long` when there is none. An exact count is never changed, and a
+ * figure carried from one is `inclusive`: the wider dictionary has at least
+ * that many, and may have exactly that many. A figure carried from a floor
+ * stays a floor the count went past.
  */
 export function nestCounts(counted: Readonly<Partial<Record<Tier, TextCount>>>): Record<Tier, TextCount> {
   const out = {} as Record<Tier, TextCount>;
-  /** The largest figure a narrower dictionary reached, and which dictionary counted it. */
-  let carried: { total: string; from: Tier } | null = null;
+  /** The tightest bound a narrower dictionary gave, and which dictionary counted it. */
+  let carried: Carried | null = null;
   /** The narrower dictionary that stopped, when one has. */
   let stop: Tier | null = null;
   for (const tier of TIERS) {
     const own = counted[tier];
-    const floor: TextCount | null = carried !== null && carried.total !== '0' ? { kind: 'floor', total: carried.total, from: carried.from } : null;
+    const floor: TextCount | null =
+      carried !== null && carried.total !== '0'
+        ? { kind: 'floor', total: carried.total, from: carried.from, ...(carried.inclusive ? { inclusive: true } : {}) }
+        : null;
     let shown: TextCount;
     if (own === undefined) shown = stop === null ? { kind: 'counting' } : (floor ?? { kind: 'too-long', from: stop });
     else if (own.kind === 'floor') shown = floor !== null && larger(floor.total, own.total) ? floor : own;
     else if (own.kind === 'too-long') shown = floor ?? own;
     else shown = own;
     out[tier] = shown;
-    if ((shown.kind === 'exact' || shown.kind === 'floor') && (carried === null || larger(shown.total, carried.total))) {
-      carried = { total: shown.total, from: (shown.kind === 'floor' ? shown.from : undefined) ?? tier };
+    if (shown.kind === 'exact' || shown.kind === 'floor') {
+      const bound: Carried = {
+        total: shown.total,
+        from: (shown.kind === 'floor' ? shown.from : undefined) ?? tier,
+        inclusive: shown.kind === 'exact' || shown.inclusive === true,
+      };
+      if (carried === null || tighter(bound, carried)) carried = bound;
     }
     if (stop === null && stopped(own)) stop = tier;
   }
@@ -192,15 +216,16 @@ export function addsNone(counts: Readonly<Record<Tier, TextCount>>, tier: Tier):
 
 /**
  * One dictionary's figure in the count by dictionary, where the label already
- * names it: `115`, `999 · adds none`, `more than 1,065,799`, or a sentence
- * when the time ran out before a single anagram.
+ * names it: `115`, `999 · adds none`, `more than 1,065,799`, `at least 58` for
+ * a narrower dictionary's exact count carried to one that was not counted, or
+ * a sentence when the time ran out before a single anagram.
  */
 export function tierLine(count: TextCount, same = false): string {
   switch (count.kind) {
     case 'exact':
       return same ? `${formatCount(count.total)} · adds none` : formatCount(count.total);
     case 'floor':
-      return `more than ${formatCount(count.total)}`;
+      return `${count.inclusive ? 'at least' : 'more than'} ${formatCount(count.total)}`;
     case 'too-long':
       return 'Too long to count here.';
     case 'none':
@@ -227,16 +252,18 @@ export function limitNote(limitMs = BUILD_COUNT_LIMIT_MS): string {
  * The sentences under the count by dictionary, as its figures need them: how
  * long a count may run, when one stopped; that the dictionaries nest, when a
  * figure came from a narrower one or a line reads `adds none`; and what each
- * of those means.
+ * of those means, `at least` included.
  */
 export function countNotes(counts: Readonly<Record<Tier, TextCount>>, limitMs = BUILD_COUNT_LIMIT_MS): string[] {
   const all = TIERS.map((tier) => counts[tier]);
   const carried = all.some((c) => (c.kind === 'floor' || c.kind === 'too-long') && c.from !== undefined);
+  const atLeast = all.some((c) => c.kind === 'floor' && c.inclusive === true);
   const same = TIERS.some((tier) => addsNone(counts, tier));
   return [
     ...(stoppedAny(all) ? [limitNote(limitMs)] : []),
     ...(carried || same ? ['Each dictionary holds every anagram of the ones above it.'] : []),
     ...(carried ? ['Once a count stops, the dictionaries below it are not counted and read its figure.'] : []),
+    ...(atLeast ? ['A line that reads “at least” has the exact count of the one above, and may add nothing to it.'] : []),
     ...(same ? ['A line that reads “adds none” has no anagram the one above lacks.'] : []),
   ];
 }

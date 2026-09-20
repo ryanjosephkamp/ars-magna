@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyView, isSortMode, matches, SORT_MODES, type SortMode } from './resultView.ts';
+import { applyView, countLineOf, isSortMode, matches, SORT_MODES, type SortMode } from './resultView.ts';
 
 const rows = [
   ['dormitory'],
@@ -136,5 +136,22 @@ describe('isSortMode', () => {
     expect(isSortMode('az')).toBe(true);
     expect(isSortMode('default')).toBe(true);
     expect(isSortMode('sideways')).toBe(false);
+  });
+});
+
+describe('countLineOf', () => {
+  it('shows no number until the engine has answered, so a query is never a zero before its count', () => {
+    // A page load: the dictionary is ready, the debounce runs, the buffer's total is the reset's 0.
+    expect(countLineOf({ answered: false, searching: false, total: '0', error: null })).toEqual({ kind: 'unanswered' });
+    // The search is in flight and has not counted yet.
+    expect(countLineOf({ answered: false, searching: true, total: '0', error: null })).toEqual({ kind: 'unanswered' });
+  });
+
+  it('reads a true zero, and only a true zero, as empty', () => {
+    expect(countLineOf({ answered: true, searching: false, total: '0', error: null })).toEqual({ kind: 'answered', total: '0', empty: true });
+    expect(countLineOf({ answered: true, searching: true, total: '0', error: null })).toEqual({ kind: 'answered', total: '0', empty: false });
+    expect(countLineOf({ answered: true, searching: false, total: '115', error: null })).toEqual({ kind: 'answered', total: '115', empty: false });
+    // A word the tier lacks is an answer with no results, said on the control, not as `Nothing spells`.
+    expect(countLineOf({ answered: true, searching: false, total: '0', error: { code: 'UNKNOWN_WORD' } })).toEqual({ kind: 'answered', total: '0', empty: false });
   });
 });

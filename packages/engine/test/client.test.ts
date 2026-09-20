@@ -151,6 +151,40 @@ describe('ArsMagnaClient', () => {
     expect(second.terminated).toBe(false);
   });
 
+  it('asks for a page once until its batch arrives, then again, and afresh for a new query', () => {
+    const { client, worker } = connect();
+    ready(worker, 0);
+
+    const offsets: number[] = [];
+    const solveId = client.solve(QUERY, { onBatch: (offset) => offsets.push(offset) });
+    const pages = () => worker.sent.filter((m) => m.k === 'page');
+
+    // The list asks on every frame it draws near its end; one scroll to the end
+    // of "Demis Hassabis" asked for offset 250 twelve times before this.
+    for (let frame = 0; frame < 12; frame++) client.page(250, 250);
+    expect(pages()).toHaveLength(1);
+    expect(pages()[0]).toMatchObject({ k: 'page', offset: 250, len: 250 });
+
+    // Its batch answers with the query's id. The list, longer now, asks for the
+    // next offset on every frame; that is one question too.
+    worker.reply({ k: 'batch', id: solveId, offset: 250, rows: [['x']], done: false, truncated: false });
+    expect(offsets).toEqual([250]);
+    for (let frame = 0; frame < 12; frame++) client.page(500, 250);
+    expect(pages()).toHaveLength(2);
+    expect(pages()[1]).toMatchObject({ k: 'page', offset: 500 });
+
+    // Answered, an offset may be asked for again.
+    worker.reply({ k: 'batch', id: solveId, offset: 500, rows: [['y']], done: false, truncated: false });
+    client.page(500, 250);
+    expect(pages()).toHaveLength(3);
+
+    // A new query starts afresh: its first page is a new question, whatever
+    // the last query was still waiting for.
+    client.solve({ ...QUERY, input: 'listen' }, {});
+    client.page(500, 250);
+    expect(pages()).toHaveLength(4);
+  });
+
   it('does not respawn when it has no way to', () => {
     const { client, worker } = connect();
     ready(worker, 0);

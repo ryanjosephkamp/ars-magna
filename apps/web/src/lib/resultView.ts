@@ -79,3 +79,21 @@ export function applyView(
 
   return [...filtered].sort(compare[options.sort]);
 }
+
+/**
+ * What the count line shows: the total once the engine has answered the
+ * query, with `Nothing spells …` in place of the list when that total is 0
+ * and nothing went wrong; and until then the searching state alone, in the
+ * number's place. A query not yet answered is not a zero: the 0 in the buffer
+ * is the reset's, and on a page load it stood for the 180 milliseconds
+ * between the dictionary arriving and the first search.
+ */
+export function countLineOf(state: {
+  readonly answered: boolean;
+  readonly searching: boolean;
+  readonly total: string;
+  readonly error: unknown;
+}): { readonly kind: 'unanswered' } | { readonly kind: 'answered'; readonly total: string; readonly empty: boolean } {
+  if (!state.answered) return { kind: 'unanswered' };
+  return { kind: 'answered', total: state.total, empty: !state.searching && state.total === '0' && state.error === null };
+}

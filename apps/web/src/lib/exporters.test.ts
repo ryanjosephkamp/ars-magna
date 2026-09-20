@@ -340,10 +340,22 @@ describe('the Build page’s export', () => {
   });
 
   it('says a floor is a floor, and leaves out what is not there', () => {
-    const floor = buildTxt(report({ total: '>5000000', comparison: null, skipped: { text: ['4'], anagram: [] } }));
-    expect(floor).toContain('Every anagram       more than 5,000,000 in Standard');
-    expect(floor).toContain('Skipped             4');
-    expect(floor).not.toContain('TEXT AGAINST ANAGRAM');
+    const byDictionary = nestCounts({ standard: floor('5000000'), common: exact('97') });
+    const floored = buildTxt(report({ total: '>5000000', byDictionary, comparison: null, skipped: { text: ['4'], anagram: [] } }));
+    expect(floored).toContain('Every anagram       more than 5,000,000 in Standard');
+    // Standard stopped with nothing and reads Common's exact count: at least, on the line and by dictionary.
+    const carried = nestCounts({ standard: { kind: 'too-long' }, common: exact('97') });
+    const atLeast = buildTxt(report({ total: '>97', byDictionary: carried }));
+    expect(atLeast).toContain('Every anagram       at least 97 in Standard');
+    expect(atLeast).toContain('                    Standard at least 97');
+    expect(atLeast).toContain('                    A line that reads “at least” has the exact count of the one above, and may add nothing to it.');
+    // The JSON says the same through `countedIn`: the figure is Common's, whose own entry is exact.
+    expect(JSON.parse(buildJson(report({ total: '>97', byDictionary: carried }))).byDictionary).toMatchObject({
+      common: { total: '97', isFloor: false, countedIn: 'common' },
+      standard: { total: '97', isFloor: true, countedIn: 'common' },
+    });
+    expect(floored).toContain('Skipped             4');
+    expect(floored).not.toContain('TEXT AGAINST ANAGRAM');
     expect(buildTxt(report({ total: null }))).toContain('Every anagram       —');
     const note = 'The text is too long to count here; the page stops counting after 4 seconds.';
     expect(buildTxt(report({ total: null, countNote: note }))).toContain(`Every anagram       ${note}`);
