@@ -76,7 +76,11 @@ schedules. The work itself is files: this repository, and three folders beside i
   rather than archived — "Update this manual and republish it" in `docs/OPERATOR.md` says what to do with the
   URL when it changes.
 - **The judge routine.** It runs on, and bills to, the account that created it, and keeps running whichever
-  account is coding. Pausing it, editing it or carrying a prompt over needs that account.
+  account is coding: its pull request lands in this repository either way, and the review desk is built from
+  the repository, so reviewing it needs no particular account. Pausing it, editing it or carrying a prompt over
+  needs the account that owns it, and moving it means recreating it there — "Move it to another Claude account"
+  in `docs/OPERATOR.md` gives the order, including turning the old one off first and what an exhausted plan
+  looks like.
 - **Connectors and the app's session list.** Reconnect what you use; the transcripts stay on disk.
 
 **Switching**, in order: commit and push, so the tree is clean; check `handoff/ARTIFACTS.md` for anything that
