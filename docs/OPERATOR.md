@@ -659,7 +659,11 @@ dictionary counts nothing again. The dictionaries nest, each holding every anagr
 figures nest too (`nestCounts` in `apps/web/src/lib/textCount.ts`): a wider dictionary whose exact count is the
 narrower one's reads `adds none` (`Full 999 · adds none` for "this is a test", the exact count and not a cap), a
 floor never reads less than a narrower dictionary's figure, and once a count stops at the limit the wider
-dictionaries are not counted at all, since a wider search is never cheaper: they read its figure. After the chosen
+dictionaries are not counted at all, since a wider search is never cheaper: they read its figure. A figure carried
+from a narrower dictionary's exact count reads `at least` (`Full at least 787,953,800` for "the merchant of venice
+play" with Extended chosen, where Common counted exactly and the rest stopped), since the wider dictionary holds
+those anagrams and may add nothing to them, as `adds none` shows it often does; a floor the engine stopped past,
+the line's own or carried from a narrower one, keeps `more than`. After the chosen
 dictionary the rest go narrowest first (`nextTier`), so with Extended chosen and stopped, Common is still counted,
 and Standard and Full are settled by Common if it stops too. The sentences under the lines say whichever of this
 applies.
@@ -679,7 +683,8 @@ of about 20 letters count exactly in well under a second; the time limit starts 
 run to some forty digits when the engine's count saturates; it wraps after a group of digits rather than spilling
 out of its column, and on a phone the label sits above the four lines to give it room. The TXT export sets the four
 lines and the sentences as the page does, and the JSON gives each dictionary's `total`, `isFloor`, `addsNone` and
-`countedIn`, the dictionary whose count gave the figure.
+`countedIn`, the dictionary whose count gave the figure; a floor is `at least` when that dictionary's own entry is
+exact, and `more than` otherwise.
 
 **A submission** is the reader's promotion of that anagram, with a note: a category (required), and, when
 given, what the input is (the rule in "What an input is"; the API refuses one that breaks it), why it is good

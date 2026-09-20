@@ -15,7 +15,7 @@ import type { WordDetail } from './components/WordDetails.tsx';
 import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
-import { applyView, type SortMode } from './lib/resultView.ts';
+import { applyView, countLineOf, type SortMode } from './lib/resultView.ts';
 import {
   FILTER_COUNT_LIMIT_MS,
   containingKey,
@@ -86,8 +86,8 @@ export function App() {
   const letters = folded.letters;
 
   const {
-    engine, searching, error, candidates, countedLetters, textLeftOut, loadMore, collect, at, surpriseMe, spellings, masks,
-    has,
+    engine, searching, error, candidates, countedLetters, textLeftOut, answered, loadMore, collect, at, surpriseMe, spellings,
+    masks, has,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
@@ -173,7 +173,9 @@ export function App() {
   const shownDiscoveries = hasQuery ? discovered : null;
   const promotions = usePromotions(pass, { letters: sorted, input, tier: query.tier, enabled: counted && discovered !== null });
   const total = results.total;
-  const empty = hasQuery && !searching && total === '0' && error === null;
+  // A true zero is one the engine answered: an unanswered query is not empty.
+  const countLine = countLineOf({ answered, searching, total, error });
+  const empty = hasQuery && countLine.kind === 'answered' && countLine.empty;
 
   // Must-include problems belong on that control; anything else is about the
   // query as a whole and replaces the result area rather than sitting beside
@@ -440,26 +442,35 @@ export function App() {
           {engine.state === 'ready' && hasQuery && !queryError && (
             <>
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 border-b border-rule-strong pb-3">
-                <p aria-live="polite" className="text-ink">
-                  <span className="font-display text-3xl text-accent tabular-nums">
-                    {formatCount(total)}
-                  </span>{' '}
-                  <span className="text-sm text-ink-soft">
-                    {total === '1' ? 'anagram' : 'anagrams'}
-                  </span>
-                  {/* The text is never its own anagram. When no other word shares its
-                      words' letters, that row is gone and the count is one fewer: a
-                      thing left out of a complete list is said where the count is. */}
-                  {textLeftOut && (
+                {/* The line keeps the number's height while it waits, so the count arriving moves nothing. */}
+                <p aria-live="polite" className="min-h-9 text-ink">
+                  {countLine.kind === 'answered' ? (
                     <>
-                      {' '}
-                      <span className="text-sm text-ink-faint">{TEXT_LEFT_OUT}</span>
+                      <span className="font-display text-3xl text-accent tabular-nums">
+                        {formatCount(total)}
+                      </span>{' '}
+                      <span className="text-sm text-ink-soft">
+                        {total === '1' ? 'anagram' : 'anagrams'}
+                      </span>
+                      {/* The text is never its own anagram. When no other word shares its
+                          words' letters, that row is gone and the count is one fewer: a
+                          thing left out of a complete list is said where the count is. */}
+                      {textLeftOut && (
+                        <>
+                          {' '}
+                          <span className="text-sm text-ink-faint">{TEXT_LEFT_OUT}</span>
+                        </>
+                      )}
+                      {searching && <span className="ml-2 text-xs text-ink-faint">searching…</span>}
                     </>
+                  ) : (
+                    // The query has no answer yet: no number is shown, since 0 would be
+                    // a claim the engine has not made.
+                    <span className="text-xs text-ink-faint">searching…</span>
                   )}
-                  {searching && <span className="ml-2 text-xs text-ink-faint">searching…</span>}
                 </p>
 
-                {total !== '0' && (
+                {countLine.kind === 'answered' && total !== '0' && (
                   <div className="flex items-baseline gap-5 text-sm">
                     <JumpTo total={total} at={at} onResult={setSurprise} />
                     <TextButton onClick={() => void surpriseMe().then(setSurprise)}>

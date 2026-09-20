@@ -11,7 +11,7 @@
  * pure data with no header. Its truncation is disclosed at the point of
  * download instead.
  */
-import { formatCount, type Query, type Tier } from '@ars-magna/engine';
+import { type Query, type Tier } from '@ars-magna/engine';
 import { TIERS } from '@ars-magna/engine';
 
 import {
@@ -31,7 +31,7 @@ import {
 } from './analysis.ts';
 import { englishCount, englishFigure } from './letterChart.ts';
 import { MAP_LIMIT, letterMap, mapFits, mapLine } from './letterMap.ts';
-import { addsNone, countNotes, exportTotal, tierLine, type TextCount } from './textCount.ts';
+import { addsNone, countLine, countNotes, exportTotal, tierLine, type TextCount } from './textCount.ts';
 import { createZip } from './zip.ts';
 
 /** What the page says beside the count when the text's own row was left out, and the files with it. */
@@ -292,10 +292,7 @@ export function buildTxt(report: BuildReport): string {
     ...side(report, 'anagram'),
     '',
     pad('Letter map', mapReport(report)),
-    pad(
-      'Every anagram',
-      report.total === null ? (report.countNote ?? '—') : `${formatCount(report.total)} in ${TIER_LABEL[report.tier]}`,
-    ),
+    pad('Every anagram', everyAnagram(report)),
     // One dictionary a line, as the page sets them, with the page's sentences beneath.
     ...TIERS.map((t, i) => pad(i === 0 ? 'By dictionary' : '', `${TIER_LABEL[t]} ${tierLine(report.byDictionary[t], addsNone(report.byDictionary, t))}`)),
     ...countNotes(report.byDictionary).map((note) => pad('', note)),
@@ -313,6 +310,16 @@ export function buildTxt(report: BuildReport): string {
   }
   lines.push('', `Generated ${report.generatedAt.toISOString()} by Ars Magna`, `Dictionary: ${SOURCE}`);
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * The `Every anagram` line: the chosen dictionary's figure as the count by
+ * dictionary sets it, `more than` for a floor and `at least` for a narrower
+ * dictionary's exact count carried to it, or the note when there is none.
+ */
+function everyAnagram(report: BuildReport): string {
+  if (report.total === null) return report.countNote ?? '—';
+  return countLine(report.byDictionary[report.tier], report.tier);
 }
 
 /** The same figures as data, for a reader who wants to work with them. */

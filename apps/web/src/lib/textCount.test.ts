@@ -148,6 +148,8 @@ describe('every dictionary', () => {
 
 const exact = (total: string): TextCount => ({ kind: 'exact', total });
 const floor = (total: string, from?: Tier): TextCount => (from ? { kind: 'floor', total, from } : { kind: 'floor', total });
+/** A narrower dictionary's exact count carried to one that was not counted, or stopped before it: at least this many. */
+const atLeast = (total: string, from: Tier): TextCount => ({ kind: 'floor', total, from, inclusive: true });
 
 describe('the dictionaries nest', () => {
   it('counts the chosen dictionary first, then narrowest to widest, skipping what a stop settles', () => {
@@ -198,12 +200,13 @@ describe('the dictionaries nest', () => {
     expect(nestCounts({ common: exact('58'), standard: exact('999'), full: exact('999'), extended: exact('1000') }).standard).toEqual(exact('999'));
   });
 
-  it('gives a stopped dictionary the narrower exact figure as its floor, and none from a count of 0', () => {
+  it('gives a stopped dictionary the narrower exact figure as at least, and none from a count of 0', () => {
+    // The wider dictionary holds Common's 58 and may add nothing to them, so it has at least 58, not more than.
     expect(nestCounts({ common: exact('58'), standard: { kind: 'too-long' } })).toEqual({
       common: exact('58'),
-      standard: floor('58', 'common'),
-      full: floor('58', 'common'),
-      extended: floor('58', 'common'),
+      standard: atLeast('58', 'common'),
+      full: atLeast('58', 'common'),
+      extended: atLeast('58', 'common'),
     });
     expect(nestCounts({ common: exact('0'), standard: { kind: 'too-long' } })).toEqual({
       common: exact('0'),
@@ -211,6 +214,34 @@ describe('the dictionaries nest', () => {
       full: { kind: 'too-long', from: 'standard' },
       extended: { kind: 'too-long', from: 'standard' },
     });
+  });
+
+  it('keeps more than for an engine floor, own or carried, and at least only for an exact count carried', () => {
+    // "the tragedy of king richard" at Extended on 2026-09-20: Standard exact, Full and Extended not counted.
+    const carried = nestCounts({ extended: { kind: 'too-long' }, common: exact('306950980'), standard: exact('2479528284'), full: { kind: 'too-long' } });
+    expect(carried.full).toEqual(atLeast('2479528284', 'standard'));
+    expect(carried.extended).toEqual(atLeast('2479528284', 'standard'));
+    expect(tierLine(carried.full)).toBe('at least 2,479,528,284');
+    expect(countLine(carried.extended, 'extended')).toBe('at least 2,479,528,284 in Extended');
+    // A floor the engine passed stays more than, and so does a floor carried from it.
+    const floors = nestCounts({ standard: floor('107'), common: floor('717903484') });
+    expect(floors.full).toEqual(floor('717903484', 'common'));
+    expect(tierLine(floors.full)).toBe('more than 717,903,484');
+    // A dictionary's own floor past the exact figure above it says more, and is what the next one reads.
+    const past = nestCounts({ common: exact('58'), standard: floor('58'), full: { kind: 'too-long' } });
+    expect(past.standard).toEqual(floor('58'));
+    expect(past.full).toEqual(floor('58', 'standard'));
+    expect(past.extended).toEqual(floor('58', 'standard'));
+    // A dictionary's own floor short of the exact figure above it reads at least that figure.
+    expect(nestCounts({ common: exact('58'), standard: floor('40') }).standard).toEqual(atLeast('58', 'common'));
+    // The sentence under the lines says what at least means.
+    expect(countNotes(carried)).toEqual([
+      'Each count stops after 4 seconds; “more than” means it stopped first.',
+      'Each dictionary holds every anagram of the ones above it.',
+      'Once a count stops, the dictionaries below it are not counted and read its figure.',
+      'A line that reads “at least” has the exact count of the one above, and may add nothing to it.',
+    ]);
+    expect(countNotes(floors)).not.toContain('A line that reads “at least” has the exact count of the one above, and may add nothing to it.');
   });
 
   it('reads counting for a dictionary still to come, and too long when the narrowest stopped with nothing', () => {
