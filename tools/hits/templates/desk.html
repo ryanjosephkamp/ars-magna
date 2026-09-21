@@ -240,6 +240,9 @@
 (function () {
   'use strict';
 
+  /* The engine's reading step, inlined above with compose: an input's numbers and symbols read as the site reads them. */
+  setReadings({ readInput: readInput, fullReading: fullReading, readingProblem: readingProblem, describeReading: describeReading, parseReading: parseReading });
+
   var DATA = JSON.parse(document.getElementById('desk-data').textContent);
   /* The Greatest Hits audit is this page with one tab: every anagram the site's Greatest Hits page shows. */
   var AUDIT = DATA.mode === 'audit';
@@ -316,7 +319,7 @@
       case 'promote': return 'promote:' + d.id;
       case 'block': return 'block:' + d.id;
       case 'seed': return 'seed:' + candidateIdOf(d.input, d.category);
-      case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/));
+      case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/), readingOfAdd(d));
       default: return d.kind;
     }
   }
@@ -360,7 +363,7 @@
       ].filter(Boolean).join(', ');
       case 'deep': return 'Deep run into data/queue/' + d.date;
       case 'seed': return 'Seed ' + d.input + ' (' + d.category + (d.anchors.length ? '; anchors ' + d.anchors.join(' ') : '') + ')';
-      case 'add': return 'Add ' + d.input + ': ' + d.phrase;
+      case 'add': return 'Add ' + d.input + (d.reading ? ' (' + d.reading + ')' : '') + ': ' + d.phrase;
       case 'block': return 'Block "' + d.display + '" (code ' + d.id.slice(0, 12) + ')';
       default: return d.kind;
     }
@@ -1230,17 +1233,34 @@
     var category = h('select', { 'aria-label': 'Category' }, DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
     category.value = 'phrases';
     var phrase = h('input', { type: 'text', 'aria-label': 'Anagram' });
+    /* How the input's numbers and symbols are read, where the defaults will not do: 4:drop, 2:too, 182:digits. */
+    var reading = h('input', { type: 'text', 'aria-label': 'Reading', placeholder: 'the defaults' });
+    function readingChosen() {
+      var text = reading.value.trim();
+      if (!text) return { map: undefined, problem: null };
+      var map = parseReading(text);
+      if (!map) return { map: undefined, problem: 'A reading is written item:name, comma-separated: 4:drop, 2:too, 182:digits.' };
+      var problem = readingProblem(input.value, map);
+      return { map: map, problem: problem ? 'That reading does not fit the input: ' + problem + '.' : null };
+    }
     var tier = h('select', { 'aria-label': 'Tier' }, ['common', 'standard', 'full'].map(function (t) { return h('option', { value: t }, t); }));
     var why = h('textarea', { 'aria-label': 'Justification', placeholder: 'One plain sentence for a reader' });
     var preview = h('p', { class: 'small', role: 'status' });
     var problem = h('p', { class: 'problem', role: 'alert' });
     function update() {
-      if (!input.value.trim() || !phrase.value.trim()) { preview.textContent = 'The id appears here once the input and the anagram are filled in.'; return; }
-      preview.textContent = 'Id ' + hitIdOf(input.value, category.value, phrase.value.split(/\s+/)) +
-        (phraseFits(input.value, phrase.value) ? '' : '. The letters differ from the input\'s.');
+      var chosen = readingChosen();
+      if (chosen.problem) { preview.textContent = chosen.problem; return; }
+      var read = describeReading(input.value, chosen.map);
+      if (!input.value.trim() || !phrase.value.trim()) {
+        preview.textContent = (read ? read + '. ' : '') + 'The id appears here once the input and the anagram are filled in.';
+        return;
+      }
+      preview.textContent = (read ? read + '. ' : '') + 'Id ' + hitIdOf(input.value, category.value, phrase.value.split(/\s+/), chosen.map) +
+        (phraseFits(input.value, phrase.value, chosen.map) ? '' : '. The letters differ from the input\'s.');
     }
     input.addEventListener('input', update);
     phrase.addEventListener('input', update);
+    reading.addEventListener('input', update);
     category.addEventListener('change', update);
     main.append(
       h('h2', {}, 'Add a hit'),
@@ -1248,14 +1268,19 @@
       h('fieldset', {},
         h('div', { class: 'toolbar' }, field('Input', input), field('Category', category)),
         h('div', { class: 'toolbar' }, field('Anagram, words in reading order', phrase), field('Tier', tier)),
+        h('div', { class: 'toolbar' }, field('Reading of numbers and symbols, if not the defaults', reading)),
         field('Justification', why)),
       preview,
       problem,
       h('div', { class: 'actions' }, h('button', { class: 'act primary', type: 'button', onclick: function () {
         if (!input.value.trim() || !phrase.value.trim() || !why.value.trim()) { problem.textContent = 'Fill in the input, the anagram and a justification.'; return; }
-        if (!phraseFits(input.value, phrase.value)) { problem.textContent = 'The anagram does not use exactly the input\'s letters.'; return; }
+        var chosen = readingChosen();
+        if (chosen.problem) { problem.textContent = chosen.problem; return; }
+        if (!phraseFits(input.value, phrase.value, chosen.map)) { problem.textContent = 'The anagram does not use exactly the input\'s letters.'; return; }
         problem.textContent = '';
-        upsert({ kind: 'add', input: input.value.trim(), category: category.value, phrase: phrase.value.trim(), tier: tier.value, justification: why.value.trim() });
+        var added = { kind: 'add', input: input.value.trim(), category: category.value, phrase: phrase.value.trim(), tier: tier.value, justification: why.value.trim() };
+        if (reading.value.trim()) added.reading = reading.value.trim();
+        upsert(added);
         preview.textContent = 'Added to the decisions.';
       } }, 'Add to the decisions')));
     update();

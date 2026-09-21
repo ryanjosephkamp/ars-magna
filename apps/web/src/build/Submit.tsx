@@ -42,6 +42,8 @@ const FIELD =
 type Props = {
   /** The text as typed. */
   text: string;
+  /** How its numbers and symbols are read, every item of them, or null for a text without any. */
+  reading: Record<string, string> | null;
   /** The anagram's words, folded, in the order typed. */
   words: readonly string[];
   /** How many letters the text has. */
@@ -59,7 +61,7 @@ type Props = {
  * anagram with a note for the review. The API is the search page's Promote,
  * with `via: 'typed'`, behind the same check and the same hourly limit.
  */
-export function Submit({ text, words, letters, tierOf, checked, published, pass }: Props) {
+export function Submit({ text, reading, words, letters, tierOf, checked, published, pass }: Props) {
   const key = promotionKey(words);
   const onDiscover = published?.find((hit) => promotionKey(hit.words) === key) ?? null;
   const blocked = useBlocked(key);
@@ -87,7 +89,7 @@ export function Submit({ text, words, letters, tierOf, checked, published, pass 
   } else if (blocked) {
     body = <p className="mt-4 max-w-prose text-sm text-ink-soft">This anagram cannot be submitted.</p>;
   } else {
-    body = <Form key={key} promotionKey={key} text={text} words={words} tierOf={tierOf} checked={checked} pass={pass} />;
+    body = <Form key={key} promotionKey={key} text={text} reading={reading} words={words} tierOf={tierOf} checked={checked} pass={pass} />;
   }
 
   return (
@@ -105,6 +107,7 @@ type Promo = { count: number; mine: boolean; open: boolean };
 function Form({
   promotionKey: key,
   text,
+  reading,
   words,
   tierOf,
   checked,
@@ -112,6 +115,7 @@ function Form({
 }: {
   promotionKey: string;
   text: string;
+  reading: Record<string, string> | null;
   words: readonly string[];
   tierOf: TierOf;
   checked: boolean;
@@ -149,6 +153,8 @@ function Form({
   const aboutIssue = aboutText.length > 0 ? aboutProblem(aboutText) : null;
   const payload = {
     input: text.trim(),
+    // Every item's reading, so the review reads the text as the reader did.
+    ...(reading ? { reading } : {}),
     words: [...words],
     tier: submissionTier(words, tierOf),
     on: true,

@@ -385,3 +385,79 @@ fn batch_never_writes_the_text_as_its_own_result() {
     assert!(house.contains(&vec!["appel", "house"]));
     assert!(!house.contains(&vec!["apple", "house"]));
 }
+
+/// The readings of numbers and symbols (phase N): `--read=` on `check`, and a
+/// candidate's own `reading`, or none for one from before phase N, in `batch`.
+#[test]
+fn readings_reach_check_and_batch() {
+    if !dict_built() {
+        return;
+    }
+    // By the defaults the 4 is spelled; `--read=4:drop` reads the input as the hit was made.
+    let spelled = anagram(&["check", "Reacher season 4", "as one searcher"]);
+    assert!(!spelled.status.success());
+    assert!(String::from_utf8_lossy(&spelled.stdout).contains("reacherseasonfour"));
+    let dropped = anagram(&["check", "Reacher season 4", "as one searcher", "--read=4:drop"]);
+    assert!(dropped.status.success(), "{}", String::from_utf8_lossy(&dropped.stdout));
+    let bad = anagram(&["check", "Reacher season 4", "as one searcher", "--read=4:year"]);
+    assert!(!bad.status.success());
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("cannot be read as year"));
+    let stray = anagram(&["check", "Reacher season 4", "as one searcher", "--read=5:drop"]);
+    assert!(!stray.status.success());
+    assert!(String::from_utf8_lossy(&stray.stderr).contains("no 5 to read"));
+
+    let dir = scratch("readings");
+    let input = dir.join("candidates.jsonl");
+    fs::write(
+        &input,
+        concat!(
+            r#"{"id":"areafiveonex:phrases","input":"Area 51 x","category":"phrases","source":"manual","first_seen":"2026-09-21","status":"new","reading":{"51":"digits"}}"#,
+            "\n",
+            r#"{"id":"sardar:titles","input":"Sardar 2","category":"titles","source":"trending","first_seen":"2026-09-11","status":"new"}"#,
+            "\n",
+            r#"{"id":"bad:titles","input":"Sardar 2","category":"titles","source":"trending","first_seen":"2026-09-11","status":"new","reading":{"2":"year"}}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+    let out = dir.join("out");
+    let output = anagram(&[
+        "batch",
+        &format!("--in={}", input.display()),
+        &format!("--out={}", out.display()),
+        "--tier=standard",
+        "--min-len=2",
+        "--max-words=4",
+        "--first=50",
+        "--sample=0",
+        "--settings=s5",
+    ]);
+    assert!(output.status.success(), "batch failed: {}", String::from_utf8_lossy(&output.stderr));
+    let rows: Vec<serde_json::Value> = fs::read_to_string(out.join("raw.jsonl"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    // The candidate with a reading is enumerated under it: its rows carry the reading and the letters of "area five one x".
+    let area: Vec<&serde_json::Value> = rows.iter().filter(|r| r["id"] == "areafiveonex:phrases").collect();
+    assert!(!area.is_empty());
+    for row in &area {
+        assert_eq!(row["reading"], serde_json::json!({"51": "digits"}));
+        let words: Vec<&str> = row["words"].as_array().unwrap().iter().map(|w| w.as_str().unwrap()).collect();
+        assert_eq!(letters(&words.concat()), letters("areafiveonex"), "letters of the read input");
+    }
+    // A candidate from before phase N reads as it did: the 2 dropped, no reading on its rows.
+    let sardar: Vec<&serde_json::Value> = rows.iter().filter(|r| r["id"] == "sardar:titles").collect();
+    assert!(!sardar.is_empty());
+    for row in &sardar {
+        assert!(row.get("reading").is_none());
+        let words: Vec<&str> = row["words"].as_array().unwrap().iter().map(|w| w.as_str().unwrap()).collect();
+        assert_eq!(letters(&words.concat()), letters("sardar"));
+    }
+    // A reading the input does not offer is an error row, and the summary records the defaults.
+    let summary: serde_json::Value = serde_json::from_str(&fs::read_to_string(out.join("summary.json")).unwrap()).unwrap();
+    assert_eq!(summary["readings"]["numbers"], "spell");
+    assert_eq!(summary["readings"]["@"], "letter");
+    let bad = summary["candidates"].as_array().unwrap().iter().find(|c| c["id"] == "bad:titles").unwrap();
+    assert!(bad["error"].as_str().unwrap().contains("cannot be read as year"), "{}", bad["error"]);
+}

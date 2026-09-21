@@ -79,6 +79,18 @@ describe('prefilter', () => {
     expect(pre.tier).toBe('common');
   });
 
+  it('keys a row by its input as the batch read it, and carries the reading', () => {
+    const read = prefilterRow(raw({ id: 'areafiveonex:phrases', input: 'Area 51 x', words: ['fiver', 'axe', 'one'], zipf: [10, 10, 10], tiers: ['common', 'common', 'common'], pos: [0, 0, 0], reading: { '51': 'digits' } }))!;
+    expect(read).toMatchObject({ id: 'areafiveonex:phrases:axe-fiver-one', letters: 'aaeeefinorvx', reading: { '51': 'digits' } });
+    // A row with no reading came from a candidate from before phase N: the digit was dropped.
+    const legacy = prefilterRow(raw({ id: 'reacherseason:titles', input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'], zipf: [10, 10, 10], tiers: ['common', 'common', 'common'], pos: [0, 0, 0] }), new Set(['as']))!;
+    // A re-spacing is judged on the letters the row was read with: "reacher season" is the text, "reacher season four" is not it.
+    expect(reject(raw({ id: 'reacherseason:titles', input: 'Reacher season 4', category: 'titles', words: ['reacher', 'season'], zipf: [10, 10], tiers: ['common', 'common'], pos: [0, 0] }))).toBe('identity');
+    expect(reject(raw({ id: 'reacherseasonfour:titles', input: 'Reacher season 4', category: 'titles', words: ['reacher', 'season', 'four'], zipf: [10, 10, 10], tiers: ['common', 'common', 'common'], pos: [0, 0, 0], reading: { '4': 'spell' } }))).toBe('identity');
+    expect(legacy).toMatchObject({ id: 'reacherseason:titles:as-one-searcher', letters: 'aaceeehnorrss' });
+    expect(legacy.reading).toBeUndefined();
+  });
+
   it('scores a common, well-ordered two-word phrase above a rare four-word one', () => {
     const good = score(['dirty', 'room'], [B.adj, B.noun], [130, 120]);
     const salad = score(['lar', 'outlearns', 'or', 'dorty'], [0, 0, B.conj, 0], [30, 20, 200, 10]);

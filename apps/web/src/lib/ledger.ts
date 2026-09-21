@@ -3,24 +3,28 @@
  * used, and what is left over or missing.
  *
  * Both boxes fold exactly as the search does (`@ars-magna/engine`'s fold):
- * accents to their base letters; spaces, apostrophes, hyphens and punctuation
- * carry no letters and are ignored without a word; digits, symbols and letters
- * of other scripts are ignored too, and listed as skipped so the reader can see
- * they did not count. Pure, so the tests run it without a page.
+ * numbers and the symbols `@ $ ! & +` read as letters first, by the defaults
+ * or the reader's own readings of the text; accents to their base letters;
+ * spaces, apostrophes, hyphens and punctuation carry no letters and are
+ * ignored without a word; letters of other scripts, other symbols and the
+ * items a reading leaves out are ignored too, and listed as skipped so the
+ * reader can see they did not count. Pure, so the tests run it without a page.
  */
-import { foldChar, isSkipped } from '@ars-magna/engine';
+import { NO_READING, foldChar, isSkipped, readItems, readText, type Reading } from '@ars-magna/engine';
 
 export type FoldedText = {
   /** Lowercase `[a-z]` only, in the order typed. */
   readonly letters: string;
-  /** The characters that carried something and were ignored, each once, in the order first typed. */
+  /** The characters that carried something and were ignored, each once, in the order first typed; an item read as left out is one entry (`90210`). */
   readonly skipped: readonly string[];
 };
 
-export function foldText(input: string): FoldedText {
+export function foldText(input: string, reading: Reading = NO_READING): FoldedText {
   let letters = '';
   const skipped: string[] = [];
-  for (const char of input) {
+  // An item read as left out is listed once, as typed: `90210`, `$`.
+  for (const item of readItems(input, reading)) if (item.reading === 'drop' && !skipped.includes(item.key)) skipped.push(item.key);
+  for (const char of readText(input, reading).text) {
     const folded = foldChar(char);
     if (folded.length > 0) letters += folded;
     else if (isSkipped(char) && !skipped.includes(char)) skipped.push(char);
@@ -58,8 +62,8 @@ function counts(letters: string): Map<string, number> {
   return out;
 }
 
-export function ledger(text: string, anagram: string): Ledger {
-  const t = foldText(text);
+export function ledger(text: string, anagram: string, reading: Reading = NO_READING): Ledger {
+  const t = foldText(text, reading);
   const a = foldText(anagram);
   const have = counts(t.letters);
   const used = counts(a.letters);
@@ -88,13 +92,17 @@ export function verdict(l: Ledger): string {
   return [...l.extra.map((e) => `${e.count} extra ${e.letter}`), ...l.missing.map((m) => `${m.count} missing ${m.letter}`)].join(' · ');
 }
 
-/** `11 letters`, with ` · 2 characters skipped: 4 &` when anything was skipped. Empty for a box with nothing in it. */
+/**
+ * `11 letters`, with ` · 2 characters skipped: 4 &` when anything was skipped:
+ * the characters counted, the entries listed (an item left out is one entry,
+ * `90210`, of five characters). Empty for a box with nothing in it.
+ */
 export function lettersLine(f: FoldedText): string {
   const n = f.letters.length;
   if (n === 0 && f.skipped.length === 0) return '';
   const letters = `${n.toLocaleString('en-US')} ${n === 1 ? 'letter' : 'letters'}`;
   if (f.skipped.length === 0) return letters;
-  const k = f.skipped.length;
+  const k = f.skipped.reduce((sum, entry) => sum + [...entry].length, 0);
   return `${letters} · ${k} ${k === 1 ? 'character' : 'characters'} skipped: ${f.skipped.join(' ')}`;
 }
 

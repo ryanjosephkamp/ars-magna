@@ -52,7 +52,7 @@ export type RequeueDecision = { kind: 'requeue'; ids: string[]; settingsBefore: 
 /** A deep run into one queue folder, bounded per input; the deep-run prompt carries it out. */
 export type DeepDecision = { kind: 'deep'; date: string; perInput: string };
 export type SeedDecision = { kind: 'seed'; input: string; category: CategoryName; anchors: string[] };
-export type AddDecision = { kind: 'add'; input: string; category: CategoryName; phrase: string; tier: TierName; justification: string };
+export type AddDecision = { kind: 'add'; input: string; category: CategoryName; phrase: string; tier: TierName; justification: string; reading?: string };
 /**
  * A promoted anagram never to be promoted again, by its code (the SHA-256 of
  * its key). `display` is how the desk showed it, for the list of decisions
@@ -93,14 +93,57 @@ export function shellQuote(text: string): string {
 /** Letters that do not decompose into a base letter and a mark. */
 const FOLD: Record<string, string> = { ß: 'ss', æ: 'ae', œ: 'oe', ø: 'o', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i' };
 
-/** The input's letters as the pipeline folds them: lowercase a to z, accents removed, nothing else. */
-export function foldLetters(text: string): string {
-  const mapped = [...text.toLowerCase()].map((c) => FOLD[c] ?? c).join('');
+/** A reading of an input's numbers and symbols: item → name, as `@ars-magna/engine/readings` has it. */
+export type ReadingMap = Readonly<Record<string, string>>;
+
+/**
+ * The engine's reading step, as this file uses it. This file imports nothing,
+ * since the page inlines it, so the page (which inlines the engine's
+ * `readings.ts` first) and `desk.ts` each hand the functions in with
+ * `setReadings`. Until then an input reads as before phase N: no numbers.
+ */
+export type Readings = {
+  /** The input with its numbers and symbols read as letters. */
+  readInput(input: string, reading?: ReadingMap): string;
+  /** The reading of every item, defaults filled in, or null for an input without items. */
+  fullReading(input: string, reading?: ReadingMap): Record<string, string> | null;
+  /** Why a reading does not fit the input, or null. */
+  readingProblem(input: string, reading: ReadingMap): string | null;
+  /** The reading in words: `182 read as one hundred eighty-two`. */
+  describeReading(input: string, reading?: ReadingMap): string;
+  /** `182:digits,2:too` → the map, or null when not written that way. */
+  parseReading(text: string): Record<string, string> | null;
+};
+
+let readings: Readings = {
+  readInput: (input) => input,
+  fullReading: () => null,
+  readingProblem: () => null,
+  describeReading: () => '',
+  parseReading: () => null,
+};
+
+export function setReadings(engine: Readings): void {
+  readings = engine;
+}
+
+/** The engine's reading step, for the page. */
+export function readingsOf(): Readings {
+  return readings;
+}
+
+/**
+ * The input's letters as the pipeline folds them: its numbers and symbols
+ * read (by the defaults, or as `reading` says), then lowercase a to z, accents
+ * removed, nothing else.
+ */
+export function foldLetters(text: string, reading?: ReadingMap): string {
+  const mapped = [...readings.readInput(text, reading).toLowerCase()].map((c) => FOLD[c] ?? c).join('');
   return mapped.normalize('NFKD').replace(/[^a-z]/g, '');
 }
 
-export function candidateIdOf(input: string, category: string): string {
-  return `${foldLetters(input)}:${category}`;
+export function candidateIdOf(input: string, category: string, reading?: ReadingMap): string {
+  return `${foldLetters(input, reading)}:${category}`;
 }
 
 /** The candidate a hit or a queue row belongs to: the first two parts of its id. */
@@ -108,15 +151,22 @@ export function candidateOfHit(id: string): string {
   return id.split(':').slice(0, 2).join(':');
 }
 
-export function hitIdOf(input: string, category: string, words: readonly string[]): string {
-  const folded = words.map(foldLetters).filter((w) => w.length > 0).sort();
-  return `${candidateIdOf(input, category)}:${folded.join('-')}`;
+export function hitIdOf(input: string, category: string, words: readonly string[], reading?: ReadingMap): string {
+  const folded = words.map((w) => foldLetters(w)).filter((w) => w.length > 0).sort();
+  return `${candidateIdOf(input, category, reading)}:${folded.join('-')}`;
 }
 
-/** Does the phrase use exactly the input's letters? */
-export function phraseFits(input: string, phrase: string): boolean {
-  const sorted = (text: string) => [...foldLetters(text)].sort().join('');
-  return sorted(input).length > 0 && sorted(input) === sorted(phrase);
+/** The reading an Add a hit decision names, parsed; undefined for none. */
+export function readingOfAdd(d: { reading?: string }): ReadingMap | undefined {
+  const text = d.reading?.trim();
+  if (!text) return undefined;
+  return readings.parseReading(text) ?? undefined;
+}
+
+/** Does the phrase use exactly the input's letters, the input read as `reading` says? */
+export function phraseFits(input: string, phrase: string, reading?: ReadingMap): boolean {
+  const sorted = (text: string, r?: ReadingMap) => [...foldLetters(text, r)].sort().join('');
+  return sorted(input, reading).length > 0 && sorted(input, reading) === sorted(phrase);
 }
 
 function fitsIn(word: string, input: string): boolean {
@@ -273,8 +323,10 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
 
   const seeds = lastBy<SeedDecision>(decisions, 'seed', (d) => candidateIdOf(d.input, d.category));
   if (seeds.length > 0) {
-    const lines = seeds.map((s) =>
-      JSON.stringify({
+    // A seed is read by the defaults, and records how when its input has a number or a symbol.
+    const lines = seeds.map((s) => {
+      const reading = readings.fullReading(s.input);
+      return JSON.stringify({
         id: candidateIdOf(s.input, s.category),
         input: s.input,
         category: s.category,
@@ -282,8 +334,9 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
         first_seen: today,
         status: 'new',
         ...(s.anchors.length > 0 ? { anchors: s.anchors } : {}),
-      }),
-    );
+        ...(reading ? { reading } : {}),
+      });
+    });
     commands.push(["cat >> data/candidates.jsonl <<'EOF'", ...lines, 'EOF'].join('\n'));
   }
 
@@ -383,12 +436,16 @@ export function composeCommands(decisions: readonly Decision[], today: string): 
   const blocks = lastBy<BlockDecision>(decisions, 'block', (d) => d.id).filter((d) => CODE.test(d.id));
   for (const b of blocks) commands.push(`pnpm promotions:block --code=${b.id}`);
 
-  for (const a of lastBy<AddDecision>(decisions, 'add', (d) => hitIdOf(d.input, d.category, d.phrase.split(/\s+/)))) {
-    const words = a.phrase.split(/\s+/).map(foldLetters).filter((w) => w.length > 0);
+  for (const a of lastBy<AddDecision>(decisions, 'add', (d) => hitIdOf(d.input, d.category, d.phrase.split(/\s+/), readingOfAdd(d)))) {
+    const words = a.phrase.split(/\s+/).map((w) => foldLetters(w)).filter((w) => w.length > 0);
+    // The reading the operator typed, if any, goes to the engine's check, to propose_hit and into the id.
+    const reading = readingOfAdd(a);
+    const readFlag = a.reading?.trim() ? ` --read=${shellQuote(a.reading.trim())}` : '';
+    const readArg = reading && Object.keys(reading).length > 0 ? ` and reading ${JSON.stringify(reading)}` : '';
     commands.push(
-      `cargo run --release -p anagram-cli -- check ${shellQuote(a.input)} ${shellQuote(a.phrase)} --tier=${a.tier}`,
-      `# then call the MCP tool propose_hit with input ${JSON.stringify(a.input)}, category ${a.category}, words ${JSON.stringify(words)}, tier ${a.tier} and justification ${JSON.stringify(a.justification)}`,
-      `pnpm hits:set --status=accepted ${hitIdOf(a.input, a.category, words)}`,
+      `cargo run --release -p anagram-cli -- check ${shellQuote(a.input)} ${shellQuote(a.phrase)} --tier=${a.tier}${readFlag}`,
+      `# then call the MCP tool propose_hit with input ${JSON.stringify(a.input)}, category ${a.category}, words ${JSON.stringify(words)}, tier ${a.tier}, justification ${JSON.stringify(a.justification)}${readArg}`,
+      `pnpm hits:set --status=accepted ${hitIdOf(a.input, a.category, words, reading)}`,
     );
   }
 

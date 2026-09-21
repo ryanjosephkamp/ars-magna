@@ -24,6 +24,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { TIERS, type Tier } from '@ars-magna/engine/protocol';
+import { isReading } from '@ars-magna/engine/readings';
 
 import { sameLetters } from '../check.ts';
 import { flag } from '../queue.ts';
@@ -60,10 +61,23 @@ export type PromotionRow = {
   missing: string | null;
   created_at: string;
   converted_to?: string | null;
+  /** The reader's reading of the input's numbers and symbols, as JSON, or null. */
+  reading?: string | null;
 };
 
 /** The columns the export may read. `voter` is never among them. */
-export const EXPORT_COLUMNS = ['key', 'input', 'words', 'tier', 'via', 'category', 'about', 'why', 'credit', 'missing', 'created_at', 'converted_to'] as const;
+export const EXPORT_COLUMNS = ['key', 'input', 'words', 'tier', 'via', 'category', 'about', 'why', 'credit', 'missing', 'created_at', 'converted_to', 'reading'] as const;
+
+/** A row's reading as an object, or undefined when it has none or the column does not parse. */
+export function rowReading(row: Pick<PromotionRow, 'reading'>): Record<string, string> | undefined {
+  if (!row.reading) return undefined;
+  try {
+    const value: unknown = JSON.parse(row.reading);
+    return isReading(value) && Object.keys(value).length > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** What the engine is asked: whether a word is in a tier. */
 export type WordChecker = { has(word: string, tier: Tier): Promise<boolean> };
@@ -77,8 +91,13 @@ const day = (at: string): string => at.slice(0, 10);
 const wordsOf = (text: string): string[] => text.split(' ').filter((w) => w.length > 0);
 
 /** The engine's check of one anagram's words, and whether each tier holds them all. */
-async function checkWords(words: readonly string[], inputs: readonly string[], checker: WordChecker, dictionary: Dictionary): Promise<ExportCheck> {
-  const letters = inputs.every((input) => sameLetters(input, words));
+async function checkWords(
+  words: readonly string[],
+  inputs: readonly { input: string; reading?: Record<string, string> }[],
+  checker: WordChecker,
+  dictionary: Dictionary,
+): Promise<ExportCheck> {
+  const letters = inputs.every(({ input, reading }) => sameLetters(input, words, reading ?? {}));
   const known = new Map<Tier, boolean>();
   for (const tier of TIERS) {
     let all = true;
@@ -121,9 +140,11 @@ export async function exportLines(
     for (const row of group) {
       const seen = wordsOf(row.words);
       const tier = row.tier as Tier;
+      const reading = rowReading(row);
       if (row.via === 'typed') {
         submissions.push({
           input: row.input,
+          ...(reading ? { reading } : {}),
           words: seen,
           tier,
           category: row.category && CATEGORY.has(row.category) ? (row.category as ExportSubmission['category']) : null,
@@ -135,10 +156,10 @@ export async function exportLines(
           at_tier: await atTier(seen, tier, context.checker),
         });
       } else {
-        const id = JSON.stringify([row.input, seen, tier]);
+        const id = JSON.stringify([row.input, reading ?? null, seen, tier]);
         const held = searches.get(id);
         if (held) held.n++;
-        else searches.set(id, { input: row.input, words: seen, tier, n: 1, at_tier: await atTier(seen, tier, context.checker) });
+        else searches.set(id, { input: row.input, words: seen, tier, n: 1, at_tier: await atTier(seen, tier, context.checker), ...(reading ? { reading } : {}) });
       }
     }
     const dates = group.map((r) => day(r.created_at)).sort();
@@ -151,7 +172,7 @@ export async function exportLines(
       via: { result: group.filter((r) => r.via !== 'typed').length, typed: submissions.length },
       searches: [...searches.values()].sort((a, b) => b.n - a.n || a.input.localeCompare(b.input)),
       submissions: submissions.sort((a, b) => b.created.localeCompare(a.created)),
-      check: await checkWords(words, group.map((r) => r.input), context.checker, context.dictionary),
+      check: await checkWords(words, group.map((r) => ({ input: r.input, ...(rowReading(r) ? { reading: rowReading(r)! } : {}) })), context.checker, context.dictionary),
       blocked: context.blocked.has(code),
     });
   }

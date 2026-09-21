@@ -42,7 +42,7 @@ const EMPTY: Tally = { counts: {}, mine: new Set() };
  */
 export function usePromotions(
   pass: Pass,
-  options: { letters: string; input: string; tier: string; enabled: boolean },
+  options: { letters: string; input: string; tier: string; enabled: boolean; reading?: Record<string, string> | null },
 ): Promotions {
   const { letters, enabled } = options;
   const [status, setStatus] = useState<PromotionsStatus>('loading');
@@ -52,10 +52,10 @@ export function usePromotions(
   const loadedRef = useRef<string | null>(null);
   const tallyRef = useRef(tally);
   const busyRef = useRef(new Set<string>());
-  const pressRef = useRef({ input: options.input, tier: options.tier });
+  const pressRef = useRef({ input: options.input, tier: options.tier, reading: options.reading ?? null });
   const { voter, send, say } = pass;
 
-  pressRef.current = { input: options.input, tier: options.tier };
+  pressRef.current = { input: options.input, tier: options.tier, reading: options.reading ?? null };
 
   useEffect(() => {
     tallyRef.current = tally;
@@ -100,14 +100,15 @@ export function usePromotions(
       if (status !== 'open' || busyRef.current.has(key)) return;
       const on = !tallyRef.current.mine.has(key);
       const pressedFor = lettersRef.current;
-      const { input, tier } = pressRef.current;
+      const { input, tier, reading } = pressRef.current;
       busyRef.current.add(key);
       setBusy(new Set(busyRef.current));
       setTally((t) => withVote(t, key, on));
       say('');
       void (async () => {
         try {
-          const body = await send<{ key: string; on: boolean; count: number }>('/api/promote', { input, words: [...words], tier, on });
+          // The input's reading goes with it, every item of it, so the review reads the input as the reader did.
+          const body = await send<{ key: string; on: boolean; count: number }>('/api/promote', { input, words: [...words], tier, on, ...(reading ? { reading } : {}) });
           if (lettersRef.current === pressedFor) setTally((t) => withCount(t, key, body.on, body.count));
         } catch (error) {
           if (lettersRef.current === pressedFor) setTally((t) => withVote(t, key, !on));

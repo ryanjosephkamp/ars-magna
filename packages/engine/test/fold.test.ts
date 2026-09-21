@@ -22,12 +22,15 @@ export const FOLD_CASES: readonly (readonly [string, string, number])[] = [
   ['İstanbul', 'istanbul', 0],
   ['Ryan Joseph Kamp', 'ryanjosephkamp', 0],
   ["O'Brien-Smith", 'obriensmith', 0],
-  ['Route 66!', 'route', 2],
-  ['Ben Shelton 🎾 2026', 'benshelton', 5],
+  // Numbers are read as letters (phase N); a closing exclamation mark is punctuation.
+  ['Route 66!', 'routesixtysix', 0],
+  ['Ben Shelton 🎾 2026', 'bensheltontwothousandtwentysix', 1],
   ['Владимир', '', 8],
   ['東京', '', 2],
   ['', '', 0],
-  ['1234!!', '', 4],
+  ['1234!!', 'onethousandtwohundredthirtyfour', 0],
+  ['!! ??', '', 0],
+  ['Beverly Hills 90210', 'beverlyhills', 5],
 ];
 
 describe('foldLetters', () => {
@@ -84,9 +87,12 @@ describe('foldLetters', () => {
 
   it('says which single characters are skipped, as foldLetters counts them', () => {
     for (const char of ['4', '½', 'Ж', '中', '\u{263A}']) expect(isSkipped(char), char).toBe(true);
+    // A digit is skipped only when its reading leaves it out; the cases above count those through the fold.
+    const unread = (input: string) => input.replace(/[0-9]/g, '');
     for (const char of ['a', 'Z', 'é', 'ß', ' ', "'", '-', '.', ',', '&', '’', '—']) expect(isSkipped(char), char).toBe(false);
     for (const [input, , skipped] of FOLD_CASES) {
-      expect([...input].filter(isSkipped).length, input).toBe(skipped);
+      if (input === 'Beverly Hills 90210') continue;
+      expect([...unread(input)].filter(isSkipped).length, input).toBe(skipped);
     }
   });
 });
@@ -102,10 +108,11 @@ export const WORD_CASES: readonly (readonly [string, readonly string[]])[] = [
   // A hyphen and an apostrophe carry no letters and end no word.
   ['apple-sauce', ['applesauce']],
   ["O'Brien Smith", ['obrien', 'smith']],
-  // A piece that folds to nothing is not a word.
-  ['apple & sauce 2026', ['apple', 'sauce']],
+  // A piece that folds to nothing is not a word; an ampersand and a number are read as words.
+  ['apple & sauce 2026', ['apple', 'and', 'sauce', 'two', 'thousand', 'twenty', 'six']],
+  ['apple ?? sauce', ['apple', 'sauce']],
   ['Beyoncé Knowles', ['beyonce', 'knowles']],
-  ['Straße 9', ['strasse']],
+  ['Straße 9', ['strasse', 'nine']],
   [`apple${at(0xa0)}sauce`, ['apple', 'sauce']],
   [`apple${at(0x85)}sauce`, ['apple', 'sauce']],
   [`apple${at(0x2028)}sauce`, ['apple', 'sauce']],
@@ -114,7 +121,8 @@ export const WORD_CASES: readonly (readonly [string, readonly string[]])[] = [
   // A zero-width space is not whitespace to Unicode, so it ends no word.
   [`apple${at(0x200b)}sauce`, ['applesauce']],
   ['', []],
-  ['1234 !!', []],
+  ['1234 !!', ['one', 'thousand', 'two', 'hundred', 'thirty', 'four']],
+  ['!! ??', []],
 ];
 
 /** Unicode White_Space, plus U+FEFF: the same list `counts.rs` checks Rust's against. */

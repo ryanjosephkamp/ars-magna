@@ -146,11 +146,16 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(rowsOf(p)).toHaveLength(10);
   });
 
-  it('strips digits, punctuation and case', async () => {
+  it('strips punctuation and case, and reads a number as the query says', async () => {
     const plain = rowsOf(await solve('dormitory', { tier: 'common', minWordLen: 3 }));
-    for (const variant of ['DORMITORY', "Dor-mit'ory", 'dormitory 123']) {
+    for (const variant of ['DORMITORY', "Dor-mit'ory", 'dormitory!!']) {
       expect(rowsOf(await solve(variant, { tier: 'common', minWordLen: 3 }))).toEqual(plain);
     }
+    // A number is letters now: left out only when the reading says so.
+    expect(rowsOf(await solve('dormitory 123', { tier: 'common', minWordLen: 3, reading: { '123': 'drop' } }))).toEqual(plain);
+    const read = await solve('dormitory 2', { tier: 'common', minWordLen: 3 });
+    expect(read.last('count')!.total).not.toBe(String(plain.length));
+    expect(rowsOf(read).some((row) => row.includes('two'))).toBe(true);
     // Spaces are the one thing that is kept: they say what the text's words are. The same
     // letters typed apart are not the word `dormitory`, so the word is an anagram of theirs.
     const apart = rowsOf(await solve(' d o r m i t o r y ', { tier: 'common', minWordLen: 3 }));
@@ -248,7 +253,7 @@ describe.skipIf(!built)('EngineCore', () => {
   });
 
   it('returns nothing for input with no letters', async () => {
-    for (const input of ['', '1234', '!!!', '   ']) {
+    for (const input of ['', '!!!', '   ', '?.,']) {
       const p = await solve(input);
       expect(rowsOf(p)).toHaveLength(0);
       expect(p.last('count')!.total).toBe('0');

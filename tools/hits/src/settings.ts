@@ -23,12 +23,23 @@
  * `data/vocabulary/additions.jsonl` therefore changes what enumeration finds,
  * which is why the queue keeps its own copy of the list it used.
  *
- * s4: s3 plus the listed forms (`data/vocabulary/forms.jsonl`), whose
+ * s4 (to 2026-09-21): s3 plus the listed forms (`data/vocabulary/forms.jsonl`), whose
  * letters-words are in every tier, Common included: `dont`, `youre`, `thats`
  * can appear in a phrase from this version on (`im` cannot: the short-word
  * allowlist is unchanged). The queue's `summary.json` also records the
  * dictionary it was enumerated with, its pinned revision and the built list's
  * hash, from this version on.
+ *
+ * s5: s4 plus the readings of numbers and symbols (roadmap phase N,
+ * `scripts/readings.json`). Before s5 every digit and symbol of an input was
+ * dropped; from s5 on a number on its own is spelled ("Como 1907" is the
+ * letters of *como one thousand nine hundred seven*), a digit or `$`/`!`
+ * inside a word is its keyboard letter, `@` is *a*, `&` is *and*, `+` is
+ * *plus*, and a number over four digits is dropped, unless the candidate's
+ * own `reading` says otherwise. A candidate from before s5 with a number in
+ * it is read afresh and re-id'd when a queue enumerates it again. The queue's
+ * `summary.json` records the default readings beside the dictionary, and
+ * every row of an input with items records its reading.
  */
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
@@ -38,7 +49,7 @@ import { REPO_ROOT, type Candidate, type CandidateRun } from './schema.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export const SETTINGS_VERSION = 's4';
+export const SETTINGS_VERSION = 's5';
 
 /** A candidate processed before runs were recorded counts as this. */
 export const LEGACY_RUN: Pick<CandidateRun, 'settings' | 'rubric'> = { settings: 's1', rubric: 'v1' };

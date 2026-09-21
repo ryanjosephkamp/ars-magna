@@ -14,16 +14,21 @@
  * sides, and `fold.test.ts` checks it against the browser's own NFKD over the
  * covered ranges, so the two cannot drift.
  *
- * Everything else that is not a Latin letter — punctuation, spaces, digits,
- * symbols, other scripts, emoji — is ignored. Digits, symbols and letters of
- * other scripts are *counted* as skipped so the interface can say so; spaces
- * and punctuation are not, because "O'Brien-Smith" losing its apostrophe and
- * hyphen is what everyone expects and "2 characters skipped" would be noise.
+ * Numbers and the symbols `@ $ ! & +` are read as letters first (`readings.ts`,
+ * roadmap phase N): "Blink-182" has the letters of *blink one hundred eighty
+ * two* and "Ke$ha" those of *kesha*, by the default readings unless the
+ * reader chose others (`reading`). Everything else that is not a Latin letter
+ * — punctuation, spaces, other scripts, emoji — is ignored. Letters of other
+ * scripts, other symbols and the items a reading leaves out are *counted* as
+ * skipped so the interface can say so; spaces and punctuation are not,
+ * because "O'Brien-Smith" losing its apostrophe and hyphen is what everyone
+ * expects and "2 characters skipped" would be noise.
  *
  * This must agree exactly with `normalize()` in `crates/anagram-core` and with
  * `tools/dict-build/src/normalize.ts`, which delegates here.
  */
 import { FOLD_TABLE } from './foldTable.ts';
+import { NO_READING, readText, type Reading } from './readings.ts';
 
 /** Letters of any script, digits, and "other symbols" (which is where emoji live). */
 const COUNTS_AS_SKIPPED = /^[\p{L}\p{N}\p{So}]$/u;
@@ -55,10 +60,11 @@ export function isSkipped(char: string): boolean {
   return foldChar(char).length === 0 && COUNTS_AS_SKIPPED.test(char);
 }
 
-export function foldLetters(input: string): Folded {
+export function foldLetters(input: string, reading: Reading = NO_READING): Folded {
+  const read = readText(input, reading);
   let letters = '';
-  let skipped = 0;
-  for (const char of input) {
+  let skipped = read.dropped;
+  for (const char of read.text) {
     const folded = foldChar(char);
     if (folded.length > 0) letters += folded;
     else if (COUNTS_AS_SKIPPED.test(char)) skipped++;
@@ -67,8 +73,8 @@ export function foldLetters(input: string): Folded {
 }
 
 /** The common case: just the letters. */
-export function normalizeLetters(input: string): string {
-  return foldLetters(input).letters;
+export function normalizeLetters(input: string, reading: Reading = NO_READING): string {
+  return foldLetters(input, reading).letters;
 }
 
 /**
@@ -84,14 +90,15 @@ const WORD_BREAK = /[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2
  * order, is never one of its results, while the same letters spaced
  * differently are.
  *
- * Split on whitespace only. A hyphen or an apostrophe carries no letters, so
- * "apple-sauce" is the one word `applesauce`; a piece that folds to nothing
- * ("&", "2026") is not a word and is left out. Joined back together the words
- * are exactly `normalizeLetters(input)`.
+ * Split on whitespace only, after the reading step, so a spelled number is
+ * its words ("Area 51" is `area`, `fifty`, `one`). A hyphen or an apostrophe
+ * carries no letters, so "apple-sauce" is the one word `applesauce`; a piece
+ * that folds to nothing ("!!") is not a word and is left out. Joined back
+ * together the words are exactly `normalizeLetters(input)`.
  */
-export function foldWords(input: string): string[] {
-  return input
-    .split(WORD_BREAK)
-    .map(normalizeLetters)
+export function foldWords(input: string, reading: Reading = NO_READING): string[] {
+  return readText(input, reading)
+    .text.split(WORD_BREAK)
+    .map((word) => normalizeLetters(word))
     .filter((word) => word.length > 0);
 }

@@ -26,7 +26,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { aboutProblem, candidateOf, syncAbout, tidySentence } from '../about.ts';
-import { alphagram, candidateId, hitId } from '../ids.ts';
+import { alphagram, candidateId, hitId, recordReading } from '../ids.ts';
 import { alternateCounts, tagsFor, takenCounts } from '../ingest.ts';
 import { flag } from '../queue.ts';
 import { mergeRequests, readRequests, writeRequests, type WordRequest } from '../requests.ts';
@@ -133,7 +133,7 @@ export function applyReviews(
         });
       }
     } else {
-      const id = candidateId(line.row!.input, line.verdict!.category);
+      const id = candidateId(line.row!.input, line.verdict!.category, line.row!.reading ?? {});
       toPlace.set(id, [...(toPlace.get(id) ?? []), line]);
     }
   }
@@ -144,9 +144,10 @@ export function applyReviews(
   for (const [cid, group] of toPlace) {
     const shelved = shelve(group, scores, (l) => l.key_sha256, taken.get(cid) ?? 0, alternates.get(cid) ?? 0);
     const existing = byCandidate.get(cid);
-    // The input reads as the candidate already has it; a new candidate takes the reader's spelling.
+    // The input reads as the candidate already has it; a new candidate takes the reader's spelling and reading.
     const input = existing?.input ?? group[0]!.row!.input;
-    const idOf = (line: ReviewLine) => hitId(input, line.verdict!.category, line.row!.words);
+    const reading = existing ? existing.reading : recordReading(input, group[0]!.row!.reading ?? {});
+    const idOf = (line: ReviewLine) => hitId(input, line.verdict!.category, line.row!.words, existing ? existing.reading : (reading ?? {}));
     const make = (line: ReviewLine, status: Hit['status'], alternate: boolean): Hit | null => {
       const v = line.verdict!;
       const row = line.row!;
@@ -175,7 +176,8 @@ export function applyReviews(
         words: row.words,
         // The review's checked display, else the words in order.
         display: v.display ?? row.words.join(' '),
-        letters: alphagram(input),
+        letters: alphagram(input, existing ? existing.reading : (reading ?? {})),
+        ...(reading ? { reading } : {}),
         prefilter_score: 0,
         judge: [judgement],
         added: context.date,
@@ -211,6 +213,7 @@ export function applyReviews(
       source: group[0]!.row!.kind === 'search' ? 'promotion' : 'submission',
       first_seen: context.date,
       status: 'enumerated',
+      ...(reading ? { reading } : {}),
     };
     if (!existing) {
       candidates.push(candidate);

@@ -49,3 +49,20 @@ describe('the text itself', () => {
     expect(isTextItself('apple sauce', 'apple')).toBe(false);
   });
 });
+
+describe('the text under a reading', () => {
+  it('is its own words as the reading gives them, and a re-spacing of those letters', () => {
+    // By the defaults "2 Fast 2 Furious" has the words two, fast, two, furious.
+    expect(isTextItself('2 Fast 2 Furious', ['furious', 'two', 'fast', 'two'])).toBe(true);
+    expect(isTextItself('2 Fast 2 Furious', ['furious', 'too', 'fast', 'too'])).toBe(false);
+    expect(isTextItself('2 Fast 2 Furious', ['furious', 'too', 'fast', 'too'], { '2': 'too' })).toBe(true);
+    expect(isTextItself('2 Fast 2 Furious', ['furious', 'two', 'fast', 'two'], { '2': 'too' })).toBe(false);
+    // "Area 51" is area, fifty, one: the spelled number's words are the text's own words.
+    expect(isTextItself('Area 51', ['fifty', 'one', 'area'])).toBe(true);
+    expect(isTextItself('Area 51', 'areafifty one')).toBe(true);
+    expect(isTextItself('Area 51', ['five', 'one', 'area'], { '51': 'digits' })).toBe(true);
+    expect(sameWords('Blink-182', ['blink', 'one', 'hundred', 'eighty', 'two'])).toBe(true);
+    expect(sameWords('Reacher season 4', ['reacher', 'season'], { '4': 'drop' })).toBe(true);
+    expect(sameWords('Reacher season 4', ['reacher', 'season'])).toBe(false);
+  });
+});

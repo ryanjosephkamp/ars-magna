@@ -12,6 +12,8 @@ import {
   inBoth,
   inBothSentence,
   keptPhrases,
+  legacyReading,
+  searchHref,
   splitQuery,
 } from './urlState.ts';
 
@@ -92,7 +94,9 @@ describe('urlState', () => {
     expect(decodeQuery('#i=Room').mustInclude).toEqual(['room']);
     expect(decodeQuery('#i=ro-om,%20dirty').mustInclude).toEqual(['room', 'dirty']);
     expect(decodeQuery('#i=,,,').mustInclude).toEqual([]);
-    expect(decodeQuery('#i=123').mustInclude).toEqual([]);
+    expect(decodeQuery('#i=!!').mustInclude).toEqual([]);
+    // A number in a word list is its name, as the engine folds it.
+    expect(decodeQuery('#i=123').mustInclude).toEqual(['onehundredtwentythree']);
   });
 
   it('tolerates a hash with or without its leading marker', () => {
@@ -123,12 +127,13 @@ describe('splitQuery', () => {
       maxWords: 4,
       mustInclude: ['cat'],
       mustExclude: [],
+      reading: {},
     });
   });
 
   it('reads Must exclude beside Must include, folded the way the engine folds it', () => {
     expect(decodeQuery('#q=Demis%20Hassabis&x=ai').mustExclude).toEqual(['ai']);
-    expect(decodeQuery('#x=AI,%20Is,,123').mustExclude).toEqual(['ai', 'is']);
+    expect(decodeQuery('#x=AI,%20Is,,!!').mustExclude).toEqual(['ai', 'is']);
     expect(decodeQuery('#x=caf%C3%A9').mustExclude).toEqual(['cafe']);
     expect(decodeQuery('#q=x').mustExclude).toEqual([]);
   });
@@ -212,9 +217,12 @@ describe('the Build page in the address', () => {
   it('writes only the boxes that hold something, and the dictionary only when it differs', () => {
     expect(encodeBuild(BUILD_DEFAULT)).toBe('');
     expect(encodeBuild({ ...BUILD_DEFAULT, text: 'Dario Amodei' })).toBe('t=Dario%20Amodei');
-    expect(encodeBuild({ text: 'Dario Amodei', anagram: 'I da AI doomer', tier: 'extended' })).toBe(
+    expect(encodeBuild({ text: 'Dario Amodei', anagram: 'I da AI doomer', tier: 'extended', reading: {} })).toBe(
       't=Dario%20Amodei&a=I%20da%20AI%20doomer&d=extended',
     );
+    // The reading only where it differs from the defaults, and only for items the text has.
+    expect(encodeBuild({ ...BUILD_DEFAULT, text: 'Blink-182', reading: { '182': 'digits', '5': 'drop' } })).toBe('t=Blink-182&r=182%3Adigits');
+    expect(encodeBuild({ ...BUILD_DEFAULT, text: 'Blink-182', reading: { '182': 'spell' } })).toBe('t=Blink-182');
     expect(encodeBuild({ ...BUILD_DEFAULT, text: '   ' })).toBe('');
   });
 
@@ -222,8 +230,10 @@ describe('the Build page in the address', () => {
     const cases = [
       BUILD_DEFAULT,
       { ...BUILD_DEFAULT, text: 'Dormitory', anagram: 'dirty room' },
-      { text: "It's a dog's life", anagram: 'Legit, sad foils', tier: 'full' as const },
-      { text: 'Beyoncé & 4', anagram: 'obey nce', tier: 'common' as const },
+      { text: "It's a dog's life", anagram: 'Legit, sad foils', tier: 'full' as const, reading: {} },
+      { text: 'Beyoncé & 4', anagram: 'obey nce', tier: 'common' as const, reading: {} },
+      // The text's reading rides along, only where it differs from the defaults.
+      { text: 'Blink-182 & 4', anagram: '', tier: 'standard' as const, reading: { '182': 'digits', '4': 'for' } },
     ];
     for (const original of cases) {
       expect(decodeBuild(`#${encodeBuild(original)}`)).toEqual(original);
@@ -242,5 +252,35 @@ describe('the Build page in the address', () => {
     // The search toolbar links with the text alone.
     expect(buildHref('Dormitory')).toBe('/build#t=Dormitory');
     expect(buildHref('')).toBe('/build');
+  });
+});
+
+describe('the reading in the address', () => {
+  it('writes only what differs from the defaults and reads back only what the input offers', () => {
+    const blink = { ...DEFAULT_QUERY, input: 'Blink-182' };
+    expect(encodeQuery({ ...blink, reading: {} })).toBe('q=Blink-182');
+    expect(encodeQuery({ ...blink, reading: { '182': 'spell' } })).toBe('q=Blink-182');
+    expect(encodeQuery({ ...blink, reading: { '182': 'digits' } })).toBe('q=Blink-182&r=182%3Adigits');
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: '2 Fast 2 Furious @', reading: { '2': 'too', '@': 'spell' } })).toBe('q=2%20Fast%202%20Furious%20%40&r=2%3Atoo%2C%40%3Aspell');
+    expect(decodeQuery('#q=Blink-182&r=182:digits').reading).toEqual({ '182': 'digits' });
+    expect(decodeQuery('#q=Blink-182&r=182%3Adigits').reading).toEqual({ '182': 'digits' });
+    // A link cannot read a number a way the table does not know, name an item the input lacks, or say nothing and mean something.
+    expect(decodeQuery('#q=Blink-182&r=182:year').reading).toEqual({});
+    expect(decodeQuery('#q=Blink-182&r=5:drop').reading).toEqual({});
+    expect(decodeQuery('#q=Blink-182&r=182').reading).toEqual({});
+    expect(decodeQuery('#q=Blink-182&r=182:spell').reading).toEqual({});
+    expect(decodeQuery('#q=Blink-182').reading).toEqual({});
+    // A kept phrase must fit the letters as read.
+    expect(keptPhrases('#q=Reacher%20season%204&p=as%20one%20searcher', 'Reacher season 4')).toEqual([]);
+    expect(keptPhrases('#q=Reacher%20season%204&p=as%20one%20searcher', 'Reacher season 4', { '4': 'drop' })).toEqual(['as one searcher']);
+  });
+
+  it('opens the search on a hit as the hit was read', () => {
+    expect(searchHref('Dormitory', undefined)).toBe('/#q=Dormitory');
+    expect(searchHref('Reacher season 4', { '4': 'drop' })).toBe('/#q=Reacher%20season%204&r=4%3Adrop');
+    expect(searchHref('Como 1907', { '1907': 'spell' })).toBe('/#q=Como%201907');
+    // A hit from before phase N carries no reading: its digits were dropped, so the link says so.
+    expect(searchHref('Sardar 2', undefined)).toBe('/#q=Sardar%202&r=2%3Adrop');
+    expect(legacyReading('Blink-182 vs 2')).toEqual({ '182': 'drop', '2': 'drop' });
   });
 });

@@ -47,6 +47,11 @@ import { tagPattern } from './tag.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 export const DESK_TEMPLATE = resolve(here, '../templates/desk.html');
 export const COMPOSE_SOURCE = resolve(here, 'desk/compose.ts');
+/** The engine's reading step, inlined into the page ahead of compose so the desk reads an input as the site does. */
+export const ENGINE_SOURCES = ['foldTable.ts', 'readingsTable.ts', 'readings.ts'].map((name) => ({
+  name,
+  path: resolve(here, '../../../packages/engine/src', name),
+}));
 export const APPLY_DESK_PROMPT = resolve(REPO_ROOT, 'docs/prompts/apply-desk.md');
 export const DEEP_RUN_PROMPT = resolve(REPO_ROOT, 'docs/prompts/deep-run.md');
 export const DESK_OUT = resolve(REPO_ROOT, '.cache/desk/index.html');
@@ -139,7 +144,8 @@ export async function buildDesk(options: {
     votesDate,
     promotions,
   });
-  const html = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), data, await readFile(COMPOSE_SOURCE, 'utf8'));
+  const engine = await Promise.all(ENGINE_SOURCES.map(async (m) => ({ name: m.name, source: await readFile(m.path, 'utf8') })));
+  const html = renderDesk(await readFile(DESK_TEMPLATE, 'utf8'), data, await readFile(COMPOSE_SOURCE, 'utf8'), engine);
   await mkdir(dirname(options.out), { recursive: true });
   await writeFile(options.out, html);
   return { html, data };

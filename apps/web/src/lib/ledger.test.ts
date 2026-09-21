@@ -6,7 +6,10 @@ const tray = (text: string, anagram: string) =>
 
 describe('foldText', () => {
   it('folds as the search does and lists what it skipped, once each', () => {
-    expect(foldText('Beyoncé 4 & 44 Ж')).toEqual({ letters: 'beyonce', skipped: ['4', 'Ж'] });
+    // Numbers and the symbols of the table are read as letters; what is left out is listed once, as typed.
+    expect(foldText('Beyoncé 4 & 44 Ж')).toEqual({ letters: 'beyoncefourandfortyfour', skipped: ['Ж'] });
+    expect(foldText('Beyoncé 4 & 44 Ж', { '4': 'drop', '44': 'drop' })).toEqual({ letters: 'beyonceand', skipped: ['4', '44', 'Ж'] });
+    expect(foldText('Beverly Hills 90210 ©')).toEqual({ letters: 'beverlyhills', skipped: ['90210', '©'] });
   });
 
   it('ignores apostrophes, hyphens and punctuation without listing them', () => {
@@ -48,7 +51,10 @@ describe('the ledger', () => {
     expect(ledger('Dormitory', 'dirty room').match).toBe(true);
     expect(ledger('Dormitory', '').match).toBe(false);
     expect(ledger('', '').match).toBe(false);
-    expect(ledger('4', '4').match).toBe(false);
+    expect(ledger('4', '4').match).toBe(true);
+    expect(ledger('4', 'four').match).toBe(true);
+    expect(ledger('4', '4', { '4': 'drop' }).match).toBe(false);
+    expect(ledger('?', '?').match).toBe(false);
   });
 
   it('ignores apostrophes, hyphens, punctuation, spacing and case in both boxes, and folds accents', () => {
@@ -61,7 +67,7 @@ describe('the ledger', () => {
 describe('the verdict line', () => {
   it('says nothing until the anagram has a letter', () => {
     expect(verdict(ledger('Dario Amodei', ''))).toBe('');
-    expect(verdict(ledger('Dario Amodei', ' - 4'))).toBe('');
+    expect(verdict(ledger('Dario Amodei', ' - ?'))).toBe('');
   });
 
   it('reads extras then missing letters, one per letter, in the exact form', () => {
@@ -81,8 +87,10 @@ describe('the letters line', () => {
   it('counts letters and lists what was skipped', () => {
     expect(lettersLine(foldText('Dario Amodei'))).toBe('11 letters');
     expect(lettersLine(foldText('I'))).toBe('1 letter');
-    expect(lettersLine(foldText('Route 66 & Ж'))).toBe('5 letters · 2 characters skipped: 6 Ж');
-    expect(lettersLine(foldText('Route 6'))).toBe('5 letters · 1 character skipped: 6');
+    expect(lettersLine(foldText('Route 66 & Ж'))).toBe('16 letters · 1 character skipped: Ж');
+    expect(lettersLine(foldText('Route 66 & Ж', { '66': 'drop' }))).toBe('8 letters · 3 characters skipped: 66 Ж');
+    expect(lettersLine(foldText('Route 6'))).toBe('8 letters');
+    expect(lettersLine(foldText('Route 6', { '6': 'drop' }))).toBe('5 letters · 1 character skipped: 6');
     expect(lettersLine(foldText('   '))).toBe('');
   });
 });

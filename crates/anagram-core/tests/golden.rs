@@ -118,9 +118,11 @@ fn the_name_is_an_anagram_of_what_the_site_does() {
 fn punctuation_digits_and_case_are_ignored() {
     let dict = dict_or_skip!();
     // All three are the one word `dormitory`, so all three must agree. A
-    // hyphen, an apostrophe and digits carry no letters and end no word.
+    // hyphen, an apostrophe and punctuation carry no letters and end no word.
+    // (Digits are read as letters since phase N: "dormitory 123" is not this
+    // word, and is tested with the readings.)
     let reference = solutions(&dict, "dormitory", opts(3, 2));
-    for variant in ["DORMITORY", "Dor-mit'ory", "dormitory 123"] {
+    for variant in ["DORMITORY", "Dor-mit'ory", "dormitory!!", "dormitory, ."] {
         assert_eq!(
             solutions(&dict, variant, opts(3, 2)),
             reference,
@@ -247,7 +249,9 @@ fn tiers_are_strictly_nested() {
 fn degenerate_inputs_terminate_quickly() {
     let dict = dict_or_skip!();
 
-    for input in ["", "1234!!", "!!!", "   "] {
+    // Digits are read as letters since phase N ("1234" is one thousand two
+    // hundred thirty four), so the inputs with nothing in them are these.
+    for input in ["", "!!!", "   ", "?!.,"] {
         let out = solutions(&dict, input, opts(2, 8));
         // No letters means nothing to partition. One empty solution would be
         // defensible mathematically but is a liability in a results list, so

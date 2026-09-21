@@ -7,6 +7,7 @@
  * the engine's own, so a promotion's letters agree with the search's.
  */
 import { normalizeLetters } from '@ars-magna/engine/fold';
+import { NO_READING, type Reading } from '@ars-magna/engine/readings';
 import { TIERS, type Tier } from '@ars-magna/engine/protocol';
 
 const encoder = new TextEncoder();
@@ -121,10 +122,10 @@ export function isTier(value: unknown): value is Tier {
  * using exactly the input's folded letters, within the limits. The page checks
  * this before offering Promote, so it never offers one the API would refuse.
  */
-export function promotable(input: string, words: readonly string[]): boolean {
+export function promotable(input: string, words: readonly string[], reading: Reading = NO_READING): boolean {
   if (input.trim().length === 0 || input.length > MAX_INPUT) return false;
   if (words.length === 0 || words.length > MAX_WORDS || !words.every((w) => WORD_PATTERN.test(w))) return false;
-  const letters = normalizeLetters(input);
+  const letters = normalizeLetters(input, reading);
   return letters.length <= MAX_LETTERS && sortedLetters(letters) === sortedLetters(words.join(''));
 }
 

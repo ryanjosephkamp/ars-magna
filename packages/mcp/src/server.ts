@@ -14,11 +14,12 @@ import { z } from 'zod';
 
 import { Definitions } from '@ars-magna/engine/definitions';
 import { normalizeLetters } from '@ars-magna/engine/fold';
+import { describeReading, readingProblem } from '@ars-magna/engine/readings';
 import { DEFS_DIR, Engine, fileFetch } from '@ars-magna/engine/node';
 import type { Tier } from '@ars-magna/engine/protocol';
 import { aboutProblem, syncAbout, tidySentence } from '@ars-magna/hits/about';
 import { checkAnagram } from '@ars-magna/hits/check';
-import { CATEGORIES, alphagram, candidateId, hitId } from '@ars-magna/hits/ids';
+import { CATEGORIES, alphagram, candidateId, hitId, recordReading } from '@ars-magna/hits/ids';
 import {
   CANDIDATES_PATH,
   HITS_PATH,
@@ -33,6 +34,8 @@ import {
 } from '@ars-magna/hits/schema';
 
 const tier = z.enum(['common', 'standard', 'full', 'extended']).default('standard');
+/** How the input's numbers and symbols are read, item to reading name (`{"182": "digits", "2": "too"}`); the defaults where absent. */
+const readingArg = z.record(z.string().min(1), z.string().min(1)).default({});
 
 export type ServerDeps = {
   engine?: () => Promise<Engine>;
@@ -62,15 +65,19 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         minWordLen: z.number().int().min(1).max(12).default(3),
         maxWords: z.number().int().min(1).max(64).default(4),
         mustInclude: z.array(z.string()).default([]),
+        reading: readingArg,
         first: z.number().int().min(0).max(2000).default(50),
       },
     },
     async (args) => {
+      const badReading = readingProblem(args.input, args.reading);
+      if (badReading) return text({ ok: false, reason: `reading: ${badReading}` });
       const e = await engine();
       const { total, rows, textLeftOut } = await e.solve(args.input, args, args.first);
       return text({
         input: args.input,
-        letters: alphagram(args.input),
+        reading: describeReading(args.input, args.reading),
+        letters: alphagram(args.input, args.reading),
         total,
         text_left_out: textLeftOut,
         results: rows.map((r) => r.join(' ')),
@@ -89,6 +96,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         tier,
         minWordLen: z.number().int().min(1).max(12).default(3),
         maxWords: z.number().int().min(1).max(64).default(4),
+        reading: readingArg,
       },
     },
     async (args) => {
@@ -109,6 +117,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         tier,
         minWordLen: z.number().int().min(1).max(12).default(3),
         maxWords: z.number().int().min(1).max(64).default(4),
+        reading: readingArg,
       },
     },
     async (args) => {
@@ -153,16 +162,21 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         justification: z.string().trim().min(1).max(300).optional(),
         about: z.string().optional(),
         submitter: z.string().default('mcp'),
+        reading: readingArg,
       },
     },
     async (args) => {
       const about = args.about === undefined ? null : tidySentence(args.about);
       const problem = about === null ? null : aboutProblem(about);
       if (problem) return text({ ok: false, reason: `about: ${problem}` });
+      const badReading = readingProblem(args.input, args.reading);
+      if (badReading) return text({ ok: false, reason: `reading: ${badReading}` });
+      // What the record stores: the reading of every item of the input, defaults filled in.
+      const reading = recordReading(args.input, args.reading);
 
       const e = await engine();
-      const words = args.words.map(normalizeLetters).filter((w) => w.length > 0);
-      const verdict = await checkAnagram(e, args.input, words, args.tier as Tier);
+      const words = args.words.map((word) => normalizeLetters(word)).filter((w) => w.length > 0);
+      const verdict = await checkAnagram(e, args.input, words, args.tier as Tier, args.reading);
       if (!verdict.ok) return text({ ok: false, reason: verdict.reason });
 
       const date = today();
@@ -170,17 +184,17 @@ export function createServer(deps: ServerDeps = {}): McpServer {
       const hv = await hitSchema();
       const candidates = await readJsonl(paths.candidates, cv);
       const hits = await readJsonl(paths.hits, hv);
-      const cid = candidateId(args.input, args.category);
+      const cid = candidateId(args.input, args.category, args.reading);
       const existing = candidates.find((c) => c.id === cid);
       const candidate: Candidate = existing
         ? { ...existing }
-        : { id: cid, input: args.input, category: args.category, source: 'manual', first_seen: date, status: 'enumerated' };
+        : { id: cid, input: args.input, category: args.category, source: 'manual', first_seen: date, status: 'enumerated', ...(reading ? { reading } : {}) };
       // A sentence the input already has is never replaced here; hits:describe changes one.
       const aboutWritten = about !== null && !candidate.about;
       if (aboutWritten) candidate.about = about;
       const rationale = tidySentence(args.rationale);
       const justification = args.justification ?? (rationale.length > 0 && [...rationale].length <= 300 ? rationale : undefined);
-      const id = hitId(args.input, args.category, words);
+      const id = hitId(args.input, args.category, words, args.reading);
       const newHit = !hits.some((h) => h.id === id);
       const hit: Hit = {
         id,
@@ -188,7 +202,8 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         category: args.category,
         words,
         display: words.join(' '),
-        letters: alphagram(args.input),
+        letters: alphagram(args.input, args.reading),
+        ...(reading ? { reading } : {}),
         prefilter_score: 0,
         judge: [],
         submitter: args.submitter,

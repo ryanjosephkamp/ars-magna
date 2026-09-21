@@ -15,6 +15,7 @@
  * same way.
  */
 import { foldWords, normalizeLetters } from './fold.ts';
+import { NO_READING, type Reading } from './readings.ts';
 
 /**
  * How many arrangements the re-spacing walk may try before it gives up and
@@ -46,10 +47,10 @@ export function isRespacing(words: readonly string[], letters: string): boolean 
   return walk(letters, words.map(() => false));
 }
 
-/** Whether `words` are the text's own words, in any order, folded as the engine folds them. */
-export function sameWords(text: string, words: readonly string[]): boolean {
-  const mine = foldWords(text).sort();
-  const theirs = words.map(normalizeLetters).filter((word) => word.length > 0).sort();
+/** Whether `words` are the text's own words, in any order, folded as the engine folds them, the text read as `reading` says. */
+export function sameWords(text: string, words: readonly string[], reading: Reading = NO_READING): boolean {
+  const mine = foldWords(text, reading).sort();
+  const theirs = words.map((word) => normalizeLetters(word)).filter((word) => word.length > 0).sort();
   return mine.length > 0 && mine.length === theirs.length && mine.every((word, i) => word === theirs[i]);
 }
 
@@ -57,8 +58,8 @@ export function sameWords(text: string, words: readonly string[]): boolean {
  * Whether an anagram is the text itself: the text's words in any order, or a
  * re-spacing of it. `anagram` is the words, or the text of them.
  */
-export function isTextItself(text: string, anagram: string | readonly string[]): boolean {
-  const words = typeof anagram === 'string' ? foldWords(anagram) : anagram.map(normalizeLetters).filter((word) => word.length > 0);
+export function isTextItself(text: string, anagram: string | readonly string[], reading: Reading = NO_READING): boolean {
+  const words = typeof anagram === 'string' ? foldWords(anagram) : anagram.map((word) => normalizeLetters(word)).filter((word) => word.length > 0);
   if (words.length === 0) return false;
-  return sameWords(text, words) || isRespacing(words, normalizeLetters(text));
+  return sameWords(text, words, reading) || isRespacing(words, normalizeLetters(text, reading));
 }

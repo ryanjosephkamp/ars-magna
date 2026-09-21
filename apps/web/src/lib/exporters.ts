@@ -209,6 +209,8 @@ export type BuildReport = {
   readonly text: string;
   readonly anagram: string;
   readonly tier: Tier;
+  /** How each number and symbol of the text was read: the item, the words it became, and the reading's name. */
+  readonly reading: readonly { readonly item: string; readonly readAs: string; readonly name: string }[];
   /** Exactly what the two check lines read. */
   readonly checks: { readonly lettersMatch: string; readonly wordsKnown: string };
   readonly verdict: string;
@@ -293,6 +295,7 @@ export function buildTxt(report: BuildReport): string {
     'Ars Magna — Build',
     '',
     pad('Text', report.text.trim() || '—'),
+    ...report.reading.map((r) => pad(`  ${r.item}`, r.name === 'drop' ? 'left out' : `read as ${r.readAs}`)),
     pad('Anagram', report.anagram.trim() || '—'),
     pad('Dictionary', TIER_LABEL[report.tier]),
     '',

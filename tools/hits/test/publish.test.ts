@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildDataset, configs, publishRow, publishable, type PublishedSense } from '../src/publish.ts';
+import { buildDataset, configs, publishRow, publishable, type PublishedReading, type PublishedSense } from '../src/publish.ts';
 import { hitSchema, type Hit } from '../src/schema.ts';
 
 const hit = (over: Partial<Hit>): Hit => ({
@@ -67,8 +67,16 @@ describe('publish', () => {
       { word: 'dirty', sense: 'Messy.' },
     ]);
     expect(Object.keys(full)).toEqual(Object.keys(bare));
-    expect(Object.keys(bare).slice(-3)).toEqual(['wikipedia', 'senses', 'shelf']);
+    expect(Object.keys(bare).slice(-4)).toEqual(['wikipedia', 'senses', 'reading', 'shelf']);
     expect(full).not.toHaveProperty('senses.dirty');
+  });
+
+  it('publishes the reading as a list in the input\'s order, null where the hit has none', () => {
+    expect(publishRow(hit({})).reading).toBeNull();
+    const read = publishRow(hit({ id: 'reacherseason:titles:as-one-searcher', input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'], display: 'as one searcher', letters: 'aaceeehnorrss', reading: { '4': 'drop' } }));
+    expect(read.reading).toEqual([{ item: '4', reading: 'drop' }]);
+    expect(read).not.toHaveProperty('reading.4');
+    expect(Object.keys(read)).toEqual(Object.keys(publishRow(hit({}))));
   });
 
   it('publishes the shelf and the justification, falling back to the best v2 judge', () => {
@@ -109,8 +117,8 @@ describe('publish', () => {
     // Every published row carries every field: a dataset reader infers one
     // schema for the file and chokes on a key some rows lack.
     for (const row of all) {
-      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'about', 'wikipedia', 'senses', 'shelf']));
-      const { submitter, justification, about, wikipedia, senses, shelf, ...rest } = row;
+      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'about', 'wikipedia', 'senses', 'reading', 'shelf']));
+      const { submitter, justification, about, wikipedia, senses, reading, shelf, ...rest } = row;
       expect(['greatest', 'interesting', 'stretch']).toContain(shelf);
       // The published extras aside, the row is still a valid hit.
       const back = {
@@ -120,6 +128,7 @@ describe('publish', () => {
         ...(about === null ? {} : { about }),
         ...(wikipedia === null ? {} : { wikipedia }),
         ...(senses === null ? {} : { senses: Object.fromEntries((senses as PublishedSense[]).map((s) => [s.word, s.sense])) }),
+        ...(reading === null ? {} : { reading: Object.fromEntries((reading as PublishedReading[]).map((r) => [r.item, r.reading])) }),
       };
       expect(validate(back)).toBe(true);
     }

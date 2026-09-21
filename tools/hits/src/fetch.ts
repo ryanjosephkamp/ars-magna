@@ -26,7 +26,7 @@ import { sentenceFromWikidata, syncAbout } from './about.ts';
 import { classifyWithHaiku } from './classify/haiku.ts';
 import { cleanTitle, isJunk } from './classify/junk.ts';
 import { classifyTitles, describeItems, lookupLabels, type Classification, type WikidataItem } from './classify/wikidata.ts';
-import { candidateId, type Category } from './ids.ts';
+import { candidateId, recordReading, type Category } from './ids.ts';
 import { flag, has } from './queue.ts';
 import { CANDIDATES_PATH, HITS_PATH, appendJsonl, candidateSchema, explain, hitSchema, readJsonl, today, writeJsonl, type Candidate } from './schema.ts';
 import { USER_AGENT, type RawCandidate, type Source } from './sources/source.ts';
@@ -59,13 +59,16 @@ export function toCandidates(
     const c = classified.get(item.title);
     const category = c?.category ?? haiku.get(item.title) ?? null;
     const input = cleanTitle(item.title);
+    // A new candidate is read by the defaults, and records how (phase N).
+    const reading = recordReading(input);
     const candidate: Candidate = {
-      id: candidateId(input, category ?? 'phrases'),
+      id: candidateId(input, category ?? 'phrases', {}),
       input,
       category: category ?? 'phrases',
       source: 'trending',
       first_seen: date,
       status: category ? 'new' : 'unclassified',
+      ...(reading ? { reading } : {}),
     };
     if (c?.qid) candidate.wikidata_qid = c.qid;
     if (c?.subjects.length) candidate.subjects = c.subjects;
@@ -99,8 +102,10 @@ export function reclassify(
       out.push(c);
       continue;
     }
-    const id = candidateId(c.input, category);
-    const placed: Candidate = { ...c, id, category, status: 'new' };
+    // Placed under its own reading, or, for a candidate from before phase N, read afresh by the defaults.
+    const reading = c.reading ?? recordReading(c.input);
+    const id = candidateId(c.input, category, reading ?? {});
+    const placed: Candidate = { ...c, id, category, status: 'new', ...(reading ? { reading } : {}) };
     const qid = classified.get(titleOf(c))?.qid;
     if (qid) placed.wikidata_qid = qid;
     const subjects = classified.get(titleOf(c))?.subjects;

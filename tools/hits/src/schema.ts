@@ -46,6 +46,13 @@ export type Candidate = {
   subjects?: string[];
   /** Each queue this candidate went through, oldest first. None means settings s1 and rubric v1. */
   runs?: CandidateRun[];
+  /**
+   * How each number and symbol of the input is read, every item of it (phase
+   * N): `{"4": "spell"}`. None means the candidate was made before phase N,
+   * when every item was dropped; `hits:enumerate` reads such a candidate
+   * afresh and re-ids it when its turn comes.
+   */
+  reading?: Record<string, string>;
 };
 
 /** One pass of a candidate through a queue, with the versions it was processed under. */
@@ -122,6 +129,12 @@ export type Hit = {
   /** How the hit reads on Discover: the words in order, as themselves or listed forms, with the allowed marks and capitals. */
   display: string;
   letters: string;
+  /**
+   * How each number and symbol of the input is read, every item of it (phase
+   * N): `{"4": "drop"}` on "Reacher season 4" keeps its letters as they were.
+   * None means the hit was made before phase N, when every item was dropped.
+   */
+  reading?: Record<string, string>;
   prefilter_score: number;
   judge: Judgement[];
   submitter?: string;

@@ -28,6 +28,12 @@
     },
     "display": { "type": "string", "minLength": 1, "maxLength": 200, "description": "How the hit reads on Discover: the words in reading order, as themselves or as listed forms (I'm, don't), with apostrophe, hyphen, comma, full stop, question mark, colon, semicolon and quotation marks, and capitals for I, names, acronyms and the start of a sentence; never an exclamation mark. Set by hits:display or from the judge's checked suggestion; hits:order returns it to the words. The tools check it reads exactly the words." },
     "letters": { "type": "string", "pattern": "^[a-z]+$", "description": "The sorted letters (alphagram) the input and the words share." },
+    "reading": {
+      "type": "object",
+      "propertyNames": { "pattern": "^([0-9]+(st|nd|rd|th)?|[@$!&+])$" },
+      "additionalProperties": { "type": "string", "pattern": "^(spell|digits|year|letter|drop|zero|oh|one|won|two|to|too|three|four|for|five|six|seven|eight|ate|nine)$" },
+      "description": "How each number and symbol of the input is read, every item of it, keyed by the item as typed without thousands separators (182, 9th, @) with the reading name: spell, digits, year, letter, drop, or a homophone word (to, too, for, ate, won, oh). Absent on a hit made before phase N, when every number and symbol was dropped; the id and the letters follow the reading either way."
+    },
     "prefilter_score": { "type": "number" },
     "judge": {
       "type": "array",

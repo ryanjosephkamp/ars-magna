@@ -161,6 +161,7 @@ export function reviewLines(
       row: {
         kind: view.kind,
         input: view.input,
+        ...(view.reading ? { reading: view.reading } : {}),
         words: view.words,
         tier: line.check.narrowest,
         missing: view.missing,

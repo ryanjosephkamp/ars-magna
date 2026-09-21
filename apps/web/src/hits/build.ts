@@ -30,6 +30,8 @@ export type HitRecord = {
   words: string[];
   display: string;
   letters: string;
+  /** How the input's numbers and symbols are read, every item of them; absent on a hit from before phase N, whose items were dropped. */
+  reading?: Record<string, string>;
   judge: JudgeRecord[];
   submitter?: string;
   added: string;
@@ -53,6 +55,8 @@ export type PublicHit = {
   display: string;
   words: string[];
   letters: string;
+  /** How the input's numbers and symbols are read, so the search opens on the same letters; absent on a hit from before phase N. */
+  reading?: Record<string, string>;
   justification: string;
   shelf: Shelf;
   score: number | null;
@@ -138,6 +142,7 @@ export function toPublic(hit: HitRecord): PublicHit {
     display: hit.display,
     words: hit.words,
     letters: hit.letters,
+    ...(hit.reading ? { reading: hit.reading } : {}),
     // The operator's own sentence first, then the v2 judge's, then the v1 rationale, then a submitter's note.
     justification: hit.justification ?? v2?.justification ?? v1?.rationale ?? note ?? '',
     shelf: shelfOf(hit),

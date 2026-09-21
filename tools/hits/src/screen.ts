@@ -20,6 +20,8 @@ import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { formatReading, parseReading } from '@ars-magna/engine/readings';
+
 import { SCREEN_KEEP_CAP, screenKeepProblems } from './guards.ts';
 import { alphagram, hitId, isCategory, type Category } from './ids.ts';
 import type { Prefiltered } from './prefilter.ts';
@@ -35,6 +37,8 @@ export type ScreenGroup = {
   candidate_id: string;
   input: string;
   category: Category;
+  /** How the input's numbers and symbols were read, when it has any. */
+  reading?: Record<string, string>;
   /** Numbered from 1, best-reading first. */
   phrases: { display: string; score: number }[];
 };
@@ -46,7 +50,9 @@ export type ScreenPart = { group: ScreenGroup; from: number; to: number };
 export function groupForScreen(rows: readonly Prefiltered[]): ScreenGroup[] {
   const groups = new Map<string, ScreenGroup>();
   for (const row of rows) {
-    const group = groups.get(row.candidate_id) ?? { candidate_id: row.candidate_id, input: row.input, category: row.category, phrases: [] };
+    const group =
+      groups.get(row.candidate_id) ??
+      { candidate_id: row.candidate_id, input: row.input, category: row.category, ...(row.reading ? { reading: row.reading } : {}), phrases: [] };
     group.phrases.push({ display: row.display, score: row.prefilter_score });
     groups.set(row.candidate_id, group);
   }
@@ -91,6 +97,7 @@ export function renderScreen(parts: readonly ScreenPart[], promptText: string, n
       `### ${p.group.candidate_id}`,
       '',
       `input: ${p.group.input}`,
+      ...(p.group.reading ? [`reading: ${formatReading(p.group.reading)}`] : []),
       `category: ${p.group.category}`,
       `phrases ${p.from} to ${p.to} of ${p.group.phrases.length}`,
       '',
@@ -106,7 +113,14 @@ export function renderScores(groups: readonly ScreenGroup[]): string {
   return `# candidate_id, then each phrase's prefilter score in phrase-number order\n${lines.join('\n')}\n`;
 }
 
-export type ScreenSection = { candidate_id: string; input: string; category: string; phrases: Map<number, string> };
+export type ScreenSection = {
+  candidate_id: string;
+  input: string;
+  category: string;
+  /** The input's reading, as its `reading:` line had it; absent when the input has no numbers or symbols. */
+  reading?: Record<string, string>;
+  phrases: Map<number, string>;
+};
 
 /** The sections of every screen input file, merged by input. */
 export function parseScreenInputs(texts: readonly string[]): Map<string, ScreenSection> {
@@ -125,6 +139,10 @@ export function parseScreenInputs(texts: readonly string[]): Map<string, ScreenS
       }
       if (!current) continue;
       if (line.startsWith('input: ')) current.input = line.slice('input: '.length);
+      else if (line.startsWith('reading: ')) {
+        const reading = parseReading(line.slice('reading: '.length));
+        if (reading) current.reading = reading;
+      }
       else if (line.startsWith('category: ')) current.category = line.slice('category: '.length);
       else {
         const phrase = /^(\d+) (\S.*)$/.exec(line);
@@ -212,13 +230,14 @@ export function rebuildRows(
       const display = section.phrases.get(n)!;
       const words = display.split(' ');
       rows.push({
-        id: hitId(section.input, category, words),
+        id: hitId(section.input, category, words, section.reading ?? null),
         candidate_id: id,
         input: section.input,
         category,
         words,
         display,
-        letters: alphagram(section.input),
+        letters: alphagram(section.input, section.reading ?? null),
+        ...(section.reading ? { reading: section.reading } : {}),
         prefilter_score: scoreList[n - 1]!,
         // The s2 prefilter keeps common-tier words only.
         tier: 'common',

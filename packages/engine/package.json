@@ -9,6 +9,8 @@
     "./protocol": "./src/protocol.ts",
     "./core": "./src/engineCore.ts",
     "./fold": "./src/fold.ts",
+    "./readings": "./src/readings.ts",
+    "./readingsTable": "./src/readingsTable.ts",
     "./identity": "./src/identity.ts",
     "./node": "./src/node.ts",
     "./definitions": "./src/definitions.ts",

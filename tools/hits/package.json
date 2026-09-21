@@ -25,6 +25,7 @@
     "order": "node --experimental-strip-types src/order.ts",
     "display": "node --experimental-strip-types src/display.ts",
     "input": "node --experimental-strip-types src/input.ts",
+    "read": "node --experimental-strip-types src/read.ts",
     "judged-at": "node --experimental-strip-types src/judged-at.ts",
     "request": "node --experimental-strip-types src/request.ts",
     "promotions:export": "node --experimental-strip-types src/promotions/export.ts",

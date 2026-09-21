@@ -51,7 +51,7 @@ export function parseIssueForm(body: string): Submission | { error: string } {
   // know is checked against the default dictionary rather than refused.
   const tier =
     tierRaw === 'common' || tierRaw === 'full' || tierRaw === 'extended' ? tierRaw : 'standard';
-  const words = anagram.split(/\s+/).map(normalizeLetters).filter((w) => w.length > 0);
+  const words = anagram.split(/\s+/).map((word) => normalizeLetters(word)).filter((w) => w.length > 0);
   if (words.length === 0) return { error: 'the Anagram field has no letters' };
   return {
     input,
