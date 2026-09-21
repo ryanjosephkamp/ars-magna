@@ -35,7 +35,7 @@ Code) adds only what is specific to that harness and never restates a rule from 
 |---|---|
 | `crates/anagram-core` | the search (rarest-letter runs, memoized counting, unranking, `Cursor`) |
 | `crates/anagram-cli` | `anagram solve\|count\|bench\|batch\|check` |
-| `packages/engine` | worker protocol, `fold.ts` (accent folding), `readings.ts` (numbers and symbols as letters, over the table `scripts/readings.json` shared with `crates/anagram-core/src/readings.rs`), `node.ts` (engine under Node), `definitions.ts` |
+| `packages/engine` | worker protocol, `fold.ts` (accent folding), `readings.ts` (the numbers and symbols of an input, left out under the literal rule, over the table `scripts/readings.json` shared with `crates/anagram-core/src/readings.rs`), `node.ts` (engine under Node), `definitions.ts` |
 | `packages/mcp` | MCP server (stdio): solve, count, nth, explain_word, propose_hit |
 | `apps/web` | the site; `hits.html` is the Discover page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl`; `build.html` is the Build page (`src/build/`) |
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts`, and Build's `ledger.ts`, `checks.ts`, `analysis.ts`, `letterChart.ts`, `letterMap.ts` and `textCount.ts` |

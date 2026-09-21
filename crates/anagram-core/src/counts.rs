@@ -187,11 +187,12 @@ impl fmt::Debug for Counts {
 /// Unicode NFKD over the Latin blocks (decompose, drop the combining marks,
 /// keep the ASCII letters) plus a hand-written list for the Latin letters
 /// that have no decomposition: ß -> ss, æ -> ae, œ -> oe, ø -> o, đ -> d,
-/// ł -> l, þ -> th, ð -> d, ı -> i. Numbers and the symbols `@ $ ! & +` are
-/// first read as letters by the default readings of `readings.rs` ("Blink-182"
-/// has the letters of *blink one hundred eighty two*, "Ke$ha" those of
-/// *kesha*); anything else that is not a Latin letter — punctuation, spaces,
-/// other scripts, emoji — is dropped.
+/// ł -> l, þ -> th, ð -> d, ı -> i. Numbers and the symbols `@ $ ! ? & % + #`
+/// are the input's items (`readings.rs`, the literal rule): nothing is
+/// converted, and until the literal phase counts them as characters of the
+/// pool every item is left out ("Blink-182" has the letters of *blink*,
+/// "Ke$ha" those of *keha*); anything else that is not a Latin letter —
+/// punctuation, spaces, other scripts, emoji — is dropped.
 ///
 /// A table rather than a normalization crate because the same tables would
 /// add ~50 KB to the compressed WASM payload. The tests below check the table
@@ -310,11 +311,11 @@ mod tests {
     #[test]
     fn normalize_strips_everything_but_letters() {
         assert_eq!(normalize("Ryan Joseph Kamp"), "ryanjosephkamp");
-        // Numbers are read, and a closing exclamation mark is punctuation.
-        assert_eq!(normalize("Route 66!"), "routesixtysix");
+        // A number is left out, and a closing exclamation mark is punctuation.
+        assert_eq!(normalize("Route 66!"), "route");
         assert_eq!(normalize("O'Brien-Smith"), "obriensmith");
         assert_eq!(normalize(""), "");
-        assert_eq!(normalize("1234!!"), "onethousandtwohundredthirtyfour");
+        assert_eq!(normalize("1234!!"), "");
         assert_eq!(normalize_with("1234!!", &[("1234".into(), "drop".into())]), "");
     }
 
@@ -335,7 +336,7 @@ mod tests {
             ("Łódź", "lodz"),
             ("Þórður", "thordur"),
             ("İstanbul", "istanbul"),
-            ("Ben Shelton 🎾 2026", "bensheltontwothousandtwentysix"),
+            ("Ben Shelton 🎾 2026", "benshelton"),
             ("Владимир", ""),
             ("東京", ""),
             // The dictionary build's two accented surfaces.
@@ -360,9 +361,9 @@ mod tests {
             ("applesauce".into(), vec!["applesauce"]),
             ("apple-sauce".into(), vec!["applesauce"]),
             ("O'Brien Smith".into(), vec!["obrien", "smith"]),
-            ("apple & sauce 2026".into(), vec!["apple", "and", "sauce", "two", "thousand", "twenty", "six"]),
+            ("apple & sauce 2026".into(), vec!["apple", "sauce"]),
             ("Beyoncé Knowles".into(), vec!["beyonce", "knowles"]),
-            ("Straße 9".into(), vec!["strasse", "nine"]),
+            ("Straße 9".into(), vec!["strasse"]),
             (between(0xa0), vec!["apple", "sauce"]),
             (between(0x85), vec!["apple", "sauce"]),
             (between(0x2028), vec!["apple", "sauce"]),
@@ -370,7 +371,7 @@ mod tests {
             (between(0xfeff), vec!["apple", "sauce"]),
             (between(0x200b), vec!["applesauce"]),
             (String::new(), vec![]),
-            ("1234 !!".into(), vec!["one", "thousand", "two", "hundred", "thirty", "four"]),
+            ("1234 !!".into(), vec![]),
             ("!! ??".into(), vec![]),
         ];
         for (input, expected) in &cases {

@@ -6,14 +6,12 @@ import { ReadingLines } from './ReadingLines.tsx';
 type Props = {
   value: string;
   onChange(value: string): void;
-  /** Letters that will actually be used, after reading the numbers and symbols and folding accents. */
+  /** Letters that will actually be used, after leaving the numbers and symbols out and folding accents. */
   letters: string;
   /** Characters that carried something (other scripts, other symbols, items read as left out) and were ignored. */
   skipped: number;
-  /** The text's numbers and symbols, each with how it is read. */
+  /** The text's numbers and symbols, each with how it stands. */
   items: readonly ReadItem[];
-  /** The reader chose how an item is read. */
-  onReading(key: string, name: string): void;
 };
 
 /**
@@ -21,7 +19,7 @@ type Props = {
  * Set in the display face at reading size so the text they type already looks
  * like the results it will become.
  */
-export function SearchField({ value, onChange, letters, skipped, items, onReading }: Props) {
+export function SearchField({ value, onChange, letters, skipped, items }: Props) {
   const id = useId();
   const field = useRef<HTMLInputElement>(null);
 
@@ -71,7 +69,7 @@ export function SearchField({ value, onChange, letters, skipped, items, onReadin
           </>
         )}
       </p>
-      <ReadingLines items={items} onChange={onReading} className="mt-2" />
+      <ReadingLines items={items} className="mt-2" />
     </div>
   );
 }

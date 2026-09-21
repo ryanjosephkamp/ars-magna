@@ -1234,7 +1234,7 @@
     category.value = 'phrases';
     var phrase = h('input', { type: 'text', 'aria-label': 'Anagram' });
     /* How the input's numbers and symbols are read, where the defaults will not do: 4:drop, 2:too, 182:digits. */
-    var reading = h('input', { type: 'text', 'aria-label': 'Reading', placeholder: 'the defaults' });
+    var reading = h('input', { type: 'text', 'aria-label': 'Reading', placeholder: 'left out' });
     function readingChosen() {
       var text = reading.value.trim();
       if (!text) return { map: undefined, problem: null };
@@ -1268,7 +1268,7 @@
       h('fieldset', {},
         h('div', { class: 'toolbar' }, field('Input', input), field('Category', category)),
         h('div', { class: 'toolbar' }, field('Anagram, words in reading order', phrase), field('Tier', tier)),
-        h('div', { class: 'toolbar' }, field('Reading of numbers and symbols, if not the defaults', reading)),
+        h('div', { class: 'toolbar' }, field('Reading of numbers and symbols (every item is left out; 4:drop)', reading)),
         field('Justification', why)),
       preview,
       problem,

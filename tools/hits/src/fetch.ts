@@ -106,19 +106,25 @@ export function reclassify(
     const reading = c.reading ?? recordReading(c.input);
     const id = candidateId(c.input, category, reading ?? {});
     const placed: Candidate = { ...c, id, category, status: 'new', ...(reading ? { reading } : {}) };
+    const legacy = candidateId(c.input, category, null);
     const qid = classified.get(titleOf(c))?.qid;
     if (qid) placed.wikidata_qid = qid;
     const subjects = classified.get(titleOf(c))?.subjects;
     if (subjects?.length) placed.subjects = subjects;
     moved.push(placed);
-    // Already a candidate under that category (a later fetch placed it): the
-    // unclassified line just goes away.
-    if (!ids.has(id)) {
+    // Already a candidate under that category (a later fetch placed it), under
+    // its own id or the one it had before phase N: the unclassified line just goes away.
+    if (!ids.has(id) && !ids.has(legacy)) {
       out.push(placed);
       ids.add(id);
     }
   }
   return { candidates: out, moved };
+}
+
+/** The id a candidate would have had before phase N: its digits and symbols left out of the letters. */
+export function legacyId(c: Pick<Candidate, 'input' | 'category'>): string {
+  return candidateId(c.input, c.category, null);
 }
 
 /**
@@ -307,7 +313,11 @@ export async function runFetch(options: {
   const wanting = placed.filter(describable);
   const items = wanting.length > 0 ? await describeItems(wanting.map((c) => c.wikidata_qid!), deps) : new Map<string, WikidataItem>();
   const candidates = placed.map((c) => (describable(c) ? withWikidata(c, items.get(c.wikidata_qid!)) : c));
-  const added = options.dryRun ? [] : await appendJsonl(CANDIDATES_PATH, candidates, await candidateSchema());
+  // A title on file under the id it had before phase N (its number left out) is the same candidate, not a new one.
+  const validator = await candidateSchema();
+  const onFile = new Set((await readJsonl(CANDIDATES_PATH, validator)).map((c) => c.id));
+  const fresh = candidates.filter((c) => !onFile.has(legacyId(c)));
+  const added = options.dryRun ? [] : await appendJsonl(CANDIDATES_PATH, fresh, validator);
 
   const tally = new Map<string, number>();
   for (const c of classified) {

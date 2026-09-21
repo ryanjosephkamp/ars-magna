@@ -19,7 +19,7 @@ configs:
 
 The funniest and most apt anagrams of people, companies, products, titles, places and phrases, found by [Ars Magna](https://ars-magna.pages.dev) and kept by hand.
 
-Every row is a real anagram: the words use exactly the input's letters, checked against a pinned revision of [English OpenList]({{SOURCE_URL}}) (`{{DICT_REV}}`), and every word is in the tier the row names. Accented letters fold to their base letter, so *Beyoncé* has three e's. A number or a symbol in the input is read as letters first, and the row says how (`reading`): on its own a number is spelled (*Blink-182* has the letters of *blink one hundred eighty two*), inside a word a digit or `$`/`!` stands for its keyboard letter (*Ke$ha* is *kesha*), `@` is *a*, `&` is *and* and `+` is *plus*; a reading may leave an item out.
+Every row is a real anagram: the words use exactly the input's letters, checked against a pinned revision of [English OpenList]({{SOURCE_URL}}) (`{{DICT_REV}}`), and every word is in the tier the row names. Accented letters fold to their base letter, so *Beyoncé* has three e's. Nothing typed is ever replaced by something else (the literal rule): a number is never read as its name, and a symbol never as a letter or a word. A number or a symbol of the set `@ $ & % + #` (and `!` or `?` inside a word) is left out of the letters, and the row says so (`reading`).
 
 ## Subsets
 
@@ -44,7 +44,7 @@ from datasets import load_dataset
 | `words` | The anagram's words, in reading order. |
 | `display` | The words joined with spaces. |
 | `letters` | The sorted letters the input and the anagram share. |
-| `reading` | How each number and symbol of the input was read, as a list of `item` and `reading` in the input's order: `spell` (the number's name, or the symbol's word), `digits` (digit by digit), `year` (*nineteen oh seven*), `letter` (the keyboard letter), `drop` (left out), or a homophone word (`to`, `too`, `for`, `ate`, `won`, `oh`); `null` for an input without any, and for a hit from before 2026-09-21, whose digits and symbols were dropped. |
+| `reading` | How each number and symbol of the input stood when the anagram was made, as a list of `item` and `reading` in the input's order: `drop` (left out) for every item; `null` for an input without any, and for a hit from before 2026-09-21, whose digits and symbols were dropped without a record. The literal phase adds `self` and the leet readings. |
 | `prefilter_score` | The model-free score that put it in front of a judge (ordering, word frequency, length). |
 | `judge` | One entry per judge, with its model, rubric version, rationale and date. Rubric v2 scores `relation` to the input (1–5, the score that decides) and `reads` (1–3), with `tone` and `subjects` labels and a `justification`. Rubric v1 scored aptness, grammar and memorability (1–5 each) and a total. |
 | `justification` | One plain sentence explaining why the anagram fits its input, for a reader who does not know the reference; `null` when there is none yet. |

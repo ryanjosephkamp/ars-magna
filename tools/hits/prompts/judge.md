@@ -7,7 +7,7 @@ You are judging candidate anagrams. Each candidate has three parts:
 - its **category**;
 - an **anagram**: a rearrangement of exactly the input's letters into real English words, listed under **words** with each word's first dictionary sense, or `no definition`.
 
-An input with a number or a symbol in it also has a **reading**, which says how that became letters: "Como 1907" with `1907 read as one thousand nine hundred seven` has the letters of *como one thousand nine hundred seven*, and "Reacher season 4" with `4 left out` has only the letters of *reacher season*. Judge the anagram against the input as a reader would say it, and take the reading into account: a phrase that merely re-spells the number's name is the number, not a link.
+An input with a number or a symbol in it also has a **reading**, which says that the item was left out: "Reacher season 4" with `4 left out` has only the letters of *reacher season*. Nothing is converted: a number is never read as its name. Judge the anagram against the input as a reader would say it.
 
 The letters are already verified; do not re-check them. Your job is to say whether the anagram has anything to do with the input, and how much.
 

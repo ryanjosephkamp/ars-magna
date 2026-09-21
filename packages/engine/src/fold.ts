@@ -14,15 +14,17 @@
  * sides, and `fold.test.ts` checks it against the browser's own NFKD over the
  * covered ranges, so the two cannot drift.
  *
- * Numbers and the symbols `@ $ ! & +` are read as letters first (`readings.ts`,
- * roadmap phase N): "Blink-182" has the letters of *blink one hundred eighty
- * two* and "Ke$ha" those of *kesha*, by the default readings unless the
- * reader chose others (`reading`). Everything else that is not a Latin letter
- * — punctuation, spaces, other scripts, emoji — is ignored. Letters of other
- * scripts, other symbols and the items a reading leaves out are *counted* as
- * skipped so the interface can say so; spaces and punctuation are not,
- * because "O'Brien-Smith" losing its apostrophe and hyphen is what everyone
- * expects and "2 characters skipped" would be noise.
+ * Numbers and the symbols `@ $ ! ? & % + #` are the input's items
+ * (`readings.ts`, roadmap phase N, the literal rule): nothing is converted,
+ * and until the literal phase counts them as characters of the pool every
+ * item is left out, so "Blink-182" has the letters of *blink* and "Ke$ha"
+ * those of *keha*, and the line under the field says which items were left
+ * out. Everything else that is not a Latin letter — punctuation, spaces,
+ * other scripts, emoji — is ignored. Letters of other scripts, other symbols
+ * and the items left out are *counted* as skipped so the interface can say
+ * so; spaces and punctuation are not, because "O'Brien-Smith" losing its
+ * apostrophe and hyphen is what everyone expects and "2 characters skipped"
+ * would be noise.
  *
  * This must agree exactly with `normalize()` in `crates/anagram-core` and with
  * `tools/dict-build/src/normalize.ts`, which delegates here.
@@ -70,6 +72,18 @@ export function foldLetters(input: string, reading: Reading = NO_READING): Folde
     else if (COUNTS_AS_SKIPPED.test(char)) skipped++;
   }
   return { letters, skipped };
+}
+
+/**
+ * The fold as it was before phase N (2026-09-21): every digit removed, the
+ * symbols of the set dropped, the letters kept, an ordinal's suffix among
+ * them ("18th BRICS summit" was `thbricssummit`). What a record with no
+ * `reading` was made with, so its id and letters stay, and what the
+ * dictionary build folds the frequency list with, so the artifact stays
+ * byte for byte what it was.
+ */
+export function legacyLetters(input: string): string {
+  return normalizeLetters(input.replace(/[0-9]/g, ''));
 }
 
 /** The common case: just the letters. */
