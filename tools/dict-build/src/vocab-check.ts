@@ -11,12 +11,24 @@
  * it cannot check is the part that matters most — whether a word belongs in
  * the vocabulary at all. That is the operator's judgement, made by merging.
  */
-import { ADDITIONS_CAP, ADDITIONS_PATH, FORMS_PATH, pinnedWords, problemsWith, readAdditions, readForms } from './vocab.ts';
+import {
+  ADDITIONS_CAP,
+  ADDITIONS_PATH,
+  FORMS_PATH,
+  NAMES_PATH,
+  committedDictionary,
+  nameProblems,
+  problemsWith,
+  readAdditions,
+  readForms,
+  readNames,
+} from './vocab.ts';
 
 async function main(): Promise<void> {
   const additions = await readAdditions();
   const forms = await readForms();
-  const pinned = await pinnedWords();
+  const dictionary = await committedDictionary();
+  const pinned = dictionary?.pinned ?? null;
 
   console.log(`Ars Magna vocabulary check`);
   console.log(`  ${ADDITIONS_PATH}`);
@@ -47,6 +59,23 @@ async function main(): Promise<void> {
     console.log(`  ✓ ${form.form.padEnd(20)} ${what.padEnd(18)} ${form.trace}`);
   }
   console.log(`\n✓ the additions and the forms are admissible`);
+
+  // The names list is not vocabulary: no tier reads it, and it counts against
+  // no cap. It is held to its own rules, so a hand edit or a build from moved
+  // sources that broke one shows here rather than in a deep run.
+  const names = await readNames();
+  const nameTrouble = nameProblems(names, dictionary ? new Set(dictionary.words) : null);
+  if (nameTrouble.length > 0) {
+    console.error(`\n✗ ${NAMES_PATH}: ${nameTrouble.length} problem${nameTrouble.length === 1 ? '' : 's'}:`);
+    for (const problem of nameTrouble.slice(0, 20)) console.error(`  ${problem}`);
+    process.exit(1);
+  }
+  const kinds = new Map<string, number>();
+  for (const name of names) kinds.set(name.kind, (kinds.get(name.kind) ?? 0) + 1);
+  console.log(
+    `✓ ${names.length.toLocaleString()} names in the names list, in no tier` +
+      (names.length > 0 ? ` (${[...kinds].map(([k, n]) => `${n.toLocaleString()} ${k}`).join(', ')})` : ''),
+  );
 }
 
 await main();

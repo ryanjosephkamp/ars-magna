@@ -1,8 +1,12 @@
 /**
  * Builds the shipped dictionary artifacts from the pinned sources.
  *
- *   pnpm dict:build     emit apps/web/public/dict/
- *   pnpm dict:verify    rebuild and assert the committed artifacts still match
+ *   pnpm dict:build           emit apps/web/public/dict/
+ *   pnpm dict:verify          rebuild and assert the committed artifacts still match
+ *   pnpm dict:build --names   the names experiment (phase Q1): the names list joins the
+ *                             list as Extended-only words, so a deep run can admit it.
+ *                             Never committed; `git checkout -- apps/web/public/dict`
+ *                             puts the site's own artifacts back.
  *
  * Deterministic: same pins in, byte-identical artifacts out. That property is
  * what `--verify` checks in CI, and it is the reason nothing here reads the
@@ -26,7 +30,7 @@ import { normalize, signature } from './normalize.ts';
 import { loadFacts } from './facts.ts';
 import { COMMON_RANK_CUTOFF, frequencyRanks, inCommon, inFull, inStandard, zipfByte, type WordFacts } from './tiers.ts';
 import { buildPos } from './pos.ts';
-import { ADDITIONS_CAP, readAdditions, readForms } from './vocab.ts';
+import { ADDITIONS_CAP, readAdditions, readForms, readNames } from './vocab.ts';
 import {
   bitsetCount,
   bitsetGet,
@@ -47,6 +51,13 @@ import {
 const TIER_EXTENDED = 3;
 
 const verifyOnly = process.argv.includes('--verify');
+/**
+ * The names experiment's build. The names list is not vocabulary, and nothing
+ * the site ships may carry it: a build with the flag is for one deep run and
+ * is checked against nothing.
+ */
+const withNames = process.argv.includes('--names');
+if (withNames && verifyOnly) throw new Error('--names and --verify do not go together: the names build is never the committed one');
 
 function sha256(data: Uint8Array): string {
   return createHash('sha256').update(data).digest('hex');
@@ -258,7 +269,25 @@ async function main(): Promise<void> {
   const formPos = new Map<string, readonly string[]>();
   for (const f of forms) if (isFormOnly.has(f.letters) && f.pos) formPos.set(f.letters, f.pos);
 
-  const words = [...pinned.words, ...isAddition, ...isFormOnly].sort();
+  // The names experiment: every name the list carries that the vocabulary
+  // lacks joins the word list the way an addition does, in Extended alone,
+  // with no rank. `vocab:check` holds the list to that already, so a name the
+  // dictionary has is a list that broke its rules, not a case to handle.
+  const isName = new Set<string>();
+  if (withNames) {
+    for (const { name } of await readNames()) {
+      if (pinnedSet.has(name) || isAddition.has(name) || isFormOnly.has(name)) {
+        throw new Error(`${name} is in the names list and in the vocabulary; rebuild the list`);
+      }
+      isName.add(name);
+    }
+    console.log(
+      `   EXPERIMENT: ${isName.size.toLocaleString()} names admitted as Extended-only words.\n` +
+        `   These artifacts are for a deep run in this session and are never committed.`,
+    );
+  }
+
+  const words = [...pinned.words, ...isAddition, ...isFormOnly, ...isName].sort();
   const indexOf = new Map<string, number>();
   words.forEach((w, i) => indexOf.set(w, i));
   // An addition usually joins a class that already exists — `doomer` lands with
@@ -266,6 +295,7 @@ async function main(): Promise<void> {
   // taken over the union while the tripwire above stays on the pin.
   for (const word of isAddition) signatures.add(signature(word));
   for (const word of isFormOnly) signatures.add(signature(word));
+  for (const word of isName) signatures.add(signature(word));
   console.log(
     additions.length === 0
       ? '   no additions'
@@ -302,7 +332,7 @@ async function main(): Promise<void> {
   const { rank, zipf, attested } = await loadFrequency(
     indexOf,
     words.length,
-    (index) => isAddition.has(words[index]!) || isFormOnly.has(words[index]!),
+    (index) => isAddition.has(words[index]!) || isFormOnly.has(words[index]!) || isName.has(words[index]!),
   );
   console.log(
     `   ${attested.toLocaleString()} words carry frequency data ` +
@@ -316,7 +346,7 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < words.length; i++) {
     const word = words[i]!;
-    const input = { word, facts: facts[i]!, freqRank: rank[i]!, addition: isAddition.has(word), form: isFormOnly.has(word) };
+    const input = { word, facts: facts[i]!, freqRank: rank[i]!, addition: isAddition.has(word) || isName.has(word), form: isFormOnly.has(word) };
     if (inCommon(input)) bitsetSet(commonSet, i);
     if (inStandard(input)) bitsetSet(standardSet, i);
     if (inFull(input)) bitsetSet(fullSet, i);
@@ -410,6 +440,8 @@ async function main(): Promise<void> {
       /** The listed forms, and how many of them are words the pin lacks, which every tier gains. */
       forms: forms.length,
       formOnly: isFormOnly.size,
+      /** The names experiment's build only: how many names the list admitted. */
+      ...(withNames ? { names: isName.size } : {}),
     },
     files: Object.fromEntries(
       artifacts.map((a) => [
@@ -443,6 +475,13 @@ async function main(): Promise<void> {
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
   console.log(`\n✓ ${DIST_DIR}`);
+  if (withNames) {
+    console.log(
+      `\nEXPERIMENT: these artifacts carry the names list. Do not commit them;\n` +
+        `  git checkout -- apps/web/public/dict && git clean -f apps/web/public/dict\n` +
+        `restores the site's own.`,
+    );
+  }
 }
 
 await main();

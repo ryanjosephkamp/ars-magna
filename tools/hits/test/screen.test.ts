@@ -145,6 +145,21 @@ describe('screen answers', () => {
     });
     expect(() => rebuildRows(sections, new Map([['listen:phrases', [1]]]), kept)).toThrow(/scores for/);
   });
+
+  it('labels a row extended when it uses a word the run admitted beside its tier', () => {
+    const { kept } = validateScreen([
+      { candidate_id: 'thecountryside:phrases', keep: [1] },
+      { candidate_id: 'listen:phrases', keep: [1] },
+      { candidate_id: 'ashoplifter:phrases', keep: [] },
+    ], sections);
+    // `dust` stands in for a site addition or, in the names experiment, a name:
+    // a word the engine searched beside Common that Common does not hold.
+    const rows = rebuildRows(sections, parseScores(renderScores(groups)), kept, new Set(['dust']));
+    expect(rows.map((r) => [r.display, r.tier])).toEqual([
+      ['no city dust here', 'extended'],
+      ['silent', 'common'],
+    ]);
+  });
 });
 
 describe('a screened queue on disk', () => {

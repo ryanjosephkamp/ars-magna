@@ -183,6 +183,83 @@ was enumerated with (`dictionary`: the pinned revision and the word list's hash)
 when numbers and symbols became letters (see "Readings"). A hit's words are always the letters; its display
 carries the form only by your command (phase P2).
 
+## The names list
+
+The vocabulary has no names. English OpenList leaves them out by rule, and a name enters only as an
+addition of kind `name`, one at a time, so a nightly can never write "he bugs Gore" for George Bush.
+Whether names should be admitted as a set is the question of phase Q: the experiment (Q1) built a list
+and ran it once, and the default (Q2) is your decision on that run's report. Until then **the list is
+not vocabulary**: `data/vocabulary/names.jsonl` is in no tier, nothing on the site reads it, the
+vocabulary dataset does not carry it, and it counts against no cap.
+
+**What it holds.** About ten thousand single tokens the dictionary lacks, each folded as the search
+folds (`beyonce`, `sao` dropped as a particle, `xiv` as a regnal number), with its kind and where it
+came from: people, places, companies and brands from Wikidata by prominence (the number of Wikipedia
+editions with an article, from a threshold per kind: 100 for a person, so only the world's best-known
+people; never a private person), surnames from the 2000 US Census (the first 5,000 by rank), given
+names from the 1990 US Census (borne by 0.01% of the population or more), and places from GeoNames
+(300,000 people or more). A token several sources carry has one line, its kind from Wikidata first,
+by the entity with the most sitelinks, and the rest under `also`. A name that is also an English word
+(`swift`, `paris`, `gore`) is not in the list: the dictionary already carries it. Schema:
+`data/schema/name.schema.json`.
+
+**Rebuild it.** The sources are pinned in `NAMES` in `tools/dict-build/src/pins.ts`, like the
+dictionary's: the request as sent, the day it was sent, and the size and sha256 of what came back.
+
+```bash
+pnpm names:build
+```
+
+fetches what the cache lacks into `.cache/names/`, verifies each answer against its pin, and writes
+the list; `pnpm names:build --verify` rebuilds and says whether the committed list still matches.
+Two of the four sources have no revision to pin: Wikidata answers with what it holds that day, and
+GeoNames rewrites its dump nightly. So the cached answers are what reproduces the list byte for byte;
+a fresh fetch on another machine gets that day's answers, and the build refuses one whose hash has
+moved unless you ask for it:
+
+```bash
+pnpm names:build --refresh
+```
+
+takes today's answers for every source, writes the list, and prints the sizes and hashes to paste
+into `NAMES`; read the list's diff before committing it. The answers the committed list was built
+from are kept outside the repository, in `handoff/2026-09-21/phase-q1/sources/`, and copying them
+into `.cache/names/` reproduces it exactly. The 2010 Census surname file is what the list should
+have used; on 2026-09-21 the Census site's edge returned a cached "Request Rejected" page for it,
+so the 2000 list stands in. `pnpm vocab:check` holds the committed list to its rules on every pull
+request: every token folded, listed once, in order, and absent from the dictionary.
+
+**Run the experiment again, or another like it.** The engine admits a word only when its dictionary
+carries it, so a deep run with names needs a build that does:
+
+```bash
+pnpm dict:build --names
+```
+
+writes artifacts that carry the list as Extended-only words into `apps/web/public/dict/`, in place
+of the site's own. They are for the run and are never committed. Then follow "Run a deep run" with
+`--names` on the enumeration:
+
+```bash
+pnpm hits:enumerate --date=<queue folder> --preset=deep --status=new --in=<run list> --names
+```
+
+which adds the names to the queue's `additions.txt`, so the engine admits them beside Common and the
+prefilter lets them through; a row with a name is labelled `extended`, as a row with a site addition
+is. It refuses to run against the site's own artifacts. With ten thousand names admitted the
+enumeration is far larger (4.3 million rows for fifty inputs on 2026-09-21), and the prefilter needs
+more memory than Node gives it: `NODE_OPTIONS=--max-old-space-size=14336 pnpm hits:prefilter …`. When
+the run is done, put the site's dictionary back before anything else is built or tested:
+
+```bash
+git checkout -- apps/web/public/dict && git clean -f apps/web/public/dict
+```
+
+The experiment's queue is `data/queue/2026-09-21n`, its report `data/queue/names-report-2026-09-21.md`,
+and its verdicts were not ingested: nothing from it is published, and `pnpm hits:ingest
+--date=2026-09-21n --model=claude-opus-5 --judged-by=hand` against a `--names` build would do that,
+if Q2 ever admits the names.
+
 ## Word requests
 
 A request is a word the pipeline thinks the vocabulary is missing. It is a proposal and nothing
@@ -1334,8 +1411,10 @@ the judge then scores only the tenth or so the screen keeps.
 
 Anchors live in the run's scratch list and in the queue's `summary.json`; the candidate lines in the
 repository are not edited. The raw rows are deleted once the screen input is written, because a deep
-enumeration can run to gigabytes. In Claude Code, a workflow can fan out the screening and judging when you
-ask for one; another harness works through the files one at a time.
+enumeration can run to gigabytes. A deep run that admits the names list (`--names` on the
+enumeration, against a `pnpm dict:build --names` build) is described under "The names list". In
+Claude Code, a workflow can fan out the screening and judging when you ask for one; another harness
+works through the files one at a time.
 
 Prompt: `docs/prompts/deep-run.md` (deep_run_scope, deep_run_size). The desk fills it.
 

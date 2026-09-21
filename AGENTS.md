@@ -81,6 +81,7 @@ pnpm hits:desk --promotions=../ars-magna-promotions  # add the Promoted tab: wha
 pnpm hits:monthly                             # the monthly vote review: whether it is this month's turn, and the rows to read again
 pnpm hits:desk --audit                        # build the Greatest Hits audit into .cache/desk/audit.html
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
+pnpm names:build                              # the names list, data/vocabulary/names.jsonl (phase Q1); --verify compares with the committed one
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
 ```
 

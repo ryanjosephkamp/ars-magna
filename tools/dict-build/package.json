@@ -12,7 +12,8 @@
     "vocab:add": "node --experimental-strip-types src/vocab-add.ts",
     "vocab:form": "node --experimental-strip-types src/vocab-form.ts",
     "vocab:check": "node --experimental-strip-types src/vocab-check.ts",
-    "vocab:publish": "node --experimental-strip-types src/vocab-publish.ts"
+    "vocab:publish": "node --experimental-strip-types src/vocab-publish.ts",
+    "names:build": "node --experimental-strip-types src/names.ts"
   },
   "dependencies": {
     "@huggingface/hub": "^2.17.1",

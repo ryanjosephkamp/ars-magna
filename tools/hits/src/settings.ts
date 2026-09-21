@@ -135,6 +135,25 @@ export async function readAdditionWords(path: string = ADDITIONS_PATH): Promise<
     });
 }
 
+/** The names list (phase Q1), which `hits:enumerate --names` admits beside the additions. */
+export const NAMES_PATH = resolve(REPO_ROOT, 'data/vocabulary/names.jsonl');
+
+/**
+ * The names in `names.jsonl`, for handing to the engine as admitted words.
+ * Only the `name` of each line is taken; the list's rules are `vocab:check`'s.
+ */
+export async function readNameWords(path: string = NAMES_PATH): Promise<string[]> {
+  const text = await readFile(path, 'utf8');
+  return text
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line, i) => {
+      const name = (JSON.parse(line) as { name?: unknown }).name;
+      if (typeof name !== 'string') throw new Error(`${path}:${i + 1}: no name`);
+      return name;
+    });
+}
+
 /**
  * The additions a queue was enumerated with, read back from its own copy.
  *
