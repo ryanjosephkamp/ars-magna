@@ -82,11 +82,11 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     expect(again).toMatchObject({ ok: true, newCandidate: false, newHit: false });
   });
 
-  it('reads a number as the reading says, and records it on the candidate and the hit', async () => {
-    // By the defaults the 4 is spelled, so the old hit's words do not fit.
-    const spelled = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'] } }));
+  it('leaves a number out, records that on the candidate and the hit, and refuses a reading that would convert it', async () => {
+    // The 4 is left out (the literal rule), so its name never fits.
+    const spelled = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['four', 'as', 'one', 'searcher'] } }));
     expect(spelled['ok']).toBe(false);
-    expect(String(spelled['reason'])).toMatch(/reacherseasonfour/);
+    expect(String(spelled['reason'])).toMatch(/reacherseason vs/);
     const unfit = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'], reading: { '4': 'year' } } }));
     expect(String(unfit['reason'])).toMatch(/reading: 4 cannot be read as year/);
     const good = parse(

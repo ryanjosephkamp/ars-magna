@@ -599,7 +599,9 @@ fn the_text_is_never_its_own_result() {
         // moor", "dormitory one hundred twenty three"), so those rows are the
         // text's own words in a longer text.
         ("dirty ?? moor",     2, None, &[], &[], unlimited, TextRow::Respelled),
+        ("dirty & moor",      2, None, &[], &[], unlimited, TextRow::Respelled),
         ("dormitory !!!",     2, None, &[], &[], unlimited, TextRow::Dropped),
+        ("dormitory 123",     2, None, &[], &[], unlimited, TextRow::Dropped),
         ("dor-mit'ory",       2, None, &[], &[], unlimited, TextRow::Dropped),
         // Must include keeps its slot as typed. Holding one of the words, the other decides.
         ("dirty moor",        2, None, &["dirty"], &[], unlimited, TextRow::Respelled),

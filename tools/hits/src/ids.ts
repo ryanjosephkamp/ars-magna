@@ -15,9 +15,8 @@
  * `reading` was made before phase N, when every number and symbol was
  * dropped: `null` here means that, and keeps such ids as they were.
  */
-import { normalizeLetters } from '@ars-magna/engine/fold';
+import { legacyLetters, normalizeLetters } from '@ars-magna/engine/fold';
 import { DROP, fullReading, readItems, type Reading } from '@ars-magna/engine/readings';
-import { SYMBOLS } from '@ars-magna/engine/readingsTable';
 
 export const CATEGORIES = ['people', 'companies', 'products', 'titles', 'places', 'phrases'] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -33,18 +32,14 @@ export function isCategory(value: string): value is Category {
  */
 export type RecordReading = Reading | null | undefined;
 
-/** Every symbol of the table left out: with the digits gone, what the fold did before phase N. */
-const SYMBOLS_DROPPED: Reading = Object.fromEntries(Object.keys(SYMBOLS).map((symbol) => [symbol, DROP]));
-
 /**
  * The letters of an input as the fold gave them before phase N: every digit
  * and every symbol dropped, and the letters kept, an ordinal's suffix among
  * them ("18th BRICS summit" was `thbricssummit`). What a record with no
- * `reading` was made with, and so what its id and its letters still are.
+ * `reading` was made with, and so what its id and its letters still are. The
+ * engine's, so the dictionary build folds the frequency list the same way.
  */
-export function legacyLetters(input: string): string {
-  return normalizeLetters(input.replace(/[0-9]/g, ''), SYMBOLS_DROPPED);
-}
+export { legacyLetters };
 
 /**
  * The nearest reading to the legacy fold, for a link: every item left out.

@@ -5,13 +5,13 @@ package from its one source, `scripts/readings.json`.
 
     python3 scripts/gen-readings.py
 
-A reading turns a number or a symbol in the input into letters before the
-engine sees it (roadmap phase N): a number on its own is spelled, a digit or
-symbol inside a word stands for a keyboard letter, and so on. The names, the
-symbol set, the defaults and the test cases live in the JSON; the reading
-step itself is hand-written on each side (`crates/anagram-core/src/readings.rs`,
-`packages/engine/src/readings.ts`) and each side's tests walk the emitted
-cases, so the two cannot drift from each other or from the table.
+An item of an input is a run of digits, an ordinal, or one of the symbols in
+the table (roadmap phase N, the literal rule, decisions D62 and D63). Nothing
+is converted: until the literal phase counts digits and symbols as characters
+of the pool, every item is left out (`drop`), and the item finder, written by
+hand on each side (`crates/anagram-core/src/readings.rs`,
+`packages/engine/src/readings.ts`), is held to the emitted cases by a test on
+each side, so the two cannot drift from each other or from the table.
 """
 from __future__ import annotations
 
@@ -36,7 +36,6 @@ def ts_str(value: str) -> str:
 
 
 def emit_rust(table: dict) -> str:
-    digits = table["digits"]
     symbols = table["symbols"]
     lines = [
         f"//! The readings table. {HEADER}",
@@ -44,58 +43,18 @@ def emit_rust(table: dict) -> str:
         "//! Read by `readings.rs`, whose tests walk `CASES`; the TypeScript side",
         "//! carries the identical table in `packages/engine/src/readingsTable.ts`.",
         "",
-        "/// One symbol the reading step knows.",
+        "/// One symbol the item finder knows.",
         "pub(crate) struct Symbol {",
         "    pub ch: char,",
-        "    /// The keyboard letter it stands for, if any.",
-        "    pub letter: Option<char>,",
-        "    /// The word it is spelled as, if any.",
-        "    pub spell: Option<&'static str>,",
-        "    /// `\"letter\"` or `\"spell\"`.",
-        "    pub default: &'static str,",
         "    /// An item only with a letter on both sides; elsewhere it is punctuation.",
         "    pub inside_word_only: bool,",
         "}",
         "",
-        "/// Each digit's names, the cardinal first and its homophones after.",
-        "pub(crate) static DIGIT_NAMES: [&[&str]; 10] = [",
+        f"pub(crate) static SYMBOLS: [Symbol; {len(symbols)}] = [",
     ]
-    for d in "0123456789":
-        names = ", ".join(rs_str(n) for n in digits[d]["names"])
-        lines.append(f"    &[{names}],")
-    lines.append("];")
-    lines.append("")
-    lines.append("/// The keyboard letter each digit stands for inside a word, if any.")
-    lines.append("pub(crate) static DIGIT_LETTERS: [Option<char>; 10] = [")
-    for d in "0123456789":
-        letter = digits[d].get("letter")
-        lines.append(f"    {'Some(' + repr(letter) + ')' if letter else 'None'},")
-    lines.append("];")
-    lines.append("")
-    lines.append(f"pub(crate) static TEENS: [&str; {len(table['teens'])}] = [{', '.join(rs_str(t) for t in table['teens'])}];")
-    lines.append(f"pub(crate) static TENS: [&str; {len(table['tens'])}] = [{', '.join(rs_str(t) for t in table['tens'])}];")
-    lines.append(f"pub(crate) static HUNDRED: &str = {rs_str(table['hundred'])};")
-    lines.append(f"pub(crate) static THOUSAND: &str = {rs_str(table['thousand'])};")
-    lines.append("")
-    lines.append("/// Ordinals that are not the cardinal plus `th`.")
-    ordinals = table["ordinals"]
-    lines.append(f"pub(crate) static ORDINAL_IRREGULAR: [(&str, &str); {len(ordinals)}] = [")
-    for word, ordinal in ordinals.items():
-        lines.append(f"    ({rs_str(word)}, {rs_str(ordinal)}),")
-    lines.append("];")
-    lines.append("")
-    lines.append(f"pub(crate) static SYMBOLS: [Symbol; {len(symbols)}] = [")
     for ch, spec in symbols.items():
-        letter = f"Some({spec['letter']!r})" if spec.get("letter") else "None"
-        spell = f"Some({rs_str(spec['spell'])})" if spec.get("spell") else "None"
-        lines.append(
-            f"    Symbol {{ ch: {ch!r}, letter: {letter}, spell: {spell}, default: {rs_str(spec['default'])}, "
-            f"inside_word_only: {'true' if spec['insideWordOnly'] else 'false'} }},"
-        )
+        lines.append(f"    Symbol {{ ch: {ch!r}, inside_word_only: {'true' if spec['insideWordOnly'] else 'false'} }},")
     lines.append("];")
-    lines.append("")
-    lines.append("/// A number with more digits than this is dropped unless read digit by digit.")
-    lines.append(f"pub(crate) const MAX_SPELLED_DIGITS: usize = {table['maxSpelledDigits']};")
     lines.append("")
     lines.append("/// The defaults, as a queue's summary records them.")
     defaults = table["defaults"]
@@ -114,7 +73,6 @@ def emit_rust(table: dict) -> str:
 
 
 def emit_ts(table: dict) -> str:
-    digits = table["digits"]
     symbols = table["symbols"]
     lines = [
         f"// The readings table. {HEADER}",
@@ -123,54 +81,17 @@ def emit_ts(table: dict) -> str:
         "// file against the JSON; the Rust side carries the identical table in",
         "// `crates/anagram-core/src/readings_table.rs`.",
         "",
-        "/** One symbol the reading step knows. */",
+        "/** One symbol the item finder knows. */",
         "export type SymbolSpec = {",
-        "  /** The keyboard letter it stands for, if any. */",
-        "  readonly letter?: string;",
-        "  /** The word it is spelled as, if any. */",
-        "  readonly spell?: string;",
-        "  readonly default: 'letter' | 'spell';",
         "  /** An item only with a letter on both sides; elsewhere it is punctuation. */",
         "  readonly insideWordOnly: boolean;",
         "};",
         "",
-        "/** Each digit's names, the cardinal first and its homophones after. */",
-        "export const DIGIT_NAMES: readonly (readonly string[])[] = [",
+        "export const SYMBOLS: Readonly<Record<string, SymbolSpec>> = {",
     ]
-    for d in "0123456789":
-        lines.append(f"  [{', '.join(ts_str(n) for n in digits[d]['names'])}],")
-    lines.append("];")
-    lines.append("")
-    lines.append("/** The keyboard letter each digit stands for inside a word, or null. */")
-    lines.append("export const DIGIT_LETTERS: readonly (string | null)[] = [")
-    lines.append("  " + ", ".join(ts_str(digits[d]["letter"]) if digits[d].get("letter") else "null" for d in "0123456789") + ",")
-    lines.append("];")
-    lines.append("")
-    lines.append(f"export const TEENS: readonly string[] = [{', '.join(ts_str(t) for t in table['teens'])}];")
-    lines.append(f"export const TENS: readonly string[] = [{', '.join(ts_str(t) for t in table['tens'])}];")
-    lines.append(f"export const HUNDRED = {ts_str(table['hundred'])};")
-    lines.append(f"export const THOUSAND = {ts_str(table['thousand'])};")
-    lines.append("")
-    lines.append("/** Ordinals that are not the cardinal plus `th`. */")
-    lines.append("export const ORDINAL_IRREGULAR: Readonly<Record<string, string>> = {")
-    for word, ordinal in table["ordinals"].items():
-        lines.append(f"  {word}: {ts_str(ordinal)},")
-    lines.append("};")
-    lines.append("")
-    lines.append("export const SYMBOLS: Readonly<Record<string, SymbolSpec>> = {")
     for ch, spec in symbols.items():
-        parts = []
-        if spec.get("letter"):
-            parts.append(f"letter: {ts_str(spec['letter'])}")
-        if spec.get("spell"):
-            parts.append(f"spell: {ts_str(spec['spell'])}")
-        parts.append(f"default: {ts_str(spec['default'])}")
-        parts.append(f"insideWordOnly: {'true' if spec['insideWordOnly'] else 'false'}")
-        lines.append(f"  {ts_str(ch)}: {{ {', '.join(parts)} }},")
+        lines.append(f"  {ts_str(ch)}: {{ insideWordOnly: {'true' if spec['insideWordOnly'] else 'false'} }},")
     lines.append("};")
-    lines.append("")
-    lines.append("/** A number with more digits than this is dropped unless read digit by digit. */")
-    lines.append(f"export const MAX_SPELLED_DIGITS = {table['maxSpelledDigits']};")
     lines.append("")
     lines.append("/** The defaults, as a queue's summary records them. */")
     lines.append("export const READING_DEFAULTS: Readonly<Record<string, string>> = {")

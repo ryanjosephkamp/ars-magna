@@ -20,7 +20,7 @@ import type {
 export * from './protocol.ts';
 export { readForms } from './dictForms.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
-export { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters, type Folded } from './fold.ts';
+export { foldChar, foldLetters, foldWords, isSkipped, legacyLetters, normalizeLetters, type Folded } from './fold.ts';
 export {
   DROP,
   LEFT_OUT,
@@ -35,7 +35,6 @@ export {
   readItems,
   readText,
   readingProblem,
-  showWords,
   type Offered,
   type ReadItem,
   type Reading,

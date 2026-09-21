@@ -32,9 +32,9 @@ When you know an anagram that belongs in the dataset.
    If a word is missing, try `--tier=standard`, then `--tier=full`, then `--tier=extended`, which adds
    the site's own words to the pinned list; the narrowest tier that passes is the hit's tier. If the
    letters differ, it is not an anagram. A word missing even at Extended is a word request: see "Add a
-   word to the vocabulary". An input with a number or a symbol is read by the defaults ("Reacher season 4"
-   has the letters of *reacher season four*); to read it another way, add `--read=4:drop` or
-   `--read=2:too` (see "Readings"), and give `propose_hit` the same `reading` in step 2.
+   word to the vocabulary". An input with a number or a symbol has it left out ("Reacher season 4" has the
+   letters of *reacher season*; see "Numbers and symbols"); `--read=4:drop` says the same and is not
+   needed.
 2. On a branch off `main`, record it as a proposed hit. In a session with the MCP server (Claude Code in
    this repository, or Codex set up as `docs/BOOTSTRAP.md` describes), call `propose_hit` with the input,
    the category, the words in reading order, the tier, and a `justification`: one plain sentence
@@ -179,8 +179,9 @@ site's listed contractions"; How it works has a paragraph; Build's Words known r
 more (`dont`, `thats`) can appear in a machine-generated phrase from the next queue on, spelled as its
 letters; `im` cannot, since the short-word allowlist (`tools/hits/src/short-words.txt`) is unchanged. The
 settings version was `s4` from 2026-09-20, when each queue's `summary.json` began to record the dictionary it
-was enumerated with (`dictionary`: the pinned revision and the word list's hash), and is `s5` from 2026-09-21,
-when numbers and symbols became letters (see "Readings"). A hit's words are always the letters; its display
+was enumerated with (`dictionary`: the pinned revision and the word list's hash), then `s5` for one day and
+`s6` from 2026-09-21, the literal rule, under which a number or a symbol is left out and a candidate with
+one waits (see "Numbers and symbols"). A hit's words are always the letters; its display
 carries the form only by your command (phase P2).
 
 ## Word requests
@@ -428,10 +429,10 @@ one input with one id:
 pnpm hits:input bigbrother:titles:brig-bro-the "Big Brother"
 ```
 
-It refuses an input that would change the id ("Brother Big", "Big Brothers", and "Big Brother 29" on a hit
-whose reading spells its number) and writes nothing then. The id, the letters, the votes and the hit's page
-address stay as they are. The new input is read as the hit's `reading` says (see "Readings"), and the
-reading keeps only the items the new input still has.
+It refuses an input that would change the id ("Brother Big", "Big Brothers") and writes nothing then;
+"Big Brother 29" is fine, since a number is left out either way. The id, the letters, the votes and the hit's page
+address stay as they are. The new input's numbers and symbols are left out as before (see "Numbers and
+symbols"), and the reading keeps only the items the new input still has.
 
 Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes, desk_row_notes). The desk fills it.
 To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
@@ -577,80 +578,55 @@ fields until it is a hit; promoted with `hits:ingest --only`, it takes the judge
 `hits.json` carries it on the hits that have one. The dataset publishes `senses` as a list of `word` and
 `sense` in reading order, or `null`, so the column keeps one type however many words get a sense.
 
-## Readings
+## Numbers and symbols
 
-How a number or a symbol in an input becomes letters (roadmap phase N, decisions D19 to D21). The search,
-Build, the pipeline, the API and the CLI all read an input the same way, from one table,
-`scripts/readings.json`, which `python3 scripts/gen-readings.py` emits into the Rust engine
-(`crates/anagram-core/src/readings_table.rs`) and the TypeScript package (`packages/engine/src/readingsTable.ts`);
-both sides walk the table's cases in their tests. Edit the JSON, run the generator, run the four suites.
+**The literal rule (D62, accepted 2026-09-21).** An anagram uses exactly the text's characters: its letters
+(accents folded, case free), its digits and the symbols `@ $ & % + #`, each as itself. Spaces, punctuation,
+apostrophes, hyphens and capitals may be added or removed; nothing is replaced. A number is never read as
+its name, and a symbol never as a letter or a word. Phase N's readings (a number spelled by default, in
+force on 2026-09-21 alone, settings `s5`) were withdrawn that day, after the nightly made "thy big brother
+tweeting" from the letters of *twenty eight*. The literal phase (roadmap N3 to N6) will count digits and
+symbols as characters of the pool and label every term of an anagram by its class.
 
-**The table.** An item is a run of digits (`182`, and `1,000` with its separators), a run of digits with its
-ordinal suffix (`9th`, `21st`), or one of `@ $ ! & +`. Each has a few readings; the first is the default:
+**What the site does now (settings `s6`).** An item is a run of digits (`182`, and `1,000` with its
+separators), an ordinal (`9th`, `21st`), or one of `@ $ & % + #`; `!` and `?` are items only inside a
+word, where they are characters rather than marks. Every item is left out of the letters, and the line under
+the search field and under Build's text box says which (`182 left out`); its characters count as skipped.
+Nothing is converted. Other symbols and letters of other scripts are dropped and counted, as they always
+were. The table is `scripts/readings.json`, which `python3 scripts/gen-readings.py` emits into both engines;
+it offers the one reading, `drop`, until the literal phase adds `self` and the leet readings.
 
-| Item | Readings, the default first |
-|---|---|
-| a number on its own, up to four digits | `spell` (one hundred eighty-two; no "and") · `digits` (one eight two) · `year` for four digits (nineteen oh seven, twenty twenty-six) · `letter` where every digit has a keyboard letter (1337 → ieet) · for a single digit its homophones (`to`, `too`, `for`, `ate`, `won`, `oh`) · `drop` |
-| a number of five digits or more | `drop` · `digits` · `letter` where every digit has one |
-| a digit inside a word, a letter on both sides | `letter` (Bl1nk → blink; 0 o, 1 i, 3 e, 4 a, 5 s, 7 t) · the readings above |
-| an ordinal | `spell` (ninth, seventy-eighth, one hundredth) · `drop` |
-| `@` | `letter` (a) · `spell` (at) · `drop` |
-| `$`, `!` inside a word | `letter` (s, i: Ke$ha, P!nk) · `drop`; elsewhere they are punctuation, not items |
-| `&`, `+` | `spell` (and, plus) · `drop` |
-
-A spelled item enters the text as its words, so the text's own words are known (`Area 51` is *area fifty
-one*, and *fifty one area* is the text itself, never a result); a letter reading joins its neighbours; a
-dropped item is counted on the input line as skipped. Everything else that is not a letter is as it was:
-punctuation and spaces silent, other scripts and other symbols dropped and counted.
-
-**The written form** is the same everywhere: `item:name`, comma-separated, the item as typed without its
-separators (`182:digits,2:too,9th:drop,@:spell`). A shared link carries it in `r=` on the search page and on
-Build, only where it differs from the defaults. A hit's or a candidate's record carries `reading`, an object
-with **every** item of the input and its reading, defaults filled in (`{"1907": "spell"}`), so a later change
-of the defaults changes no record; the dataset publishes it as a list of `item` and `reading`. A record with
-no `reading` was made before 2026-09-21, when every digit and symbol was dropped and the letters kept: its
-id and letters follow that, and stay.
-
-**On the site.** Under the search field's letters line, one line per item: `182 read as one hundred
-eighty-two`, a select listing the readings it offers, `left out` last; Build's text box has the same lines,
-its letters and counts follow the reading, and Submit sends it. A search row's Promote sends it too, and
-`/api/promote` stores it on the promotion (`reading`, migration 0005), so the review reads the input as the
-reader did; the private export, the review and `promotions:apply` carry it to the hit.
-
-**On a hit or a candidate.** The reading is set when the record is made: `propose_hit` takes a `reading`
-argument, the desk's Add a hit has a Reading field, `hits:fetch` records the defaults for a new candidate with
-an item, and a queue's rows carry it into `hits:ingest`. To write down how an existing record reads:
+**Records.** A hit's or a candidate's `reading` names every item of its input, each `drop`; the dataset
+publishes it as a list of `item` and `reading`. A record with no `reading` was made before 2026-09-21 and
+reads the same way (its digits removed, its symbols dropped, the letters kept: `legacyLetters` in the
+engine), so every id, page and vote stays. Records made on 2026-09-21 under `s5` carry a reading the table
+no longer offers (`spell`): the three retired hits of #99, and the day's candidates (six of them twins of
+lines from before phase N). The tools keep their ids as they were made and refuse to change their reading.
 
 ```bash
 pnpm hits:read reacherseason:titles:as-one-searcher 4:drop
-pnpm hits:read sardar:titles 2:drop
 pnpm hits:read sardar:titles --clear
 ```
 
-`hits:read` takes a hit id or a candidate id, then the reading, or `--clear`. It writes the reading of every
-item and refuses one the input does not offer, an unknown id, and a reading that changes the letters, since
-that changes the id, the page address and the votes: an input read another way is another record, added the
-usual way. The two hits from before phase N with a number, "Reacher season 4" and "Sardar 2", carry `4:drop`
-and `2:drop`, and so do their candidates, so they read as they were made.
+`hits:read` still takes a hit or candidate id and a reading, or `--clear`; today the one reading it accepts
+is `drop`, and neither changes the letters. `anagram solve|count|check --read=4:drop` likewise says nothing
+the default does not.
 
-**In the pipeline.** The settings version is `s5` from 2026-09-21: `hits:enumerate` reads a `new` candidate
-from before phase N whose input has an item afresh by the defaults and gives it the id its letters now have,
-with a note naming the old one (`re-read <date> from <old id>`); a candidate already enumerated keeps its id
-until it is requeued, and one with a reading (`hits:read`) moves not at all. A new id that another line holds
-is left alone and printed, for you to settle. `anagram batch` reads each candidate as its record says, writes
-the reading on every row of an input with items, and records the defaults in the queue's `summary.json`
-(`readings`, beside `dictionary`). The screen's sections carry a `reading:` line and the judge's rows say it in
-words (`reading: 1907 read as one thousand nine hundred seven`), so a model knows where the letters came from;
-the rubric asks it to take that into account. The routine's prompt did not change.
+**The nightly.** From `s6`, `hits:enumerate` sets aside a `new` candidate whose input has an item, writes
+the note `waits for the literal rule` on it once, and runs the batch over the rest; those inputs are the
+first the literal phase enumerates. The queue's `summary.json` records the defaults (`readings`, all
+`drop`) beside the dictionary. `hits:fetch` never appends a title that is on file under the id it had
+before phase N (`legacyId`), so a pre-N candidate and a twin cannot both exist again; the six pairs of
+2026-09-21 stay as records. A row with an item, which only a deep run can make until then, says `4:drop`
+to the screen and `4 left out` to the judge.
 
-**The CLI.** `anagram solve`, `count` and `check` take `--read=4:drop,2:too`, checked against the input:
+**The dictionary build** folds the frequency list as before phase N (`legacyLetters`): 55,000 of its
+entries carry a digit or a symbol (`2nd`, `80s`, `1st`), and folding them any other way moves their
+counts onto other words (26 would cross the Common cutoff). `pnpm dict:verify` holds the artifacts byte
+for byte.
 
-```bash
-cargo run --release -p anagram-cli -- check "Reacher season 4" "as one searcher" --read=4:drop
-```
-
-Without the flag the defaults apply, so that check reads `no: the letters differ (reacherseasonfour vs
-asonesearcher)`.
+**The five published hits with a character left out** (Vishwanath & Sons three times, Reacher season 4,
+Sardar 2) stay, by the operator's decision of 2026-09-21; their pages say so once the literal phase lands.
 
 ## Display on a hit
 
@@ -739,7 +715,7 @@ the order they saw, the `tier` they searched, `via` (`result` from a search, `ty
 migration `0003`), `why`, `credit` and `missing` (its word requests); the rest leave them empty. `converted_to`
 (migration `0004`) is the hit a promotion's vote went to, once its anagram is published; the row stays.
 `reading` (migration `0005`) is how the reader read the input's numbers and symbols, every item of them, as
-JSON, or null for an input without any (see "Readings").
+JSON, or null for an input without any (see "Numbers and symbols").
 `promotion_counts` holds each key's count, recounted with every change. A promotion of an anagram already on
 Discover is refused, and the search page shows Vote for it instead. A promotion of the text itself is refused
 too, typed from Build or pressed on a search row: the text's own words in any order, and a re-spacing of it,
@@ -820,7 +796,7 @@ it splits a text into words as the engine does (`foldWords`). The search still l
 
 **The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
 numbers and the symbols `@ $ ! & +` read as letters first, by the defaults or the reading chosen under the
-text box (see "Readings"); apostrophes, hyphens and punctuation carry no letters; letters of other scripts,
+text box (see "Numbers and symbols"); apostrophes, hyphens and punctuation carry no letters; letters of other scripts,
 other symbols and what a reading leaves out are listed as skipped. *Words known* reads each word between spaces against the tier the reader picks, and names a
 word it lacks: `doomer is in Extended, not Standard` for a word a wider tier has, `qzx is not in the dictionary`
 for one no tier has. A typed `don't` is the word `dont`, a listed form's letters, known at every tier (see
@@ -1318,7 +1294,7 @@ the judge then scores only the tenth or so the screen keeps.
    - requeues and seeds;
    - proposes anchor words for inputs with more than 50,000 results;
    - enumerates with the deep preset (reading a candidate from before phase N afresh, which re-ids it: see
-     "Readings"), prefilters, and writes the screen input;
+     "Numbers and symbols"), prefilters, and writes the screen input;
    - screens with `claude-sonnet-5` subagents, one per screen file;
    - judges what the screen kept with `claude-opus-5` subagents, one per judge file;
    - ingests with the engine check on and `--judged-by=hand`, and opens a pull request titled

@@ -41,8 +41,8 @@ describe('presets', () => {
       '--seed=1',
       '--status=new',
     ]);
-    // s5: numbers and symbols are read as letters before the search (2026-09-21).
-    expect(SETTINGS_VERSION).toBe('s5');
+    // s6: the literal rule; a number or a symbol is left out, and a candidate with one waits (2026-09-21).
+    expect(SETTINGS_VERSION).toBe('s6');
   });
 
   it('take the deep preset and explicit overrides, and refuse an unknown preset', () => {

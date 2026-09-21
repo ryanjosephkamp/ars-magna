@@ -271,22 +271,24 @@ describe('POST /api/promote and GET /api/promotions', () => {
     expect(await status({ input: 'Beyoncé', words: ['obeyence'], tier: 'full' })).toEqual([400, 'not-an-anagram']);
     expect((await t.promote({ input: 'Beyoncé', words: ['boney', 'ec'], tier: 'full', voter: ALICE, pass: alice, on: true })).status).toBe(200);
 
-    // A number is read as the reader read it: by the defaults, or as `reading` says; a reading that does not fit is refused.
-    expect(await status({ input: 'Reacher season 4', words: ['as', 'one', 'searcher'], tier: 'standard' })).toEqual([400, 'not-an-anagram']);
+    // A number is left out (the literal rule), by default and when `reading` says so; a reading the table does not offer is refused.
+    expect(await status({ input: 'Reacher season 4', words: ['as', 'one', 'searcher'], tier: 'standard' })).toEqual([200, undefined]);
+    expect(await status({ input: 'Reacher season 4', words: ['four', 'as', 'one', 'searcher'], tier: 'standard' })).toEqual([400, 'not-an-anagram']);
     expect(await status({ input: 'Reacher season 4', words: ['as', 'one', 'searcher'], tier: 'standard', reading: { '4': 'drop' } })).toEqual([200, undefined]);
+    expect(await status({ input: 'Reacher season 4', words: ['as', 'one', 'searcher'], tier: 'standard', reading: { '4': 'spell' } })).toEqual([400, 'bad-reading']);
     expect(await status({ input: 'Reacher season 4', words: ['as', 'one', 'searcher'], tier: 'standard', reading: { '4': 'year' } })).toEqual([400, 'bad-reading']);
     expect(await status({ input: 'Reacher season 4', words: ['as', 'one', 'searcher'], tier: 'standard', reading: { '5': 'drop' } })).toEqual([400, 'bad-reading']);
     expect(await status({ input: 'Reacher season 4', words: ['as', 'one', 'searcher'], tier: 'standard', reading: ['4'] })).toEqual([400, 'bad-request']);
-    // The text's own words under its reading are the text: "two fast two furious" is "2 Fast 2 Furious".
-    expect(await status({ input: '2 Fast 2 Furious', words: ['two', 'fast', 'two', 'furious'], tier: 'standard' })).toEqual([400, 'text-itself']);
-    expect(await status({ input: '2 Fast 2 Furious', words: ['too', 'fast', 'too', 'furious'], tier: 'standard', reading: { '2': 'too' } })).toEqual([400, 'text-itself']);
-    expect(await status({ input: '2 Fast 2 Furious', words: ['fast', 'furious', 'two', 'two'], tier: 'standard', reading: { '2': 'too' } })).toEqual([400, 'not-an-anagram']);
+    // The text's own words with its numbers left out are the text: "furious fast" is "2 Fast 2 Furious"; the number's name never fits.
+    expect(await status({ input: '2 Fast 2 Furious', words: ['furious', 'fast'], tier: 'standard' })).toEqual([400, 'text-itself']);
+    expect(await status({ input: '2 Fast 2 Furious', words: ['two', 'fast', 'two', 'furious'], tier: 'standard' })).toEqual([400, 'not-an-anagram']);
+    expect(await status({ input: '2 Fast 2 Furious', words: ['furious', 'fast'], tier: 'standard', reading: { '2': 'too' } })).toEqual([400, 'bad-reading']);
     // What is stored is the reading of every item, defaults filled in.
     const stored = t.db.sqlite.prepare("SELECT reading FROM promotions WHERE input = 'Reacher season 4'").all() as { reading: string }[];
     expect(stored.map((r) => JSON.parse(r.reading))).toEqual([{ '4': 'drop' }]);
-    expect((await t.promote({ input: 'Area 51 x', words: ['fiver', 'axe', 'a', 'one'], tier: 'full', voter: ALICE, pass: alice, on: true, reading: { '51': 'digits' } })).status).toBe(200);
+    expect((await t.promote({ input: 'Area 51 x', words: ['axe', 'ra'], tier: 'full', voter: ALICE, pass: alice, on: true, reading: { '51': 'drop' } })).status).toBe(200);
     const area = t.db.sqlite.prepare("SELECT reading FROM promotions WHERE input = 'Area 51 x'").all() as { reading: string }[];
-    expect(area.map((r) => JSON.parse(r.reading))).toEqual([{ '51': 'digits' }]);
+    expect(area.map((r) => JSON.parse(r.reading))).toEqual([{ '51': 'drop' }]);
 
     // Taking a promotion back always works, even for an anagram published or blocked since.
     expect((await t.promote({ ...PROMOTED, words: ['elegant', 'man'], voter: ALICE, pass: alice, on: false })).status).toBe(200);

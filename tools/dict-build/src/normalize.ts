@@ -1,4 +1,4 @@
-import { normalizeLetters } from '../../../packages/engine/src/fold.ts';
+import { legacyLetters } from '../../../packages/engine/src/fold.ts';
 
 /**
  * Surface form -> search form.
@@ -9,13 +9,18 @@ import { normalizeLetters } from '../../../packages/engine/src/fold.ts';
  * everything that is not a Latin letter is dropped, so both cases fall out of
  * one rule: `norteño` -> `norteno`, `across-the-board` -> `acrosstheboard`.
  *
- * This is the *same function* the app applies to user input — imported, not
- * copied — which is what makes "Ryan Joseph Kamp", "ryanjosephkamp" and
- * "Beyoncé" line up with the dictionary. The Rust engine's `normalize()` is
- * held to the same table by its own tests.
+ * This is the app's own fold — imported, not copied — which is what makes
+ * "Ryan Joseph Kamp", "ryanjosephkamp" and "Beyoncé" line up with the
+ * dictionary. The Rust engine's `normalize()` is held to the same table by
+ * its own tests. It is the fold as it was before phase N (2026-09-21): a
+ * digit removed, a symbol dropped, the letters kept. The frequency list has
+ * 55,000 entries with a digit or a symbol (`2nd`, `80s`, `1st`), and folding
+ * them any other way moves their counts onto other words (measured on
+ * 2026-09-21: 26 words would cross the Common cutoff), so the artifact is
+ * held to this fold and `dict:verify` proves it byte for byte.
  */
 export function normalize(surface: string): string {
-  return normalizeLetters(surface);
+  return legacyLetters(surface);
 }
 
 /** 26-slot letter-count vector. Index 0 = 'a'. */

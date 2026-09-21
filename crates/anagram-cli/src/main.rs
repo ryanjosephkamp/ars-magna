@@ -149,8 +149,9 @@ struct Args {
     limit: usize,
 }
 
-/// `--read=182:digits,2:too`: the reader's readings of the text's numbers and
-/// symbols, checked against what the text offers. None given is the defaults.
+/// `--read=4:drop`: the reader's readings of the text's numbers and symbols,
+/// checked against what the text offers (`drop` alone until the literal phase).
+/// None given is the defaults.
 fn reading_flag(argv: &Argv, text: &str) -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
     let pairs = anagram_core::parse_reading(argv.get("read").unwrap_or(""))?;
     if let Some(problem) = anagram_core::reading_problem(text, &pairs) {
@@ -201,7 +202,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "check" => check(&Argv::parse(rest)),
         _ => {
             eprintln!(
-                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=] [--read=182:digits,2:too]\n  \
+                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=] [--read=4:drop]\n  \
                  anagram bench\n  \
                  anagram batch --in=candidates.jsonl --out=DIR [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] \
                  [--additions=FILE] [--spellings=first|all] [--expand-cap=] [--limit=] [--sample=] [--seed=] \

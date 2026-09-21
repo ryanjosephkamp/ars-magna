@@ -42,8 +42,10 @@ describe('ids in the page', () => {
     // A reading goes into the letters, the id and the fit, as it does in the pipeline.
     expect(foldLetters('Reacher season 4', { '4': 'drop' })).toBe('reacherseason');
     expect(candidateIdOf('Reacher season 4', 'titles', { '4': 'drop' })).toBe(candidateId('Reacher season 4', 'titles', { '4': 'drop' }));
-    expect(hitIdOf('Blink-182', 'titles', ['blink', 'two', 'eight', 'one'], { '182': 'digits' })).toBe('blinkoneeighttwo:titles:blink-eight-one-two');
-    expect(phraseFits('Reacher season 4', 'as one searcher')).toBe(false);
+    expect(hitIdOf('Blink-182', 'titles', ['blink'], { '182': 'drop' })).toBe('blink:titles:blink');
+    // A number is left out by default (the literal rule), so the old hit's words fit without a reading.
+    expect(phraseFits('Reacher season 4', 'as one searcher')).toBe(true);
+    expect(phraseFits('Reacher season 4', 'four as one searcher')).toBe(false);
     expect(phraseFits('Reacher season 4', 'as one searcher', { '4': 'drop' })).toBe(true);
     expect(readingOfAdd({ reading: ' 4:drop ' })).toEqual({ '4': 'drop' });
     expect(readingOfAdd({})).toBeUndefined();
@@ -94,7 +96,7 @@ describe('commands', () => {
         '{"id":"thecountryside:phrases","input":"The countryside","category":"phrases","source":"manual","first_seen":"2026-09-14","status":"new","anchors":["city","dust"]}',
         '{"id":"sagradafamilia:places","input":"Sagrada Família","category":"places","source":"manual","first_seen":"2026-09-14","status":"new"}',
         // A seed with a number records how it is read.
-        '{"id":"comoonethousandninehundredseven:companies","input":"Como 1907","category":"companies","source":"manual","first_seen":"2026-09-14","status":"new","reading":{"1907":"spell"}}',
+        '{"id":"como:companies","input":"Como 1907","category":"companies","source":"manual","first_seen":"2026-09-14","status":"new","reading":{"1907":"drop"}}',
         'EOF',
       ].join('\n'),
       'pnpm hits:requeue --settings-before=s2 --category=titles --dry-run',

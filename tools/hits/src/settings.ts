@@ -30,7 +30,7 @@
  * dictionary it was enumerated with, its pinned revision and the built list's
  * hash, from this version on.
  *
- * s5: s4 plus the readings of numbers and symbols (roadmap phase N,
+ * s5 (2026-09-21, one day): s4 plus the readings of numbers and symbols (roadmap phase N,
  * `scripts/readings.json`). Before s5 every digit and symbol of an input was
  * dropped; from s5 on a number on its own is spelled ("Como 1907" is the
  * letters of *como one thousand nine hundred seven*), a digit or `$`/`!`
@@ -40,6 +40,15 @@
  * it is read afresh and re-id'd when a queue enumerates it again. The queue's
  * `summary.json` records the default readings beside the dictionary, and
  * every row of an input with items records its reading.
+ *
+ * s6: the literal rule (D62, accepted 2026-09-21; s5 withdrawn the day it went
+ * live). Nothing is converted: a number is never read as its name, a symbol
+ * never as a letter or a word. Every item of an input (a run of digits, an
+ * ordinal, one of `@ $ ! ? & % + #`) is left out, as before phase N, and a
+ * candidate whose input has one is set aside by `hits:enumerate` with a note
+ * until the literal phase (N3 to N6, s7) counts digits and symbols as
+ * characters of the pool. A record's `reading` still names every item, all
+ * `drop`. The candidates re-id'd or duplicated under s5 keep their lines.
  */
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
@@ -49,7 +58,7 @@ import { REPO_ROOT, type Candidate, type CandidateRun } from './schema.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export const SETTINGS_VERSION = 's5';
+export const SETTINGS_VERSION = 's6';
 
 /** A candidate processed before runs were recorded counts as this. */
 export const LEGACY_RUN: Pick<CandidateRun, 'settings' | 'rubric'> = { settings: 's1', rubric: 'v1' };

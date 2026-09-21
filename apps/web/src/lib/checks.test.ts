@@ -24,8 +24,8 @@ describe('wordsOf', () => {
     // A typed form is its letters-word, which the dictionary lists in every tier; a possessive is the plural's letters.
     expect(wordsOf("don't")).toEqual(['dont']);
     expect(wordsOf("dog's")).toEqual(['dogs']);
-    // A number and an ampersand are read as words; a lone exclamation mark is punctuation.
-    expect(wordsOf('Beyoncé 4 & !')).toEqual(['beyonce', 'four', 'and']);
+    // A number and an ampersand are left out; a lone exclamation mark is punctuation.
+    expect(wordsOf('Beyoncé 4 & !')).toEqual(['beyonce']);
     expect(wordsOf('Beyoncé ?? !')).toEqual(['beyonce']);
     expect(wordsOf(' - ')).toEqual([]);
   });
