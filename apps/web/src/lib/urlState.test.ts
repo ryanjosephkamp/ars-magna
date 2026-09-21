@@ -95,8 +95,8 @@ describe('urlState', () => {
     expect(decodeQuery('#i=ro-om,%20dirty').mustInclude).toEqual(['room', 'dirty']);
     expect(decodeQuery('#i=,,,').mustInclude).toEqual([]);
     expect(decodeQuery('#i=!!').mustInclude).toEqual([]);
-    // A number in a word list folds to nothing: it is left out, as the engine leaves it out.
-    expect(decodeQuery('#i=123').mustInclude).toEqual([]);
+    // A number in a word list is a token of the pool, as the engine folds it; the engine then says it is no word.
+    expect(decodeQuery('#i=123').mustInclude).toEqual(['123']);
   });
 
   it('tolerates a hash with or without its leading marker', () => {
@@ -123,6 +123,8 @@ describe('splitQuery', () => {
 
     expect(filters).toEqual({
       tier: 'full',
+      classes: [],
+      leet: [],
       minWordLen: 3,
       maxWords: 4,
       mustInclude: ['cat'],
@@ -264,24 +266,31 @@ describe('the reading in the address', () => {
     expect(encodeQuery({ ...DEFAULT_QUERY, input: '2 Fast 2 Furious @', reading: { '2': 'too', '@': 'spell' } })).toBe('q=2%20Fast%202%20Furious%20%40');
     expect(decodeQuery('#q=Blink-182&r=182:digits').reading).toEqual({});
     expect(decodeQuery('#q=Blink-182&r=182%3Adigits').reading).toEqual({});
+    // An item is one character now; a run key names nothing.
     expect(decodeQuery('#q=Blink-182&r=182:drop').reading).toEqual({});
+    expect(decodeQuery('#q=Blink-182&r=8:drop').reading).toEqual({ '8': 'drop' });
+    expect(decodeQuery('#q=Blink-182&r=1:l,8:drop').reading).toEqual({ '1': 'l', '8': 'drop' });
+    expect(decodeQuery('#q=Ke%24ha&r=%24:s').reading).toEqual({ $: 's' });
     // A link cannot read a number a way the table does not know, name an item the input lacks, or say nothing and mean something.
     expect(decodeQuery('#q=Blink-182&r=182:year').reading).toEqual({});
     expect(decodeQuery('#q=Blink-182&r=5:drop').reading).toEqual({});
     expect(decodeQuery('#q=Blink-182&r=182').reading).toEqual({});
-    expect(decodeQuery('#q=Blink-182&r=182:spell').reading).toEqual({});
+    expect(decodeQuery('#q=Blink-182&r=1:spell').reading).toEqual({});
+    expect(decodeQuery('#q=Blink-182&r=1:self').reading).toEqual({});
     expect(decodeQuery('#q=Blink-182').reading).toEqual({});
-    // A kept phrase must fit the letters with the number left out.
-    expect(keptPhrases('#q=Reacher%20season%204&p=as%20one%20searcher', 'Reacher season 4')).toEqual(['as one searcher']);
+    // A kept phrase must fit the pool as the link reads it: with the 4 left out, or as itself.
+    expect(keptPhrases('#q=Reacher%20season%204&r=4:drop&p=as%20one%20searcher', 'Reacher season 4', { '4': 'drop' })).toEqual(['as one searcher']);
+    expect(keptPhrases('#q=Reacher%20season%204&p=as%20one%20searcher', 'Reacher season 4')).toEqual([]);
     expect(keptPhrases('#q=Reacher%20season%204&p=four%20as%20one%20searcher', 'Reacher season 4')).toEqual([]);
   });
 
   it('opens the search on a hit as the hit was read', () => {
     expect(searchHref('Dormitory', undefined)).toBe('/#q=Dormitory');
-    // Left out is the default, so no link carries `r=`; a reading from the withdrawn s5 day is not written either.
-    expect(searchHref('Reacher season 4', { '4': 'drop' })).toBe('/#q=Reacher%20season%204');
+    // A hit made with a character left out says so, since as itself is the default now; a reading from the withdrawn s5 day is not written.
+    expect(searchHref('Reacher season 4', { '4': 'drop' })).toBe('/#q=Reacher%20season%204&r=4%3Adrop');
     expect(searchHref('Como 1907', { '1907': 'spell' })).toBe('/#q=Como%201907');
-    expect(searchHref('Sardar 2', undefined)).toBe('/#q=Sardar%202');
-    expect(legacyReading('Blink-182 vs 2')).toEqual({ '182': 'drop', '2': 'drop' });
+    expect(searchHref('Sardar 2', undefined)).toBe('/#q=Sardar%202&r=2%3Adrop');
+    expect(searchHref('Vishwanath & Sons', undefined)).toBe('/#q=Vishwanath%20%26%20Sons&r=%26%3Adrop');
+    expect(legacyReading('Blink-182 vs 2')).toEqual({ '1': 'drop', '8': 'drop', '2': 'drop' });
   });
 });

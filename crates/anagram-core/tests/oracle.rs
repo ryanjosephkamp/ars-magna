@@ -19,7 +19,7 @@
 //! the rule is one line, the text's words taken out of the set, and the engine
 //! has to arrive at the same rows by way of respelling one and dropping another.
 
-use anagram_core::{Counts, Dict, Flow, Memo, Search, SolveOptions, TextRow, Tier};
+use anagram_core::{Counts, Dict, Flow, Memo, Scope, Search, Slots, SolveOptions, TextRow, Tier};
 use std::collections::HashSet;
 
 /// A query, as both enumerators are given it.
@@ -100,7 +100,9 @@ fn naive_spellings(dict: &Dict, spec: Spec) -> HashSet<Vec<String>> {
     if normalized.is_empty() {
         return HashSet::new();
     }
-    let mut target = Counts::from_word(&normalized).unwrap();
+    // The pool: a digit or symbol takes a slot no word can cover, so the
+    // naive walk never empties such a target and finds nothing, as it should.
+    let mut target = Counts::from_pool(&normalized, &mut Slots::new()).unwrap();
     for word in spec.include {
         target = target.sub(Counts::from_word(word).unwrap());
     }
@@ -171,7 +173,7 @@ fn fast_rows(dict: &Dict, spec: Spec) -> HashSet<Vec<String>> {
     let mut emitted = 0usize;
     search.enumerate(|classes| {
         emitted += 1;
-        let words = sorted(search.spell(dict, classes, Tier::Full));
+        let words = sorted(search.spell(dict, classes));
         assert!(
             spellings.contains(&words),
             "{:?}: the engine showed {words:?}, which is not a way to write these letters here",
@@ -516,7 +518,7 @@ fn max_words_filter_is_a_subset() {
         let search = Search::prepare(&dict, "dormitory", options).unwrap();
         let mut out = HashSet::new();
         search.enumerate(|classes| {
-            let mut w = search.spell(&dict, classes, Tier::Full);
+            let mut w = search.spell(&dict, classes);
             w.sort();
             out.insert(w);
             Flow::Continue
@@ -595,13 +597,13 @@ fn the_text_is_never_its_own_result() {
         ("dorm it ory",       2, None, &[], &[], unlimited, TextRow::None),
         ("d o r m i t o r y", 1, None, &[], &[], unlimited, TextRow::None),
         // A piece that folds to nothing is no word; a hyphen ends none. An
-        // ampersand and digits are read as words since phase N ("dirty and
-        // moor", "dormitory one hundred twenty three"), so those rows are the
-        // text's own words in a longer text.
+        // ampersand and a digit are characters of the pool (the literal rule),
+        // tokens of the text that no word spells, so with words alone the text
+        // has no row and no result.
         ("dirty ?? moor",     2, None, &[], &[], unlimited, TextRow::Respelled),
-        ("dirty & moor",      2, None, &[], &[], unlimited, TextRow::Respelled),
+        ("dirty & moor",      2, None, &[], &[], unlimited, TextRow::None),
         ("dormitory !!!",     2, None, &[], &[], unlimited, TextRow::Dropped),
-        ("dormitory 123",     2, None, &[], &[], unlimited, TextRow::Dropped),
+        ("dormitory 123",     2, None, &[], &[], unlimited, TextRow::None),
         ("dor-mit'ory",       2, None, &[], &[], unlimited, TextRow::Dropped),
         // Must include keeps its slot as typed. Holding one of the words, the other decides.
         ("dirty moor",        2, None, &["dirty"], &[], unlimited, TextRow::Respelled),
@@ -650,7 +652,7 @@ fn the_text_is_never_its_own_result() {
         // The text is in nothing the engine shows, whatever became of its row.
         let text = sorted(anagram_core::text_words(input));
         for classes in &streamed {
-            assert_ne!(sorted(search.spell(&dict, classes, Tier::Full)), text, "{what}: the text is a result");
+            assert_ne!(sorted(search.spell(&dict, classes)), text, "{what}: the text is a result");
         }
 
         // What the same letters give with the rule out of the way, typed as one
@@ -674,7 +676,7 @@ fn the_row_takes_its_next_spelling_and_a_pinned_word_stays_as_typed() {
         let search = Search::prepare(&dict, input, spec.options()).unwrap();
         let mut out = HashSet::new();
         search.enumerate(|classes| {
-            out.insert(sorted(search.spell(&dict, classes, Tier::Full)));
+            out.insert(sorted(search.spell(&dict, classes)));
             Flow::Continue
         });
         out
@@ -704,7 +706,7 @@ fn the_row_takes_its_next_spelling_and_a_pinned_word_stays_as_typed() {
 #[test]
 fn rank_refuses_what_is_not_a_result() {
     let dict = small_dict();
-    let class = |word: &str| dict.find_class(word, Tier::Full).unwrap() as u32;
+    let class = |word: &str| dict.find_class(word, Scope::tier(Tier::Full)).unwrap() as u32;
     let search = Search::prepare(&dict, "dormitory", Spec::of("dormitory", 2).options()).unwrap();
     let mut memo = Memo::new();
 

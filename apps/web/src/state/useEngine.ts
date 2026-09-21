@@ -36,6 +36,13 @@ export type SearchState = {
    */
   textLeftOut: boolean;
   /**
+   * The digits and symbols of the text that no term of the query uses, in the
+   * order they first appear: the count is zero for the lack of them, and the
+   * page says so. Empty for a text of letters, and once a class or a leet
+   * reading covers them (the literal rule).
+   */
+  unused: string;
+  /**
    * The query has its answer: its count, or an error. Until then the total in
    * the buffer is nobody's: 0 from the reset, or the previous query's while
    * the typing debounce runs. A query not yet answered is not a zero, so the
@@ -60,6 +67,7 @@ export function useEngine(query: Query) {
     candidates: 0,
     countedLetters: null,
     textLeftOut: false,
+    unused: '',
     answered: false,
   });
 
@@ -88,20 +96,20 @@ export function useEngine(query: Query) {
 
     if (normalizeLetters(query.input, query.reading).length === 0) {
       results.reset();
-      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false, answered: false }));
+      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false, unused: '', answered: false }));
       return;
     }
 
     const timer = setTimeout(() => {
       results.reset();
-      setState((s) => ({ ...s, searching: true, error: null, textLeftOut: false, answered: false }));
+      setState((s) => ({ ...s, searching: true, error: null, textLeftOut: false, unused: '', answered: false }));
 
       client.solve(
         query,
         {
-          onCount: (total, candidates, textLeftOut) => {
+          onCount: (total, candidates, textLeftOut, unused) => {
             results.setTotal(total);
-            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input, query.reading), textLeftOut, answered: true }));
+            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input, query.reading), textLeftOut, unused, answered: true }));
           },
           onBatch: (offset, rows, done, truncated) =>
             results.append(offset, rows, done, truncated),

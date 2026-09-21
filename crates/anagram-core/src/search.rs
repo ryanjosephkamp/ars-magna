@@ -71,10 +71,31 @@
 //! the row had, and the list, "Go to" and "Surprise me" must still skip it.
 //! The memo holds raw subtree totals throughout; the one subtraction happens
 //! where a total leaves [`Search::count`].
+//!
+//! # The pool and the classes
+//!
+//! The text is a pool of characters (`counts.rs`): letters, and its digits
+//! and symbols, which take the six slots past z for this query. A candidate is
+//! a dictionary class in scope (its tier, or a term class of the mask that
+//! spells it), a term with a digit or symbol that fits (counted through the
+//! query's slots), or a numeral generated from the pool's digits when that
+//! class is on. The last two have no place in the dictionary's class list, so
+//! they take **virtual class indices** from `dict.classes.len()` up, in the
+//! order they were made; their spellings are pseudo word indices with the
+//! high bit set. With words alone the pool's digits and symbols are covered
+//! by nothing, the rarest slot at the root is one of them, and the search
+//! dies at once: [`Search::uncovered`] says which, so the page can.
 
-use crate::counts::Counts;
-use crate::dict::{Dict, Tier};
+use crate::classes::{Class, ClassMask};
+use crate::counts::{Counts, PoolError, Slots, SLOTS};
+use crate::dict::{Dict, Scope, Tier};
 use std::collections::{HashMap, HashSet};
+
+/// The high bit of a spelling index marks a virtual candidate's one spelling.
+const VIRTUAL: u32 = 1 << 31;
+
+/// The most numerals one query may generate from its digits.
+pub const NUMERAL_CAP: usize = 4_096;
 
 /// `max_words` at or above this is treated as unbounded, which lets the
 /// counting memo key on the letter state alone.
@@ -83,6 +104,9 @@ pub const UNLIMITED_WORDS: u8 = 64;
 #[derive(Clone, Debug)]
 pub struct SolveOptions {
     pub tier: Tier,
+    /// The term classes admitted beside the tier (`classes.rs`), one bit
+    /// each; 0 is words alone, today's search.
+    pub classes: ClassMask,
     /// Words shorter than this are excluded from the vocabulary entirely.
     pub min_word_len: u8,
     /// Words shorter than `min_word_len` that are admitted anyway, such as
@@ -109,6 +133,7 @@ impl Default for SolveOptions {
     fn default() -> Self {
         SolveOptions {
             tier: Tier::Standard,
+            classes: 0,
             min_word_len: 2,
             short_words: None,
             max_words: UNLIMITED_WORDS,
@@ -126,9 +151,14 @@ pub enum SolveError {
     UnknownWord(String),
     /// A `must_include` word uses letters the input does not have.
     NotASubset(String),
-    /// One letter occurs more than 127 times, which is more than a count
-    /// byte can hold. Carries the offending letter.
+    /// One character occurs more than 127 times, which is more than a count
+    /// byte can hold. Carries the offending character.
     TooManyRepeats(char),
+    /// More than six distinct digits and symbols, which is more than the pool
+    /// has slots for.
+    TooManyCharacters,
+    /// The pool's digits would make more numerals than [`NUMERAL_CAP`].
+    TooManyNumerals,
     /// A word is both in `must_include` and in `exclude`.
     IncludedAndExcluded(String),
 }
@@ -139,6 +169,8 @@ impl std::fmt::Display for SolveError {
             SolveError::UnknownWord(w) => write!(f, "{w:?} is not in this dictionary tier"),
             SolveError::NotASubset(w) => write!(f, "{w:?} does not fit in the input letters"),
             SolveError::TooManyRepeats(c) => write!(f, "{c:?} appears more than 127 times"),
+            SolveError::TooManyCharacters => write!(f, "more than six different digits and symbols"),
+            SolveError::TooManyNumerals => write!(f, "the digits make more than {NUMERAL_CAP} numerals"),
             SolveError::IncludedAndExcluded(w) => write!(f, "{w:?} is both included and excluded"),
         }
     }
@@ -232,12 +264,20 @@ impl OwnRow {
         if tokens.is_empty() || tokens.len() > options.max_words as usize {
             return None;
         }
+        let scope = Scope { tier: options.tier, classes: options.classes };
 
         let mut words = Vec::with_capacity(tokens.len());
         let mut classes = Vec::with_capacity(tokens.len());
         for token in &tokens {
-            let class = dict.find_class(token, options.tier)? as u32;
-            let word = dict.index_of(token)?;
+            // A word of the dictionary in scope, or one of this query's own
+            // terms: a numeral made of the text's digits, a term with a symbol.
+            let (class, word) = match dict.find_class(token, scope) {
+                Some(class) => (class as u32, dict.index_of(token)?),
+                None => {
+                    let k = candidates.virtuals.iter().position(|v| v.text == *token)?;
+                    ((candidates.dict_classes + k) as u32, VIRTUAL | k as u32)
+                }
+            };
             if excluded.contains(&word) {
                 return None;
             }
@@ -259,9 +299,7 @@ impl OwnRow {
 
         // What the row shows by default: the forced words as typed, and each
         // free class's commonest spelling this query allows.
-        let allowed = |class: u32| {
-            dict.class_words(class as usize, options.tier).filter(|w| !excluded.contains(w))
-        };
+        let allowed = |class: u32| candidates.spellings(dict, class, scope).filter(|w| !excluded.contains(w));
         let mut shown = forced.words.clone();
         for &class in &free {
             shown.push(allowed(class).next()?);
@@ -298,14 +336,28 @@ impl OwnRow {
     }
 }
 
+/// A candidate the dictionary's class list does not hold: a term with a digit
+/// or symbol that fits this query's pool, or a numeral made of its digits.
+pub struct Virtual {
+    pub text: String,
+    pub counts: Counts,
+    pub class: Class,
+}
+
 /// Per-query candidate set: the classes that could possibly appear, plus an
-/// index from letter to the candidates containing it.
+/// index from slot to the candidates containing it.
 pub struct Candidates {
     counts: Vec<Counts>,
     len: Vec<u8>,
+    /// The class index of each candidate: the dictionary's, or a virtual one
+    /// from `dict_classes` up. Ascending.
     class: Vec<u32>,
-    buckets: [Vec<u32>; 26],
+    buckets: [Vec<u32>; SLOTS],
     longest: u32,
+    /// `dict.classes.len()`: where the virtual class indices begin.
+    dict_classes: usize,
+    /// This query's own candidates, virtual class `dict_classes + k`.
+    virtuals: Vec<Virtual>,
 }
 
 impl Candidates {
@@ -315,6 +367,38 @@ impl Candidates {
 
     pub fn is_empty(&self) -> bool {
         self.class.is_empty()
+    }
+
+    /// The spellings of a class this query may show, in the order `spell`
+    /// prefers them: a dictionary class's words and terms in scope, or a
+    /// virtual class's one text as a pseudo index.
+    fn spellings<'a>(&'a self, dict: &'a Dict, class: u32, scope: Scope) -> Box<dyn Iterator<Item = u32> + 'a> {
+        match (class as usize).checked_sub(self.dict_classes) {
+            None => Box::new(dict.class_words(class as usize, scope)),
+            Some(k) => Box::new(std::iter::once(VIRTUAL | k as u32)),
+        }
+    }
+
+    /// The text of a spelling index: a word or term of the dictionary, or a
+    /// virtual candidate's own.
+    fn text<'a>(&'a self, dict: &'a Dict, spelling: u32) -> &'a str {
+        if spelling & VIRTUAL != 0 {
+            &self.virtuals[(spelling & !VIRTUAL) as usize].text
+        } else {
+            dict.word(spelling)
+        }
+    }
+
+    /// The class a spelling belongs to, or `None` for a word of the dictionary.
+    fn class_of_spelling(&self, dict: &Dict, spelling: u32, scope: Scope) -> Option<Class> {
+        if spelling & VIRTUAL != 0 {
+            return Some(self.virtuals[(spelling & !VIRTUAL) as usize].class);
+        }
+        let bits = dict.term_bits(spelling);
+        if bits == 0 {
+            return None;
+        }
+        Class::first_in(bits & scope.classes).or_else(|| Class::first_in(bits))
     }
 
     /// Sweep the dictionary once, keeping classes that fit inside `target`.
@@ -329,35 +413,54 @@ impl Candidates {
     /// resolved to class indices up front: `find_class` is a hash probe, and
     /// the sweep visits every class in the dictionary.
     ///
-    /// A class none of whose spellings in the tier survive `excluded` (word
+    /// A class none of whose spellings in scope survive `excluded` (word
     /// indices) is left out, so it is as if the dictionary never had it.
-    pub fn build(dict: &Dict, target: Counts, options: &SolveOptions, excluded: &HashSet<u32>) -> Candidates {
+    ///
+    /// The length rule is for words: a class below `min_word_len` stays when
+    /// `short_words` names it or a term class of the mask spells it (`u`, `2`),
+    /// since a term is governed by its class. After the dictionary's classes
+    /// come this query's own: the terms with a digit or symbol that fit,
+    /// counted through `slots`, and, with the numerals class on, every
+    /// numeral the pool's digits make, each written in the text's own digit
+    /// order (`182` gives `182`, `82`, `12`, `18`, `1`, `8`, `2`).
+    pub fn build(
+        dict: &Dict,
+        target: Counts,
+        options: &SolveOptions,
+        excluded: &HashSet<u32>,
+        slots: &Slots,
+        pool: &str,
+    ) -> Result<Candidates, SolveError> {
         let mut counts = Vec::new();
         let mut len = Vec::new();
         let mut class = Vec::new();
+        let scope = Scope { tier: options.tier, classes: options.classes };
 
         let admitted: HashSet<u32> = options
             .short_words
             .as_deref()
             .unwrap_or_default()
             .iter()
-            .filter_map(|word| dict.find_class(&crate::counts::normalize(word), options.tier))
+            .filter_map(|word| dict.find_class(&crate::counts::normalize(word), scope))
             .map(|index| index as u32)
             .collect();
 
         for (index, sig) in dict.classes.iter().enumerate() {
-            if sig.len < options.min_word_len && !admitted.contains(&(index as u32)) {
+            if sig.len < options.min_word_len
+                && !admitted.contains(&(index as u32))
+                && sig.term_bits & options.classes == 0
+            {
                 continue;
             }
             if !sig.counts.fits_in(target) {
                 continue;
             }
-            if !dict.class_in_tier(index, options.tier) {
+            if !dict.class_in_scope(index, scope) {
                 continue;
             }
             // Checked last, and only for a query that excludes anything: every
             // class that reaches here fits the letters, which is few of them.
-            if !excluded.is_empty() && dict.class_words(index, options.tier).all(|w| excluded.contains(&w)) {
+            if !excluded.is_empty() && dict.class_words(index, scope).all(|w| excluded.contains(&w)) {
                 continue;
             }
             counts.push(sig.counts);
@@ -365,23 +468,66 @@ impl Candidates {
             class.push(index as u32);
         }
 
-        let mut buckets: [Vec<u32>; 26] = std::array::from_fn(|_| Vec::new());
+        let dict_classes = dict.classes.len();
+        let mut virtuals: Vec<Virtual> = Vec::new();
+        if options.classes != 0 {
+            for term in &dict.extra_terms {
+                let bits = dict.term_bits(term.index);
+                if bits & options.classes == 0 || excluded.contains(&term.index) {
+                    continue;
+                }
+                let Some(c) = dict.term_counts_in(term.index, slots) else { continue };
+                if !c.fits_in(target) {
+                    continue;
+                }
+                let class = Class::first_in(bits & options.classes).expect("a bit of the mask");
+                virtuals.push(Virtual { text: dict.word(term.index).to_owned(), counts: c, class });
+            }
+            if options.classes & Class::Numerals.bit() != 0 {
+                for text in numerals(pool, target, slots)? {
+                    let c = Counts::in_slots(&text, slots).expect("a numeral's digits have slots");
+                    virtuals.push(Virtual { text, counts: c, class: Class::Numerals });
+                }
+            }
+        }
+        for (k, v) in virtuals.iter().enumerate() {
+            counts.push(v.counts);
+            len.push(v.counts.total() as u8);
+            class.push((dict_classes + k) as u32);
+        }
+
+        let mut buckets: [Vec<u32>; SLOTS] = std::array::from_fn(|_| Vec::new());
         for (i, c) in counts.iter().enumerate() {
-            for letter in 0..26 {
-                if c.get(letter) != 0 {
-                    buckets[letter].push(i as u32);
+            for slot in 0..SLOTS {
+                if c.get(slot) != 0 {
+                    buckets[slot].push(i as u32);
                 }
             }
         }
 
-        let longest = len.first().copied().unwrap_or(0) as u32;
-        Candidates {
+        let longest = len.iter().copied().max().unwrap_or(0) as u32;
+        Ok(Candidates {
             counts,
             len,
             class,
             buckets,
             longest,
+            dict_classes,
+            virtuals,
+        })
+    }
+
+    /// The pool's digits and symbols that no candidate contains, in slot
+    /// order: with words alone, every one of them.
+    fn uncovered(&self, target: Counts, slots: &Slots) -> String {
+        let mut out = String::new();
+        for (i, &c) in slots.chars().iter().enumerate() {
+            let slot = crate::counts::LETTERS + i;
+            if target.get(slot) != 0 && self.buckets[slot].is_empty() {
+                out.push(c);
+            }
         }
+        out
     }
 
     /// The candidate standing for a dictionary class, if it is one. Candidates
@@ -417,6 +563,59 @@ impl Candidates {
         }
         left.is_empty().then_some(path)
     }
+}
+
+/// Every numeral the pool's digits make: each non-empty sub-multiset of the
+/// digits of `target`, written in the order the text has its digits (`pool`
+/// is the text's pool string), in the odometer's order over the distinct
+/// digits, so the list is a deterministic function of the text.
+fn numerals(pool: &str, target: Counts, slots: &Slots) -> Result<Vec<String>, SolveError> {
+    // The distinct digits in slot order, each with how many the pool has left.
+    let digits: Vec<(char, u8)> = slots
+        .chars()
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.is_ascii_digit())
+        .map(|(i, &c)| (c, target.get(crate::counts::LETTERS + i)))
+        .filter(|&(_, n)| n > 0)
+        .collect();
+    if digits.is_empty() {
+        return Ok(Vec::new());
+    }
+    let total: usize = digits.iter().map(|&(_, n)| n as usize + 1).product::<usize>() - 1;
+    if total > NUMERAL_CAP {
+        return Err(SolveError::TooManyNumerals);
+    }
+    // The text's digits in their own order, the source of every spelling.
+    let sequence: Vec<char> = pool.chars().filter(char::is_ascii_digit).collect();
+    let mut take: Vec<u8> = vec![0; digits.len()];
+    let mut out = Vec::with_capacity(total);
+    loop {
+        // Odometer over the per-digit counts.
+        let mut i = 0;
+        while i < take.len() {
+            if take[i] < digits[i].1 {
+                take[i] += 1;
+                break;
+            }
+            take[i] = 0;
+            i += 1;
+        }
+        if i == take.len() {
+            break;
+        }
+        let mut left = take.clone();
+        let mut text = String::new();
+        for &d in &sequence {
+            let at = digits.iter().position(|&(c, _)| c == d).expect("a digit of the pool");
+            if left[at] > 0 {
+                left[at] -= 1;
+                text.push(d);
+            }
+        }
+        out.push(text);
+    }
+    Ok(out)
 }
 
 /// Default ceiling on memo entries during a count. Each entry is roughly 80
@@ -499,8 +698,17 @@ pub struct Search {
     /// same as `remaining.is_empty()`, which is legitimately reached when
     /// `must_include` accounts for every letter.
     empty_input: bool,
+    /// A digit or symbol of the pool that no candidate contains: no result can
+    /// cover it, so the query has none, and the walkers say so without a walk.
+    /// The pivot would find it within a level or two anyway; this saves the
+    /// levels, and says why.
+    dead: bool,
     /// The text's own row, when the text's words are a result of this query.
     own: Option<OwnRow>,
+    /// Which of the six slots past z holds which of the text's digits and symbols.
+    slots: Slots,
+    /// The pool's digits and symbols no candidate contains, in slot order.
+    uncovered: String,
 }
 
 impl Search {
@@ -511,20 +719,18 @@ impl Search {
     ) -> Result<Search, SolveError> {
         let normalized = crate::counts::normalize(input);
         let empty_input = normalized.is_empty();
-        // `normalized` is `[a-z]` by construction, so the only way this fails
-        // is a letter past the 127-per-letter ceiling of a count byte. That
-        // used to fall back to an empty multiset, whose one partition is the
-        // empty one: "1 anagram", and a blank row. It is an error, and it says
-        // which letter.
-        let mut remaining = match Counts::from_word(&normalized) {
-            Some(counts) => counts,
-            None => {
-                let letter = (b'a'..=b'z')
-                    .map(char::from)
-                    .find(|&l| normalized.chars().filter(|&c| c == l).count() > 127)
-                    .unwrap_or('?');
-                return Err(SolveError::TooManyRepeats(letter));
-            }
+        let scope = Scope { tier: options.tier, classes: options.classes };
+        // `normalized` is the pool by construction, so this fails only on a
+        // character past the 127-per-slot ceiling of a count byte, or on more
+        // distinct digits and symbols than the six slots hold. Either used to
+        // fall back to an empty multiset, whose one partition is the empty one:
+        // "1 anagram", and a blank row. It is an error, and it says which.
+        let mut slots = Slots::new();
+        let mut remaining = match Counts::from_pool(&normalized, &mut slots) {
+            Ok(counts) => counts,
+            Err(PoolError::TooManyRepeats(c)) => return Err(SolveError::TooManyRepeats(c)),
+            Err(PoolError::TooManyCharacters) => return Err(SolveError::TooManyCharacters),
+            Err(PoolError::NotPool(c)) => unreachable!("normalize emitted {c:?}"),
         };
 
         let excluded: HashSet<u32> = options
@@ -544,8 +750,11 @@ impl Search {
             if dict.index_of(&word).is_some_and(|i| excluded.contains(&i)) {
                 return Err(SolveError::IncludedAndExcluded(word));
             }
+            // A word of the dictionary, or a term of letters alone in a class
+            // of the mask. A term with a digit or symbol, and a numeral, have
+            // no class of the dictionary's and cannot be pinned yet.
             let class = dict
-                .find_class(&word, options.tier)
+                .find_class(&word, scope)
                 .ok_or_else(|| SolveError::UnknownWord(word.clone()))?;
             let counts = dict.classes[class].counts;
             if !counts.fits_in(remaining) {
@@ -564,8 +773,10 @@ impl Search {
             forced.words.push(word_index);
         }
 
-        let candidates = Candidates::build(dict, remaining, &options, &excluded);
+        let candidates = Candidates::build(dict, remaining, &options, &excluded, &slots, &normalized)?;
         let own = OwnRow::find(dict, input, &options, &forced, &excluded, &candidates, remaining);
+        let uncovered = candidates.uncovered(remaining, &slots);
+        let dead = !uncovered.is_empty();
 
         Ok(Search {
             candidates,
@@ -574,8 +785,28 @@ impl Search {
             remaining,
             options,
             empty_input,
+            dead,
             own,
+            slots,
+            uncovered,
         })
+    }
+
+    /// The tier and the classes this query searches.
+    pub fn scope(&self) -> Scope {
+        Scope { tier: self.options.tier, classes: self.options.classes }
+    }
+
+    /// The slots the pool's digits and symbols took for this query.
+    pub fn slots(&self) -> &Slots {
+        &self.slots
+    }
+
+    /// The pool's digits and symbols that no candidate of this query
+    /// contains, in slot order: what the count is zero for the lack of. With
+    /// words alone and "Blink-182" it is `182`; empty for a text of letters.
+    pub fn uncovered(&self) -> &str {
+        &self.uncovered
     }
 
     /// What became of the text's own row: see [`TextRow`].
@@ -658,7 +889,7 @@ impl Search {
             skip: self.dropped(),
         };
 
-        if self.empty_input || self.forced.classes.len() > walker.max_words {
+        if self.empty_input || self.dead || self.forced.classes.len() > walker.max_words {
             return walker.stats;
         }
 
@@ -702,7 +933,7 @@ impl Search {
             stopped: false,
         };
 
-        if self.empty_input || (self.forced.classes.len() as u8) > self.options.max_words {
+        if self.empty_input || self.dead || (self.forced.classes.len() as u8) > self.options.max_words {
             return (0, false, counter.stats);
         }
 
@@ -730,7 +961,7 @@ impl Search {
     /// index falls on is read off the path it unranks to, so this needs no
     /// finished count and costs at most a second unranking.
     pub fn nth(&self, memo: &mut Memo, index: u128) -> Option<Vec<u32>> {
-        if self.empty_input || self.forced.classes.len() > self.options.max_words as usize {
+        if self.empty_input || self.dead || self.forced.classes.len() > self.options.max_words as usize {
             return None;
         }
         let mut path = self.unrank(memo, index)?;
@@ -786,7 +1017,7 @@ impl Search {
     /// nothing, so the memo is never poisoned. Nothing in the engine waits on
     /// this: skipping the dropped row compares paths instead.
     pub fn rank(&self, memo: &mut Memo, classes: &[u32], node_budget: u64) -> Option<u128> {
-        if self.empty_input || classes.len() > self.options.max_words as usize {
+        if self.empty_input || self.dead || classes.len() > self.options.max_words as usize {
             return None;
         }
         let mut free = classes.to_vec();
@@ -815,11 +1046,17 @@ impl Search {
     ///
     /// Forced words occupy the first slots of every solution, and those are
     /// spelled exactly as the caller wrote them; the rest take the commonest
-    /// spelling in `tier`. The one exception is the text's own row when that
+    /// spelling in scope. The one exception is the text's own row when that
     /// spelling would be the text: one free slot takes its next spelling, so
     /// "below" reads `elbow` (see [`TextRow::Respelled`]).
-    pub fn spell(&self, dict: &Dict, classes: &[u32], tier: Tier) -> Vec<String> {
-        let mut words = self.spell_commonest(dict, classes, tier);
+    pub fn spell(&self, dict: &Dict, classes: &[u32]) -> Vec<String> {
+        self.spell_indices(dict, classes).iter().map(|&w| self.word(dict, w).to_owned()).collect()
+    }
+
+    /// [`Search::spell`] as spelling indices: a word or term of the
+    /// dictionary, or a virtual candidate's pseudo index (see [`Search::word`]).
+    pub fn spell_indices(&self, dict: &Dict, classes: &[u32]) -> Vec<u32> {
+        let mut words = self.spell_commonest(dict, classes);
         if let Some(OwnRow { classes: own, fate: Fate::Respelled { class, word }, .. }) = &self.own {
             if classes.len() == own.len() {
                 let mut sorted = classes.to_vec();
@@ -827,29 +1064,59 @@ impl Search {
                 // The last free slot holding the class; forced slots come first.
                 let slot = (self.forced.words.len()..classes.len()).rev().find(|&s| classes[s] == *class);
                 if let (true, Some(slot)) = (sorted == *own, slot) {
-                    words[slot] = dict.word(*word).to_owned();
+                    words[slot] = *word;
                 }
             }
         }
         words
     }
 
-    fn spell_commonest(&self, dict: &Dict, classes: &[u32], tier: Tier) -> Vec<String> {
+    fn spell_commonest(&self, dict: &Dict, classes: &[u32]) -> Vec<u32> {
         classes
             .iter()
             .enumerate()
             .map(|(slot, &c)| {
                 if let Some(&word) = self.forced.words.get(slot) {
                     if self.forced.classes[slot] == c {
-                        return dict.word(word).to_owned();
+                        return word;
                     }
                 }
-                dict.class_words(c as usize, tier)
-                    .find(|w| !self.excluded.contains(w))
-                    .map(|w| dict.word(w).to_owned())
-                    .unwrap_or_default()
+                self.spellings(dict, c).next().unwrap_or(u32::MAX)
             })
             .collect()
+    }
+
+    /// The spellings of `class` this query may show, commonest first, the
+    /// excluded ones left out: word indices, or a virtual class's pseudo index.
+    pub fn spellings<'a>(&'a self, dict: &'a Dict, class: u32) -> impl Iterator<Item = u32> + 'a {
+        self.candidates.spellings(dict, class, self.scope()).filter(move |w| !self.excluded.contains(w))
+    }
+
+    /// The text of a spelling index from [`Search::spell_indices`] or
+    /// [`Search::spellings`]: a word or term of the dictionary, or a virtual
+    /// candidate's own text. `u32::MAX` (no spelling) is the empty string.
+    pub fn word<'a>(&'a self, dict: &'a Dict, spelling: u32) -> &'a str {
+        if spelling == u32::MAX {
+            ""
+        } else {
+            self.candidates.text(dict, spelling)
+        }
+    }
+
+    /// The class a spelling belongs to: `None` for a word of the dictionary,
+    /// else the term's first class in table order among those the query
+    /// admits (a numeral is `Numerals`; a leet reading is the caller's).
+    pub fn class_of(&self, dict: &Dict, spelling: u32) -> Option<Class> {
+        if spelling == u32::MAX {
+            return None;
+        }
+        self.candidates.class_of_spelling(dict, spelling, self.scope())
+    }
+
+    /// Whether a spelling index is a virtual candidate's, so `dict.word` must
+    /// not be asked for it.
+    pub fn is_virtual(spelling: u32) -> bool {
+        spelling & VIRTUAL != 0
     }
 
     /// A resumable enumeration starting at result 0.
@@ -860,7 +1127,7 @@ impl Search {
         let mut cursor = self.blank_cursor();
         let max_words = self.options.max_words as usize;
 
-        if self.empty_input || self.forced.classes.len() > max_words {
+        if self.empty_input || self.dead || self.forced.classes.len() > max_words {
             cursor.done = true;
             return cursor;
         }
@@ -893,7 +1160,7 @@ impl Search {
     /// made again one further along the tree.
     pub fn cursor_at(&self, memo: &mut Memo, index: u128) -> Option<Cursor> {
         let max_words = self.options.max_words as usize;
-        if self.empty_input || self.forced.classes.len() > max_words {
+        if self.empty_input || self.dead || self.forced.classes.len() > max_words {
             return None;
         }
 
@@ -1605,6 +1872,7 @@ impl Counter<'_> {
 mod tests {
     use super::*;
     use crate::dict::{TierBits, WordList};
+    use crate::readings::parse_reading;
 
     /// `min_word_len` 3 at Full, with or without an allowlist.
     fn options(short_words: Option<&[&str]>) -> SolveOptions {
@@ -1649,6 +1917,168 @@ mod tests {
             .collect();
         out.sort();
         out
+    }
+
+    /// A dictionary with the terms of the classes beside its words: the
+    /// fixture the literal rule's tests search.
+    fn classed() -> Dict {
+        let terms = [
+            ("1", Class::Shorthand.bit()),
+            ("2", Class::Shorthand.bit()),
+            ("4", Class::Shorthand.bit()),
+            ("u", Class::Shorthand.bit()),
+            ("r", Class::Shorthand.bit()),
+            ("b8", Class::Blends.bit()),
+            ("gr8", Class::Blends.bit()),
+            ("l8", Class::Blends.bit()),
+            ("&", Class::Symbols.bit()),
+            ("@", Class::Symbols.bit()),
+            ("wtf", Class::Acronyms.bit()),
+            ("amy", Class::Names.bit()),
+        ];
+        Dict::from_words_and_terms(
+            ["link", "blink", "ink", "two", "fast", "furious", "may", "yam", "bat", "tab", "tat", "at", "be", "ate", "eat", "tea"],
+            terms,
+        )
+        .unwrap()
+    }
+
+    fn with(classes: ClassMask) -> SolveOptions {
+        SolveOptions { tier: Tier::Full, classes, min_word_len: 2, limit: 0, ..Default::default() }
+    }
+
+    /// Every result spelled, with each word's class name, sorted for comparison.
+    fn tagged(dict: &Dict, input: &str, options: SolveOptions) -> Vec<Vec<(String, &'static str)>> {
+        let search = Search::prepare(dict, input, options).unwrap();
+        let mut out = Vec::new();
+        search.enumerate(|classes| {
+            let mut row: Vec<(String, &'static str)> = search
+                .spell_indices(dict, classes)
+                .iter()
+                .map(|&i| (search.word(dict, i).to_owned(), search.class_of(dict, i).map_or(crate::classes::WORDS, |c| c.name())))
+                .collect();
+            row.sort();
+            out.push(row);
+            Flow::Continue
+        });
+        out.sort();
+        out
+    }
+
+    #[test]
+    fn a_pool_with_a_digit_has_nothing_with_words_alone_and_says_which() {
+        let dict = classed();
+        let search = Search::prepare(&dict, "Blink-182", with(0)).unwrap();
+        assert_eq!(search.uncovered(), "182");
+        assert_eq!(search.slots().chars(), &['1', '8', '2']);
+        assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 0);
+        assert!(tagged(&dict, "Blink-182", with(0)).is_empty());
+        assert_eq!(search.text_row(), TextRow::None, "blink182 is no word");
+        // A cursor and nth agree that there is nothing, without a walk.
+        assert!(search.cursor().next(&search).is_none());
+        assert!(search.nth(&mut Memo::new(), 0).is_none());
+
+        // The letters alone are as they were: the digits are not dropped, they are counted.
+        let plain = Search::prepare(&dict, "blink", with(0)).unwrap();
+        assert_eq!(plain.uncovered(), "");
+        assert_eq!(plain.count(&mut Memo::new(), u64::MAX).0, 0, "blink is the text itself and has no other spelling");
+        assert_eq!(Search::prepare(&dict, "blink link", with(0)).unwrap().count(&mut Memo::new(), u64::MAX).0, 0, "its own words");
+        assert_eq!(Search::prepare(&dict, "blinklink", with(0)).unwrap().count(&mut Memo::new(), u64::MAX).0, 1, "a re-spacing is a result");
+    }
+
+    #[test]
+    fn the_classes_admit_their_terms_and_every_term_is_tagged() {
+        let dict = classed();
+        let mask = Class::Shorthand.bit() | Class::Blends.bit();
+        let found = tagged(&dict, "Blink-182", with(mask));
+        fn row(words: &[(&str, &'static str)]) -> Vec<(String, &'static str)> {
+            let mut r: Vec<(String, &'static str)> = words.iter().map(|(w, c)| (w.to_string(), *c)).collect();
+            r.sort();
+            r
+        }
+        // The one arrangement: 1 and 2 as shorthand, link, and b8 as a blend.
+        assert!(found.contains(&row(&[("1", "shorthand"), ("2", "shorthand"), ("link", "words"), ("b8", "blends")])), "{found:?}");
+        for r in &found {
+            assert!(r.iter().all(|(w, _)| w != "182" && w != "18" && w != "82"), "no numeral without the class: {r:?}");
+        }
+        // Shorthand alone cannot place the 8; blends alone cannot place the 1 and 2.
+        let search = Search::prepare(&dict, "Blink-182", with(Class::Shorthand.bit())).unwrap();
+        assert_eq!(search.uncovered(), "8");
+        assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 0);
+        let search = Search::prepare(&dict, "Blink-182", with(Class::Blends.bit())).unwrap();
+        assert_eq!(search.uncovered(), "12");
+        // Every class shows in the count of candidates, none in the letters' classes.
+        assert!(search.candidate_count() >= 1);
+
+        // A symbol is a term of its class, and nothing else.
+        assert!(tagged(&dict, "AT&T", with(0)).is_empty());
+        let found = tagged(&dict, "AT&T", with(Class::Symbols.bit()));
+        assert_eq!(found, vec![row(&[("tat", "words"), ("&", "symbols")])]);
+    }
+
+    #[test]
+    fn a_term_of_letters_is_a_spelling_of_its_letters_class() {
+        let dict = classed();
+        // `amy` spells may's class: with names on the count does not move and the row keeps its word.
+        let words = tagged(&dict, "yam", with(0));
+        let names = tagged(&dict, "yam", with(Class::Names.bit()));
+        assert_eq!(words, names);
+        assert_eq!(words, vec![vec![("may".to_owned(), crate::classes::WORDS)]], "yam is the text; may is its other spelling");
+        // A term that opens a class of its own counts, at any length: `u` and `r` are one character each.
+        assert!(tagged(&dict, "ur", with(0)).is_empty());
+        let short = tagged(&dict, "ur", with(Class::Shorthand.bit()));
+        assert_eq!(short, vec![vec![("r".to_owned(), "shorthand"), ("u".to_owned(), "shorthand")]]);
+        // But a word under the minimum length is still out, whatever the mask: `at` is 2, `a` would not be.
+        let search = Search::prepare(&dict, "wtf", SolveOptions { min_word_len: 4, ..with(Class::Acronyms.bit()) }).unwrap();
+        assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 0, "wtf is the text itself");
+        let search = Search::prepare(&dict, "w tf", SolveOptions { min_word_len: 4, ..with(Class::Acronyms.bit()) }).unwrap();
+        assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 1, "a term is governed by its class, not the minimum length");
+    }
+
+    #[test]
+    fn numerals_are_made_from_the_pool_and_the_text_itself_is_never_one() {
+        let dict = classed();
+        let numerals = with(Class::Numerals.bit());
+        // "2 Fast 2 Furious" never lists `two`: a digit is a digit. With numerals on, the 2s are terms.
+        for options in [with(0), numerals.clone()] {
+            for r in tagged(&dict, "2 Fast 2 Furious", options) {
+                assert!(r.iter().all(|(w, _)| w != "two"), "{r:?}");
+            }
+        }
+        assert!(tagged(&dict, "2 Fast 2 Furious", with(0)).is_empty());
+        let found = tagged(&dict, "2 Fast 2 Furious", numerals.clone());
+        // `fast furious 2 2` is the text itself; `fast furious 22` is a result, the 2s as one numeral.
+        assert!(found.iter().any(|r| r.contains(&("22".to_owned(), "numerals"))), "{found:?}");
+        assert!(!found.iter().any(|r| r.iter().filter(|(w, _)| w == "2").count() == 2 && r.len() == 4), "{found:?}");
+
+        // "182" alone: every numeral of its digits, never itself.
+        let search = Search::prepare(&dict, "182", numerals.clone()).unwrap();
+        assert_eq!(search.text_row(), TextRow::Dropped);
+        let found = tagged(&dict, "182", numerals.clone());
+        let texts: Vec<Vec<&str>> = found.iter().map(|r| r.iter().map(|(w, _)| w.as_str()).collect()).collect();
+        assert!(!texts.contains(&vec!["182"]), "{texts:?}");
+        assert!(texts.contains(&vec!["18", "2"]) && texts.contains(&vec!["1", "82"]) && texts.contains(&vec!["1", "2", "8"]), "{texts:?}");
+        assert!(found.iter().all(|r| r.iter().all(|(_, c)| *c == "numerals")));
+        // The digits are written in the text's own order: 8 then 2 is `82`, never `28`.
+        assert!(!texts.iter().any(|r| r.contains(&"28")), "{texts:?}");
+
+        // Too many distinct characters, and too many numerals, are errors that say so.
+        assert_eq!(Search::prepare(&dict, "1234567", with(0)).err(), Some(SolveError::TooManyCharacters));
+        let many = "111111111111111222222222222222333333333333333444444444444444555555555555555666666666666666";
+        assert_eq!(Search::prepare(&dict, many, numerals).err(), Some(SolveError::TooManyNumerals));
+        assert!(Search::prepare(&dict, many, with(0)).is_ok(), "without numerals the digits are just uncovered");
+    }
+
+    #[test]
+    fn a_leet_read_text_is_a_pool_of_letters() {
+        let dict = classed();
+        let read = crate::readings::read_input("B8", &parse_reading("8:b").unwrap());
+        assert_eq!(read, "Bb");
+        let read = crate::readings::read_input("Ke$ha", &parse_reading("$:s").unwrap());
+        assert_eq!(read, "Kesha");
+        let search = Search::prepare(&dict, &read, with(0)).unwrap();
+        assert!(search.slots().is_empty());
+        assert_eq!(search.uncovered(), "");
     }
 
     /// The tests over this dictionary search "t oad", not "toad": `toad` is a
@@ -1721,8 +2151,8 @@ mod tests {
         let dict = small_dict();
         // "no" and "on" are one class. Listing "no" alone admits the class,
         // because the search works in classes, not spellings.
-        let class = dict.find_class("no", Tier::Full).unwrap();
-        assert_eq!(dict.find_class("on", Tier::Full), Some(class));
+        let class = dict.find_class("no", Scope::tier(Tier::Full)).unwrap();
+        assert_eq!(dict.find_class("on", Scope::tier(Tier::Full)), Some(class));
 
         let found = classes(&dict, "onto", options(Some(&["no", "to"])));
         assert_eq!(found.len(), 1, "onto = no + to, once: {found:?}");
@@ -1759,7 +2189,7 @@ mod tests {
         let tiers = TierBits::decode(&buf).unwrap();
 
         let n = words.len();
-        Dict::new(WordList { words, zipf: vec![0; n], pos: vec![0; n] }, Some(tiers)).unwrap()
+        Dict::new(WordList { words, zipf: vec![0; n], pos: vec![0; n] }, Some(tiers), Vec::new()).unwrap()
     }
 
     #[test]
@@ -1804,14 +2234,14 @@ mod tests {
         let addition = dict.words.iter().position(|w| w == "zz").unwrap() as u32;
         let pinned = dict.words.iter().position(|w| w == "to").unwrap() as u32;
 
-        assert!(!dict.in_tier(addition, Tier::Common));
-        assert!(!dict.in_tier(addition, Tier::Standard));
-        assert!(!dict.in_tier(addition, Tier::Full));
-        assert!(dict.in_tier(addition, Tier::Extended));
+        assert!(!dict.in_scope(addition, Scope::tier(Tier::Common)));
+        assert!(!dict.in_scope(addition, Scope::tier(Tier::Standard)));
+        assert!(!dict.in_scope(addition, Scope::tier(Tier::Full)));
+        assert!(dict.in_scope(addition, Scope::tier(Tier::Extended)));
 
         // And the pinned word is in every tier, Extended included.
         for tier in [Tier::Common, Tier::Standard, Tier::Full, Tier::Extended] {
-            assert!(dict.in_tier(pinned, tier), "{tier:?} should contain a pinned word");
+            assert!(dict.in_scope(pinned, Scope::tier(tier)), "{tier:?} should contain a pinned word");
         }
     }
 
@@ -1825,8 +2255,8 @@ mod tests {
 
         // Common now reaches it: this is what lets enumeration search Common
         // plus the additions.
-        assert!(dict.in_tier(addition, Tier::Common));
-        assert!(dict.class_in_tier(dict.find_class("zz", Tier::Common).unwrap(), Tier::Common));
+        assert!(dict.in_scope(addition, Scope::tier(Tier::Common)));
+        assert!(dict.class_in_scope(dict.find_class("zz", Scope::tier(Tier::Common)).unwrap(), Scope::tier(Tier::Common)));
 
         // But the built tiers are untouched, so a result can still say where
         // the word really came from. Reading provenance through `in_tier`
@@ -1846,7 +2276,7 @@ mod tests {
         let dict = tiered(&[("zz", false, false, false), ("to", true, true, true)]);
         assert_eq!(dict.admitted(), 0);
         let addition = dict.words.iter().position(|w| w == "zz").unwrap() as u32;
-        assert!(!dict.in_tier(addition, Tier::Common));
+        assert!(!dict.in_scope(addition, Scope::tier(Tier::Common)));
     }
 
     /// "dormitory" over a dictionary where two classes have two spellings each:
@@ -1921,7 +2351,7 @@ mod tests {
         let words: Vec<String> = rows.iter().map(|&(word, _)| word.to_owned()).collect();
         let zipf: Vec<u8> = rows.iter().map(|&(_, z)| z).collect();
         let n = words.len();
-        Dict::new(WordList { words, zipf, pos: vec![0; n] }, None).unwrap()
+        Dict::new(WordList { words, zipf, pos: vec![0; n] }, None, Vec::new()).unwrap()
     }
 
     fn everyday() -> Dict {
@@ -1936,7 +2366,7 @@ mod tests {
 
     /// The one row of `input` that holds `words`' classes, as it is shown.
     fn shown_as(dict: &Dict, input: &str, words: &[&str]) -> Option<Vec<String>> {
-        let mut want: Vec<u32> = words.iter().map(|w| dict.find_class(w, Tier::Full).unwrap() as u32).collect();
+        let mut want: Vec<u32> = words.iter().map(|w| dict.find_class(w, Scope::tier(Tier::Full)).unwrap() as u32).collect();
         want.sort_unstable();
         let search = Search::prepare(dict, input, SolveOptions { limit: 0, ..options(None) }).unwrap();
         let mut found = None;
@@ -1944,7 +2374,7 @@ mod tests {
             let mut sorted = classes.to_vec();
             sorted.sort_unstable();
             if sorted == want {
-                found = Some(search.spell(dict, classes, Tier::Full));
+                found = Some(search.spell(dict, classes));
             }
             Flow::Continue
         });
@@ -2086,7 +2516,7 @@ mod tests {
             rows.push(classes.to_vec());
             Flow::Continue
         });
-        let own = dict.find_class("dormitory", Tier::Full).unwrap() as u32;
+        let own = dict.find_class("dormitory", Scope::tier(Tier::Full)).unwrap() as u32;
         assert!(rows.iter().all(|row| row != &[own]));
 
         // The same letters typed apart keep the row: one more, the same otherwise.

@@ -6,8 +6,8 @@
  * interesting logic here (paging, error mapping, stale-request handling) has
  * nothing to do with threads.
  */
-import initWasm, { Engine, type InitInput } from './wasm/anagram.js';
-import type { Manifest, ManifestFile, Query, Request, Response, Tier } from './protocol.ts';
+import initWasm, { Engine, type InitInput, type Rows } from './wasm/anagram.js';
+import { CLASSES, isClassName, type ClassName, type Manifest, type ManifestFile, type Query, type Request, type Response, type RowTag, type Tier } from './protocol.ts';
 import { bestOrder } from './wordOrder.ts';
 import { foldWords, normalizeLetters } from './fold.ts';
 import { readForms } from './dictForms.ts';
@@ -151,7 +151,7 @@ export class EngineCore {
         case 'spellings':
           return this.#spellings(request.id, request.word, request.tier);
         case 'lookup':
-          return this.#lookup(request.id, request.word, request.tier);
+          return this.#lookup(request.id, request.word, request.tier, request.classes ?? []);
         case 'masks':
           return this.#masks(request.id, request.words);
         case 'zipf':
@@ -172,9 +172,13 @@ export class EngineCore {
         ? 'NOT_A_SUBSET'
         : /appears more than 127 times/.test(message)
           ? 'TOO_MANY_REPEATS'
-          : /HTTP|fetch|network/i.test(message)
-            ? 'FETCH_FAILED'
-            : 'INTERNAL';
+          : /more than six different digits and symbols/.test(message)
+            ? 'TOO_MANY_CHARACTERS'
+            : /numerals/.test(message)
+              ? 'TOO_MANY_NUMERALS'
+              : /HTTP|fetch|network/i.test(message)
+                ? 'FETCH_FAILED'
+                : 'INTERNAL';
     this.#port.post({ k: 'error', id, code, message });
   }
 
@@ -213,15 +217,22 @@ export class EngineCore {
       return;
     }
 
-    const [dictBytes, tierBytes] = await Promise.all([
+    // The terms of the classes travel in their own artifact, which the build
+    // emits only once a class file has a term; a manifest without one is a
+    // dictionary of words alone.
+    const classes = manifest.files.classes;
+    const [dictBytes, tierBytes, classBytes] = await Promise.all([
       fetchArtifact(baseUrl, full, fetchImpl),
       fetchArtifact(baseUrl, tiers, fetchImpl),
+      classes ? fetchArtifact(baseUrl, classes, fetchImpl) : Promise.resolve(null),
     ]);
 
     const dict = new Uint8Array(dictBytes);
-    this.#engine = new Engine(dict, new Uint8Array(tierBytes));
+    const engine = new Engine(dict, new Uint8Array(tierBytes), classBytes ? new Uint8Array(classBytes) : undefined);
+    this.#engine = engine;
     this.#manifest = manifest;
 
+    const termCounts = Array.from(engine.classCounts());
     this.#port.post({
       k: 'ready',
       id,
@@ -231,6 +242,7 @@ export class EngineCore {
       // The forms travel beside the letters: results stay [a-z]+, and the
       // page shows `don't` for `dont` from this list.
       forms: readForms(dict),
+      classes: Object.fromEntries(CLASSES.map((name, i) => [name, termCounts[i] ?? 0])) as Record<ClassName, number>,
     });
   }
 
@@ -247,10 +259,15 @@ export class EngineCore {
     // thing, but the worker is the boundary every caller crosses, and folding
     // on both sides means neither can regress the other unnoticed. The words
     // go over with single spaces between them, since the engine needs to know
-    // what the text's own words are: the text is never its own result.
+    // what the text's own words are: the text is never its own result. The
+    // reader's fixed readings are applied here (`$` as s, a character left
+    // out); the characters leet is on for go over as they are, and the
+    // engine tries each of their readings.
     const candidates = engine.begin(
       foldWords(query.input, query.reading).join(' '),
       query.tier,
+      [...query.classes],
+      [...query.leet],
       query.minWordLen,
       query.maxWords,
       query.mustInclude.map((word) => normalizeLetters(word)),
@@ -268,7 +285,15 @@ export class EngineCore {
     // bought minutes of frozen worker on a pasted sentence, not accuracy. The
     // engine also caps the memo, so a count cannot grow without bound.
     const total = engine.count(maxNodes);
-    this.#port.post({ k: 'count', id, total, candidates, textLeftOut: engine.textLeftOut });
+    this.#port.post({
+      k: 'count',
+      id,
+      total,
+      candidates,
+      textLeftOut: engine.textLeftOut,
+      unused: engine.unused,
+      leet: engine.leetTried,
+    });
 
     this.#emit(id, 0, first);
     this.#port.post({
@@ -287,15 +312,18 @@ export class EngineCore {
     const counted = this.#require().countQuery(
       foldWords(query.input, query.reading).join(' '),
       query.tier,
+      [...query.classes],
+      [...query.leet],
       query.minWordLen,
       query.maxWords,
       query.mustInclude.map((word) => normalizeLetters(word)),
       query.mustExclude.map((word) => normalizeLetters(word)),
       maxNodes,
     );
-    const { total, textLeftOut } = counted;
+    const { total, textLeftOut, unused } = counted;
     counted.free();
-    this.#port.post({ k: 'count', id, total, candidates: 0, textLeftOut });
+    // A count on its own reports no leet: what it counted is the query's own business.
+    this.#port.post({ k: 'count', id, total, candidates: 0, textLeftOut, unused, leet: [...query.leet] });
   }
 
   #page(offset: number, len: number): void {
@@ -316,30 +344,51 @@ export class EngineCore {
    *
    * The cost is proportional to rows *shown*, never to rows searched: a query
    * that walked fifty million nodes and one that walked fifty pay the same here.
+   *
+   * The tags come as a second packed string, one line per row, empty when no
+   * row has one (every row of words alone as typed, which is every row until
+   * a class or leet is on); a tagged row's written forms and classes are
+   * reordered with its words.
    */
-  #rows(packed: string): string[][] {
-    if (packed.length === 0) return [];
-    const rows = packed.split('\n').map((row) => row.split(' '));
+  #rows(packed: Rows): { rows: string[][]; tags?: (RowTag | null)[] } {
+    const text = packed.rows;
+    const tagText = packed.tags;
+    packed.free();
+    if (text.length === 0) return { rows: [] };
+    const rows = text.split('\n').map((row) => row.split(' '));
+    const tags = tagText.length === 0 ? null : tagText.split('\n').map(parseTag);
 
     const flat = rows.flat();
-    if (flat.length === 0) return rows;
+    if (flat.length === 0) return tags ? { rows, tags } : { rows };
 
     // One call across the whole batch rather than one per word.
     const masks = this.#require().posMasks(flat.join(' '));
-    if (masks.length !== flat.length) return rows;
+    if (masks.length !== flat.length) return tags ? { rows, tags } : { rows };
 
     let at = 0;
-    return rows.map((row) => {
+    const ordered = rows.map((row, i) => {
       const slice = Array.from(masks.subarray(at, at + row.length));
       at += row.length;
-      return bestOrder(row, slice);
+      const best = bestOrder(row, slice);
+      const tag = tags?.[i];
+      if (tag) {
+        // The same permutation for the written forms and the classes: a word
+        // and its tag travel together whatever order reads best.
+        const order = best.map((word) => {
+          const j = row.indexOf(word);
+          row[j] = '\0';
+          return j;
+        });
+        tags![i] = { ...tag, written: order.map((j) => tag.written[j]!), classes: order.map((j) => tag.classes[j]!) };
+      }
+      return best;
     });
+    return tags ? { rows: ordered, tags } : { rows: ordered };
   }
 
   #emit(id: number, offset: number, len: number): void {
     const engine = this.#require();
-    const packed = engine.batch(offset, len);
-    const rows = this.#rows(packed);
+    const { rows, tags } = this.#rows(engine.batch(offset, len));
 
     // A short batch is "the end" of what this session can serve in two cases:
     // the search ran out of answers, or it ran out of budget. They are told
@@ -355,7 +404,7 @@ export class EngineCore {
       this.#session.exhausted ||= done;
     }
 
-    this.#port.post({ k: 'batch', id, offset, rows, done, truncated });
+    this.#port.post(tags ? { k: 'batch', id, offset, rows, done, truncated, tags } : { k: 'batch', id, offset, rows, done, truncated });
   }
 
   /**
@@ -364,27 +413,29 @@ export class EngineCore {
    */
   #collect(id: number, limit: number): void {
     const engine = this.#require();
-    const packed = engine.collect(limit);
-    const rows = this.#rows(packed);
+    const { rows, tags } = this.#rows(engine.collect(limit));
     // Short of the limit and the search finished on its own terms: that is
     // everything there is. Otherwise the file is a partial list and has to say so.
-    this.#port.post({ k: 'collected', id, rows, complete: rows.length < limit && engine.exhausted });
+    const complete = rows.length < limit && engine.exhausted;
+    this.#port.post(tags ? { k: 'collected', id, rows, complete, tags } : { k: 'collected', id, rows, complete });
   }
 
   #random(id: number, index: string): void {
     const engine = this.#require();
     const packed = engine.nth(index);
-    const rows = packed === undefined || packed === null ? [] : this.#rows(packed);
-    this.#port.post({ k: 'batch', id, offset: -1, rows, done: true, truncated: false });
+    const { rows, tags } = packed === undefined || packed === null ? { rows: [] } : this.#rows(packed);
+    this.#port.post(
+      tags ? { k: 'batch', id, offset: -1, rows, done: true, truncated: false, tags } : { k: 'batch', id, offset: -1, rows, done: true, truncated: false },
+    );
   }
 
   #spellings(id: number, word: string, tier: Tier): void {
-    const words = this.#require().spellingsOf(normalizeLetters(word), tier);
+    const words = this.#require().spellingsOf(normalizeLetters(word), tier, []);
     this.#port.post({ k: 'spellings', id, words });
   }
 
-  #lookup(id: number, word: string, tier: Tier): void {
-    const found = this.#require().has(normalizeLetters(word), tier);
+  #lookup(id: number, word: string, tier: Tier, classes: readonly ClassName[]): void {
+    const found = this.#require().has(normalizeLetters(word), tier, [...classes]);
     this.#port.post({ k: 'lookup', id, found });
   }
 
@@ -405,4 +456,24 @@ export class EngineCore {
   get manifest(): Manifest | null {
     return this.#manifest;
   }
+}
+
+/**
+ * One line of the engine's packed tags: empty for a row of words alone, else
+ * `reading|classes|written` with the reading as `$:s` pairs comma-joined, one
+ * class name per word (`-` for a word of the dictionary), and the written
+ * words space separated. The Rust side (`pack_tags` in `crates/anagram-wasm`)
+ * writes it.
+ */
+export function parseTag(line: string): RowTag | null {
+  if (line.length === 0) return null;
+  const [readingText = '', classText = '', writtenText = ''] = line.split('|');
+  const reading: Record<string, string> = {};
+  for (const pair of readingText.split(',')) {
+    if (pair.length === 0) continue;
+    const colon = pair.indexOf(':');
+    if (colon > 0) reading[pair.slice(0, colon)] = pair.slice(colon + 1);
+  }
+  const classes = classText.split(' ').map((name) => (isClassName(name) ? name : null));
+  return { classes, written: writtenText.split(' '), reading };
 }

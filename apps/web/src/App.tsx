@@ -85,11 +85,11 @@ export function App() {
   // never disagree about what "Beyoncé" contains, or that "Blink-182" leaves its number out.
   const folded = useMemo(() => foldLetters(input, filters.reading), [input, filters.reading]);
   const letters = folded.letters;
-  // The numbers and symbols of the text, each left out and said so under the field (the literal rule).
+  // The digits and symbols of the text, each a character of the pool as itself, said so under the field (the literal rule).
   const items = useMemo(() => readItems(input, filters.reading), [input, filters.reading]);
 
   const {
-    engine, searching, error, candidates, countedLetters, textLeftOut, answered, forms: formList, loadMore, collect, at, surpriseMe,
+    engine, searching, error, candidates, countedLetters, textLeftOut, unused, answered, forms: formList, loadMore, collect, at, surpriseMe,
     spellings, masks, has,
   } = useEngine(query);
   const results = useResults();
@@ -538,7 +538,7 @@ export function App() {
               {shownDiscoveries && <InDiscoveries sections={shownDiscoveries.sections} votes={votes} />}
 
               {empty ? (
-                <NoResults letters={letters} tier={filters.tier} textLeftOut={textLeftOut} />
+                <NoResults letters={letters} tier={filters.tier} textLeftOut={textLeftOut} unused={unused} />
               ) : (
                 <>
                   <ResultToolbar
@@ -721,7 +721,14 @@ function Intro({ counts }: { counts: { extended: number } | null }) {
   );
 }
 
-function NoResults({ letters, tier, textLeftOut }: { letters: string; tier: string; textLeftOut: boolean }) {
+/** `1, 8 or 2`: the characters no term uses, for a sentence. */
+function listCharacters(unused: string): string {
+  const chars = [...unused];
+  if (chars.length <= 1) return chars.join('');
+  return `${chars.slice(0, -1).join(', ')} or ${chars.at(-1)}`;
+}
+
+function NoResults({ letters, tier, textLeftOut, unused }: { letters: string; tier: string; textLeftOut: boolean; unused: string }) {
   return (
     <div className="py-10 text-sm">
       <p className="text-ink">
@@ -730,13 +737,20 @@ function NoResults({ letters, tier, textLeftOut }: { letters: string; tier: stri
         <span className="font-display text-lg">{letters}</span> in the {tier} dictionary.
       </p>
       <ul className="mt-4 space-y-1.5 text-ink-soft">
+        {/* A digit or a symbol is a character of the text (the literal rule), and no word has one:
+            the count is zero for that, and the sentence says so before any other advice. */}
+        {unused.length > 0 && (
+          <li>
+            No word has a {listCharacters(unused)}, and an anagram uses every character of the text.
+          </li>
+        )}
         <li>
           Try a larger dictionary — Extended carries every word in the list, plus the site’s own
           additions.
         </li>
         <li>Lower the minimum word length, or raise the maximum number of words.</li>
-        {/* Not said of letters the text's own words do spell. */}
-        {!textLeftOut && (
+        {/* Not said of letters the text's own words do spell, nor of a text whose digits nothing uses. */}
+        {!textLeftOut && unused.length === 0 && (
           <li>
             Some letter sets genuinely have no partition. A lone <i>q</i> with no <i>u</i> is a
             common culprit.

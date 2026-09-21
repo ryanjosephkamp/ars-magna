@@ -42,7 +42,7 @@ const FIELD =
 type Props = {
   /** The text as typed. */
   text: string;
-  /** How its numbers and symbols are read, every item of them, or null for a text without any. */
+  /** How its digits and symbols are read, every distinct one, or null for a text without any. */
   reading: Record<string, string> | null;
   /** The anagram's words, folded, in the order typed. */
   words: readonly string[];

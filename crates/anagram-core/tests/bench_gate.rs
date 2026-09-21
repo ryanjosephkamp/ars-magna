@@ -41,7 +41,7 @@ fn load() -> Option<Dict> {
     let manifest = fs::read_to_string(dir.join("manifest.json")).ok()?;
     let full = fs::read(dir.join(artifact(&manifest, "full")?)).ok()?;
     let tiers = fs::read(dir.join(artifact(&manifest, "tiers")?)).ok()?;
-    Dict::decode(&full, Some(&tiers)).ok()
+    Dict::decode(&full, Some(&tiers), None).ok()
 }
 
 /// `(input, max candidates, max count nodes, max enumeration subset tests)`

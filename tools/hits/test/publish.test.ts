@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildDataset, configs, publishRow, publishable, type PublishedReading, type PublishedSense } from '../src/publish.ts';
+import { buildDataset, configs, publishRow, publishable, type PublishedClass, type PublishedReading, type PublishedSense } from '../src/publish.ts';
 import { hitSchema, type Hit } from '../src/schema.ts';
 
 const hit = (over: Partial<Hit>): Hit => ({
@@ -67,7 +67,7 @@ describe('publish', () => {
       { word: 'dirty', sense: 'Messy.' },
     ]);
     expect(Object.keys(full)).toEqual(Object.keys(bare));
-    expect(Object.keys(bare).slice(-4)).toEqual(['wikipedia', 'senses', 'reading', 'shelf']);
+    expect(Object.keys(bare).slice(-5)).toEqual(['wikipedia', 'senses', 'reading', 'classes', 'shelf']);
     expect(full).not.toHaveProperty('senses.dirty');
   });
 
@@ -77,6 +77,29 @@ describe('publish', () => {
     expect(read.reading).toEqual([{ item: '4', reading: 'drop' }]);
     expect(read).not.toHaveProperty('reading.4');
     expect(Object.keys(read)).toEqual(Object.keys(publishRow(hit({}))));
+  });
+
+  it('publishes the classes as a list in the words\' order, null where every term is a word', () => {
+    expect(publishRow(hit({})).classes).toBeNull();
+    const classed = publishRow(
+      hit({
+        id: 'blink182:titles:1-2-b8-link',
+        input: 'Blink-182',
+        category: 'titles',
+        words: ['1', '2', 'link', 'b8'],
+        display: '1 2 link b8',
+        letters: '128bikln',
+        reading: { '1': 'self', '8': 'self', '2': 'self' },
+        classes: { b8: 'blends', '1': 'shorthand', '2': 'shorthand' },
+      }),
+    );
+    expect(classed.classes).toEqual([
+      { term: '1', class: 'shorthand' },
+      { term: '2', class: 'shorthand' },
+      { term: 'b8', class: 'blends' },
+    ]);
+    expect(classed).not.toHaveProperty('classes.b8');
+    expect(Object.keys(classed)).toEqual(Object.keys(publishRow(hit({}))));
   });
 
   it('publishes the shelf and the justification, falling back to the best v2 judge', () => {
@@ -117,8 +140,8 @@ describe('publish', () => {
     // Every published row carries every field: a dataset reader infers one
     // schema for the file and chokes on a key some rows lack.
     for (const row of all) {
-      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'about', 'wikipedia', 'senses', 'reading', 'shelf']));
-      const { submitter, justification, about, wikipedia, senses, reading, shelf, ...rest } = row;
+      expect(Object.keys(row)).toEqual(expect.arrayContaining(['submitter', 'justification', 'about', 'wikipedia', 'senses', 'reading', 'classes', 'shelf']));
+      const { submitter, justification, about, wikipedia, senses, reading, classes, shelf, ...rest } = row;
       expect(['greatest', 'interesting', 'stretch']).toContain(shelf);
       // The published extras aside, the row is still a valid hit.
       const back = {
@@ -129,6 +152,7 @@ describe('publish', () => {
         ...(wikipedia === null ? {} : { wikipedia }),
         ...(senses === null ? {} : { senses: Object.fromEntries((senses as PublishedSense[]).map((s) => [s.word, s.sense])) }),
         ...(reading === null ? {} : { reading: Object.fromEntries((reading as PublishedReading[]).map((r) => [r.item, r.reading])) }),
+        ...(classes === null ? {} : { classes: Object.fromEntries((classes as PublishedClass[]).map((c) => [c.term, c.class])) }),
       };
       expect(validate(back)).toBe(true);
     }

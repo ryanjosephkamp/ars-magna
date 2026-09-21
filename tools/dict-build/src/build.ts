@@ -35,12 +35,15 @@ import {
   bitsetCount,
   bitsetGet,
   bitsetSet,
+  decodeClasses,
   decodeDict,
   encodeBitsets,
+  encodeClasses,
   encodeDict,
   makeBitset,
   type DictForm,
 } from './format.ts';
+import { classCounts, classTerms, readClassEntries } from './classes.ts';
 
 /**
  * Which list the artifact carries. It was Full until the site had words of its
@@ -309,6 +312,26 @@ async function main(): Promise<void> {
           `word${isFormOnly.size === 1 ? '' : 's'} the pin lacks: ${[...isFormOnly].join(', ')}`,
   );
 
+  // The term classes (the literal rule, D63): a second, small list beside the
+  // words, each term with its class bits, in an artifact of its own. Nothing
+  // here touches the word list, its tiers or their hashes; with no class file
+  // present there is no artifact at all.
+  console.log('\n3b. term classes');
+  const classEntries = await readClassEntries();
+  const wordSet = new Set(words);
+  for (const { term, class: name } of classEntries) {
+    if (wordSet.has(term)) {
+      throw new Error(`${term} is listed as ${name} and is a word of the dictionary already; a word needs no class`);
+    }
+  }
+  const terms = classTerms(classEntries);
+  const termCounts = classCounts(classEntries);
+  console.log(
+    terms.length === 0
+      ? '   no term classes: no class file has a term'
+      : `   ${terms.length} terms: ${Object.entries(termCounts).map(([name, n]) => `${n} ${name}`).join(', ')}`,
+  );
+
   console.log('\n4. provenance');
   const facts: WordFacts[] = await loadFacts({
     metaPath: META_PATH,
@@ -416,6 +439,11 @@ async function main(): Promise<void> {
   console.log('   round-trip ✓');
 
   const artifacts = [await emit('full', 'bin', fullBin), await emit('tiers', 'bits', bits)];
+  if (terms.length > 0) {
+    const classesBin = encodeClasses(terms);
+    if (JSON.stringify(decodeClasses(classesBin)) !== JSON.stringify(terms)) throw new Error('round-trip: the terms differ');
+    artifacts.push(await emit('classes', 'bin', classesBin));
+  }
 
   for (const a of artifacts) {
     console.log(`   ${a.name.padEnd(28)} ${human(a.bytes).padStart(9)} → ${human(a.brotliBytes)} br`);
@@ -440,6 +468,8 @@ async function main(): Promise<void> {
       /** The listed forms, and how many of them are words the pin lacks, which every tier gains. */
       forms: forms.length,
       formOnly: isFormOnly.size,
+      /** The terms of each class the `classes` artifact carries; absent for words alone. */
+      ...(terms.length > 0 ? { classes: termCounts } : {}),
       /** The names experiment's build only: how many names the list admitted. */
       ...(withNames ? { names: isName.size } : {}),
     },

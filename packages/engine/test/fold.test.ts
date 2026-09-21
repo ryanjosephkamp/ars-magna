@@ -22,15 +22,23 @@ export const FOLD_CASES: readonly (readonly [string, string, number])[] = [
   ['İstanbul', 'istanbul', 0],
   ['Ryan Joseph Kamp', 'ryanjosephkamp', 0],
   ["O'Brien-Smith", 'obriensmith', 0],
-  // A number is left out and counted (the literal rule); a closing exclamation mark is punctuation.
-  ['Route 66!', 'route', 2],
-  ['Ben Shelton 🎾 2026', 'benshelton', 5],
+  // A digit is a character of the pool (the literal rule); a closing exclamation mark is punctuation.
+  ['Route 66!', 'route66', 0],
+  ['Ben Shelton 🎾 2026', 'benshelton2026', 1],
   ['Владимир', '', 8],
   ['東京', '', 2],
   ['', '', 0],
-  ['1234!!', '', 4],
+  ['1234!!', '1234', 0],
   ['!! ??', '', 0],
-  ['Beverly Hills 90210', 'beverlyhills', 5],
+  ['Beverly Hills 90210', 'beverlyhills90210', 0],
+  // The symbols of the set are characters of the pool; `!` and `?` only inside a word.
+  ['Blink-182', 'blink182', 0],
+  ['Ke$ha', 'ke$ha', 0],
+  ['P!nk wh?t Hello! what?', 'p!nkwh?thellowhat', 0],
+  ['AT&T C++ 50% #1 @home $5', 'at&tc++50%#1@home5', 0],
+  // A symbol outside the set is skipped and counted, like a letter of another script.
+  ['a ~ b | c', 'abc', 0],
+  ['a © b', 'ab', 1],
 ];
 
 describe('foldLetters', () => {
@@ -86,8 +94,9 @@ describe('foldLetters', () => {
   });
 
   it('says which single characters are skipped, as foldLetters counts them', () => {
-    for (const char of ['4', '½', 'Ж', '中', '\u{263A}']) expect(isSkipped(char), char).toBe(true);
-    for (const char of ['a', 'Z', 'é', 'ß', ' ', "'", '-', '.', ',', '&', '’', '—']) expect(isSkipped(char), char).toBe(false);
+    for (const char of ['½', 'Ж', '中', '\u{263A}', '©']) expect(isSkipped(char), char).toBe(true);
+    // A digit and a symbol of the set are characters of the pool, not skipped; `!` alone is punctuation.
+    for (const char of ['a', 'Z', 'é', 'ß', ' ', "'", '-', '.', ',', '&', '’', '—', '4', '$', '!', '~', '|']) expect(isSkipped(char), char).toBe(false);
     for (const [input, , skipped] of FOLD_CASES) {
       expect([...input].filter(isSkipped).length, input).toBe(skipped);
     }
@@ -105,11 +114,12 @@ export const WORD_CASES: readonly (readonly [string, readonly string[]])[] = [
   // A hyphen and an apostrophe carry no letters and end no word.
   ['apple-sauce', ['applesauce']],
   ["O'Brien Smith", ['obrien', 'smith']],
-  // A piece that folds to nothing is not a word; an ampersand and a number are left out.
-  ['apple & sauce 2026', ['apple', 'sauce']],
+  // A piece that folds to nothing is not a word; an ampersand and a number are tokens of the pool.
+  ['apple & sauce 2026', ['apple', '&', 'sauce', '2026']],
   ['apple ?? sauce', ['apple', 'sauce']],
   ['Beyoncé Knowles', ['beyonce', 'knowles']],
-  ['Straße 9', ['strasse']],
+  ['Straße 9', ['strasse', '9']],
+  ['Blink-182 Ke$ha', ['blink182', 'ke$ha']],
   [`apple${at(0xa0)}sauce`, ['apple', 'sauce']],
   [`apple${at(0x85)}sauce`, ['apple', 'sauce']],
   [`apple${at(0x2028)}sauce`, ['apple', 'sauce']],
@@ -118,7 +128,7 @@ export const WORD_CASES: readonly (readonly [string, readonly string[]])[] = [
   // A zero-width space is not whitespace to Unicode, so it ends no word.
   [`apple${at(0x200b)}sauce`, ['applesauce']],
   ['', []],
-  ['1234 !!', []],
+  ['1234 !!', ['1234']],
   ['!! ??', []],
 ];
 

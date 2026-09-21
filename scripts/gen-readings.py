@@ -5,11 +5,10 @@ package from its one source, `scripts/readings.json`.
 
     python3 scripts/gen-readings.py
 
-An item of an input is a run of digits, an ordinal, or one of the symbols in
-the table (roadmap phase N, the literal rule, decisions D62 and D63). Nothing
-is converted: until the literal phase counts digits and symbols as characters
-of the pool, every item is left out (`drop`), and the item finder, written by
-hand on each side (`crates/anagram-core/src/readings.rs`,
+An item of an input is one distinct digit or symbol of the pool (roadmap
+phase N, the literal rule, decisions D62 and D63). It reads as itself, as one
+of its leet letters, or as `drop`; nothing is converted. The item finder,
+written by hand on each side (`crates/anagram-core/src/readings.rs`,
 `packages/engine/src/readings.ts`), is held to the emitted cases by a test on
 each side, so the two cannot drift from each other or from the table.
 """
@@ -36,24 +35,28 @@ def ts_str(value: str) -> str:
 
 
 def emit_rust(table: dict) -> str:
-    symbols = table["symbols"]
+    characters = table["characters"]
     lines = [
         f"//! The readings table. {HEADER}",
         "//!",
         "//! Read by `readings.rs`, whose tests walk `CASES`; the TypeScript side",
         "//! carries the identical table in `packages/engine/src/readingsTable.ts`.",
         "",
-        "/// One symbol the item finder knows.",
-        "pub(crate) struct Symbol {",
+        "/// One character of the pool that is not a letter: a digit or a symbol.",
+        "pub(crate) struct Character {",
         "    pub ch: char,",
         "    /// An item only with a letter on both sides; elsewhere it is punctuation.",
         "    pub inside_word_only: bool,",
+        "    /// The letters it may stand for (the leet readings), in the order offered.",
+        "    pub letters: &'static [char],",
         "}",
         "",
-        f"pub(crate) static SYMBOLS: [Symbol; {len(symbols)}] = [",
+        f"pub(crate) static CHARACTERS: [Character; {len(characters)}] = [",
     ]
-    for ch, spec in symbols.items():
-        lines.append(f"    Symbol {{ ch: {ch!r}, inside_word_only: {'true' if spec['insideWordOnly'] else 'false'} }},")
+    for ch, spec in characters.items():
+        letters = ", ".join(repr(l) for l in spec["letters"])
+        inside = "true" if spec["insideWordOnly"] else "false"
+        lines.append(f"    Character {{ ch: {ch!r}, inside_word_only: {inside}, letters: &[{letters}] }},")
     lines.append("];")
     lines.append("")
     lines.append("/// The defaults, as a queue's summary records them.")
@@ -73,7 +76,7 @@ def emit_rust(table: dict) -> str:
 
 
 def emit_ts(table: dict) -> str:
-    symbols = table["symbols"]
+    characters = table["characters"]
     lines = [
         f"// The readings table. {HEADER}",
         "//",
@@ -81,16 +84,20 @@ def emit_ts(table: dict) -> str:
         "// file against the JSON; the Rust side carries the identical table in",
         "// `crates/anagram-core/src/readings_table.rs`.",
         "",
-        "/** One symbol the item finder knows. */",
-        "export type SymbolSpec = {",
+        "/** One character of the pool that is not a letter: a digit or a symbol. */",
+        "export type CharacterSpec = {",
         "  /** An item only with a letter on both sides; elsewhere it is punctuation. */",
         "  readonly insideWordOnly: boolean;",
+        "  /** The letters it may stand for (the leet readings), in the order offered. */",
+        "  readonly letters: readonly string[];",
         "};",
         "",
-        "export const SYMBOLS: Readonly<Record<string, SymbolSpec>> = {",
+        "export const CHARACTERS: Readonly<Record<string, CharacterSpec>> = {",
     ]
-    for ch, spec in symbols.items():
-        lines.append(f"  {ts_str(ch)}: {{ insideWordOnly: {'true' if spec['insideWordOnly'] else 'false'} }},")
+    for ch, spec in characters.items():
+        letters = ", ".join(ts_str(l) for l in spec["letters"])
+        inside = "true" if spec["insideWordOnly"] else "false"
+        lines.append(f"  {ts_str(ch)}: {{ insideWordOnly: {inside}, letters: [{letters}] }},")
     lines.append("};")
     lines.append("")
     lines.append("/** The defaults, as a queue's summary records them. */")
@@ -109,6 +116,11 @@ def emit_ts(table: dict) -> str:
 
 def main() -> None:
     table = json.loads(SOURCE.read_text(encoding="utf-8"))
+    for ch, spec in table["characters"].items():
+        if len(ch) != 1 or (not ch.isdigit() and ch.isalnum()):
+            raise SystemExit(f"{ch!r} is not one digit or symbol")
+        if any(len(l) != 1 or not ("a" <= l <= "z") for l in spec["letters"]):
+            raise SystemExit(f"{ch!r}: every letter reading is one lowercase letter")
     RUST_OUT.write_text(emit_rust(table), encoding="utf-8")
     TS_OUT.write_text(emit_ts(table), encoding="utf-8")
     print(f"{len(table['cases'])} cases -> {RUST_OUT.relative_to(ROOT)}, {TS_OUT.relative_to(ROOT)}")

@@ -43,7 +43,7 @@ function connectRespawning(): { client: ArsMagnaClient; workers: FakeWorker[] } 
   return { client, workers };
 }
 
-const QUERY = { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [], mustExclude: [], reading: {} } as const;
+const QUERY = { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [], mustExclude: [], reading: {}, classes: [], leet: [] } as const;
 
 const ready = (worker: FakeWorker, id: number) =>
   worker.reply({
@@ -53,6 +53,7 @@ const ready = (worker: FakeWorker, id: number) =>
     builtAt: 'now',
     loadMs: 1,
     forms: [],
+    classes: { numerals: 0, symbols: 0, shorthand: 0, blends: 0, acronyms: 0, leet: 0, names: 0, slang: 0 },
   });
 
 describe('ArsMagnaClient', () => {
@@ -63,7 +64,7 @@ describe('ArsMagnaClient', () => {
     const errors: [string, string][] = [];
     let batches = 0;
     client.solve(
-      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [], mustExclude: [], reading: {} },
+      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: [], mustExclude: [], reading: {}, classes: [], leet: [] },
       { onError: (code, message) => errors.push([code, message]), onBatch: () => batches++ },
     );
     const solveId = worker.sent.at(-1)!.id;
@@ -138,7 +139,7 @@ describe('ArsMagnaClient', () => {
 
     // The new worker answers; the old query's handlers are gone.
     ready(second, second.sent[0]!.id);
-    second.reply({ k: 'count', id: secondId, total: '3', candidates: 9, textLeftOut: true });
+    second.reply({ k: 'count', id: secondId, total: '3', candidates: 9, textLeftOut: true, unused: '', leet: [] });
     second.reply({ k: 'solved', id: secondId, stats: { candidates: 9, elapsedMs: 1 } });
     expect(secondCount).toBe('3');
     // The page is told when the text's own row was left out of the count.
@@ -210,15 +211,15 @@ describe('ArsMagnaClient', () => {
     expect(second).toMatchObject({ k: 'count', query: { mustInclude: ['shamed'] } });
     expect(first).not.toHaveProperty('maxNodes');
 
-    worker.reply({ k: 'count', id: first!.id, total: '40', candidates: 0, textLeftOut: false });
-    worker.reply({ k: 'count', id: second!.id, total: '11', candidates: 0, textLeftOut: false });
+    worker.reply({ k: 'count', id: first!.id, total: '40', candidates: 0, textLeftOut: false, unused: '', leet: [] });
+    worker.reply({ k: 'count', id: second!.id, total: '11', candidates: 0, textLeftOut: false, unused: '', leet: [] });
     await expect(sham).resolves.toBeNull();
-    await expect(shamed).resolves.toEqual({ total: '11', textLeftOut: false });
+    await expect(shamed).resolves.toEqual({ total: '11', textLeftOut: false, unused: '' });
 
     // A count that pins every word of the text: its only result would be the text, so the engine says it left that out.
     const itself = client.count({ ...QUERY, mustInclude: ['dormitory'] });
-    worker.reply({ k: 'count', id: worker.sent.at(-1)!.id, total: '0', candidates: 0, textLeftOut: true });
-    await expect(itself).resolves.toEqual({ total: '0', textLeftOut: true });
+    worker.reply({ k: 'count', id: worker.sent.at(-1)!.id, total: '0', candidates: 0, textLeftOut: true, unused: '', leet: [] });
+    await expect(itself).resolves.toEqual({ total: '0', textLeftOut: true, unused: '' });
 
     // Neither count is the search: the list keeps its own id and its batches.
     worker.reply({ k: 'batch', id: solveId, offset: 0, rows: [['x']], done: true, truncated: false });
@@ -252,8 +253,8 @@ describe('ArsMagnaClient', () => {
     ready(second, second.sent[0]!.id);
     second.reply({ k: 'solved', id: second.sent[1]!.id, stats: { candidates: 9, elapsedMs: 1 } });
     const answered = client.count({ ...QUERY, mustInclude: ['lens'] });
-    second.reply({ k: 'count', id: second.sent.at(-1)!.id, total: '2', candidates: 0, textLeftOut: false });
-    await expect(answered).resolves.toEqual({ total: '2', textLeftOut: false });
+    second.reply({ k: 'count', id: second.sent.at(-1)!.id, total: '2', candidates: 0, textLeftOut: false, unused: '', leet: [] });
+    await expect(answered).resolves.toEqual({ total: '2', textLeftOut: false, unused: '' });
     client.solve({ ...QUERY, input: 'silent' }, {});
     expect(workers).toHaveLength(2);
   });
@@ -264,7 +265,7 @@ describe('ArsMagnaClient', () => {
 
     const errors: string[] = [];
     client.solve(
-      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: ['zz'], mustExclude: [], reading: {} },
+      { input: 'dormitory', tier: 'standard', minWordLen: 2, maxWords: 64, mustInclude: ['zz'], mustExclude: [], reading: {}, classes: [], leet: [] },
       { onError: (code) => errors.push(code) },
     );
     const solveId = worker.sent.at(-1)!.id;

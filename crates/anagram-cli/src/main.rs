@@ -10,9 +10,20 @@
 //! anagram bench
 //! anagram batch --in=data/candidates.jsonl --out=data/queue/2026-09-12
 //! anagram check "dormitory" "dirty room"
+//! anagram solve "Blink-182" --classes=shorthand,blends
+//! anagram solve "Ke\$ha" --leet='$'
+//! anagram check "Ke\$ha" "hakes" --read='$:s'
 //! ```
+//!
+//! The literal rule (D62, D63): a digit or a symbol of the text is a character
+//! of the pool, and a term of an anagram uses it as itself; `--classes=` names
+//! the term classes admitted beside the tier, `--leet=` the characters the
+//! search also tries as their letters, `--read=` a fixed reading of one.
 
-use anagram_core::{Counts, Cursor, Dict, Flow, Memo, Search, SolveOptions, TextRow, Tier, UNLIMITED_WORDS};
+use anagram_core::{
+    class_names, parse_classes, Class, ClassMask, Counts, Cursor, Dict, Expanded, Flow, Memo, Scope, Search, Slots,
+    SolveOptions, TextRow, Tier, UNLIMITED_WORDS, WORDS,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -68,6 +79,9 @@ fn load_dict_with_id() -> Result<(Dict, DictionaryId), Box<dyn std::error::Error
 
     let full = name_of("full").ok_or("manifest is missing the full artifact")?;
     let tiers = name_of("tiers").ok_or("manifest is missing the tiers artifact")?;
+    // The terms of the classes, when a build emitted them (`dict:build` does
+    // only once a class file has a term); a dictionary of words alone without.
+    let classes = name_of("classes");
     let id = DictionaryId {
         rev: field_of("source", "rev").unwrap_or_default(),
         full_sha256: field_of("full", "sha256").unwrap_or_default(),
@@ -75,8 +89,9 @@ fn load_dict_with_id() -> Result<(Dict, DictionaryId), Box<dyn std::error::Error
 
     let dict_bytes = fs::read(dist.join(&full))?;
     let tier_bytes = fs::read(dist.join(&tiers))?;
+    let class_bytes = classes.map(|name| fs::read(dist.join(name))).transpose()?;
 
-    Ok((Dict::decode(&dict_bytes, Some(&tier_bytes))?, id))
+    Ok((Dict::decode(&dict_bytes, Some(&tier_bytes), class_bytes.as_deref())?, id))
 }
 
 fn tier_from(name: &str) -> Tier {
@@ -140,24 +155,48 @@ impl Argv {
 }
 
 struct Args {
-    /// The text as typed, with its numbers and symbols read as `--read=` says: what the search is given.
+    /// The text as typed, with its digits and symbols read as `--read=` says: what the search is given.
     text: String,
     tier: Tier,
+    /// The term classes admitted beside the tier (`--classes=`).
+    classes: ClassMask,
+    /// The characters the search also tries as their leet letters (`--leet=`).
+    leet: Vec<char>,
     min_word_len: u8,
     max_words: u8,
     short_words: Option<Vec<String>>,
     limit: usize,
 }
 
-/// `--read=4:drop`: the reader's readings of the text's numbers and symbols,
-/// checked against what the text offers (`drop` alone until the literal phase).
-/// None given is the defaults.
+/// `--read=$:s,4:drop`: the reader's readings of the text's digits and
+/// symbols, checked against what the text offers (`self`, its letters,
+/// `drop`). None given is the defaults: every character as itself.
 fn reading_flag(argv: &Argv, text: &str) -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
     let pairs = anagram_core::parse_reading(argv.get("read").unwrap_or(""))?;
     if let Some(problem) = anagram_core::reading_problem(text, &pairs) {
         return Err(format!("--read: {problem}").into());
     }
     Ok(pairs)
+}
+
+/// `--classes=shorthand,blends`: the term classes admitted beside the tier.
+fn classes_flag(argv: &Argv) -> Result<ClassMask, Box<dyn std::error::Error>> {
+    Ok(parse_classes(argv.get("classes").unwrap_or("")).map_err(|e| format!("--classes: {e}"))?)
+}
+
+/// `--leet='$,!,@'` or `--leet='$!@'`: the characters the search also tries as
+/// their letters, each a digit or symbol of the pool with letters to offer.
+fn leet_flag(argv: &Argv) -> Result<Vec<char>, Box<dyn std::error::Error>> {
+    let mut out = Vec::new();
+    for c in argv.get("leet").unwrap_or("").chars().filter(|c| *c != ',' && !c.is_whitespace()) {
+        if anagram_core::letters_of(c).is_empty() {
+            return Err(format!("--leet: {c:?} has no letter reading").into());
+        }
+        if !out.contains(&c) {
+            out.push(c);
+        }
+    }
+    Ok(out)
 }
 
 fn parse(args: &[String]) -> Result<Args, Box<dyn std::error::Error>> {
@@ -167,6 +206,8 @@ fn parse(args: &[String]) -> Result<Args, Box<dyn std::error::Error>> {
     Ok(Args {
         text: anagram_core::read_input(&typed, &reading),
         tier: tier_from(argv.get("tier").unwrap_or("standard")),
+        classes: classes_flag(&argv)?,
+        leet: leet_flag(&argv)?,
         min_word_len: argv.num("min-len", 3),
         max_words: argv.num("max-words", UNLIMITED_WORDS),
         short_words: argv.get("short-words").map(read_short_words).transpose()?,
@@ -177,6 +218,7 @@ fn parse(args: &[String]) -> Result<Args, Box<dyn std::error::Error>> {
 fn options(args: &Args, limit: usize) -> SolveOptions {
     SolveOptions {
         tier: args.tier,
+        classes: args.classes,
         min_word_len: args.min_word_len,
         short_words: args.short_words.clone(),
         max_words: args.max_words,
@@ -184,6 +226,30 @@ fn options(args: &Args, limit: usize) -> SolveOptions {
         exclude: Vec::new(),
         limit,
         max_nodes: u64::MAX,
+    }
+}
+
+/// A row's tags for a person: `1 shorthand, 2 shorthand, b8 blends; $ as s`.
+/// Empty for a row of words alone under the text as typed.
+fn describe_tags(row: &anagram_core::Row) -> String {
+    let mut parts: Vec<String> = row
+        .written
+        .iter()
+        .zip(&row.classes)
+        .filter_map(|(word, class)| class.map(|c| format!("{word} {}", c.name())))
+        .collect();
+    if !row.reading.is_empty() {
+        parts.push(row.reading.iter().map(|(c, l)| format!("{c} as {l}")).collect::<Vec<_>>().join(", "));
+    }
+    parts.join("; ")
+}
+
+/// Say which digits and symbols of the pool nothing uses, when any: the count
+/// is zero for the lack of a class that would.
+fn print_unused(unused: &str) {
+    if !unused.is_empty() {
+        let list: Vec<String> = unused.chars().map(|c| c.to_string()).collect();
+        println!("  no term uses {}; a class would (--classes=, --leet=)", list.join(", "));
     }
 }
 
@@ -202,12 +268,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "check" => check(&Argv::parse(rest)),
         _ => {
             eprintln!(
-                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=] [--read=4:drop]\n  \
+                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--classes=shorthand,blends] [--leet='$!@'] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=] [--read=$:s,4:drop]\n  \
                  anagram bench\n  \
-                 anagram batch --in=candidates.jsonl --out=DIR [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] \
+                 anagram batch --in=candidates.jsonl --out=DIR [--tier=] [--classes=] [--min-len=] [--short-words=FILE] [--max-words=] \
                  [--additions=FILE] [--spellings=first|all] [--expand-cap=] [--limit=] [--sample=] [--seed=] \
                  [--status=new|all] [--max-nodes=] [--settings=]\n  \
-                 anagram check \"input\" \"anagram phrase\" [--tier=] [--read=4:drop]"
+                 anagram check \"input\" \"anagram phrase\" [--tier=] [--classes=] [--read=$:s,4:drop]"
             );
             Ok(())
         }
@@ -216,21 +282,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn solve(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let dict = load_dict()?;
-    let tier = args.tier;
-    let search = Search::prepare(&dict, &args.text, options(&args, args.limit))?;
+    let expanded = Expanded::prepare(&dict, &args.text, options(&args, args.limit), &args.leet)?;
 
     println!(
-        "{} candidate classes for {:?}",
-        search.candidate_count(),
-        anagram_core::normalize(&args.text)
+        "{} candidate classes for {:?}{}",
+        expanded.candidate_count(),
+        anagram_core::normalize(&args.text),
+        if expanded.pieces.len() > 1 { format!(" in {} readings", expanded.pieces.len()) } else { String::new() }
     );
 
     let started = Instant::now();
     let mut shown = 0usize;
-    let stats = search.enumerate(|classes| {
-        let mut words = search.spell(&dict, classes, tier);
-        words.sort_by_key(|w| std::cmp::Reverse(w.len()));
-        println!("  {}", words.join(" "));
+    let stats = expanded.enumerate(|piece, classes| {
+        let row = expanded.row(&dict, piece, classes);
+        let mut order: Vec<usize> = (0..row.words.len()).collect();
+        order.sort_by_key(|&i| std::cmp::Reverse(row.words[i].len()));
+        let written: Vec<&str> = order.iter().map(|&i| row.written[i].as_str()).collect();
+        let tags = describe_tags(&row);
+        if tags.is_empty() {
+            println!("  {}", written.join(" "));
+        } else {
+            println!("  {}  [{tags}]", written.join(" "));
+        }
         shown += 1;
         Flow::Continue
     });
@@ -242,37 +315,41 @@ fn solve(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         stats.subset_tests,
         if stats.truncated { ", truncated" } else { "" }
     );
-    print_text_row(&search);
+    print_text_row(&expanded);
+    print_unused(&expanded.unused());
     Ok(())
 }
 
 /// Say so when the text's own row is not among the results: the text itself,
 /// its words in any order, is never a result, and a row that can be spelled
 /// no other way is left out and not counted.
-fn print_text_row(search: &Search) {
-    if search.text_row() == TextRow::Dropped {
+fn print_text_row(expanded: &Expanded) {
+    if expanded.text_left_out() {
         println!("  the text itself is left out");
     }
 }
 
 fn count(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let dict = load_dict()?;
-    let search = Search::prepare(&dict, &args.text, options(&args, 0))?;
+    let expanded = Expanded::prepare(&dict, &args.text, options(&args, 0), &args.leet)?;
 
     let started = Instant::now();
-    let (total, saturated, stats) = search.count(&mut Memo::new(), u64::MAX);
+    let mut memos: Vec<Memo> = expanded.pieces.iter().map(|_| Memo::new()).collect();
+    let (total, floor, stats) = expanded.count(&mut memos, u64::MAX);
     let elapsed = started.elapsed();
 
+    println!("{}{} anagrams", if floor { "more than " } else { "" }, total);
     println!(
-        "{}{} anagrams",
-        if saturated { "more than " } else { "" },
-        total
+        "  {} candidates · {} nodes · {} memo entries · {} hits · {:.1?}{}",
+        stats.candidates,
+        stats.nodes,
+        stats.memo_entries,
+        stats.memo_hits,
+        elapsed,
+        if expanded.pieces.len() > 1 { format!(" · {} readings", expanded.pieces.len()) } else { String::new() }
     );
-    println!(
-        "  {} candidates · {} nodes · {} memo entries · {} hits · {:.1?}",
-        stats.candidates, stats.nodes, stats.memo_entries, stats.memo_hits, elapsed
-    );
-    print_text_row(&search);
+    print_text_row(&expanded);
+    print_unused(&expanded.unused());
     Ok(())
 }
 
@@ -303,6 +380,7 @@ fn bench() -> Result<(), Box<dyn std::error::Error>> {
     for input in inputs {
         let base = SolveOptions {
             tier: Tier::Standard,
+            classes: 0,
             min_word_len: 3,
             short_words: None,
             max_words: UNLIMITED_WORDS,
@@ -390,11 +468,16 @@ struct Row<'a> {
     /// The anchor word this row's search required; absent for the main search.
     #[serde(skip_serializing_if = "Option::is_none")]
     anchor: Option<&'a str>,
-    /// How the input's numbers and symbols were read, every item of them; absent for an input without any.
+    /// How the input's digits and symbols were read, every item of them; absent for an input without any.
     #[serde(skip_serializing_if = "Option::is_none")]
     reading: Option<&'a BTreeMap<String, String>>,
     words: Vec<String>,
+    /// Each word of `words` that is a term of a class rather than a word of the
+    /// dictionary, with its class; absent when every word is a word.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    classes: Option<BTreeMap<String, &'static str>>,
     zipf: Vec<u8>,
+    /// The narrowest tier each word belongs to, or a term's class.
     tiers: Vec<&'static str>,
     pos: Vec<u16>,
 }
@@ -456,9 +539,13 @@ struct Summary {
     /// the built word list's hash. Absent on a queue from before s4.
     #[serde(skip_serializing_if = "Option::is_none")]
     dictionary: Option<DictionaryId>,
-    /// The default readings of numbers and symbols the queue was enumerated
+    /// The default readings of digits and symbols the queue was enumerated
     /// under (phase N); each row carries its input's own. Absent before s5.
     readings: BTreeMap<&'static str, &'static str>,
+    /// The term classes admitted beside `tier` (the literal rule, N3); absent
+    /// for a queue of words alone.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    classes: Vec<&'static str>,
     max_words: u8,
     spellings: &'static str,
     expand_cap: usize,
@@ -514,6 +601,7 @@ fn fnv1a(text: &str) -> u64 {
 /// What every search in a batch shares.
 struct BatchConfig {
     tier: Tier,
+    classes: ClassMask,
     min_word_len: u8,
     short_words: Vec<String>,
     allow: HashSet<String>,
@@ -530,6 +618,7 @@ impl BatchConfig {
     fn options(&self, must_include: Vec<String>) -> SolveOptions {
         SolveOptions {
             tier: self.tier,
+            classes: self.classes,
             min_word_len: self.min_word_len,
             short_words: (!self.short_words.is_empty()).then(|| self.short_words.clone()),
             max_words: self.max_words,
@@ -543,25 +632,29 @@ impl BatchConfig {
 
 /// The spellings a result can be written with, one list per class, commonest
 /// first. A word under the minimum length counts only when the allowlist names
-/// it, and a forced slot keeps the word the search was asked for. Without
-/// `--spellings=all`, each list keeps its first entry, as the batch always did.
-fn spellings(dict: &Dict, classes: &[u32], forced: &[String], config: &BatchConfig) -> Vec<Vec<u32>> {
+/// it (a term is governed by its class, not the length), and a forced slot
+/// keeps the word the search was asked for. Without `--spellings=all`, each
+/// list keeps its first entry, as the batch always did. The indices are the
+/// search's: a word's, or a virtual candidate's pseudo index.
+fn spellings(dict: &Dict, search: &Search, classes: &[u32], forced: &[String], config: &BatchConfig) -> Vec<Vec<u32>> {
     classes
         .iter()
         .enumerate()
         .map(|(slot, &class)| {
-            let words = dict.class_words(class as usize, config.tier);
+            let words = search.spellings(dict, class);
             let mut list: Vec<u32> = match forced.get(slot) {
-                Some(word) => words.filter(|&w| dict.word(w) == word).collect(),
+                Some(word) => words.filter(|&w| search.word(dict, w) == word).collect(),
                 None => words
                     .filter(|&w| {
-                        let word = dict.word(w);
-                        word.len() >= config.min_word_len as usize || config.allow.contains(word)
+                        let word = search.word(dict, w);
+                        word.len() >= config.min_word_len as usize
+                            || config.allow.contains(word)
+                            || search.class_of(dict, w).is_some()
                     })
                     .collect(),
             };
             if list.is_empty() {
-                list.extend(dict.class_words(class as usize, config.tier).next());
+                list.extend(search.spellings(dict, class).next());
             }
             if !config.all_spellings {
                 list.truncate(1);
@@ -645,17 +738,22 @@ fn write_result(
     if !seen.insert(key) {
         return Ok((0, false));
     }
-    let slots = spellings(dict, classes, forced, config);
+    let slots = spellings(dict, search, classes, forced, config);
     let cap = if config.all_spellings { config.expand_cap.max(1) } else { 1 };
     let (mut combinations, capped) = expand(&slots, cap, |words| search.is_text(words));
     // With one spelling per class, the text's own row has only the text to
     // show here, so it takes the spelling the search itself gives it.
     if combinations.is_empty() && search.text_row() == TextRow::Respelled {
-        let respelled: Option<Vec<u32>> =
-            search.spell(dict, classes, config.tier).iter().map(|word| dict.index_of(word)).collect();
-        combinations.extend(respelled.filter(|words| !search.is_text(words)));
+        let respelled = search.spell_indices(dict, classes);
+        if !search.is_text(&respelled) && !respelled.contains(&u32::MAX) {
+            combinations.push(respelled);
+        }
     }
     for words in &combinations {
+        let terms: BTreeMap<String, &'static str> = words
+            .iter()
+            .filter_map(|&w| search.class_of(dict, w).map(|c| (search.word(dict, w).to_owned(), c.name())))
+            .collect();
         let row = Row {
             id: &candidate.id,
             input: &candidate.input,
@@ -666,20 +764,24 @@ fn write_result(
             sampled,
             anchor,
             reading: candidate.reading.as_ref(),
-            words: words.iter().map(|&w| dict.word(w).to_owned()).collect(),
-            zipf: words.iter().map(|&w| dict.zipf[w as usize]).collect(),
+            words: words.iter().map(|&w| search.word(dict, w).to_owned()).collect(),
+            classes: (!terms.is_empty()).then_some(terms),
+            zipf: words.iter().map(|&w| if Search::is_virtual(w) { 0 } else { dict.zipf[w as usize] }).collect(),
             tiers: words
                 .iter()
                 .map(|&w| {
-                    // The narrowest tier the word belongs to. The last arm used
-                    // to be an unconditional "full", which would now mislabel
-                    // every site addition as part of the pinned list.
+                    // The narrowest tier the word belongs to, or a term's class.
+                    // The last arm used to be an unconditional "full", which
+                    // would now mislabel every site addition as part of the
+                    // pinned list.
                     //
-                    // These read the built tiers, not `in_tier`: a run that
+                    // These read the built tiers, not `in_scope`: a run that
                     // admitted additions would otherwise label every one of
                     // them "common" and the prefilter would wave them through
                     // as pinned words.
-                    if dict.in_built_tier(w, Tier::Common) {
+                    if let Some(class) = search.class_of(dict, w) {
+                        class.name()
+                    } else if dict.in_built_tier(w, Tier::Common) {
                         "common"
                     } else if dict.in_built_tier(w, Tier::Standard) {
                         "standard"
@@ -690,7 +792,7 @@ fn write_result(
                     }
                 })
                 .collect(),
-            pos: words.iter().map(|&w| dict.pos[w as usize]).collect(),
+            pos: words.iter().map(|&w| if Search::is_virtual(w) { 0 } else { dict.pos[w as usize] }).collect(),
         };
         serde_json::to_writer(&mut *raw, &row)?;
         raw.write_all(b"\n")?;
@@ -767,6 +869,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
     let short_words = argv.get("short-words").map(read_short_words).transpose()?.unwrap_or_default();
     let config = BatchConfig {
         tier: tier_from(argv.get("tier").unwrap_or("standard")),
+        classes: classes_flag(argv)?,
         min_word_len: argv.num("min-len", 3),
         allow: short_words.iter().cloned().collect(),
         short_words,
@@ -930,6 +1033,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
         additions: (!additions.is_empty()).then_some(admitted),
         dictionary: Some(dictionary),
         readings: anagram_core::READING_DEFAULTS.iter().copied().collect(),
+        classes: class_names(config.classes),
         max_words: config.max_words,
         spellings: if config.all_spellings { "all" } else { "first" },
         expand_cap: config.expand_cap,
@@ -947,40 +1051,83 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
 
 // -------------------------------------------------------------------- check
 
-/// Is `phrase` a real anagram of `input` at `tier`? Prints why not, and exits
-/// non-zero, when it is not. The same folding the site applies is used on
-/// both sides, so "Beyoncé" and "beyonce" agree.
+/// Is `phrase` a real anagram of `input` at `tier`, with the term classes of
+/// `--classes=` admitted and the input read as `--read=` says? Prints why
+/// not, and exits non-zero, when it is not. The same folding the site applies
+/// is used on both sides, so "Beyoncé" and "beyonce" agree. The phrase is
+/// given as a record stores it, its words as letters (`hakes` for `hake$`
+/// under `--read='$:s'`), and the answer names every term's class.
 fn check(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
     let [input, phrase] = argv.positional.as_slice() else {
         return Err("check needs two arguments: \"input\" \"anagram phrase\"".into());
     };
     let tier = tier_from(argv.get("tier").unwrap_or("standard"));
+    let classes = classes_flag(argv)?;
     let reading = reading_flag(argv, input)?;
     let dict = load_dict()?;
+    let scope = Scope { tier, classes };
 
-    // The input read as `--read=` says (the defaults without it); the phrase is words.
+    // The input read as `--read=` says (the defaults without it); the phrase is words and terms.
     let letters = anagram_core::normalize_with(input, &reading);
-    let want = Counts::from_word(&letters);
-    let have = Counts::from_word(&anagram_core::normalize(phrase));
-    let (Some(want), Some(have)) = (want, have) else {
-        println!("no: a letter appears more than 127 times");
-        std::process::exit(1);
+    let phrase_pool = anagram_core::normalize(phrase);
+    let mut slots = Slots::new();
+    let want = Counts::from_pool(&letters, &mut slots);
+    let have = Counts::in_slots(&phrase_pool, &slots);
+    let want = match want {
+        Ok(counts) => counts,
+        Err(anagram_core::PoolError::TooManyRepeats(c)) => {
+            println!("no: {c:?} appears more than 127 times");
+            std::process::exit(1);
+        }
+        Err(_) => {
+            println!("no: the input has more than six different digits and symbols");
+            std::process::exit(1);
+        }
     };
-    if want != have {
-        println!("no: the letters differ ({} vs {})", letters, anagram_core::normalize(phrase));
+    if have != Some(want) {
+        println!("no: the characters differ ({letters} vs {phrase_pool})");
         std::process::exit(1);
     }
 
+    let mut tags: Vec<String> = Vec::new();
     for word in phrase.split_whitespace() {
         let folded = anagram_core::normalize(word);
         if folded.is_empty() {
             continue;
         }
-        if dict.find_class(&folded, tier).is_none() {
-            println!("no: {folded:?} is not in the {} dictionary", tier_name(tier));
-            std::process::exit(1);
+        if dict.find_class(&folded, scope).is_some() {
+            let index = dict.index_of(&folded).expect("a member of its class");
+            if let Some(class) = Class::first_in(dict.term_bits(index) & classes) {
+                tags.push(format!("{folded} {}", class.name()));
+            }
+            continue;
+        }
+        // A term with a digit or symbol, or a numeral of the input's digits.
+        let is_numeral = classes & Class::Numerals.bit() != 0 && folded.chars().all(|c| c.is_ascii_digit());
+        let term = dict.term_index(&folded).filter(|&i| dict.term_bits(i) & classes != 0);
+        match (is_numeral, term) {
+            (true, _) => tags.push(format!("{folded} {}", Class::Numerals.name())),
+            (false, Some(index)) => {
+                let class = Class::first_in(dict.term_bits(index) & classes).expect("a bit of the mask");
+                tags.push(format!("{folded} {}", class.name()));
+            }
+            (false, None) => {
+                let with = if classes == 0 { String::new() } else { format!(" with {}", class_names(classes).join(", ")) };
+                println!("no: {folded:?} is not in the {} dictionary{with}", tier_name(tier));
+                std::process::exit(1);
+            }
         }
     }
-    println!("ok");
+    for (key, name) in &reading {
+        if name != anagram_core::SELF && name != anagram_core::DROP {
+            tags.push(format!("{key} as {name}"));
+        }
+    }
+    if tags.is_empty() {
+        println!("ok");
+    } else {
+        println!("ok  [{}]", tags.join(", "));
+    }
+    let _ = WORDS;
     Ok(())
 }

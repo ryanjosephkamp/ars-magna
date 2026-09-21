@@ -46,7 +46,7 @@ export function BuildPage() {
   const [text, setText] = useState(opened.text);
   const [anagram, setAnagram] = useState(opened.anagram);
   const [tier, setTier] = useState<Tier>(opened.tier);
-  // The text's numbers and symbols, each left out and said so under the box (the literal rule).
+  // The text's digits and symbols, each a character of the pool as itself, said so under the box (the literal rule); the ledger lists them as skipped until N5 counts the pool.
   const reading = opened.reading;
   const items = useMemo(() => readItems(text, reading), [text, reading]);
   const anagramRef = useRef<HTMLTextAreaElement>(null);

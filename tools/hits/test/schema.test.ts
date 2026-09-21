@@ -77,13 +77,16 @@ describe('ids', () => {
     expect(alphagram('Dirty Room', {})).toBe('dimoorrty');
   });
 
-  it('leaves numbers and symbols out as the record says, and as before phase N without a reading', () => {
-    // The one reading: a number is left out, by default and by name; a reading the table does not offer reads as the default.
-    expect(candidateId('Reacher season 4', 'titles', {})).toBe('reacherseason:titles');
+  it('counts digits and symbols as the record reads them, and as before phase N without a reading', () => {
+    // A character of the pool is itself by default; left out by name; a reading the table does not offer reads as the default.
+    expect(candidateId('Reacher season 4', 'titles', {})).toBe('reacherseason4:titles');
     expect(candidateId('Reacher season 4', 'titles', { '4': 'drop' })).toBe('reacherseason:titles');
-    expect(candidateId('2 Fast 2 Furious', 'titles', { '2': 'too' })).toBe('fastfurious:titles');
-    expect(hitId('Blink-182', 'titles', ['blink'], { '182': 'drop' })).toBe('blink:titles:blink');
-    expect(candidateId('the 10,000th man', 'phrases', {})).toBe('theman:phrases');
+    expect(candidateId('2 Fast 2 Furious', 'titles', { '2': 'too' })).toBe('2fast2furious:titles');
+    expect(hitId('Blink-182', 'titles', ['blink'], { '1': 'drop', '8': 'drop', '2': 'drop' })).toBe('blink:titles:blink');
+    expect(hitId('Blink-182', 'titles', ['1', '2', 'link', 'b8'], {})).toBe('blink182:titles:1-2-b8-link');
+    expect(candidateId('the 10,000th man', 'phrases', {})).toBe('the10000thman:phrases');
+    expect(candidateId('Ke$ha', 'people', { $: 's' })).toBe('kesha:people');
+    expect(alphagram('Ke$ha', {})).toBe('$aehk');
     expect(alphagram('Sardar 2', { '2': 'drop' })).toBe('aadrrs');
     // A record with no reading was made when every digit and symbol was dropped and the letters kept, an ordinal's suffix among them.
     expect(candidateId('Reacher season 4', 'titles', null)).toBe('reacherseason:titles');
@@ -93,7 +96,8 @@ describe('ids', () => {
     expect(candidateId('Ke$ha', 'people', null)).toBe('keha:people');
     expect(lettersOf('Bl1nk 9/11', null)).toBe('blnk');
     // What a new record stores: every item, defaults filled in; nothing for an input without items.
-    expect(recordReading('Blink-182 vs 2', { '2': 'too' })).toEqual({ '182': 'drop', '2': 'drop' });
+    expect(recordReading('Blink-182 vs 2', { '2': 'too' })).toEqual({ '1': 'self', '8': 'self', '2': 'self' });
+    expect(recordReading('Blink-182 vs 2', { '2': 'z' })).toEqual({ '1': 'self', '8': 'self', '2': 'z' });
     expect(recordReading('Beyoncé')).toBeUndefined();
   });
 });
@@ -174,7 +178,8 @@ describe('schemas', () => {
     expect(hv(hit({ senses: { room: 'No full stop' } }))).toBe(false);
     expect(hv(hit({ senses: { room: 'Two\nlines.' } }))).toBe(false);
     expect(hv(hit({ senses: { Room: 'A capital.' } }))).toBe(false);
-    expect(hv(hit({ senses: { room2: 'A digit.' } }))).toBe(false);
+    // A sense may be keyed by a term of a class (`b8`), never by a word with a capital or a space.
+    expect(hv(hit({ senses: { 'ro om': 'A space.' } }))).toBe(false);
     expect(hv(hit({ senses: {} }))).toBe(false);
     expect(hv(hit({ senses: { room: 3 } as never }))).toBe(false);
     // The schema cannot see the words, so the key's word is checked in code.

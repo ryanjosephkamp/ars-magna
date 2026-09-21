@@ -407,6 +407,7 @@ export function hitFromRow(
     display: display ?? row.display,
     letters: row.letters,
     ...(row.reading ? { reading: row.reading } : {}),
+    ...(row.classes ? { classes: row.classes } : {}),
     prefilter_score: row.prefilter_score,
     judge,
     added: options.date,

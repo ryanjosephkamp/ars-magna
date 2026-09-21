@@ -21,6 +21,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatReading, parseReading } from '@ars-magna/engine/readings';
+import { isClassName, type ClassName } from '@ars-magna/engine/protocol';
 
 import { SCREEN_KEEP_CAP, screenKeepProblems } from './guards.ts';
 import { alphagram, hitId, isCategory, type Category } from './ids.ts';
@@ -37,10 +38,10 @@ export type ScreenGroup = {
   candidate_id: string;
   input: string;
   category: Category;
-  /** How the input's numbers and symbols were read, when it has any. */
+  /** How the input's digits and symbols were read, when it has any. */
   reading?: Record<string, string>;
-  /** Numbered from 1, best-reading first. */
-  phrases: { display: string; score: number }[];
+  /** Numbered from 1, best-reading first; a phrase with a term of a class carries the class of each such term. */
+  phrases: { display: string; score: number; classes?: Record<string, ClassName> }[];
 };
 
 /** A run of one group's phrases in one file, numbered `from` to `to` inclusive. */
@@ -53,7 +54,7 @@ export function groupForScreen(rows: readonly Prefiltered[]): ScreenGroup[] {
     const group =
       groups.get(row.candidate_id) ??
       { candidate_id: row.candidate_id, input: row.input, category: row.category, ...(row.reading ? { reading: row.reading } : {}), phrases: [] };
-    group.phrases.push({ display: row.display, score: row.prefilter_score });
+    group.phrases.push({ display: row.display, score: row.prefilter_score, ...(row.classes ? { classes: row.classes } : {}) });
     groups.set(row.candidate_id, group);
   }
   return [...groups.values()];
@@ -92,7 +93,9 @@ export function chunkScreen(groups: readonly ScreenGroup[], chunk: number): Scre
 export function renderScreen(parts: readonly ScreenPart[], promptText: string, n: number, of: number): string {
   const phrases = parts.reduce((sum, p) => sum + p.to - p.from + 1, 0);
   const sections = parts.map((p) => {
-    const lines = p.group.phrases.slice(p.from - 1, p.to).map((phrase, i) => `${p.from + i} ${phrase.display}`);
+    // A phrase with a term of a class says so after a bar the words never
+    // hold: `7 1 2 link b8 | 1 shorthand · 2 shorthand · b8 blends`.
+    const lines = p.group.phrases.slice(p.from - 1, p.to).map((phrase, i) => `${p.from + i} ${phrase.display}${describeClasses(phrase.classes)}`);
     return [
       `### ${p.group.candidate_id}`,
       '',
@@ -117,10 +120,29 @@ export type ScreenSection = {
   candidate_id: string;
   input: string;
   category: string;
-  /** The input's reading, as its `reading:` line had it; absent when the input has no numbers or symbols. */
+  /** The input's reading, as its `reading:` line had it; absent when the input has no digits or symbols. */
   reading?: Record<string, string>;
   phrases: Map<number, string>;
+  /** The classes of a phrase's terms, by phrase number, for the phrases that have any. */
+  classes?: Map<number, Record<string, ClassName>>;
 };
+
+/** ` | 1 shorthand · b8 blends` for a phrase with terms of a class; empty otherwise. */
+export function describeClasses(classes: Record<string, ClassName> | undefined): string {
+  if (!classes || Object.keys(classes).length === 0) return '';
+  return ` | ${Object.entries(classes).map(([term, name]) => `${term} ${name}`).join(' · ')}`;
+}
+
+/** The classes a phrase line's tail names, or undefined for a line without one. */
+export function parseClasses(tail: string | undefined): Record<string, ClassName> | undefined {
+  if (tail === undefined) return undefined;
+  const out: Record<string, ClassName> = {};
+  for (const part of tail.split(' · ')) {
+    const [term, name] = part.trim().split(' ');
+    if (term && name && isClassName(name)) out[term] = name;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 /** The sections of every screen input file, merged by input. */
 export function parseScreenInputs(texts: readonly string[]): Map<string, ScreenSection> {
@@ -146,7 +168,12 @@ export function parseScreenInputs(texts: readonly string[]): Map<string, ScreenS
       else if (line.startsWith('category: ')) current.category = line.slice('category: '.length);
       else {
         const phrase = /^(\d+) (\S.*)$/.exec(line);
-        if (phrase) current.phrases.set(Number(phrase[1]), phrase[2]!);
+        if (phrase) {
+          const [display, tail] = phrase[2]!.split(' | ', 2);
+          current.phrases.set(Number(phrase[1]), display!);
+          const classes = parseClasses(tail);
+          if (classes) (current.classes ??= new Map()).set(Number(phrase[1]), classes);
+        }
       }
     }
   }
@@ -239,6 +266,7 @@ export function rebuildRows(
     for (const n of numbers) {
       const display = section.phrases.get(n)!;
       const words = display.split(' ');
+      const classes = section.classes?.get(n);
       rows.push({
         id: hitId(section.input, category, words, section.reading ?? null),
         candidate_id: id,
@@ -248,6 +276,7 @@ export function rebuildRows(
         display,
         letters: alphagram(section.input, section.reading ?? null),
         ...(section.reading ? { reading: section.reading } : {}),
+        ...(classes ? { classes } : {}),
         prefilter_score: scoreList[n - 1]!,
         // The prefilter keeps Common words and the words the run admitted
         // beside them; only the latter make a row wider than Common.

@@ -1,4 +1,4 @@
-import type { ReadItem } from '@ars-magna/engine';
+import { isPoolChar, type ReadItem } from '@ars-magna/engine';
 import { useEffect, useId, useRef } from 'react';
 
 import { ReadingLines } from './ReadingLines.tsx';
@@ -6,11 +6,11 @@ import { ReadingLines } from './ReadingLines.tsx';
 type Props = {
   value: string;
   onChange(value: string): void;
-  /** Letters that will actually be used, after leaving the numbers and symbols out and folding accents. */
+  /** The pool the search uses: the letters folded, and the digits and symbols of the text as themselves. */
   letters: string;
   /** Characters that carried something (other scripts, other symbols, items read as left out) and were ignored. */
   skipped: number;
-  /** The text's numbers and symbols, each with how it stands. */
+  /** The text's digits and symbols, each with how it stands. */
   items: readonly ReadItem[];
 };
 
@@ -52,12 +52,14 @@ export function SearchField({ value, onChange, letters, skipped, items }: Props)
         />
       </div>
 
+      {/* The line counts the pool: letters, and with a digit or a symbol among them, characters. */}
       <p className="mt-3 font-mono text-xs text-ink-faint" aria-live="polite">
         {letters.length === 0 ? (
           <span className="opacity-0">·</span>
         ) : (
           <>
-            {letters.length} letter{letters.length === 1 ? '' : 's'}
+            {letters.length} {[...letters].some(isPoolChar) ? 'character' : 'letter'}
+            {letters.length === 1 ? '' : 's'}
             <span className="mx-2 text-rule-strong">·</span>
             <span className="tracking-[0.18em] uppercase">{[...letters].sort().join('')}</span>
             {skipped > 0 && (

@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import { EngineCore } from './engineCore.ts';
 import { DICT_DIR, fileFetch } from './files.ts';
-import type { Response as EngineResponse, Tier } from './protocol.ts';
+import type { ClassName, Response as EngineResponse, RowTag, Tier } from './protocol.ts';
 
 export { DEFS_DIR, DICT_DIR, REPO_ROOT, fileFetch } from './files.ts';
 
@@ -48,8 +48,12 @@ export type SolveOptions = {
   maxWords: number;
   mustInclude?: string[];
   mustExclude?: string[];
-  /** The reader's readings of the input's numbers and symbols, item → name; the defaults where absent. */
+  /** The reader's readings of the input's digits and symbols, item → name (`self`, a letter, `drop`); the defaults where absent. */
   reading?: Record<string, string>;
+  /** The term classes admitted beside the tier; words alone where absent. */
+  classes?: ClassName[];
+  /** The characters the search also tries as their leet letters; none where absent. */
+  leet?: string[];
 };
 
 export class Engine {
@@ -79,28 +83,32 @@ export class Engine {
     return new Engine(core, port);
   }
 
-  /** Whether `word` exists at `tier`. */
-  async has(word: string, tier: Tier): Promise<boolean> {
-    await this.#core.handle({ k: 'lookup', id: this.#id++, word, tier });
+  /** Whether `word` exists at `tier`, or is a term of one of `classes`. */
+  async has(word: string, tier: Tier, classes: readonly ClassName[] = []): Promise<boolean> {
+    await this.#core.handle({ k: 'lookup', id: this.#id++, word, tier, classes });
     return this.#port.take('lookup').found;
   }
 
   /**
    * The first `first` results and the exact (or floor) total; starts a session `nth` can use.
    * `textLeftOut` says the text's own row is not among them, so the total is one fewer than
-   * the letters alone would give: the text is never its own result.
+   * the letters alone would give: the text is never its own result. `unused` names the digits
+   * and symbols of the input no term of the query uses; `tags` is parallel to `rows`, a tag per
+   * row that has a term of a class or a leet reading, null otherwise.
    */
   async solve(
     input: string,
     options: SolveOptions,
     first: number,
-  ): Promise<{ total: string; rows: string[][]; textLeftOut: boolean }> {
+  ): Promise<{ total: string; rows: string[][]; textLeftOut: boolean; unused: string; tags: (RowTag | null)[] }> {
     await this.#core.handle({
       k: 'solve',
       id: this.#id++,
       query: {
         input,
         tier: options.tier,
+        classes: options.classes ?? [],
+        leet: options.leet ?? [],
         minWordLen: options.minWordLen,
         maxWords: options.maxWords,
         mustInclude: options.mustInclude ?? [],
@@ -115,8 +123,9 @@ export class Engine {
     if (error && error.k === 'error') throw new Error(error.message);
     const count = messages.find((m) => m.k === 'count');
     const rows = messages.flatMap((m) => (m.k === 'batch' ? m.rows.map((r) => [...r]) : []));
+    const tags = messages.flatMap((m) => (m.k === 'batch' ? (m.tags ? [...m.tags] : m.rows.map(() => null)) : []));
     const counted = count && count.k === 'count' ? count : null;
-    return { total: counted?.total ?? '0', rows, textLeftOut: counted?.textLeftOut ?? false };
+    return { total: counted?.total ?? '0', rows, textLeftOut: counted?.textLeftOut ?? false, unused: counted?.unused ?? '', tags };
   }
 
   /** Result `index` of the current session, by unranking. */

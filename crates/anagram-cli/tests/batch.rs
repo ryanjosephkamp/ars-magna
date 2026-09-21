@@ -279,7 +279,7 @@ fn check_accepts_real_anagrams_and_names_the_failure_otherwise() {
 
     let wrong_letters = anagram(&["check", "dormitory", "dirty rooms"]);
     assert!(!wrong_letters.status.success());
-    assert!(String::from_utf8_lossy(&wrong_letters.stdout).contains("letters"));
+    assert!(String::from_utf8_lossy(&wrong_letters.stdout).contains("characters differ"));
 
     let not_a_word = anagram(&["check", "dormitory", "dirty moor"]);
     // `moor` is a word; `roomdirty` split oddly is not.
@@ -386,35 +386,65 @@ fn batch_never_writes_the_text_as_its_own_result() {
     assert!(!house.contains(&vec!["apple", "house"]));
 }
 
-/// The readings of numbers and symbols (phase N, the literal rule): `--read=`
-/// on `check`, and a candidate's own `reading`, or none for one from before
-/// phase N, in `batch`. Every item is left out; nothing is converted.
+/// The readings of digits and symbols (the literal rule): `--read=` on
+/// `check`, `--classes=` and `--leet=` on `solve` and `count`, and a
+/// candidate's own `reading`, or none for one from before phase N, in
+/// `batch`. A character is itself by default; nothing is converted.
 #[test]
 fn readings_reach_check_and_batch() {
     if !dict_built() {
         return;
     }
-    // The 4 is left out by default, as the hit was made; `--read=4:drop` says the same.
+    // The 4 is a character of the pool by default, so the letters alone are no anagram; `--read=4:drop` reads the old hit.
     let plain = anagram(&["check", "Reacher season 4", "as one searcher"]);
-    assert!(plain.status.success(), "{}", String::from_utf8_lossy(&plain.stdout));
+    assert!(!plain.status.success());
+    assert!(String::from_utf8_lossy(&plain.stdout).contains("reacherseason4 vs"));
     let dropped = anagram(&["check", "Reacher season 4", "as one searcher", "--read=4:drop"]);
     assert!(dropped.status.success(), "{}", String::from_utf8_lossy(&dropped.stdout));
     let spelled = anagram(&["check", "Reacher season 4", "four as one searcher"]);
     assert!(!spelled.status.success());
-    assert!(String::from_utf8_lossy(&spelled.stdout).contains("reacherseason vs"));
+    assert!(String::from_utf8_lossy(&spelled.stdout).contains("reacherseason4 vs"));
     let bad = anagram(&["check", "Reacher season 4", "as one searcher", "--read=4:spell"]);
     assert!(!bad.status.success());
     assert!(String::from_utf8_lossy(&bad.stderr).contains("cannot be read as spell"));
     let stray = anagram(&["check", "Reacher season 4", "as one searcher", "--read=5:drop"]);
     assert!(!stray.status.success());
     assert!(String::from_utf8_lossy(&stray.stderr).contains("no 5 to read"));
+    // A leet reading is a letter: the phrase is given as the record stores it, and the answer names the reading.
+    let leet = anagram(&["check", "Ke$ha", "shake", "--read=$:s"]);
+    assert!(leet.status.success(), "{}", String::from_utf8_lossy(&leet.stdout));
+    assert!(String::from_utf8_lossy(&leet.stdout).contains("$ as s"));
+    let itself = anagram(&["check", "Ke$ha", "shake"]);
+    assert!(!itself.status.success());
+    assert!(String::from_utf8_lossy(&itself.stdout).contains("ke$ha vs shake"));
+
+    // With words alone a text with a digit has nothing, and the count says which characters nothing uses.
+    let blink = anagram(&["count", "Blink-182", "--tier=standard", "--min-len=2"]);
+    let blink_out = String::from_utf8_lossy(&blink.stdout);
+    assert!(blink_out.starts_with("0 anagrams"), "{blink_out}");
+    assert!(blink_out.contains("no term uses 1, 8, 2"), "{blink_out}");
+    // A leet reading tried by the search: one row per reading, each tagged, the character written where the letter went.
+    let kesha = anagram(&["solve", "Ke$ha", "--tier=standard", "--min-len=2", "--leet=$"]);
+    let kesha_out = String::from_utf8_lossy(&kesha.stdout);
+    assert!(kesha_out.contains("in 2 readings"), "{kesha_out}");
+    assert!(kesha_out.contains("$hake  [$hake leet; $ as s]"), "{kesha_out}");
+    assert!(kesha_out.contains("5 shown"), "{kesha_out}");
+    // Numerals made from the digits, never the text itself, never `two`.
+    let fast = anagram(&["solve", "2 Fast 2 Furious", "--tier=standard", "--min-len=2", "--classes=numerals", "--limit=0"]);
+    let fast_out = String::from_utf8_lossy(&fast.stdout);
+    assert!(fast_out.contains("22  [22 numerals]") || fast_out.contains("22 numerals"), "{fast_out}");
+    assert!(!fast_out.contains(" two"), "{fast_out}");
+    assert!(!fast_out.lines().any(|l| l.trim() == "2 2 fast furious" || l.trim() == "furious fast 2 2"), "{fast_out}");
+    let unknown = anagram(&["solve", "x", "--classes=emoji"]);
+    assert!(!unknown.status.success());
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("not a term class"));
 
     let dir = scratch("readings");
     let input = dir.join("candidates.jsonl");
     fs::write(
         &input,
         concat!(
-            r#"{"id":"areax:phrases","input":"Area 51 x","category":"phrases","source":"manual","first_seen":"2026-09-21","status":"new","reading":{"51":"drop"}}"#,
+            r#"{"id":"areax:phrases","input":"Area 51 x","category":"phrases","source":"manual","first_seen":"2026-09-21","status":"new","reading":{"5":"drop","1":"drop"}}"#,
             "\n",
             r#"{"id":"sardar:titles","input":"Sardar 2","category":"titles","source":"trending","first_seen":"2026-09-11","status":"new"}"#,
             "\n",
@@ -443,11 +473,12 @@ fn readings_reach_check_and_batch() {
         .lines()
         .map(|l| serde_json::from_str(l).unwrap())
         .collect();
-    // The candidate with a reading is enumerated with its 51 left out: its rows carry the reading and the letters of "area x".
+    // The candidate with a reading is enumerated with its 5 and 1 left out: its rows carry the reading and the letters of "area x".
     let area: Vec<&serde_json::Value> = rows.iter().filter(|r| r["id"] == "areax:phrases").collect();
     assert!(!area.is_empty());
     for row in &area {
-        assert_eq!(row["reading"], serde_json::json!({"51": "drop"}));
+        assert_eq!(row["reading"], serde_json::json!({"5": "drop", "1": "drop"}));
+        assert!(row.get("classes").is_none(), "a row of words alone carries no classes");
         let words: Vec<&str> = row["words"].as_array().unwrap().iter().map(|w| w.as_str().unwrap()).collect();
         assert_eq!(letters(&words.concat()), letters("areax"), "letters of the read input");
     }
@@ -459,13 +490,18 @@ fn readings_reach_check_and_batch() {
         let words: Vec<&str> = row["words"].as_array().unwrap().iter().map(|w| w.as_str().unwrap()).collect();
         assert_eq!(letters(&words.concat()), letters("sardar"));
     }
-    // A five-digit ordinal is an item like any other, left out; nothing panics.
+    // A candidate from before phase N with a five-digit ordinal reads as it did: the digits dropped, `th` kept; nothing panics.
     let theman: Vec<&serde_json::Value> = rows.iter().filter(|r| r["id"] == "theman:phrases").collect();
     assert!(!theman.is_empty());
-    // A reading the input does not offer is an error row, and the summary records the defaults.
+    for row in &theman {
+        let words: Vec<&str> = row["words"].as_array().unwrap().iter().map(|w| w.as_str().unwrap()).collect();
+        assert_eq!(letters(&words.concat()), letters("thethman"));
+    }
+    // A reading the input does not offer is an error row, and the summary records the defaults, and no classes.
     let summary: serde_json::Value = serde_json::from_str(&fs::read_to_string(out.join("summary.json")).unwrap()).unwrap();
-    assert_eq!(summary["readings"]["numbers"], "drop");
-    assert_eq!(summary["readings"]["symbols"], "drop");
+    assert_eq!(summary["readings"]["digits"], "self");
+    assert_eq!(summary["readings"]["symbols"], "self");
+    assert!(summary.get("classes").is_none());
     let bad = summary["candidates"].as_array().unwrap().iter().find(|c| c["id"] == "bad:titles").unwrap();
     assert!(bad["error"].as_str().unwrap().contains("cannot be read as spell"), "{}", bad["error"]);
 }

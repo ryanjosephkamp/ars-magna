@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 import { normalizeLetters } from '@ars-magna/engine/fold';
-import { describeReading, fullReading, parseReading, readInput, readingProblem } from '@ars-magna/engine/readings';
+import { describeReading, fullReading, isPoolChar, parseReading, readInput, readingProblem } from '@ars-magna/engine/readings';
 
 import {
   candidateIdOf,
@@ -28,7 +28,7 @@ import { APPLY_DESK_PROMPT, DEEP_RUN_PROMPT } from '../src/desk.ts';
 import { candidateId, hitId } from '../src/ids.ts';
 
 // The page hands the engine's reading step to compose; the tests do the same.
-setReadings({ readInput, fullReading, readingProblem, describeReading, parseReading });
+setReadings({ readInput, fullReading, readingProblem, describeReading, parseReading, isPoolChar });
 
 describe('ids in the page', () => {
   it('fold letters exactly as the pipeline does', () => {
@@ -42,11 +42,13 @@ describe('ids in the page', () => {
     // A reading goes into the letters, the id and the fit, as it does in the pipeline.
     expect(foldLetters('Reacher season 4', { '4': 'drop' })).toBe('reacherseason');
     expect(candidateIdOf('Reacher season 4', 'titles', { '4': 'drop' })).toBe(candidateId('Reacher season 4', 'titles', { '4': 'drop' }));
-    expect(hitIdOf('Blink-182', 'titles', ['blink'], { '182': 'drop' })).toBe('blink:titles:blink');
-    // A number is left out by default (the literal rule), so the old hit's words fit without a reading.
-    expect(phraseFits('Reacher season 4', 'as one searcher')).toBe(true);
+    expect(hitIdOf('Blink-182', 'titles', ['blink'], { '1': 'drop', '8': 'drop', '2': 'drop' })).toBe('blink:titles:blink');
+    expect(hitIdOf('Blink-182', 'titles', ['blink'])).toBe('blink182:titles:blink');
+    // A digit is a character of the pool by default (the literal rule), so the old hit's words fit only with the 4 left out.
+    expect(phraseFits('Reacher season 4', 'as one searcher')).toBe(false);
     expect(phraseFits('Reacher season 4', 'four as one searcher')).toBe(false);
     expect(phraseFits('Reacher season 4', 'as one searcher', { '4': 'drop' })).toBe(true);
+    expect(phraseFits('Ke$ha', 'shake', { $: 's' })).toBe(true);
     expect(readingOfAdd({ reading: ' 4:drop ' })).toEqual({ '4': 'drop' });
     expect(readingOfAdd({})).toBeUndefined();
   });
@@ -96,7 +98,7 @@ describe('commands', () => {
         '{"id":"thecountryside:phrases","input":"The countryside","category":"phrases","source":"manual","first_seen":"2026-09-14","status":"new","anchors":["city","dust"]}',
         '{"id":"sagradafamilia:places","input":"Sagrada Família","category":"places","source":"manual","first_seen":"2026-09-14","status":"new"}',
         // A seed with a number records how it is read.
-        '{"id":"como:companies","input":"Como 1907","category":"companies","source":"manual","first_seen":"2026-09-14","status":"new","reading":{"1907":"drop"}}',
+        '{"id":"como1907:companies","input":"Como 1907","category":"companies","source":"manual","first_seen":"2026-09-14","status":"new","reading":{"0":"self","1":"self","7":"self","9":"self"}}',
         'EOF',
       ].join('\n'),
       'pnpm hits:requeue --settings-before=s2 --category=titles --dry-run',

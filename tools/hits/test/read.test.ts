@@ -72,12 +72,20 @@ describe('hits:read', () => {
   });
 
   it('works on a candidate too, and records every item of the input', () => {
-    const c = candidate({ id: 'blinkvs:titles', input: 'Blink-182 vs 2', category: 'titles', status: 'enumerated' });
-    const { records } = setReading([c], 'blinkvs:titles', { '182': 'drop', '2': 'drop' });
-    expect(records[0]!.reading).toEqual({ '182': 'drop', '2': 'drop' });
-    // Naming one item fills the rest in with the default, which is left out too; a reading the table does not offer is refused.
-    expect(setReading([c], 'blinkvs:titles', { '182': 'drop' }).records[0]!.reading).toEqual({ '182': 'drop', '2': 'drop' });
-    expect(() => setReading([c], 'blinkvs:titles', { '182': 'digits' })).toThrow(/182 cannot be read as digits/);
+    const c = candidate({ id: 'blink182vs2:titles', input: 'Blink-182 vs 2', category: 'titles', status: 'enumerated' });
+    // Naming one item fills the rest in with the default, as itself.
+    const { records } = setReading([c], 'blink182vs2:titles', { '1': 'self' });
+    expect(records[0]!.reading).toEqual({ '1': 'self', '8': 'self', '2': 'self' });
+    // A reading that leaves a character out, or reads it as a letter, changes the letters and so the id: refused.
+    expect(() => setReading([c], 'blink182vs2:titles', { '1': 'drop' })).toThrow(/blink82vs2:titles, not blink182vs2:titles/);
+    expect(() => setReading([c], 'blink182vs2:titles', { '8': 'b' })).toThrow(/blink1b2vs2:titles, not blink182vs2:titles/);
+    // A reading the table does not offer is refused, and so is a run: an item is one character.
+    expect(() => setReading([c], 'blink182vs2:titles', { '1': 'digits' })).toThrow(/1 cannot be read as digits/);
+    expect(() => setReading([c], 'blink182vs2:titles', { '182': 'drop' })).toThrow(/the input has no 182 to read/);
+    // A record made with a leet reading keeps it.
+    const kesha = candidate({ id: 'kesha:people', input: 'Ke$ha', category: 'people', status: 'enumerated', reading: { $: 's' } });
+    expect(setReading([kesha], 'kesha:people', { $: 's' }).changed).toBe(false);
+    expect(() => setReading([kesha], 'kesha:people', { $: 'self' })).toThrow(/ke\$ha:people, not kesha:people/);
   });
 
   it('rewrites only the one line', async () => {

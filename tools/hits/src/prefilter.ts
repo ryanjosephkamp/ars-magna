@@ -25,6 +25,8 @@ import { bestOrder, isRespacing, scoreOrder } from '@ars-magna/engine';
 import { hitId, alphagram, isCategory, lettersOf, type Category } from './ids.ts';
 import { PREFILTERED, RAW, SUMMARY, flag, pickQueue } from './queue.ts';
 import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate, type CandidateRun } from './schema.ts';
+import type { ClassName } from '@ars-magna/engine/protocol';
+
 import { rubric } from './judge.ts';
 import { PRESETS, addRun, queueName, queueSettings, readQueueAdditions, readShortWords } from './settings.ts';
 
@@ -41,10 +43,13 @@ export type RawRow = {
   anchor?: string;
   words: string[];
   zipf: number[];
-  tiers: ('common' | 'standard' | 'full' | 'extended')[];
+  /** Parallel to `words`: the narrowest tier each word belongs to, or a term's class name. */
+  tiers: string[];
   pos: number[];
-  /** How the input's numbers and symbols were read, every item of them; absent for an input without any. */
+  /** How the input's digits and symbols were read, every distinct one; absent for an input without any. */
   reading?: Record<string, string>;
+  /** Each word of `words` that is a term of a class rather than a word of the dictionary, with its class; absent when every word is a word. */
+  classes?: Record<string, ClassName>;
 };
 
 /**
@@ -68,8 +73,10 @@ export type Prefiltered = {
   sampled?: boolean;
   /** The anchor word of the search that found it, when one did. */
   anchor?: string;
-  /** How the input's numbers and symbols were read, every item of them; absent for an input without any. */
+  /** How the input's digits and symbols were read, every distinct one; absent for an input without any. */
   reading?: Record<string, string>;
+  /** The class of each term that is not a word of the dictionary (decision D63); absent when every term is a word. */
+  classes?: Record<string, ClassName>;
 };
 
 export const RULES = {
@@ -92,12 +99,15 @@ export function reject(
   additions: ReadonlySet<string> = new Set(),
 ): string | null {
   if (row.words.length === 0 || row.words.length > RULES.maxWords) return 'word count';
-  if (row.words.some((w) => w.length < RULES.minWordLength && !allow.has(w))) return 'short word';
+  // A term of a class is governed by its class, not by the word rules: a
+  // numeral or a shorthand character is one character long and in no tier.
+  const term = (w: string) => row.classes?.[w] !== undefined;
+  if (row.words.some((w) => w.length < RULES.minWordLength && !allow.has(w) && !term(w))) return 'short word';
   if (new Set(row.words).size !== row.words.length) return 'repeated word';
   // `tiers` is parallel to `words`, so an addition is excused by name rather
   // than by its label. Excusing the label alone would let any rare word
   // through the moment one addition appeared in the row.
-  if (row.tiers.some((t, i) => t !== RULES.tier && !additions.has(row.words[i] ?? ''))) return 'rare word';
+  if (row.tiers.some((t, i) => t !== RULES.tier && !additions.has(row.words[i] ?? '') && !term(row.words[i] ?? ''))) return 'rare word';
   if (!isCategory(row.category)) return 'category';
   // "Star Wars" -> "star wars", "The Godfather" -> "the god father": the
   // input's own letters in the input's own order, in some arrangement of the
@@ -139,10 +149,12 @@ export function prefilterRow(
     display: ordered.join(' '),
     letters: alphagram(row.input, row.reading ?? null),
     ...(row.reading ? { reading: row.reading } : {}),
+    ...(row.classes ? { classes: row.classes } : {}),
     prefilter_score: score(ordered, masks, row.zipf),
     // The narrowest tier that holds every word, widest test first. A site
     // addition is outside the pinned list entirely, so it has to be asked about
     // before `full`, or an extended row would be recorded as a pinned one.
+    // A term's tier label is its class, which says nothing about the words'.
     tier: row.tiers.includes('extended')
       ? 'extended'
       : row.tiers.includes('full')
