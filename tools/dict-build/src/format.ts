@@ -15,6 +15,12 @@
 
 export const MAGIC_DICT = 'ARSMAGNA';
 export const MAGIC_BITS = 'ARSMBITS';
+/**
+ * The terms of the labelled classes (decision D63), the `classes` artifact:
+ * emitted only when a class file has a term, so a dictionary of words alone
+ * has none and its manifest names none.
+ */
+export const MAGIC_CLASSES = 'ARSMCLAS';
 export const FORMAT_VERSION = 1;
 export const BLOCK_SIZE = 64;
 
@@ -320,4 +326,73 @@ export function bitsetCount(set: Uint8Array): number {
     }
   }
   return n;
+}
+
+/**
+ * One term of a class as the `classes` artifact carries it. The engine's
+ * `Class` bits are the plan's table order: numerals 1, symbols 2, shorthand
+ * 4, blends 8, acronyms 16, leet 32, names 64, slang 128 (`CLASSES` in
+ * `packages/engine/src/protocol.ts`); a term in two files carries both.
+ */
+export type ClassTerm = {
+  /** Lowercase letters, digits and the symbols of the pool, as the search folds them. */
+  readonly term: string;
+  readonly bits: number;
+};
+
+/** A term's characters: what the Rust decoder (`is_term`) accepts, and nothing else. */
+export const TERM_PATTERN = /^[a-z0-9@$!?&%+#]+$/;
+
+/**
+ * The `classes` artifact: `ARSMCLAS`, a `u16` version, two reserved bytes, a
+ * `u32` count, then per term a `u16` of class bits, a `u8` length and the
+ * term's bytes. Sorted and unique, which the Rust reader relies on; a term
+ * given twice has its bits merged.
+ */
+export function encodeClasses(terms: readonly ClassTerm[]): Uint8Array {
+  const merged = new Map<string, number>();
+  for (const { term, bits } of terms) {
+    if (!TERM_PATTERN.test(term)) throw new Error(`term ${JSON.stringify(term)} is not letters, digits and symbols of the pool`);
+    if (term.length > 255) throw new Error(`term ${term} does not fit a length byte`);
+    if (bits <= 0 || bits > 0xffff) throw new Error(`term ${term} has no class`);
+    merged.set(term, (merged.get(term) ?? 0) | bits);
+  }
+  const sorted = [...merged.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const encoder = new TextEncoder();
+  const bodies = sorted.map(([term]) => encoder.encode(term));
+  const total = bodies.reduce((n, b) => n + 3 + b.length, 16);
+  const out = new Uint8Array(total);
+  const view = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) out[i] = MAGIC_CLASSES.charCodeAt(i);
+  view.setUint16(8, FORMAT_VERSION, true);
+  view.setUint32(12, sorted.length, true);
+  let at = 16;
+  sorted.forEach(([, bits], i) => {
+    view.setUint16(at, bits, true);
+    out[at + 2] = bodies[i]!.length;
+    out.set(bodies[i]!, at + 3);
+    at += 3 + bodies[i]!.length;
+  });
+  return out;
+}
+
+/** The `classes` artifact read back; the Rust `TermList::decode` is the shipped twin. */
+export function decodeClasses(buf: Uint8Array): ClassTerm[] {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  for (let i = 0; i < 8; i++) {
+    if (buf[i] !== MAGIC_CLASSES.charCodeAt(i)) throw new Error('bad magic');
+  }
+  const version = view.getUint16(8, true);
+  if (version !== FORMAT_VERSION) throw new Error(`unsupported version ${version}`);
+  const count = view.getUint32(12, true);
+  const decoder = new TextDecoder();
+  const out: ClassTerm[] = [];
+  let at = 16;
+  for (let i = 0; i < count; i++) {
+    const bits = view.getUint16(at, true);
+    const length = buf[at + 2]!;
+    out.push({ term: decoder.decode(buf.subarray(at + 3, at + 3 + length)), bits });
+    at += 3 + length;
+  }
+  return out;
 }

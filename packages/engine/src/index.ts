@@ -7,12 +7,14 @@
  * dropped — cheaper, and it removes a whole class of race.
  */
 import type {
+  ClassName,
   DictCounts,
   DictForm,
   ErrorCode,
   Query,
   Request,
   Response,
+  RowTag,
   SolveStats,
   Tier,
 } from './protocol.ts';
@@ -22,49 +24,63 @@ export { readForms } from './dictForms.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
 export { foldChar, foldLetters, foldWords, isSkipped, legacyLetters, normalizeLetters, type Folded } from './fold.ts';
 export {
+  AS_ITSELF,
   DROP,
   LEFT_OUT,
   NO_READING,
+  SELF,
   describeReading,
   formatReading,
   fullReading,
+  isPoolChar,
   isReading,
+  lettersOf,
   nonDefaultReading,
   parseReading,
   readInput,
   readItems,
   readText,
   readingProblem,
+  readingText,
   type Offered,
   type ReadItem,
   type Reading,
 } from './readings.ts';
-export { READING_DEFAULTS } from './readingsTable.ts';
+export { CHARACTERS, READING_DEFAULTS, type CharacterSpec } from './readingsTable.ts';
 export { isRespacing, isTextItself, sameWords } from './identity.ts';
 
 export type SolveHandlers = {
   /**
    * Exact total, ahead of any results. A `>` prefix means it is a floor.
-   * `textLeftOut` says the text's own row is not among them: see `count` in
-   * the protocol.
+   * `textLeftOut` says the text's own row is not among them; `unused` names
+   * the text's digits and symbols no term of the query uses, so a zero can
+   * say why: see `count` in the protocol.
    */
-  onCount?(total: string, candidates: number, textLeftOut: boolean): void;
+  onCount?(total: string, candidates: number, textLeftOut: boolean, unused: string, leet: readonly string[]): void;
   onBatch?(
     offset: number,
     rows: readonly (readonly string[])[],
     done: boolean,
     truncated: boolean,
+    tags?: readonly (RowTag | null)[],
   ): void;
   onDone?(stats: SolveStats): void;
   onError?(code: ErrorCode, message: string): void;
 };
 
-/** A count on its own: the total (`>` in front for a floor), and whether the text's own row was left out of it. */
-export type CountAnswer = { readonly total: string; readonly textLeftOut: boolean };
+/** A count on its own: the total (`>` in front for a floor), whether the text's own row was left out of it, and the characters nothing uses. */
+export type CountAnswer = { readonly total: string; readonly textLeftOut: boolean; readonly unused: string };
 
 export type EngineStatus =
   | { readonly state: 'loading' }
-  | { readonly state: 'ready'; readonly counts: DictCounts; readonly builtAt: string; readonly forms: readonly DictForm[] }
+  | {
+      readonly state: 'ready';
+      readonly counts: DictCounts;
+      readonly builtAt: string;
+      readonly forms: readonly DictForm[];
+      /** How many terms the dictionary carries in each class; all zero for words alone. */
+      readonly classes: Readonly<Record<ClassName, number>>;
+    }
   | { readonly state: 'failed'; readonly code: ErrorCode; readonly message: string };
 
 export class ArsMagnaClient {
@@ -209,9 +225,10 @@ export class ArsMagnaClient {
 
   /**
    * Materialize up to `limit` results for export. Does not affect the
-   * browsing session or its paging position.
+   * browsing session or its paging position. `tags` is present when any row
+   * has a term of a class or a leet reading.
    */
-  collect(limit: number): Promise<{ rows: string[][]; complete: boolean }> {
+  collect(limit: number): Promise<{ rows: string[][]; complete: boolean; tags?: (RowTag | null)[] }> {
     return this.#ask((id) => ({ k: 'collect', id, limit }));
   }
 
@@ -220,9 +237,9 @@ export class ArsMagnaClient {
     return this.#ask<string[]>((id) => ({ k: 'spellings', id, word, tier }));
   }
 
-  /** Whether `word` exists at `tier`. Used to validate "must include" chips. */
-  has(word: string, tier: Tier): Promise<boolean> {
-    return this.#ask<boolean>((id) => ({ k: 'lookup', id, word, tier }));
+  /** Whether `word` exists at `tier`, or is a term of one of `classes`. Used to validate "must include" chips. */
+  has(word: string, tier: Tier, classes: readonly ClassName[] = []): Promise<boolean> {
+    return this.#ask<boolean>((id) => (classes.length > 0 ? { k: 'lookup', id, word, tier, classes } : { k: 'lookup', id, word, tier }));
   }
 
   /** Part-of-speech masks for `words`, in order. */
@@ -316,16 +333,21 @@ export class ArsMagnaClient {
       else if (message.k === 'spellings') oneShot.resolve(message.words as never);
       else if (message.k === 'lookup') oneShot.resolve(message.found as never);
       else if (message.k === 'masks') oneShot.resolve(message.masks as never);
-      else if (message.k === 'count') oneShot.resolve({ total: message.total, textLeftOut: message.textLeftOut } as never);
+      else if (message.k === 'count')
+        oneShot.resolve({ total: message.total, textLeftOut: message.textLeftOut, unused: message.unused } as never);
       else if (message.k === 'zipf') oneShot.resolve(message.zipf as never);
       else if (message.k === 'batch') oneShot.resolve((message.rows[0] ?? null) as never);
       else if (message.k === 'collected')
-        oneShot.resolve({ rows: message.rows, complete: message.complete } as never);
+        oneShot.resolve(
+          (message.tags
+            ? { rows: message.rows, complete: message.complete, tags: message.tags }
+            : { rows: message.rows, complete: message.complete }) as never,
+        );
       return;
     }
 
     if (message.k === 'ready') {
-      this.#setStatus({ state: 'ready', counts: message.counts, builtAt: message.builtAt, forms: message.forms });
+      this.#setStatus({ state: 'ready', counts: message.counts, builtAt: message.builtAt, forms: message.forms, classes: message.classes });
       this.#readyResolve?.();
       this.#readyResolve = null;
       return;
@@ -341,13 +363,13 @@ export class ArsMagnaClient {
 
     switch (message.k) {
       case 'count':
-        handlers.onCount?.(message.total, message.candidates, message.textLeftOut);
+        handlers.onCount?.(message.total, message.candidates, message.textLeftOut, message.unused, message.leet);
         break;
       case 'batch':
         // Paging replies carry the query's id, so the page is told from its
         // offset: the one waited for has arrived, and may be asked for again.
         if (message.offset === this.#pagePending) this.#pagePending = -1;
-        handlers.onBatch?.(message.offset, message.rows, message.done, message.truncated);
+        handlers.onBatch?.(message.offset, message.rows, message.done, message.truncated, message.tags);
         break;
       case 'solved':
         if (message.id === this.#inFlight) this.#inFlight = 0;

@@ -11,8 +11,9 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { EngineCore } from '../src/engineCore.ts';
+import { EngineCore, parseTag } from '../src/engineCore.ts';
 import { DEFAULT_QUERY, type Query, type Response } from '../src/protocol.ts';
+import { encodeClasses } from '../../../tools/dict-build/src/format.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../..');
@@ -49,6 +50,8 @@ class Collector {
   }
 }
 
+const rowsOf = (p: Collector) => p.all('batch').flatMap((b) => b.rows.map((r) => [...r].sort()));
+
 describe.skipIf(!built)('EngineCore', () => {
   let core: EngineCore;
   let port: Collector;
@@ -63,8 +66,6 @@ describe.skipIf(!built)('EngineCore', () => {
     });
     return port;
   };
-
-  const rowsOf = (p: Collector) => p.all('batch').flatMap((b) => b.rows.map((r) => [...r].sort()));
 
   beforeAll(async () => {
     port = new Collector();
@@ -146,16 +147,20 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(rowsOf(p)).toHaveLength(10);
   });
 
-  it('strips punctuation, case and numbers, which are left out', async () => {
+  it('strips punctuation and case, and counts a digit as a character of the pool', async () => {
     const plain = rowsOf(await solve('dormitory', { tier: 'common', minWordLen: 3 }));
-    for (const variant of ['DORMITORY', "Dor-mit'ory", 'dormitory!!', 'dormitory 123']) {
+    for (const variant of ['DORMITORY', "Dor-mit'ory", 'dormitory!!']) {
       expect(rowsOf(await solve(variant, { tier: 'common', minWordLen: 3 }))).toEqual(plain);
     }
-    // A number is never read as its name (the literal rule): the 2 is left out, and saying so changes nothing.
-    expect(rowsOf(await solve('dormitory 123', { tier: 'common', minWordLen: 3, reading: { '123': 'drop' } }))).toEqual(plain);
-    const read = await solve('dormitory 2', { tier: 'common', minWordLen: 3 });
-    expect(rowsOf(read)).toEqual(plain);
-    expect(rowsOf(read).some((row) => row.includes('two'))).toBe(false);
+    // A digit is a character of the pool (the literal rule): no word has one, so with words
+    // alone the text has no anagram, and the count says which characters nothing uses. A
+    // number is never read as its name.
+    const digits = await solve('dormitory 123', { tier: 'common', minWordLen: 3 });
+    expect(rowsOf(digits)).toEqual([]);
+    expect(digits.last('count')).toMatchObject({ total: '0', unused: '123', leet: [] });
+    expect(rowsOf(await solve('dormitory 2', { tier: 'common', minWordLen: 3 })).some((row) => row.includes('two'))).toBe(false);
+    // Left out by the reader, the digits change nothing.
+    expect(rowsOf(await solve('dormitory 123', { tier: 'common', minWordLen: 3, reading: { '1': 'drop', '2': 'drop', '3': 'drop' } }))).toEqual(plain);
     // Spaces are the one thing that is kept: they say what the text's words are. The same
     // letters typed apart are not the word `dormitory`, so the word is an anagram of theirs.
     const apart = rowsOf(await solve(' d o r m i t o r y ', { tier: 'common', minWordLen: 3 }));
@@ -388,7 +393,7 @@ describe.skipIf(!built)('EngineCore', () => {
     };
 
     // The operator's case: eleven anagrams contain `shamed`.
-    expect(await count(90, ['shamed'])).toEqual([{ k: 'count', id: 90, total: '11', candidates: 0, textLeftOut: false }]);
+    expect(await count(90, ['shamed'])).toEqual([{ k: 'count', id: 90, total: '11', candidates: 0, textLeftOut: false, unused: '', leet: [] }]);
     // The same answer a search with Must include gives.
     const pinned = await solve('Demis Hassabis', { mustInclude: ['shamed'] }, 50);
     expect(pinned.last('count')!.total).toBe('11');
@@ -541,10 +546,164 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(port.last('zipf')!.zipf).toEqual([]);
   });
 
+  it('reports the terms of each class with ready: none, for a dictionary of words alone', async () => {
+    const fresh = new Collector();
+    const again = new EngineCore(fresh, { wasmInput: await readFile(wasmPath), fetchImpl: fileFetch });
+    await again.handle({ k: 'init', id: 1, baseUrl: '/dict' });
+    const ready = fresh.last('ready')!;
+    expect(ready.classes).toEqual({ numerals: 0, symbols: 0, shorthand: 0, blends: 0, acronyms: 0, leet: 0, names: 0, slang: 0 });
+  });
+
+  it('refuses more than six different digits and symbols with its own code', async () => {
+    const p = await solve('abc 1234567');
+    expect(p.last('error')).toMatchObject({ code: 'TOO_MANY_CHARACTERS' });
+    expect(p.last('count')).toBeUndefined();
+  });
+
   it('pins every result to a must-include word', async () => {
     const p = await solve('astronomer', { minWordLen: 3, mustInclude: ['moon'] }, 100);
     const rows = rowsOf(p);
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((r) => r.includes('moon'))).toBe(true);
+  });
+});
+
+/**
+ * The same core over the same dictionary, plus a `classes` artifact of a few
+ * dozen terms served in the manifest's place: the fixture N3 tests against
+ * until N4 seeds the class files. The shipped manifest names no classes, so
+ * the site's own dictionary is words alone.
+ */
+describe.skipIf(!built)('EngineCore with the term classes', () => {
+  let core: EngineCore;
+  let port: Collector;
+
+  const BITS = { numerals: 1, symbols: 2, shorthand: 4, blends: 8, acronyms: 16, leet: 32, names: 64, slang: 128 };
+  const fixture = encodeClasses([
+    ...['&', '@', '%', '+', '#', '$'].map((term) => ({ term, bits: BITS.symbols })),
+    ...['u', 'r', 'b', 'c', 'y', 'k', 'n', '2', '4', '8', '1'].map((term) => ({ term, bits: BITS.shorthand })),
+    ...['b8', 'l8', 'gr8', 'm8', 'h8', 'sk8', 'str8', 'w8', '2day', '2nite', 'b4', '4ever', '1der', '10q'].map((term) => ({ term, bits: BITS.blends })),
+    ...['wtf', 'btw', 'omg', 'idk', 'brb', 'tbh', 'fyi', 'asap', 'rsvp', 'diy', 'thx', 'pls', 'ur'].map((term) => ({ term, bits: BITS.acronyms })),
+    ...['eiffel', 'berne', 'taft', 'amy'].map((term) => ({ term, bits: BITS.names })),
+    ...['rizz', 'sus', 'yeet'].map((term) => ({ term, bits: BITS.slang })),
+  ]);
+
+  /** The shipped dictionary's files, plus the fixture under a manifest that names it. */
+  const classedFetch: typeof fetch = async (input) => {
+    const url = typeof input === 'string' ? input : String(input);
+    if (url.endsWith('/manifest.json')) {
+      const manifest = JSON.parse(await readFile(resolve(dictDir, 'manifest.json'), 'utf8')) as { files: Record<string, unknown> };
+      manifest.files['classes'] = { name: 'classes.fixture.bin', bytes: fixture.length, sha256: 'fixture' };
+      return new Response(JSON.stringify(manifest), { status: 200 });
+    }
+    if (url.endsWith('/classes.fixture.bin')) return new Response(fixture as unknown as BodyInit, { status: 200 });
+    return fileFetch(input);
+  };
+
+  const solve = async (input: string, overrides: Partial<Query> = {}, first = 50) => {
+    port.reset();
+    await core.handle({ k: 'solve', id: 2, query: { ...DEFAULT_QUERY, input, ...overrides }, first });
+    return port;
+  };
+
+  /** Every row with its tag: `[words, tag]`, the words sorted. */
+  const tagged = (p: Collector) =>
+    p.all('batch').flatMap((b) => b.rows.map((r, i) => [[...r].sort(), b.tags?.[i] ?? null] as const));
+
+  beforeAll(async () => {
+    port = new Collector();
+    core = new EngineCore(port, { wasmInput: await readFile(wasmPath), fetchImpl: classedFetch });
+    await core.handle({ k: 'init', id: 1, baseUrl: '/dict' });
+  });
+
+  it('loads the terms and says how many each class has', () => {
+    expect(port.last('error')).toBeUndefined();
+    // A term that is a word of the list already is dropped, as the build refuses it: `b`, `c` and `n`
+    // are words of English OpenList, and so are `yeet` and `rizz` at the pinned revision.
+    expect(port.last('ready')!.classes).toEqual({ numerals: 0, symbols: 6, shorthand: 8, blends: 14, acronyms: 13, leet: 0, names: 4, slang: 1 });
+  });
+
+  it('counts dormitory exactly as without them, with no class on', async () => {
+    const p = await solve('dormitory');
+    expect(p.last('count')).toMatchObject({ total: '115', unused: '', leet: [] });
+    expect(p.all('batch').every((b) => b.tags === undefined)).toBe(true);
+    expect(rowsOf(await solve('Demis Hassabis')).length).toBeGreaterThan(0);
+    expect((await solve('Demis Hassabis')).last('count')!.total).toBe('15202');
+  });
+
+  it('finds nothing for Blink-182 with words alone and says which characters nothing uses', async () => {
+    const p = await solve('Blink-182');
+    expect(p.last('count')).toMatchObject({ total: '0', textLeftOut: false, unused: '182', leet: [] });
+    expect(rowsOf(p)).toEqual([]);
+  });
+
+  it('lists 1 2 link b8 with shorthand and blends on, each term tagged', async () => {
+    const p = await solve('Blink-182', { classes: ['shorthand', 'blends'] });
+    expect(p.last('count')!.unused).toBe('');
+    const rows = tagged(p);
+    const row = rows.find(([words]) => words.join(' ') === '1 2 b8 link');
+    expect(row, JSON.stringify(rows)).toBeDefined();
+    const [words, tag] = row!;
+    expect(tag).not.toBeNull();
+    // The tag travels with its word whatever order the row reads in.
+    const batch = p.all('batch').find((b) => b.rows.some((r) => [...r].sort().join(' ') === words.join(' ')))!;
+    const index = batch.rows.findIndex((r) => [...r].sort().join(' ') === words.join(' '));
+    const shown = batch.rows[index]!;
+    const byWord = Object.fromEntries(shown.map((w, i) => [w, tag!.classes[i]]));
+    expect(byWord).toEqual({ '1': 'shorthand', '2': 'shorthand', b8: 'blends', link: null });
+    expect(tag!.written).toEqual([...shown]);
+    expect(tag!.reading).toEqual({});
+    // Never a numeral without its class, and never `two`.
+    for (const [w] of rows) expect(w.some((word) => word === '182' || word === 'two')).toBe(false);
+  });
+
+  it('reads $ as s with leet on, writes the $ where the s went, and tags the reading', async () => {
+    const plain = await solve('Ke$ha');
+    expect(plain.last('count')).toMatchObject({ total: '0', unused: '$' });
+    const p = await solve('Ke$ha', { leet: ['$'] });
+    expect(p.last('count')).toMatchObject({ total: '5', unused: '', leet: ['$'] });
+    const rows = tagged(p);
+    expect(rows).toHaveLength(5);
+    for (const [words, tag] of rows) {
+      expect(tag).not.toBeNull();
+      expect(tag!.reading).toEqual({ $: 's' });
+      expect(tag!.classes.filter((c) => c === 'leet')).toHaveLength(1);
+      expect(tag!.written.join('').replace('$', 's').split('').sort().join('')).toBe(words.join('').split('').sort().join(''));
+      expect(tag!.written.some((w) => w.includes('$'))).toBe(true);
+    }
+    // The commonest spelling of the class is shown, so the $ lands on its s.
+    expect(rows.some(([, tag]) => tag!.written.join(' ') === '$hake')).toBe(true);
+    // A fixed reading is the reader's own: one search, the rows as words, no tag.
+    const fixed = await solve('Ke$ha', { reading: { $: 's' } });
+    expect(fixed.last('count')).toMatchObject({ total: '5', unused: '', leet: [] });
+    expect(fixed.all('batch').every((b) => b.tags === undefined)).toBe(true);
+    expect(rowsOf(fixed)).toContainEqual(['shake']);
+  });
+
+  it('never lists the text itself, and makes numerals from the digits in the text\'s order', async () => {
+    const p = await solve('2 Fast 2 Furious', { classes: ['numerals'] });
+    const rows = tagged(p);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const [words] of rows) {
+      expect(words).not.toEqual(['2', '2', 'fast', 'furious']);
+      expect(words.includes('two')).toBe(false);
+    }
+    expect(rows.some(([words, tag]) => words.includes('22') && tag!.classes[tag!.written.indexOf('22')] === 'numerals')).toBe(true);
+    const digits = await solve('182', { classes: ['numerals'] });
+    expect(digits.last('count')).toMatchObject({ textLeftOut: true });
+    const texts = tagged(digits).map(([words]) => words.join(' '));
+    expect(texts).not.toContain('182');
+    expect(texts).toContain('18 2');
+    expect(texts.some((t) => t.includes('28'))).toBe(false);
+  });
+
+  it('parses a packed tag line as the engine writes it', () => {
+    expect(parseTag('')).toBeNull();
+    expect(parseTag('$:s|leet -|hake$ x')).toEqual({ reading: { $: 's' }, classes: ['leet', null], written: ['hake$', 'x'] });
+    expect(parseTag('|shorthand shorthand - blends|1 2 link b8')).toEqual({
+      reading: {},
+      classes: ['shorthand', 'shorthand', null, 'blends'],
+      written: ['1', '2', 'link', 'b8'],
+    });
   });
 });

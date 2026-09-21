@@ -32,9 +32,9 @@ When you know an anagram that belongs in the dataset.
    If a word is missing, try `--tier=standard`, then `--tier=full`, then `--tier=extended`, which adds
    the site's own words to the pinned list; the narrowest tier that passes is the hit's tier. If the
    letters differ, it is not an anagram. A word missing even at Extended is a word request: see "Add a
-   word to the vocabulary". An input with a number or a symbol has it left out ("Reacher season 4" has the
-   letters of *reacher season*; see "Numbers and symbols"); `--read=4:drop` says the same and is not
-   needed.
+   word to the vocabulary". A digit or a symbol of an input is a character of the pool, as itself, unless
+   `--read=` reads it otherwise ("Reacher season 4" is the characters of *reacher season 4*; with
+   `--read=4:drop` the letters of *reacher season*, as the old hit has them; see "Numbers and symbols").
 2. On a branch off `main`, record it as a proposed hit. In a session with the MCP server (Claude Code in
    this repository, or Codex set up as `docs/BOOTSTRAP.md` describes), call `propose_hit` with the input,
    the category, the words in reading order, the tier, and a `justification`: one plain sentence
@@ -180,9 +180,9 @@ more (`dont`, `thats`) can appear in a machine-generated phrase from the next qu
 letters; `im` cannot, since the short-word allowlist (`tools/hits/src/short-words.txt`) is unchanged. The
 settings version was `s4` from 2026-09-20, when each queue's `summary.json` began to record the dictionary it
 was enumerated with (`dictionary`: the pinned revision and the word list's hash), then `s5` for one day and
-`s6` from 2026-09-21, the literal rule, under which a number or a symbol is left out and a candidate with
-one waits (see "Numbers and symbols"). A hit's words are always the letters; its display
-carries the form only by your command (phase P2).
+`s6` from 2026-09-21, the literal rule, under which a candidate with a digit or a symbol waits for the
+literal phase to enumerate it (see "Numbers and symbols"). A hit's words are always the letters, or a
+term's characters; its display carries the form only by your command (phase P2).
 
 ## The names list
 
@@ -507,9 +507,9 @@ pnpm hits:input bigbrother:titles:brig-bro-the "Big Brother"
 ```
 
 It refuses an input that would change the id ("Brother Big", "Big Brothers") and writes nothing then;
-"Big Brother 29" is fine, since a number is left out either way. The id, the letters, the votes and the hit's page
-address stay as they are. The new input's numbers and symbols are left out as before (see "Numbers and
-symbols"), and the reading keeps only the items the new input still has.
+"Big Brother 29" is fine only for a hit whose reading leaves the digits out, since a digit is a character of the
+pool otherwise (see "Numbers and symbols"). The id, the letters, the votes and the hit's page address stay as
+they are, and the reading keeps only the items the new input still has.
 
 Prompt: `docs/prompts/apply-desk.md` (desk_branch, desk_commands, desk_notes, desk_row_notes). The desk fills it.
 To publish the desk for a phone: `docs/prompts/publish-desk.md` (desk_branch, desk_queues).
@@ -658,52 +658,93 @@ fields until it is a hit; promoted with `hits:ingest --only`, it takes the judge
 ## Numbers and symbols
 
 **The literal rule (D62, accepted 2026-09-21).** An anagram uses exactly the text's characters: its letters
-(accents folded, case free), its digits and the symbols `@ $ & % + #`, each as itself. Spaces, punctuation,
-apostrophes, hyphens and capitals may be added or removed; nothing is replaced. A number is never read as
-its name, and a symbol never as a letter or a word. Phase N's readings (a number spelled by default, in
-force on 2026-09-21 alone, settings `s5`) were withdrawn that day, after the nightly made "thy big brother
-tweeting" from the letters of *twenty eight*. The literal phase (roadmap N3 to N6) will count digits and
-symbols as characters of the pool and label every term of an anagram by its class.
+(accents folded, case free), its digits and the symbols `@ $ & % + #` (`!` and `?` inside a word), each as
+itself. Spaces, punctuation, apostrophes, hyphens and capitals may be added or removed; nothing is
+replaced. A number is never read as its name, and a symbol never as a letter or a word, unless a reader
+chooses a leet reading for that one character and the result says so. Every term of an anagram is a word
+of the dictionary or a term of a labelled class (D63); words alone is the default everywhere. Phase N's
+conversions (a number spelled, settings `s5`, 2026-09-21 alone) were withdrawn the day they went live; the
+fix that followed (`s6`) left every digit and symbol out until the engine could count them.
 
-**What the site does now (settings `s6`).** An item is a run of digits (`182`, and `1,000` with its
-separators), an ordinal (`9th`, `21st`), or one of `@ $ & % + #`; `!` and `?` are items only inside a
-word, where they are characters rather than marks. Every item is left out of the letters, and the line under
-the search field and under Build's text box says which (`182 left out`); its characters count as skipped.
-Nothing is converted. Other symbols and letters of other scripts are dropped and counted, as they always
-were. The table is `scripts/readings.json`, which `python3 scripts/gen-readings.py` emits into both engines;
-it offers the one reading, `drop`, until the literal phase adds `self` and the leet readings.
+**What the engine does now (roadmap N3).** A digit or a symbol of the set is a character of the **pool**,
+as a letter is: "Blink-182" is the pool `b l i n k 1 8 2`, and the line under the field counts eight
+characters. Each such character is an **item**, and reads as itself (`self`, the default), as one of its
+leet letters (`$` as s, `7` as t or v; the table below), or as `drop`, left out, which is what every item
+was between the fix and N3 and how the records made then still read. An item is one character: `Blink-182`
+has the items `1`, `8` and `2`, one line each under the field (`1 as itself`); the ordinal `9th` is the
+digit `9` and the letters `th`; `1,000` is a `1` and three `0`s.
 
-**Records.** A hit's or a candidate's `reading` names every item of its input, each `drop`; the dataset
-publishes it as a list of `item` and `reading`. A record with no `reading` was made before 2026-09-21 and
-reads the same way (its digits removed, its symbols dropped, the letters kept: `legacyLetters` in the
-engine), so every id, page and vote stays. Records made on 2026-09-21 under `s5` carry a reading the table
-no longer offers (`spell`): the three retired hits of #99, and the day's candidates (six of them twins of
-lines from before phase N). The tools keep their ids as they were made and refuse to change their reading.
+No word has a digit, so with words alone a text with one has no anagram: the count is 0, and the engine says
+which characters nothing uses (`unused`; the search page reads *No word has a 1, 8 or 2*). The **term
+classes** are what can use them: a search takes the classes to admit as a mask beside the tier
+(`Query.classes` over the worker, `--classes=` on the CLI, `classes` on the MCP), and with the mask empty it
+is today's search. Numerals are made from the pool's digits (`182`, `18 2`, `1 82`, never the text itself);
+the other classes are terms of a second, small list beside the dictionary, built by `pnpm dict:build` from
+the class files `data/vocabulary/{symbols,shorthand,blends,acronyms,slang}.jsonl` into the `classes`
+artifact, committed with `[dict]`, and loaded by the site and the CLI when the manifest names it. The
+files do not exist yet (N4 seeds them, and gives the names list its floor), so `dict:build` emits no
+artifact, the shipped dictionary is words alone, and the site passes no class until N5 gives it the
+control. A term of letters alone (`amy`) is a spelling of its letters' class and changes no count; a term
+that opens a class of its own (`u`, `wtf`, `b8`) is admitted at any length by its class, and a word under
+the minimum length stays out as before.
+
+**Leet is generative, not a lexicon.** The table `scripts/readings.json` gives each character its letters:
+`0` o · `1` i l · `2` z · `3` e · `4` a · `5` s · `6` g b · `7` t v · `8` b · `9` g · `@` a · `$` s · `!`
+i · `+` t; `& % # ?` have none, and `|` is not a character of the pool. Leet on for a character
+(`Query.leet`, `--leet='$!@'`) makes the search try it as itself and as each letter, one search per
+reading, merged: the first three such characters expand, so at most 8 searches for `$ ! @` and 27 for
+`1 6 7`. A fixed reading (`r=$:s` in a link, `--read=$:s`, a record's `reading`) is one search. Every row
+carries its tags: the class of each term that is not a word, the words as written (the character where
+its letter went, `$hake` for *shake* under `$` as s), and the reading it was found under. The site's
+accepted default is leet on for `$ ! @` and off for digits (`SEARCH_LEET_DEFAULT` in the engine package),
+which N5 passes once it renders the tags; until then the site passes none.
+
+```bash
+cargo run --release -p anagram-cli -- count "Blink-182"
+cargo run --release -p anagram-cli -- solve "Blink-182" --classes=shorthand,blends
+cargo run --release -p anagram-cli -- solve 'Ke$ha' --leet='$' --min-len=2
+cargo run --release -p anagram-cli -- check 'Ke$ha' "shake" --read='$:s'
+cargo run --release -p anagram-cli -- check "Blink-182" "1 2 link b8" --classes=shorthand,blends
+```
+
+`count` prints `0 anagrams` and `no term uses 1, 8, 2` for a text nothing can use; `solve` prints each
+row as written with its tags in brackets (`$hake  [$hake leet; $ as s]`); `check` takes the phrase as a
+record stores it (the words as letters) and admits terms by class.
+
+**Records.** A hit's or a candidate's `reading` names every item of its input, each `self`, a letter or
+`drop`; a record with no `reading` was made before phase N and reads the same way it did (its digits and
+symbols dropped, the letters kept: `legacyLetters`), so every id, page and vote stays. A hit gains
+`classes` beside `reading`: the class of each term that is not a word, keyed by the term as `words` has it
+(`{"b8": "blends", "1": "shorthand"}`, `{"shake": "leet"}` for a word that carries a leet character);
+absent when every term is a word, which is every hit today. The dataset publishes `reading` and `classes`
+as lists. The five published hits with a character left out (Vishwanath & Sons three times, Reacher
+season 4, Sardar 2) stay, and their Search links say so (`r=&:drop`, `r=4:drop`), since as itself is the
+default now. The records made on 2026-09-21 under `s5` keep the readings the table no longer offers
+(`spell`) and their ids; the tools never recompute them.
 
 ```bash
 pnpm hits:read reacherseason:titles:as-one-searcher 4:drop
+pnpm hits:read kesha:people:shake '$:s'
 pnpm hits:read sardar:titles --clear
 ```
 
-`hits:read` still takes a hit or candidate id and a reading, or `--clear`; today the one reading it accepts
-is `drop`, and neither changes the letters. `anagram solve|count|check --read=4:drop` likewise says nothing
-the default does not.
+`hits:read` takes a hit or candidate id and a reading (`self`, a letter, `drop`), or `--clear`, and refuses
+one that changes the letters and so the id: a record with other letters is another record, added the usual
+way. `anagram solve|count|check --read=` says the same.
 
-**The nightly.** From `s6`, `hits:enumerate` sets aside a `new` candidate whose input has an item, writes
-the note `waits for the literal rule` on it once, and runs the batch over the rest; those inputs are the
-first the literal phase enumerates. The queue's `summary.json` records the defaults (`readings`, all
-`drop`) beside the dictionary. `hits:fetch` never appends a title that is on file under the id it had
-before phase N (`legacyId`), so a pre-N candidate and a twin cannot both exist again; the six pairs of
-2026-09-21 stay as records. A row with an item, which only a deep run can make until then, says `4:drop`
-to the screen and `4 left out` to the judge.
+**The nightly.** Nothing changes until N6: `hits:enumerate` still sets aside a `new` candidate whose input
+has a digit or a symbol (`waits for the literal rule`), and the batch runs over the rest with no class
+admitted (`SETTINGS_VERSION` stays `s6`; the queue's `summary.json` records the defaults, now `self`).
+`hits:fetch` ids a new title with a digit by its pool (`como1907:companies`, `reading` all `self`) and
+still skips one on file under its pre-N id (`legacyId`). A batch row carries `classes` when a term is not
+a word, the prefilter exempts such a term from the word rules, and the screen carries the classes after
+a bar on the phrase line (`1 2 link b8 | 1 shorthand · 2 shorthand · b8 blends`); none of that fires until
+N6 admits a class.
 
-**The dictionary build** folds the frequency list as before phase N (`legacyLetters`): 55,000 of its
-entries carry a digit or a symbol (`2nd`, `80s`, `1st`), and folding them any other way moves their
-counts onto other words (26 would cross the Common cutoff). `pnpm dict:verify` holds the artifacts byte
-for byte.
-
-**The five published hits with a character left out** (Vishwanath & Sons three times, Reacher season 4,
-Sardar 2) stay, by the operator's decision of 2026-09-21; their pages say so once the literal phase lands.
+**The dictionary build** folds its sources as before phase N (`legacyLetters`: every digit and symbol of
+the set removed), so the word list, its tiers and their hashes are byte for byte what they were
+(`full.fa3dac892b6f.bin`, `tiers.91666655b877.bits`), and `pnpm dict:verify` proves it. The `classes`
+artifact is emitted only when a class file has a term, and a term that is a word of the list is refused.
 
 ## Display on a hit
 

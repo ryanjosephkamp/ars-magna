@@ -16,11 +16,15 @@ silently, and so are spaces but for one thing: they say what the text's own word
 the text itself is never listed as its own anagram (see Filtering and sorting).
 
 Nothing typed is ever replaced by something else: a number is never read as its name, and a
-symbol never as a letter or a word (the literal rule). A number or a symbol of the set
-`@ $ & % + #` (and `!` or `?` inside a word) is left out of the letters for now, and the line
-under the field says which (*182 left out*); the literal phase will count them as characters
-of the anagram instead. The letters of other scripts, other symbols and the items left out
-are skipped, and the line says how many characters were, so that never looks like a bug.
+symbol never as a letter or a word (the literal rule). A digit, or a symbol of the set
+`@ $ & % + #` (and `!` or `?` inside a word), is a character of the text like a letter, and an
+anagram uses it as itself; the line under the field counts the characters and says how each
+stands (*1 as itself*). No word has a digit, so a text with one has no anagram of words alone,
+and the page says which characters nothing uses; the labelled term classes that can use them
+(a numeral, a shorthand character, a blend) and the leet readings (`$` as s, written back where
+the letter went) are the engine's, and the site's controls for them are the next phase. The
+letters of other scripts and other symbols are skipped, and the line says how many characters
+were, so that never looks like a bug.
 English only. An input with more than 127 copies of one letter is refused with a message
 rather than searched, since letter counts are bytes. The table is
 `scripts/readings.json`, read by the Rust engine and the TypeScript package alike.

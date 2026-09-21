@@ -2,34 +2,60 @@
  * The Build page's ledger: the letters of a text, what an anagram of it has
  * used, and what is left over or missing.
  *
- * Both boxes fold exactly as the search does (`@ars-magna/engine`'s fold):
- * numbers and the symbols `@ $ ! & +` read as letters first, by the defaults
- * or the reader's own readings of the text; accents to their base letters;
- * spaces, apostrophes, hyphens and punctuation carry no letters and are
- * ignored without a word; letters of other scripts, other symbols and the
- * items a reading leaves out are ignored too, and listed as skipped so the
- * reader can see they did not count. Pure, so the tests run it without a page.
+ * Both boxes fold as the search folds letters (`@ars-magna/engine`'s fold):
+ * accents to their base letters; spaces, apostrophes, hyphens and punctuation
+ * carry no letters and are ignored without a word; letters of other scripts
+ * and other symbols are ignored too, and listed as skipped so the reader can
+ * see they did not count. A digit or a symbol of the pool is a character the
+ * search uses as itself (the literal rule); until the page's map and checks
+ * count the pool (roadmap N5), the ledger lists each as skipped, so a reader
+ * sees it did not count here, and a reading that leaves one out lists it too.
+ * Pure, so the tests run it without a page.
  */
-import { NO_READING, foldChar, isSkipped, readItems, readText, type Reading } from '@ars-magna/engine';
+import { NO_READING, foldChar, isPoolChar, isSkipped, readItems, readText, type Reading } from '@ars-magna/engine';
 
 export type FoldedText = {
   /** Lowercase `[a-z]` only, in the order typed. */
   readonly letters: string;
-  /** The characters that carried something and were ignored, each once, in the order first typed; an item read as left out is one entry (`90210`). */
+  /**
+   * The characters that carried something and were ignored, each once, in the
+   * order first typed: a run of digits and symbols as typed (`90210`, `&`), a
+   * character a reading left out (`4`), a letter of another script.
+   */
   readonly skipped: readonly string[];
+  /** How many characters of the text were skipped in all, every occurrence counted. */
+  readonly skippedCount: number;
 };
 
 export function foldText(input: string, reading: Reading = NO_READING): FoldedText {
   let letters = '';
   const skipped: string[] = [];
-  // An item read as left out is listed once, as typed: `90210`, `$`.
+  const read = readText(input, reading);
+  let skippedCount = read.dropped;
+  // A character a reading left out is listed once, as typed: `4`, `$`.
   for (const item of readItems(input, reading)) if (item.reading === 'drop' && !skipped.includes(item.key)) skipped.push(item.key);
-  for (const char of readText(input, reading).text) {
+  // A run of digits and symbols the search uses as itself is listed once, as typed (`90210`).
+  let run = '';
+  const endRun = () => {
+    if (run.length > 0 && !skipped.includes(run)) skipped.push(run);
+    run = '';
+  };
+  for (const char of read.text) {
     const folded = foldChar(char);
+    if (isPoolChar(char)) {
+      run += char;
+      skippedCount++;
+      continue;
+    }
+    endRun();
     if (folded.length > 0) letters += folded;
-    else if (isSkipped(char) && !skipped.includes(char)) skipped.push(char);
+    else if (isSkipped(char)) {
+      skippedCount++;
+      if (!skipped.includes(char)) skipped.push(char);
+    }
   }
-  return { letters, skipped };
+  endRun();
+  return { letters, skipped, skippedCount };
 }
 
 /** One letter of the tray: how many the text has, and how many are left once the anagram has used some. */
@@ -102,7 +128,7 @@ export function lettersLine(f: FoldedText): string {
   if (n === 0 && f.skipped.length === 0) return '';
   const letters = `${n.toLocaleString('en-US')} ${n === 1 ? 'letter' : 'letters'}`;
   if (f.skipped.length === 0) return letters;
-  const k = f.skipped.reduce((sum, entry) => sum + [...entry].length, 0);
+  const k = f.skippedCount;
   return `${letters} · ${k} ${k === 1 ? 'character' : 'characters'} skipped: ${f.skipped.join(' ')}`;
 }
 

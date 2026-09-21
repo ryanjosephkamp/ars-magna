@@ -16,7 +16,7 @@ import { Definitions } from '@ars-magna/engine/definitions';
 import { normalizeLetters } from '@ars-magna/engine/fold';
 import { describeReading, readingProblem } from '@ars-magna/engine/readings';
 import { DEFS_DIR, Engine, fileFetch } from '@ars-magna/engine/node';
-import type { Tier } from '@ars-magna/engine/protocol';
+import { CLASSES, type ClassName, type RowTag, type Tier } from '@ars-magna/engine/protocol';
 import { aboutProblem, syncAbout, tidySentence } from '@ars-magna/hits/about';
 import { checkAnagram } from '@ars-magna/hits/check';
 import { CATEGORIES, alphagram, candidateId, hitId, recordReading } from '@ars-magna/hits/ids';
@@ -34,8 +34,22 @@ import {
 } from '@ars-magna/hits/schema';
 
 const tier = z.enum(['common', 'standard', 'full', 'extended']).default('standard');
-/** How the input's numbers and symbols are read, item to reading name (`{"182": "digits", "2": "too"}`); the defaults where absent. */
+/** How the input's digits and symbols are read, character to reading name (`{"$": "s", "4": "drop"}`); as themselves where absent. */
 const readingArg = z.record(z.string().min(1), z.string().min(1)).default({});
+/** The term classes admitted beside the tier (decision D63): words alone where absent. */
+const classesArg = z.array(z.enum(CLASSES)).default([]);
+/** The characters the search also tries as their leet letters (`["$", "!"]`): none where absent. */
+const leetArg = z.array(z.string().length(1)).default([]);
+
+/** A row for a reader: as written, with the class of each term that is not a word and the leet reading, when any. */
+function describeRow(words: readonly string[], tag: RowTag | null): string {
+  if (!tag) return words.join(' ');
+  const written = tag.written.join(' ');
+  const parts = tag.written.flatMap((w, i) => (tag.classes[i] ? [`${w} ${tag.classes[i]}`] : []));
+  const reading = Object.entries(tag.reading).map(([c, l]) => `${c} as ${l}`);
+  const tags = [...parts, ...reading];
+  return tags.length > 0 ? `${written}  [${tags.join(', ')}]` : written;
+}
 
 export type ServerDeps = {
   engine?: () => Promise<Engine>;
@@ -58,10 +72,12 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     {
       title: 'Solve',
       description:
-        'Every way the letters of `input` can be re-partitioned into English words, as phrases. Returns the exact total (a leading ">" means a floor) and the first `first` results in canonical order, longest words first. The text itself, its words in any order, is never a result: `text_left_out` is true when that took a row out, so the total is one fewer than the letters alone would give.',
+        'Every way the characters of `input` can be re-partitioned into English words and the terms of the admitted classes, as phrases. A digit or a symbol of the input is a character of the pool, used as itself (the literal rule); `classes` names the term classes admitted beside the dictionary (numerals, symbols, shorthand, blends, acronyms, names, slang), `leet` the characters also tried as their letters ($ as s, 7 as t or v), `reading` a fixed reading of one (`{"$": "s"}`, `{"4": "drop"}`). Returns the exact total (a leading ">" means a floor), the first `first` results in canonical order, longest words first, each written as shown with the class of every term that is not a word, and `unused`, the characters no term uses when the total is zero for their sake. The text itself, its words in any order, is never a result: `text_left_out` is true when that took a row out, so the total is one fewer than the characters alone would give.',
       inputSchema: {
         input: z.string().min(1),
         tier,
+        classes: classesArg,
+        leet: leetArg,
         minWordLen: z.number().int().min(1).max(12).default(3),
         maxWords: z.number().int().min(1).max(64).default(4),
         mustInclude: z.array(z.string()).default([]),
@@ -73,14 +89,17 @@ export function createServer(deps: ServerDeps = {}): McpServer {
       const badReading = readingProblem(args.input, args.reading);
       if (badReading) return text({ ok: false, reason: `reading: ${badReading}` });
       const e = await engine();
-      const { total, rows, textLeftOut } = await e.solve(args.input, args, args.first);
+      const { total, rows, textLeftOut, unused, tags } = await e.solve(args.input, args, args.first);
       return text({
         input: args.input,
         reading: describeReading(args.input, args.reading),
         letters: alphagram(args.input, args.reading),
+        classes: args.classes,
+        leet: args.leet,
         total,
         text_left_out: textLeftOut,
-        results: rows.map((r) => r.join(' ')),
+        unused,
+        results: rows.map((r, i) => describeRow(r, tags[i] ?? null)),
       });
     },
   );
@@ -90,19 +109,23 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     {
       title: 'Count',
       description:
-        'How many anagrams `input` has under these settings, without listing them. The text itself is never counted: `text_left_out` is true when that made the total one fewer.',
+        'How many anagrams `input` has under these settings, without listing them. The text itself is never counted: `text_left_out` is true when that made the total one fewer. `unused` names the digits and symbols of the input no term uses, when the total is zero for their sake.',
       inputSchema: {
         input: z.string().min(1),
         tier,
+        classes: classesArg,
+        leet: leetArg,
         minWordLen: z.number().int().min(1).max(12).default(3),
         maxWords: z.number().int().min(1).max(64).default(4),
         reading: readingArg,
       },
     },
     async (args) => {
+      const badReading = readingProblem(args.input, args.reading);
+      if (badReading) return text({ ok: false, reason: `reading: ${badReading}` });
       const e = await engine();
-      const { total, textLeftOut } = await e.solve(args.input, args, 0);
-      return text({ input: args.input, total, text_left_out: textLeftOut });
+      const { total, textLeftOut, unused } = await e.solve(args.input, args, 0);
+      return text({ input: args.input, total, text_left_out: textLeftOut, unused });
     },
   );
 
@@ -115,12 +138,16 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         input: z.string().min(1),
         index: z.string().regex(/^\d+$/),
         tier,
+        classes: classesArg,
+        leet: leetArg,
         minWordLen: z.number().int().min(1).max(12).default(3),
         maxWords: z.number().int().min(1).max(64).default(4),
         reading: readingArg,
       },
     },
     async (args) => {
+      const badReading = readingProblem(args.input, args.reading);
+      if (badReading) return text({ ok: false, reason: `reading: ${badReading}` });
       const e = await engine();
       const { total } = await e.solve(args.input, args, 0);
       const row = await e.nth(BigInt(args.index));
@@ -152,7 +179,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
     {
       title: 'Propose a hit',
       description:
-        'Check that `words` are a real anagram of `input` at `tier`, then record the input as a candidate and the phrase as a proposed hit for a person to review. `justification` is one plain sentence explaining the link for a reader; with none, a `rationale` of up to 300 characters is used instead. `about` is one factual sentence saying what the input is (under 200 characters, ending with a full stop, never an opinion, never about a private person); it is kept only when the input has none yet, and the hit carries the input\'s sentence. Nothing is published by this tool.',
+        'Check that `words` are a real anagram of `input` at `tier`, then record the input as a candidate and the phrase as a proposed hit for a person to review. A digit or a symbol of the input is a character of the pool, used as itself unless `reading` reads it otherwise (`{"4": "drop"}`, `{"$": "s"}`); `classes` names the class of each word that is not a word of the dictionary (`{"b8": "blends", "2": "shorthand"}`, or `{"hakes": "leet"}` for the word that carries a leet character), and the hit records it. `justification` is one plain sentence explaining the link for a reader; with none, a `rationale` of up to 300 characters is used instead. `about` is one factual sentence saying what the input is (under 200 characters, ending with a full stop, never an opinion, never about a private person); it is kept only when the input has none yet, and the hit carries the input\'s sentence. Nothing is published by this tool.',
       inputSchema: {
         input: z.string().min(1),
         category: z.enum(CATEGORIES),
@@ -163,6 +190,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         about: z.string().optional(),
         submitter: z.string().default('mcp'),
         reading: readingArg,
+        classes: z.record(z.string().min(1), z.enum(CLASSES)).default({}),
       },
     },
     async (args) => {
@@ -176,7 +204,8 @@ export function createServer(deps: ServerDeps = {}): McpServer {
 
       const e = await engine();
       const words = args.words.map((word) => normalizeLetters(word)).filter((w) => w.length > 0);
-      const verdict = await checkAnagram(e, args.input, words, args.tier as Tier, args.reading);
+      const classes: Record<string, ClassName> = Object.fromEntries(Object.entries(args.classes).map(([term, name]) => [normalizeLetters(term), name]));
+      const verdict = await checkAnagram(e, args.input, words, args.tier as Tier, args.reading, classes);
       if (!verdict.ok) return text({ ok: false, reason: verdict.reason });
 
       const date = today();
@@ -204,6 +233,7 @@ export function createServer(deps: ServerDeps = {}): McpServer {
         display: words.join(' '),
         letters: alphagram(args.input, args.reading),
         ...(reading ? { reading } : {}),
+        ...(Object.keys(classes).length > 0 ? { classes } : {}),
         prefilter_score: 0,
         judge: [],
         submitter: args.submitter,

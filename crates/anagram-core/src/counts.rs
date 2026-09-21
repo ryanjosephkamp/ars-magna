@@ -1,12 +1,20 @@
-//! 26-letter multiset, packed into four `u64` lanes.
+//! The pool as a multiset: 32 slots packed into four `u64` lanes.
 //!
 //! The sub-multiset test ("does this word fit in what's left?") is by far the
 //! hottest operation in the search — tens of millions of calls on a hard query —
 //! so the representation is chosen entirely around making it branch-free.
 //!
-//! Counts live one per byte, 26 used and 6 zero padding. Because every count is
-//! well under 128, a whole lane can be tested at once with the standard SWAR
-//! borrow trick:
+//! Counts live one per byte. Slots 0 to 25 are the letters; slots 26 to 31
+//! are given, per query, to the text's own digits and symbols (the literal
+//! rule, roadmap phase N3: `Blink-182` is the pool `b l i n k 1 8 2`, and a
+//! term of an anagram uses a `1` as a `1`). A [`Slots`] names which character
+//! each of the six holds, in order of first appearance; a text with more than
+//! six distinct digits and symbols is refused. The dictionary's own vectors
+//! never use those slots (a word is letters), so widening the pool cost the
+//! search nothing: same lanes, same test, same memo keys.
+//!
+//! Because every count is well under 128, a whole lane can be tested at once
+//! with the standard SWAR borrow trick:
 //!
 //! ```text
 //! ((rem | 0x8080..) - word) & 0x8080.. == 0x8080..
@@ -14,7 +22,7 @@
 //!
 //! For each byte lane, `rem | 0x80` is `rem + 0x80` (the high bit is clear), so
 //! the subtraction lands in `[1, 255]` and can never borrow into the next lane.
-//! The high bit survives exactly when `rem >= word`. Eight letters per
+//! The high bit survives exactly when `rem >= word`. Eight slots per
 //! instruction, no branches, and it is portable — the same code is correct on
 //! wasm, arm64 and x86.
 
@@ -22,15 +30,93 @@ use core::fmt;
 
 const HIGH: u64 = 0x8080_8080_8080_8080;
 
-/// Letter multiset. Byte `i` of lane `i / 8` holds the count of letter `i`.
+/// Slots 0 to 25.
+pub const LETTERS: usize = 26;
+/// Every slot: the letters and the six a query gives its own characters.
+pub const SLOTS: usize = 32;
+/// How many distinct digits and symbols one query may hold.
+pub const EXTRA_SLOTS: usize = SLOTS - LETTERS;
+
+/// The query's digits and symbols, one slot each from 26 up, in order of
+/// first appearance in the text. Empty for a text of letters alone.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Slots {
+    chars: Vec<char>,
+}
+
+impl Slots {
+    pub fn new() -> Slots {
+        Slots::default()
+    }
+
+    /// The slot `c` holds, if it holds one.
+    #[inline]
+    pub fn slot_of(&self, c: char) -> Option<usize> {
+        self.chars.iter().position(|&held| held == c).map(|i| LETTERS + i)
+    }
+
+    /// The slot for `c`, given one if it has none yet; `None` when all six
+    /// are taken.
+    pub fn assign(&mut self, c: char) -> Option<usize> {
+        if let Some(slot) = self.slot_of(c) {
+            return Some(slot);
+        }
+        if self.chars.len() >= EXTRA_SLOTS {
+            return None;
+        }
+        self.chars.push(c);
+        Some(LETTERS + self.chars.len() - 1)
+    }
+
+    /// The character slot `slot` holds, for a slot from 26 up.
+    pub fn char_at(&self, slot: usize) -> Option<char> {
+        slot.checked_sub(LETTERS).and_then(|i| self.chars.get(i).copied())
+    }
+
+    /// The characters, in slot order.
+    pub fn chars(&self) -> &[char] {
+        &self.chars
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.chars.is_empty()
+    }
+}
+
+/// Why a text is not a pool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoolError {
+    /// One character occurs more than 127 times, which is more than a count
+    /// byte can hold. Carries the character.
+    TooManyRepeats(char),
+    /// More than six distinct digits and symbols.
+    TooManyCharacters,
+    /// A character that is neither a letter nor a digit or symbol of the pool:
+    /// `normalize` never emits one, so this is a caller's mistake.
+    NotPool(char),
+}
+
+/// The slot a pool character takes: a letter its own, anything else what the
+/// query's `Slots` gave it.
+#[inline]
+fn slot_for(c: char, slots: &Slots) -> Option<usize> {
+    if c.is_ascii_lowercase() {
+        Some(c as usize - 'a' as usize)
+    } else {
+        slots.slot_of(c)
+    }
+}
+
+/// The pool as a multiset. Byte `i` of lane `i / 8` holds the count of slot `i`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Counts(pub [u64; 4]);
 
 impl Counts {
     pub const EMPTY: Counts = Counts([0; 4]);
 
-    /// Build from a normalized `[a-z]` string. Returns `None` if any byte is
-    /// out of range or a single letter appears more than 127 times.
+    /// Build from a normalized `[a-z]` string: a dictionary word. Returns
+    /// `None` if any byte is out of range or a single letter appears more
+    /// than 127 times.
     pub fn from_word(word: &str) -> Option<Counts> {
         let mut bytes = [0u8; 32];
         for &b in word.as_bytes() {
@@ -40,6 +126,41 @@ impl Counts {
             let slot = &mut bytes[(b - b'a') as usize];
             *slot = slot.checked_add(1)?;
             if *slot > 127 {
+                return None;
+            }
+        }
+        Some(Counts::from_bytes(&bytes))
+    }
+
+    /// Build from a pool string as [`normalize`] gives it, giving each digit
+    /// and symbol a slot in `slots` as it first appears. The text's own pool.
+    pub fn from_pool(text: &str, slots: &mut Slots) -> Result<Counts, PoolError> {
+        let mut bytes = [0u8; 32];
+        for c in text.chars() {
+            let slot = if c.is_ascii_lowercase() {
+                c as usize - 'a' as usize
+            } else if is_pool_char(c) {
+                slots.assign(c).ok_or(PoolError::TooManyCharacters)?
+            } else {
+                return Err(PoolError::NotPool(c));
+            };
+            bytes[slot] += 1;
+            if bytes[slot] > 127 {
+                return Err(PoolError::TooManyRepeats(c));
+            }
+        }
+        Ok(Counts::from_bytes(&bytes))
+    }
+
+    /// A term's counts under the query's slots: `None` when a character of
+    /// the term has no slot, since then the term cannot fit the pool anyway,
+    /// or when a character repeats past 127.
+    pub fn in_slots(text: &str, slots: &Slots) -> Option<Counts> {
+        let mut bytes = [0u8; 32];
+        for c in text.chars() {
+            let slot = slot_for(c, slots)?;
+            bytes[slot] += 1;
+            if bytes[slot] > 127 {
                 return None;
             }
         }
@@ -64,11 +185,11 @@ impl Counts {
         out
     }
 
-    /// Count of `letter`, where 0 is 'a'.
+    /// Count of `slot`, where 0 is 'a' and 26 up are the query's own characters.
     #[inline]
-    pub fn get(self, letter: usize) -> u8 {
-        debug_assert!(letter < 26);
-        (self.0[letter >> 3] >> ((letter & 7) * 8)) as u8
+    pub fn get(self, slot: usize) -> u8 {
+        debug_assert!(slot < SLOTS);
+        (self.0[slot >> 3] >> ((slot & 7) * 8)) as u8
     }
 
     #[inline]
@@ -76,10 +197,10 @@ impl Counts {
         self.0 == [0; 4]
     }
 
-    /// Total number of letters.
+    /// Total number of characters.
     #[inline]
     pub fn total(self) -> u32 {
-        // Counts are < 128, and 26 of them sum to well under u32::MAX, so the
+        // Counts are < 128, and 32 of them sum to well under u32::MAX, so the
         // per-lane byte sum cannot overflow a u64 accumulator.
         let mut sum = 0u32;
         for lane in self.0 {
@@ -92,7 +213,7 @@ impl Counts {
         sum
     }
 
-    /// True when every letter of `self` is available in `rem`.
+    /// True when every character of `self` is available in `rem`.
     #[inline(always)]
     pub fn fits_in(self, rem: Counts) -> bool {
         // Unrolled deliberately: the compiler keeps all eight values in
@@ -125,24 +246,26 @@ impl Counts {
         ])
     }
 
-    /// 26-bit mask of which letters are present at all.
+    /// 32-bit mask of which slots are present at all.
     #[inline]
     pub fn mask(self) -> u32 {
         let mut m = 0u32;
-        for letter in 0..26 {
-            if self.get(letter) != 0 {
-                m |= 1 << letter;
+        for slot in 0..SLOTS {
+            if self.get(slot) != 0 {
+                m |= 1 << slot;
             }
         }
         m
     }
 
-    /// The scarcest letter still remaining, or `None` when empty.
+    /// The scarcest slot still remaining, or `None` when empty.
     ///
     /// This is the pivot of the whole search: every solution must cover this
-    /// letter, so only words containing it need to be considered. Ties break to
-    /// the lowest letter index, which keeps the choice a deterministic function
-    /// of the state — required for both memoization and canonical ordering.
+    /// character, so only candidates containing it need to be considered. Ties
+    /// break to the lowest slot index, which keeps the choice a deterministic
+    /// function of the state — required for both memoization and canonical
+    /// ordering. A digit or symbol usually is the rarest, so a pool with one
+    /// that no candidate covers dies at the root.
     #[inline]
     pub fn rarest(self) -> Option<usize> {
         let mut best = 0usize;
@@ -153,14 +276,11 @@ impl Counts {
                 continue;
             }
             for byte in 0..8 {
-                let letter = lane_index * 8 + byte;
-                if letter >= 26 {
-                    break;
-                }
+                let slot = lane_index * 8 + byte;
                 let count = (lane >> (byte * 8)) as u8;
                 if count != 0 && count < best_count {
                     best_count = count;
-                    best = letter;
+                    best = slot;
                 }
             }
         }
@@ -171,28 +291,35 @@ impl Counts {
 impl fmt::Debug for Counts {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Counts(\"")?;
-        for letter in 0..26 {
+        for letter in 0..LETTERS {
             for _ in 0..self.get(letter) {
                 write!(f, "{}", (b'a' + letter as u8) as char)?;
+            }
+        }
+        for slot in LETTERS..SLOTS {
+            for _ in 0..self.get(slot) {
+                write!(f, "#{}", slot - LETTERS)?;
             }
         }
         f.write_str("\")")
     }
 }
 
-/// Text -> the `[a-z]` letters the search uses.
+/// Text -> the pool the search uses: the letters as `[a-z]`, and the digits
+/// and symbols of the set as themselves.
 ///
 /// Every accented letter is forced to its unaccented base letter, so "Beyoncé"
 /// has three e's. The mapping is the generated table in `fold_table.rs`:
 /// Unicode NFKD over the Latin blocks (decompose, drop the combining marks,
 /// keep the ASCII letters) plus a hand-written list for the Latin letters
 /// that have no decomposition: ß -> ss, æ -> ae, œ -> oe, ø -> o, đ -> d,
-/// ł -> l, þ -> th, ð -> d, ı -> i. Numbers and the symbols `@ $ ! ? & % + #`
-/// are the input's items (`readings.rs`, the literal rule): nothing is
-/// converted, and until the literal phase counts them as characters of the
-/// pool every item is left out ("Blink-182" has the letters of *blink*,
-/// "Ke$ha" those of *keha*); anything else that is not a Latin letter —
-/// punctuation, spaces, other scripts, emoji — is dropped.
+/// ł -> l, þ -> th, ð -> d, ı -> i. A digit, or one of `@ $ & % + #` (`!` and
+/// `?` inside a word), is a character of the pool and stays as itself
+/// (`readings.rs`, the literal rule): "Blink-182" is `blink182`, "Ke$ha" is
+/// `ke$ha`, and a term of an anagram uses each as itself. A reader may read
+/// one as a letter (`$` as s) or leave it out; that is [`normalize_with`].
+/// Anything else that is not a Latin letter — punctuation, spaces, other
+/// scripts, emoji — is dropped.
 ///
 /// A table rather than a normalization crate because the same tables would
 /// add ~50 KB to the compressed WASM payload. The tests below check the table
@@ -203,9 +330,9 @@ pub fn normalize(input: &str) -> String {
     normalize_with(input, &[])
 }
 
-/// [`normalize`] with the reader's own readings of the input's numbers and
+/// [`normalize`] with the reader's own readings of the input's digits and
 /// symbols (`readings.rs`): `("4", "drop")` leaves the 4 of "Reacher season 4"
-/// out, as the search did before phase N.
+/// out, `("$", "s")` reads the `$` of "Ke$ha" as an s.
 pub fn normalize_with(input: &str, readings: &[(String, String)]) -> String {
     let read = crate::readings::read_input(input, readings);
     let mut out = String::with_capacity(read.len());
@@ -213,6 +340,9 @@ pub fn normalize_with(input: &str, readings: &[(String, String)]) -> String {
         if c.is_ascii() {
             if c.is_ascii_alphabetic() {
                 out.push(c.to_ascii_lowercase());
+            } else if is_pool_char(c) {
+                // The reading step left it in, so it is an item read as itself.
+                out.push(c);
             }
             continue;
         }
@@ -223,20 +353,28 @@ pub fn normalize_with(input: &str, readings: &[(String, String)]) -> String {
     out
 }
 
+/// Whether a character is a digit or a symbol of the pool's set, whatever
+/// stands around it. `read_input` has already dropped a `!` or `?` that was
+/// punctuation, so after it every such character is an item.
+pub fn is_pool_char(c: char) -> bool {
+    c.is_ascii_digit() || crate::readings::symbol(c).is_some()
+}
+
 /// Text -> its words, each folded as [`normalize`] folds: what the text is made
 /// of before the search forgets where its spaces were.
 ///
 /// Split on whitespace only. A hyphen or an apostrophe carries no letters, so
 /// "apple-sauce" is the one word `applesauce`; a piece that folds to nothing
-/// ("&", "2026") is not a word at all and is left out. Whitespace is Unicode
+/// ("!!", "—") is not a word at all and is left out, while "&" and "2026" are
+/// tokens of the pool. Whitespace is Unicode
 /// White_Space plus U+FEFF, which is what `foldWords` in
 /// `packages/engine/src/fold.ts` splits on, so the two sides agree.
 pub fn text_words(input: &str) -> Vec<String> {
     text_words_with(input, &[])
 }
 
-/// [`text_words`] with the reader's own readings: the words of "Area 51" are
-/// `area`, `fifty` and `one`, and under `("51", "digits")` `five` and `one`.
+/// [`text_words`] with the reader's own readings: the tokens of "Area 51" are
+/// `area` and `51`, and under `("5", "drop")` `area` and `1`.
 pub fn text_words_with(input: &str, readings: &[(String, String)]) -> Vec<String> {
     crate::readings::read_input(input, readings)
         .split(|c: char| c.is_whitespace() || c == '\u{feff}')
@@ -290,6 +428,44 @@ mod tests {
             assert!(c.fits_in(c));
             assert!(!c.fits_in(Counts::EMPTY), "{word} should not fit in empty");
         }
+        // And the six slots of lane 3 past z.
+        let mut slots = Slots::new();
+        let pool = Counts::from_pool("1234$&", &mut slots).unwrap();
+        assert_eq!(slots.chars(), &['1', '2', '3', '4', '$', '&']);
+        assert_eq!(pool.get(31), 1);
+        assert!(pool.fits_in(pool));
+        assert!(!pool.fits_in(Counts::from_pool("1234", &mut slots.clone()).unwrap()));
+    }
+
+    #[test]
+    fn a_pool_gives_its_characters_slots_in_order_of_appearance() {
+        let mut slots = Slots::new();
+        let pool = Counts::from_pool("blink182", &mut slots).unwrap();
+        assert_eq!(slots.chars(), &['1', '8', '2']);
+        assert_eq!((pool.get(26), pool.get(27), pool.get(28)), (1, 1, 1));
+        assert_eq!(pool.total(), 8);
+        // Ties break to the lowest slot, so `b` (slot 1) is the pivot here; with the
+        // letters doubled the digit is, and a words-only search dies at the root.
+        assert_eq!(pool.rarest(), Some(1));
+        assert_eq!(Counts::from_pool("bblliinnkk1", &mut Slots::new()).unwrap().rarest(), Some(26));
+        assert_eq!(pool.mask() >> 26, 0b111);
+        assert_eq!(format!("{pool:?}"), "Counts(\"bikln#0#1#2\")");
+
+        // A term is counted through the query's slots; a character without one cannot fit.
+        assert_eq!(Counts::in_slots("b8", &slots).unwrap().get(27), 1);
+        assert_eq!(Counts::in_slots("b8", &slots).unwrap().get(1), 1);
+        assert!(Counts::in_slots("b8", &slots).unwrap().fits_in(pool));
+        assert_eq!(Counts::in_slots("b9", &slots), None);
+        assert_eq!(Counts::in_slots("link", &slots), Counts::from_word("link"));
+
+        // Six distinct digits and symbols fit; a seventh does not.
+        let mut six = Slots::new();
+        assert!(Counts::from_pool("012345", &mut six).is_ok());
+        assert_eq!(Counts::from_pool("0123456", &mut Slots::new()), Err(PoolError::TooManyCharacters));
+        assert_eq!(Counts::from_pool("a-b", &mut Slots::new()), Err(PoolError::NotPool('-')));
+        assert_eq!(Counts::from_pool(&"1".repeat(128), &mut Slots::new()), Err(PoolError::TooManyRepeats('1')));
+        assert_eq!(Counts::from_pool(&"a".repeat(128), &mut Slots::new()), Err(PoolError::TooManyRepeats('a')));
+        assert_eq!(Counts::from_word("b8"), None, "a dictionary word is letters");
     }
 
     #[test]
@@ -309,14 +485,20 @@ mod tests {
     }
 
     #[test]
-    fn normalize_strips_everything_but_letters() {
+    fn normalize_keeps_letters_digits_and_the_symbols_of_the_set() {
         assert_eq!(normalize("Ryan Joseph Kamp"), "ryanjosephkamp");
-        // A number is left out, and a closing exclamation mark is punctuation.
-        assert_eq!(normalize("Route 66!"), "route");
+        // A number is a run of pool characters, and a closing exclamation mark is punctuation.
+        assert_eq!(normalize("Route 66!"), "route66");
         assert_eq!(normalize("O'Brien-Smith"), "obriensmith");
         assert_eq!(normalize(""), "");
-        assert_eq!(normalize("1234!!"), "");
-        assert_eq!(normalize_with("1234!!", &[("1234".into(), "drop".into())]), "");
+        assert_eq!(normalize("1234!!"), "1234");
+        assert_eq!(normalize("Blink-182"), "blink182");
+        assert_eq!(normalize("Ke$ha"), "ke$ha");
+        assert_eq!(normalize("P!nk wh?t Hello! what?"), "p!nkwh?thellowhat");
+        assert_eq!(normalize("AT&T C++ 50% #1 @home $5"), "at&tc++50%#1@home5");
+        assert_eq!(normalize_with("1234!!", &[("1".into(), "drop".into()), ("2".into(), "drop".into())]), "34");
+        assert_eq!(normalize_with("Ke$ha", &[("$".into(), "s".into())]), "kesha");
+        assert_eq!(normalize_with("Reacher season 4", &[("4".into(), "drop".into())]), "reacherseason");
     }
 
     /// Mirrors FOLD_CASES in `packages/engine/test/fold.test.ts`. The two
@@ -336,7 +518,7 @@ mod tests {
             ("Łódź", "lodz"),
             ("Þórður", "thordur"),
             ("İstanbul", "istanbul"),
-            ("Ben Shelton 🎾 2026", "benshelton"),
+            ("Ben Shelton 🎾 2026", "benshelton2026"),
             ("Владимир", ""),
             ("東京", ""),
             // The dictionary build's two accented surfaces.
@@ -361,9 +543,9 @@ mod tests {
             ("applesauce".into(), vec!["applesauce"]),
             ("apple-sauce".into(), vec!["applesauce"]),
             ("O'Brien Smith".into(), vec!["obrien", "smith"]),
-            ("apple & sauce 2026".into(), vec!["apple", "sauce"]),
+            ("apple & sauce 2026".into(), vec!["apple", "&", "sauce", "2026"]),
             ("Beyoncé Knowles".into(), vec!["beyonce", "knowles"]),
-            ("Straße 9".into(), vec!["strasse"]),
+            ("Straße 9".into(), vec!["strasse", "9"]),
             (between(0xa0), vec!["apple", "sauce"]),
             (between(0x85), vec!["apple", "sauce"]),
             (between(0x2028), vec!["apple", "sauce"]),
@@ -371,8 +553,9 @@ mod tests {
             (between(0xfeff), vec!["apple", "sauce"]),
             (between(0x200b), vec!["applesauce"]),
             (String::new(), vec![]),
-            ("1234 !!".into(), vec![]),
+            ("1234 !!".into(), vec!["1234"]),
             ("!! ??".into(), vec![]),
+            ("Blink-182 Ke$ha".into(), vec!["blink182", "ke$ha"]),
         ];
         for (input, expected) in &cases {
             assert_eq!(&text_words(input), expected, "{input:?}");

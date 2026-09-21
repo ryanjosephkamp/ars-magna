@@ -1,5 +1,6 @@
 /**
- * Text -> the letters the search actually uses.
+ * Text -> the pool the search actually uses: its letters as `[a-z]`, and its
+ * digits and symbols as themselves.
  *
  * Every accented letter is forced to its unaccented base letter, so "Beyoncé"
  * has three e's and "Björk" is searched as "bjork". The mapping is a generated
@@ -14,29 +15,31 @@
  * sides, and `fold.test.ts` checks it against the browser's own NFKD over the
  * covered ranges, so the two cannot drift.
  *
- * Numbers and the symbols `@ $ ! ? & % + #` are the input's items
- * (`readings.ts`, roadmap phase N, the literal rule): nothing is converted,
- * and until the literal phase counts them as characters of the pool every
- * item is left out, so "Blink-182" has the letters of *blink* and "Ke$ha"
- * those of *keha*, and the line under the field says which items were left
- * out. Everything else that is not a Latin letter — punctuation, spaces,
- * other scripts, emoji — is ignored. Letters of other scripts, other symbols
- * and the items left out are *counted* as skipped so the interface can say
- * so; spaces and punctuation are not, because "O'Brien-Smith" losing its
- * apostrophe and hyphen is what everyone expects and "2 characters skipped"
- * would be noise.
+ * A digit, or one of the symbols `@ $ & % + #` (`!` and `?` inside a word), is
+ * a character of the pool (`readings.ts`, roadmap phase N, the literal rule):
+ * "Blink-182" is the pool `blink182` and "Ke$ha" is `ke$ha`, a term of an
+ * anagram uses each as itself, and the line under the field says how each
+ * stands (`1 as itself`). A reader may read one as a letter (`$` as s) or
+ * leave it out; that is the `reading`. Everything else that is not a Latin
+ * letter — punctuation, spaces, other scripts, emoji — is ignored. Letters of
+ * other scripts, other symbols and the items left out are *counted* as
+ * skipped so the interface can say so; spaces and punctuation are not, because
+ * "O'Brien-Smith" losing its apostrophe and hyphen is what everyone expects
+ * and "2 characters skipped" would be noise.
  *
- * This must agree exactly with `normalize()` in `crates/anagram-core` and with
- * `tools/dict-build/src/normalize.ts`, which delegates here.
+ * This must agree exactly with `normalize()` in `crates/anagram-core`.
+ * `tools/dict-build/src/normalize.ts` folds the dictionary's sources with
+ * `legacyLetters`, the fold as it was before phase N.
  */
 import { FOLD_TABLE } from './foldTable.ts';
-import { NO_READING, readText, type Reading } from './readings.ts';
+import { NO_READING, isPoolChar, readText, type Reading } from './readings.ts';
+import { CHARACTERS } from './readingsTable.ts';
 
 /** Letters of any script, digits, and "other symbols" (which is where emoji live). */
 const COUNTS_AS_SKIPPED = /^[\p{L}\p{N}\p{So}]$/u;
 
 export type Folded = {
-  /** Lowercase `[a-z]` only, in input order. */
+  /** The pool: lowercase `[a-z]`, digits and the symbols of the set, in input order. */
   readonly letters: string;
   /** Characters that carried something and were ignored (see above). */
   readonly skipped: number;
@@ -54,12 +57,13 @@ export function foldChar(char: string): string {
 
 /**
  * Whether one code point carries something the search ignores and the page
- * should say so: a digit, a symbol, a letter of another script. Spaces,
- * punctuation, apostrophes and hyphens are ignored without a word, and a
- * letter that folds is not skipped at all.
+ * should say so: a symbol outside the set, a letter of another script, an
+ * emoji. Spaces, punctuation, apostrophes and hyphens are ignored without a
+ * word; a letter that folds is not skipped at all, and nor is a digit or a
+ * symbol of the pool, which the search uses as itself (`isPoolChar`).
  */
 export function isSkipped(char: string): boolean {
-  return foldChar(char).length === 0 && COUNTS_AS_SKIPPED.test(char);
+  return foldChar(char).length === 0 && !isPoolChar(char) && COUNTS_AS_SKIPPED.test(char);
 }
 
 export function foldLetters(input: string, reading: Reading = NO_READING): Folded {
@@ -69,24 +73,29 @@ export function foldLetters(input: string, reading: Reading = NO_READING): Folde
   for (const char of read.text) {
     const folded = foldChar(char);
     if (folded.length > 0) letters += folded;
+    // The reading step left it in, so it is an item read as itself.
+    else if (isPoolChar(char)) letters += char;
     else if (COUNTS_AS_SKIPPED.test(char)) skipped++;
   }
   return { letters, skipped };
 }
 
+/** Every digit and symbol of the pool's set, for `legacyLetters` to strip. None needs escaping in a character class. */
+const POOL_CHARS = new RegExp(`[${Object.keys(CHARACTERS).join('')}]`, 'g');
+
 /**
- * The fold as it was before phase N (2026-09-21): every digit removed, the
- * symbols of the set dropped, the letters kept, an ordinal's suffix among
- * them ("18th BRICS summit" was `thbricssummit`). What a record with no
- * `reading` was made with, so its id and letters stay, and what the
- * dictionary build folds the frequency list with, so the artifact stays
- * byte for byte what it was.
+ * The fold as it was before phase N (2026-09-21): every digit and every
+ * symbol of the set removed, the letters kept, an ordinal's suffix among them
+ * ("18th BRICS summit" was `thbricssummit`, "Vishwanath & Sons" was
+ * `vishwanathsons`). What a record with no `reading` was made with, so its id
+ * and letters stay, and what the dictionary build folds its sources with, so
+ * the artifact stays byte for byte what it was.
  */
 export function legacyLetters(input: string): string {
-  return normalizeLetters(input.replace(/[0-9]/g, ''));
+  return normalizeLetters(input.replace(POOL_CHARS, ''));
 }
 
-/** The common case: just the letters. */
+/** The common case: just the pool. */
 export function normalizeLetters(input: string, reading: Reading = NO_READING): string {
   return foldLetters(input, reading).letters;
 }
@@ -99,16 +108,17 @@ export function normalizeLetters(input: string, reading: Reading = NO_READING): 
 const WORD_BREAK = /[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/u;
 
 /**
- * Text -> its words, each folded to its letters: what the engine is sent, so
- * it knows what the text's own words are. The text itself, its words in any
- * order, is never one of its results, while the same letters spaced
+ * Text -> its tokens, each folded to its pool: what the engine is sent, so it
+ * knows what the text's own words are. The text itself, its words in any
+ * order, is never one of its results, while the same characters spaced
  * differently are.
  *
- * Split on whitespace only, after the reading step, so a spelled number is
- * its words ("Area 51" is `area`, `fifty`, `one`). A hyphen or an apostrophe
- * carries no letters, so "apple-sauce" is the one word `applesauce`; a piece
- * that folds to nothing ("!!") is not a word and is left out. Joined back
- * together the words are exactly `normalizeLetters(input)`.
+ * Split on whitespace only, after the reading step ("Area 51" is `area` and
+ * `51`; under `{ '5': 'drop' }` it is `area` and `1`). A hyphen or an
+ * apostrophe carries no letters, so "apple-sauce" is the one word
+ * `applesauce`; a piece that folds to nothing ("!!") is not a word and is
+ * left out. Joined back together the tokens are exactly
+ * `normalizeLetters(input)`.
  */
 export function foldWords(input: string, reading: Reading = NO_READING): string[] {
   return readText(input, reading)

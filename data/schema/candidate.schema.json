@@ -10,7 +10,7 @@
     "id": {
       "type": "string",
       "description": "The input's folded letters, a colon, and the category. Stable under accents, spacing and punctuation, so 'Beyoncé' and 'beyonce' are one candidate.",
-      "pattern": "^[a-z]+:(people|companies|products|titles|places|phrases)$"
+      "pattern": "^[a-z0-9@$&%+#!?]+:(people|companies|products|titles|places|phrases)$"
     },
     "input": { "type": "string", "minLength": 1, "description": "The text as a person would write it." },
     "category": { "$ref": "#/$defs/category" },
@@ -71,9 +71,9 @@
     },
     "reading": {
       "type": "object",
-      "propertyNames": { "pattern": "^([0-9]+(st|nd|rd|th)?|[@$!&+])$" },
-      "additionalProperties": { "type": "string", "pattern": "^(spell|digits|year|letter|drop|zero|oh|one|won|two|to|too|three|four|for|five|six|seven|eight|ate|nine)$" },
-      "description": "How each number and symbol of the input is read, every item of it, keyed by the item as typed without thousands separators (182, 9th, @) with the reading name: spell, digits, year, letter, drop, or a homophone word (to, too, for, ate, won, oh). Absent on a candidate made before phase N, when every number and symbol was dropped; hits:enumerate reads such a candidate afresh and re-ids it when its turn comes. The id follows the reading."
+      "propertyNames": { "pattern": "^([0-9@$&%+#!?]|[0-9]+(st|nd|rd|th)?)$" },
+      "additionalProperties": { "type": "string", "pattern": "^(self|drop|[a-z]|spell|digits|year|letter|zero|oh|one|won|two|to|too|three|four|for|five|six|seven|eight|ate|nine)$" },
+      "description": "How each digit and symbol of the input is read, every distinct one, keyed by the character (1, 8, 2, $) with the reading name: self (the character is a character of the pool, used by an anagram as itself), a letter (a leet reading: $ as s, 7 as v; the anagram is written with the character where the letter went), or drop (left out, as the site read every item between the literal-rule fix and N3). Absent on a candidate made before phase N, when every digit and symbol was dropped and the letters kept (legacyLetters). The records made on 2026-09-21 under the withdrawn s5 rule carry run keys (28, 9th) and the readings that day offered (spell); the tools keep their ids and never recompute them. The id follows the reading."
     }
   },
   "$defs": {

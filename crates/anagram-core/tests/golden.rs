@@ -10,7 +10,7 @@
 //! class). Asserting on surface strings would make these tests fail for a
 //! correct engine, and would break again every time frequency data shifted.
 
-use anagram_core::{Counts, Dict, Flow, Memo, Search, SolveOptions, TextRow, Tier};
+use anagram_core::{Counts, Dict, Flow, Memo, Search, SolveOptions, TextRow, Tier, Scope};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -41,7 +41,7 @@ fn load() -> Option<Dict> {
     let tiers = artifact(&manifest, "tiers")?;
     let dict_bytes = fs::read(dir.join(full)).ok()?;
     let tier_bytes = fs::read(dir.join(tiers)).ok()?;
-    Dict::decode(&dict_bytes, Some(&tier_bytes)).ok()
+    Dict::decode(&dict_bytes, Some(&tier_bytes), None).ok()
 }
 
 macro_rules! dict_or_skip {
@@ -115,18 +115,24 @@ fn the_name_is_an_anagram_of_what_the_site_does() {
 }
 
 #[test]
-fn punctuation_digits_and_case_are_ignored() {
+fn punctuation_and_case_are_ignored_and_a_digit_is_a_character() {
     let dict = dict_or_skip!();
-    // All three are the one word `dormitory`, so all three must agree. A
-    // hyphen, an apostrophe and punctuation carry no letters and end no word.
+    // All of these are the one word `dormitory`, so all must agree. A hyphen,
+    // an apostrophe and punctuation carry no letters and end no word.
     let reference = solutions(&dict, "dormitory", opts(3, 2));
-    for variant in ["DORMITORY", "Dor-mit'ory", "dormitory!!", "dormitory, .", "dormitory 123"] {
+    for variant in ["DORMITORY", "Dor-mit'ory", "dormitory!!", "dormitory, ."] {
         assert_eq!(
             solutions(&dict, variant, opts(3, 2)),
             reference,
             "{variant:?} did not normalize to \"dormitory\""
         );
     }
+    // A digit is a character of the pool (the literal rule): no word has one,
+    // so with words alone the text has no anagram, and the search says which
+    // characters nothing covers rather than quietly searching the letters.
+    let search = Search::prepare(&dict, "dormitory 123", opts(3, 2)).unwrap();
+    assert_eq!(search.uncovered(), "123");
+    assert!(solutions(&dict, "dormitory 123", opts(3, 2)).is_empty());
 
     // Spaces do end a word. The same letters typed apart are not the word
     // `dormitory`, so that row is a result of theirs, a re-spacing, where
@@ -195,12 +201,12 @@ fn every_word_returned_is_in_the_dictionary_and_tier() {
         };
         let search = Search::prepare(&dict, "ryanjosephkamp", options).unwrap();
         search.enumerate(|classes| {
-            for word in search.spell(&dict, classes, tier) {
+            for word in search.spell(&dict, classes) {
                 let index = *lookup
                     .get(word.as_str())
                     .unwrap_or_else(|| panic!("{word:?} is not in the dictionary"));
                 assert!(
-                    dict.in_tier(index as u32, tier),
+                    dict.in_scope(index as u32, Scope::tier(tier)),
                     "{word:?} is not a member of {tier:?}"
                 );
                 assert!(word.len() >= 3, "{word:?} is shorter than minWordLen");
@@ -345,7 +351,7 @@ fn a_pinned_word_is_shown_as_the_word_that_was_pinned() {
 
         let mut rows = 0usize;
         search.enumerate(|classes| {
-            let words = search.spell(&dict, classes, Tier::Standard);
+            let words = search.spell(&dict, classes);
             assert!(
                 words.iter().any(|w| w == pinned),
                 "{input:?} pinned to {pinned:?} showed {words:?}"
@@ -357,7 +363,7 @@ fn a_pinned_word_is_shown_as_the_word_that_was_pinned() {
 
         // Unranked results are spelled the same way as streamed ones.
         let first = search.nth(&mut Memo::new(), 0).unwrap();
-        assert!(search.spell(&dict, &first, Tier::Standard).iter().any(|w| w == pinned));
+        assert!(search.spell(&dict, &first).iter().any(|w| w == pinned));
     }
 }
 
@@ -428,14 +434,14 @@ fn class_index_agrees_with_a_linear_scan() {
     let scan = |word: &str, tier: Tier| -> Option<usize> {
         let counts = Counts::from_word(word)?;
         dict.classes.iter().position(|c| {
-            c.counts == counts && c.words.iter().any(|&i| dict.word(i) == word && dict.in_tier(i, tier))
+            c.counts == counts && c.words.iter().any(|&i| dict.word(i) == word && dict.in_scope(i, Scope::tier(tier)))
         })
     };
 
     let mut checked = 0usize;
     for word in dict.words.iter().step_by(97) {
         for tier in [Tier::Common, Tier::Standard, Tier::Full] {
-            assert_eq!(dict.find_class(word, tier), scan(word, tier), "{word:?} at {tier:?}");
+            assert_eq!(dict.find_class(word, Scope::tier(tier)), scan(word, tier), "{word:?} at {tier:?}");
             checked += 1;
         }
     }
@@ -443,7 +449,7 @@ fn class_index_agrees_with_a_linear_scan() {
 
     // Words that are not in the list at all, including anagrams of real words.
     for word in ["tinsle", "zzzz", "beyonce", "arsmagna"] {
-        assert_eq!(dict.find_class(word, Tier::Full), scan(word, Tier::Full), "{word:?}");
+        assert_eq!(dict.find_class(word, Scope::tier(Tier::Full)), scan(word, Tier::Full), "{word:?}");
     }
 }
 
@@ -636,7 +642,7 @@ fn a_short_word_outside_the_query_tier_does_not_admit_its_class() {
         .words
         .iter()
         .enumerate()
-        .find(|(i, w)| w.len() == 2 && !dict.in_tier(*i as u32, Tier::Common))
+        .find(|(i, w)| w.len() == 2 && !dict.in_scope(*i as u32, Scope::tier(Tier::Common)))
         .map(|(_, w)| w.as_str())
     else {
         eprintln!("skipping: every two-letter word is Common in this dictionary");
@@ -726,7 +732,7 @@ fn the_text_is_never_its_own_result_on_the_shipped_dictionary() {
         let mut rows = 0u128;
         let mut found: Option<Vec<String>> = None;
         search.enumerate(|classes| {
-            let mut words = search.spell(&dict, classes, Tier::Standard);
+            let mut words = search.spell(&dict, classes);
             words.sort();
             assert_ne!(words, typed, "{text:?} is one of its own results");
             let mut sig: Vec<Counts> = classes.iter().map(|&c| dict.classes[c as usize].counts).collect();
@@ -793,12 +799,12 @@ fn must_include_of_every_word_of_the_text_leaves_nothing() {
     let first = search.nth(&mut Memo::new(), 0).unwrap();
     let mut rows = Vec::new();
     search.enumerate(|classes| {
-        rows.push(search.spell(&dict, classes, Tier::Standard));
+        rows.push(search.spell(&dict, classes));
         Flow::Continue
     });
     assert!(rows.contains(&vec!["house".to_owned(), "appel".to_owned()]), "{:?}", &rows[..rows.len().min(5)]);
     assert!(!rows.contains(&vec!["house".to_owned(), "apple".to_owned()]));
-    assert_eq!(first[0], dict.find_class("house", Tier::Standard).unwrap() as u32);
+    assert_eq!(first[0], dict.find_class("house", Scope::tier(Tier::Standard)).unwrap() as u32);
 
     // The other spelling pinned: the row already differs from the text.
     let search = Search::prepare(&dict, "apple house", pinned(&["appel"])).unwrap();

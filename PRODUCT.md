@@ -33,11 +33,14 @@ Two things make this different from the anagram tools that already exist:
    never a mystery.
 
 Every character typed is accounted for, and nothing typed is ever replaced by
-something else: an accented letter folds to its base letter, and a number or a
-symbol is left out, with the line under the field saying which. A number is
-never read as its name, and a symbol never as a letter or a word. An anagram
-rearranges what was typed; only spaces, punctuation, apostrophes, hyphens and
-capitals may be added or taken away.
+something else: an accented letter folds to its base letter, and a digit or a
+symbol is a character of the text as itself, with the line under the field
+saying how each stands. A number is never read as its name, and a symbol never
+as a letter or a word, unless the reader chooses a leet reading for that one
+character and the result says so. An anagram rearranges what was typed; only
+spaces, punctuation, apostrophes, hyphens and capitals may be added or taken
+away. Every term of an anagram is a word of the dictionary or a term of a
+labelled class, and words alone is the default.
 
 Success is a user finding the specific rearrangement they were looking for, and
 trusting that if it were not shown, it does not exist.

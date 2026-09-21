@@ -54,20 +54,34 @@ export type Config = { name: string; file: string; rows: Hit[] };
  */
 export type PublishedSense = { word: string; sense: string };
 export type PublishedReading = { item: string; reading: string };
+/** One term of the anagram that is not a word of the dictionary, with its class (decision D63). */
+export type PublishedClass = { term: string; class: string };
 
-export type PublishedRow = Omit<Hit, 'submitter' | 'justification' | 'about' | 'wikipedia' | 'senses' | 'reading'> & {
+export type PublishedRow = Omit<Hit, 'submitter' | 'justification' | 'about' | 'wikipedia' | 'senses' | 'reading' | 'classes'> & {
   submitter: string | null;
   justification: string | null;
   about: string | null;
   wikipedia: string | null;
   senses: PublishedSense[] | null;
   reading: PublishedReading[] | null;
+  /** The terms that are not words, each with its class, in the order the words read; null when every term is a word. */
+  classes: PublishedClass[] | null;
   shelf: Shelf;
 };
 
 /** A hit's reading as a published row lists it, one entry per item in the input's order; null when it has none. */
 export function publishedReading(hit: Pick<Hit, 'reading'>): PublishedReading[] | null {
   const listed = Object.entries(hit.reading ?? {}).map(([item, reading]) => ({ item, reading }));
+  return listed.length > 0 ? listed : null;
+}
+
+/** A hit's classes as a published row lists them, one entry per term in the words' order; null when every term is a word. */
+export function publishedClasses(hit: Pick<Hit, 'words' | 'classes'>): PublishedClass[] | null {
+  const classes = hit.classes ?? {};
+  const listed = [...new Set(hit.words)].flatMap((term) => {
+    const name = classes[term];
+    return name === undefined ? [] : [{ term, class: name }];
+  });
   return listed.length > 0 ? listed : null;
 }
 
@@ -82,7 +96,7 @@ export function publishedSenses(hit: Pick<Hit, 'words' | 'senses'>): PublishedSe
 }
 
 export function publishRow(hit: Hit): PublishedRow {
-  const { submitter, justification, about, wikipedia, senses: _senses, reading: _reading, ...rest } = hit;
+  const { submitter, justification, about, wikipedia, senses: _senses, reading: _reading, classes: _classes, ...rest } = hit;
   const judged = hit.judge
     .filter(isV2)
     .filter((j) => j.justification)
@@ -95,6 +109,7 @@ export function publishRow(hit: Hit): PublishedRow {
     wikipedia: wikipedia ?? null,
     senses: publishedSenses(hit),
     reading: publishedReading(hit),
+    classes: publishedClasses(hit),
     shelf: shelfOf(hit),
   };
 }

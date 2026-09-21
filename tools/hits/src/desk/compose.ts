@@ -93,26 +93,28 @@ export function shellQuote(text: string): string {
 /** Letters that do not decompose into a base letter and a mark. */
 const FOLD: Record<string, string> = { ß: 'ss', æ: 'ae', œ: 'oe', ø: 'o', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i' };
 
-/** A reading of an input's numbers and symbols: item → name, as `@ars-magna/engine/readings` has it. */
+/** A reading of an input's digits and symbols: item → name, as `@ars-magna/engine/readings` has it. */
 export type ReadingMap = Readonly<Record<string, string>>;
 
 /**
  * The engine's reading step, as this file uses it. This file imports nothing,
  * since the page inlines it, so the page (which inlines the engine's
  * `readings.ts` first) and `desk.ts` each hand the functions in with
- * `setReadings`. Until then an input reads as before phase N: no numbers.
+ * `setReadings`. Until then an input reads as letters alone.
  */
 export type Readings = {
-  /** The input with its numbers and symbols read as letters. */
+  /** The input with its digits and symbols read: kept, replaced by a letter, or left out. */
   readInput(input: string, reading?: ReadingMap): string;
   /** The reading of every item, defaults filled in, or null for an input without items. */
   fullReading(input: string, reading?: ReadingMap): Record<string, string> | null;
   /** Why a reading does not fit the input, or null. */
   readingProblem(input: string, reading: ReadingMap): string | null;
-  /** The reading in words: `182 read as one hundred eighty-two`. */
+  /** The reading in words: `1 as itself · $ as s`. */
   describeReading(input: string, reading?: ReadingMap): string;
-  /** `182:digits,2:too` → the map, or null when not written that way. */
+  /** `$:s,4:drop` → the map, or null when not written that way. */
   parseReading(text: string): Record<string, string> | null;
+  /** Whether a character is a digit or a symbol of the pool, which the fold keeps as itself. */
+  isPoolChar(char: string): boolean;
 };
 
 let readings: Readings = {
@@ -121,6 +123,7 @@ let readings: Readings = {
   readingProblem: () => null,
   describeReading: () => '',
   parseReading: () => null,
+  isPoolChar: () => false,
 };
 
 export function setReadings(engine: Readings): void {
@@ -133,13 +136,13 @@ export function readingsOf(): Readings {
 }
 
 /**
- * The input's letters as the pipeline folds them: its numbers and symbols
- * read (by the defaults, or as `reading` says), then lowercase a to z, accents
- * removed, nothing else.
+ * The input's pool as the pipeline folds it: its digits and symbols read (by
+ * the defaults, or as `reading` says), then lowercase a to z with accents
+ * removed, and the digits and symbols of the pool as themselves, nothing else.
  */
 export function foldLetters(text: string, reading?: ReadingMap): string {
   const mapped = [...readings.readInput(text, reading).toLowerCase()].map((c) => FOLD[c] ?? c).join('');
-  return mapped.normalize('NFKD').replace(/[^a-z]/g, '');
+  return [...mapped.normalize('NFKD')].filter((c) => (c >= 'a' && c <= 'z') || readings.isPoolChar(c)).join('');
 }
 
 export function candidateIdOf(input: string, category: string, reading?: ReadingMap): string {

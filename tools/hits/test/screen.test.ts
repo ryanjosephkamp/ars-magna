@@ -196,19 +196,20 @@ describe('a reading through the screen', () => {
       id: 'areax:phrases:axe-ra',
       candidate_id: 'areax:phrases',
       letters: 'aaerx',
-      reading: { '51': 'drop' },
+      reading: { '5': 'drop', '1': 'drop' },
     };
     const groups = groupForScreen([area, ...ROWS]);
-    expect(groups[0]!.reading).toEqual({ '51': 'drop' });
+    expect(groups[0]!.reading).toEqual({ '5': 'drop', '1': 'drop' });
     const text = renderScreen(chunkScreen(groups, 100)[0]!, '# prompt', 1, 1);
-    expect(text).toContain('### areax:phrases\n\ninput: Area 51 x\nreading: 51:drop\ncategory: phrases');
+    expect(text).toContain('### areax:phrases\n\ninput: Area 51 x\nreading: 1:drop,5:drop\ncategory: phrases');
     expect(text).not.toContain('reading: \ncategory');
     const sections = parseScreenInputs([text]);
-    expect(sections.get('areax:phrases')!.reading).toEqual({ '51': 'drop' });
+    expect(sections.get('areax:phrases')!.reading).toEqual({ '5': 'drop', '1': 'drop' });
     expect(sections.get('listen:phrases')!.reading).toBeUndefined();
     const { kept } = validateScreen([{ candidate_id: 'areax:phrases', keep: [1] }], new Map([['areax:phrases', sections.get('areax:phrases')!]]));
     const [rebuilt] = rebuildRows(sections, parseScores(renderScores(groups)), kept);
-    expect(rebuilt).toMatchObject({ id: 'areax:phrases:axe-ra', letters: 'aaerx', reading: { '51': 'drop' } });
+    expect(rebuilt).toMatchObject({ id: 'areax:phrases:axe-ra', letters: 'aaerx', reading: { '5': 'drop', '1': 'drop' } });
+    expect(rebuilt!.classes).toBeUndefined();
     // A section with no reading line is a row from before phase N: its letters are the old fold's.
     const legacy = rebuildRows(
       new Map([['reacherseason:titles', { candidate_id: 'reacherseason:titles', input: 'Reacher season 4', category: 'titles', phrases: new Map([[1, 'as one searcher']]) }]]),
@@ -217,5 +218,29 @@ describe('a reading through the screen', () => {
     );
     expect(legacy[0]).toMatchObject({ id: 'reacherseason:titles:as-one-searcher', letters: 'aaceeehnorrss' });
     expect(legacy[0]!.reading).toBeUndefined();
+  });
+
+  it('carries each phrase\'s term classes after a bar, and brings them back on the rebuilt rows', () => {
+    const blink: Prefiltered = {
+      ...row('blink182:titles', 'Blink-182', '1 2 link b8', 4),
+      id: 'blink182:titles:1-2-b8-link',
+      candidate_id: 'blink182:titles',
+      category: 'titles',
+      letters: '128bikln',
+      reading: { '1': 'self', '8': 'self', '2': 'self' },
+      classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' },
+    };
+    const groups = groupForScreen([blink, ...ROWS]);
+    const text = renderScreen(chunkScreen(groups, 100)[0]!, '# prompt', 1, 1);
+    expect(text).toContain('\n1 1 2 link b8 | 1 shorthand · 2 shorthand · b8 blends\n');
+    // A phrase of words alone carries no bar.
+    expect(text).toContain('\n1 no city dust here\n');
+    const sections = parseScreenInputs([text]);
+    expect(sections.get('blink182:titles')!.phrases.get(1)).toBe('1 2 link b8');
+    expect(sections.get('blink182:titles')!.classes?.get(1)).toEqual({ '1': 'shorthand', '2': 'shorthand', b8: 'blends' });
+    expect(sections.get('listen:phrases')!.classes).toBeUndefined();
+    const { kept } = validateScreen([{ candidate_id: 'blink182:titles', keep: [1] }], new Map([['blink182:titles', sections.get('blink182:titles')!]]));
+    const [rebuilt] = rebuildRows(sections, parseScores(renderScores(groups)), kept);
+    expect(rebuilt).toMatchObject({ id: 'blink182:titles:1-2-b8-link', letters: '128bikln', classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' } });
   });
 });

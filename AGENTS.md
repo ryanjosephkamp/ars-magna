@@ -10,9 +10,11 @@ Code) adds only what is specific to that harness and never restates a rule from 
 ## Rules that never change
 
 - **Never modify the English OpenList (EOL) or CEOL repositories, datasets, or directories anywhere on
-  this machine.** Dictionary inputs change only through `tools/dict-build/src/pins.ts` and `tiers.ts` and
-  the vocabulary files `data/vocabulary/additions.jsonl` and `forms.jsonl` (`pnpm vocab:add`, `vocab:form`),
-  and a rebuilt dictionary is committed with `[dict]` in the message so CI verifies it.
+  this machine.** Dictionary inputs change only through `tools/dict-build/src/pins.ts` and `tiers.ts`, the
+  vocabulary files `data/vocabulary/additions.jsonl` and `forms.jsonl` (`pnpm vocab:add`, `vocab:form`) and the
+  term class files beside them (`symbols.jsonl`, `shorthand.jsonl`, `blends.jsonl`, `acronyms.jsonl`, `slang.jsonl`,
+  which `dict:build` emits as the `classes` artifact once one has a term), and a rebuilt dictionary is committed
+  with `[dict]` in the message so CI verifies it.
 - Nothing enters the published dataset without a person's merge. A hit is published when a person
   merges the pull request that makes it `accepted`, whether the judge routine shelved it or
   `pnpm hits:set` set it. Greatest Hits (`featured`) changes only when the operator promotes a hit by
@@ -33,9 +35,9 @@ Code) adds only what is specific to that harness and never restates a rule from 
 
 | Path | What |
 |---|---|
-| `crates/anagram-core` | the search (rarest-letter runs, memoized counting, unranking, `Cursor`) |
+| `crates/anagram-core` | the search (rarest-letter runs, memoized counting, unranking, `Cursor`), the pool (`counts.rs`, six slots per query for a text's digits and symbols), the term classes (`classes.rs`, `dict.rs`) and the leet pieces (`expanded.rs`) |
 | `crates/anagram-cli` | `anagram solve\|count\|bench\|batch\|check` |
-| `packages/engine` | worker protocol, `fold.ts` (accent folding), `readings.ts` (the numbers and symbols of an input, left out under the literal rule, over the table `scripts/readings.json` shared with `crates/anagram-core/src/readings.rs`), `node.ts` (engine under Node), `definitions.ts` |
+| `packages/engine` | worker protocol (`Query.classes`, `Query.leet`, a row's tags), `fold.ts` (accent folding; the pool: letters, digits and the symbols `@ $ & % + #`), `readings.ts` (how each digit and symbol of an input stands: itself, a leet letter, or left out, over the table `scripts/readings.json` shared with `crates/anagram-core/src/readings.rs`), `node.ts` (engine under Node), `definitions.ts` |
 | `packages/mcp` | MCP server (stdio): solve, count, nth, explain_word, propose_hit |
 | `apps/web` | the site; `hits.html` is the Discover page (Greatest Hits, Interesting, A stretch), built from `data/hits.jsonl`; `build.html` is the Build page (`src/build/`) |
 | `apps/web/src/lib` | pure modules the components lean on: `orderings.ts`, `chosen.ts`, `share.ts`, `urlState.ts`, `resultView.ts`, `exporters.ts`, and Build's `ledger.ts`, `checks.ts`, `analysis.ts`, `letterChart.ts`, `letterMap.ts` and `textCount.ts` |
@@ -83,6 +85,9 @@ pnpm hits:desk --audit                        # build the Greatest Hits audit in
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
 pnpm names:build                              # the names list, data/vocabulary/names.jsonl (phase Q1); --verify compares with the committed one
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
+cargo run --release -p anagram-cli -- solve "Blink-182" --classes=shorthand,blends   # the term classes admitted (D63)
+cargo run --release -p anagram-cli -- solve 'Ke$ha' --leet='$'                       # $ tried as s, written back where the s went
+cargo run --release -p anagram-cli -- check 'Ke$ha' "shake" --read='$:s'             # a fixed reading of one character
 ```
 
 The last four of the first five lines are **the four suites**. `pnpm dict:fetch && pnpm dict:build`

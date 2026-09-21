@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
+import type { ClassName } from '@ars-magna/engine/protocol';
 import type { Category } from './ids.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -47,10 +48,10 @@ export type Candidate = {
   /** Each queue this candidate went through, oldest first. None means settings s1 and rubric v1. */
   runs?: CandidateRun[];
   /**
-   * How each number and symbol of the input is read, every item of it (phase
-   * N): `{"4": "spell"}`. None means the candidate was made before phase N,
-   * when every item was dropped; `hits:enumerate` reads such a candidate
-   * afresh and re-ids it when its turn comes.
+   * How each digit and symbol of the input is read, every distinct one (the
+   * literal rule): `{"4": "self"}`, `{"$": "s"}`, `{"4": "drop"}`. None means
+   * the candidate was made before phase N, when every digit and symbol was
+   * dropped and the letters kept.
    */
   reading?: Record<string, string>;
 };
@@ -130,11 +131,19 @@ export type Hit = {
   display: string;
   letters: string;
   /**
-   * How each number and symbol of the input is read, every item of it (phase
-   * N): `{"4": "drop"}` on "Reacher season 4" keeps its letters as they were.
-   * None means the hit was made before phase N, when every item was dropped.
+   * How each digit and symbol of the input is read, every distinct one (the
+   * literal rule): `{"4": "drop"}` on "Reacher season 4" keeps its letters as
+   * they were; `{"$": "s"}` is a leet reading. None means the hit was made
+   * before phase N, when every digit and symbol was dropped.
    */
   reading?: Record<string, string>;
+  /**
+   * The class of each term that is not a word of the dictionary, keyed by the
+   * term as `words` has it (decision D63): `{"b8": "blends", "1": "shorthand"}`,
+   * or `{"hakes": "leet"}` for the word that carries a leet character. None
+   * means every term is a word.
+   */
+  classes?: Record<string, ClassName>;
   prefilter_score: number;
   judge: Judgement[];
   submitter?: string;

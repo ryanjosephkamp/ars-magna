@@ -13,7 +13,7 @@
     "id": {
       "type": "string",
       "description": "The candidate id, a colon, and the words sorted and joined with '-'. Two hits with the same words on the same input are the same hit.",
-      "pattern": "^[a-z]+:(people|companies|products|titles|places|phrases):[a-z]+(-[a-z]+)*$"
+      "pattern": "^[a-z0-9@$&%+#!?]+:(people|companies|products|titles|places|phrases):[a-z0-9@$&%+#!?]+(-[a-z0-9@$&%+#!?]+)*$"
     },
     "input": { "type": "string", "minLength": 1 },
     "category": {
@@ -23,16 +23,23 @@
     "words": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string", "pattern": "^[a-z]+$" },
-      "description": "The words as a multiset, in the order they read best."
+      "items": { "type": "string", "pattern": "^[a-z0-9@$&%+#!?]+$" },
+      "description": "The terms as a multiset, in the order they read best: words of the dictionary as letters, and terms of the labelled classes as their characters (b8, &, 182). A word that carries a leet character is stored as the word (hakes for hake$); the reading says where the character went."
     },
     "display": { "type": "string", "minLength": 1, "maxLength": 200, "description": "How the hit reads on Discover: the words in reading order, as themselves or as listed forms (I'm, don't), with apostrophe, hyphen, comma, full stop, question mark, colon, semicolon and quotation marks, and capitals for I, names, acronyms and the start of a sentence; never an exclamation mark. Set by hits:display or from the judge's checked suggestion; hits:order returns it to the words. The tools check it reads exactly the words." },
-    "letters": { "type": "string", "pattern": "^[a-z]+$", "description": "The sorted letters (alphagram) the input and the words share." },
+    "letters": { "type": "string", "pattern": "^[a-z0-9@$&%+#!?]+$", "description": "The sorted characters (alphagram) the input and the words share, under the hit's reading: letters, and the digits and symbols of the pool." },
     "reading": {
       "type": "object",
-      "propertyNames": { "pattern": "^([0-9]+(st|nd|rd|th)?|[@$!&+])$" },
-      "additionalProperties": { "type": "string", "pattern": "^(spell|digits|year|letter|drop|zero|oh|one|won|two|to|too|three|four|for|five|six|seven|eight|ate|nine)$" },
-      "description": "How each number and symbol of the input is read, every item of it, keyed by the item as typed without thousands separators (182, 9th, @) with the reading name: spell, digits, year, letter, drop, or a homophone word (to, too, for, ate, won, oh). Absent on a hit made before phase N, when every number and symbol was dropped; the id and the letters follow the reading either way."
+      "propertyNames": { "pattern": "^([0-9@$&%+#!?]|[0-9]+(st|nd|rd|th)?)$" },
+      "additionalProperties": { "type": "string", "pattern": "^(self|drop|[a-z]|spell|digits|year|letter|zero|oh|one|won|two|to|too|three|four|for|five|six|seven|eight|ate|nine)$" },
+      "description": "How each digit and symbol of the input is read, every distinct one, keyed by the character (1, 8, 2, $) with the reading name: self (the character is a character of the pool, used by the anagram as itself), a letter (a leet reading: $ as s; the anagram is written with the character where the letter went), or drop (left out). Absent on a hit made before phase N, when every digit and symbol was dropped and the letters kept; the retired hits of 2026-09-21 carry the withdrawn s5 readings and keep their ids. The id and the letters follow the reading either way."
+    },
+    "classes": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z0-9@$&%+#!?]+$" },
+      "additionalProperties": { "type": "string", "enum": ["numerals", "symbols", "shorthand", "blends", "acronyms", "leet", "names", "slang"] },
+      "description": "The class of each term of the anagram that is not a word of the dictionary, keyed by the term as `words` has it (decision D63): a numeral of the input's digits, a symbol, a shorthand character, a blend, an acronym, a name, a slang word, or the word that carries a leet character (leet). Absent when every term is a word, which is every hit made before the literal phase."
     },
     "prefilter_score": { "type": "number" },
     "judge": {
@@ -92,7 +99,7 @@
       "type": "object",
       "description": "Senses keyed by word: one sentence of at most 120 characters each.",
       "minProperties": 1,
-      "propertyNames": { "type": "string", "pattern": "^[a-z]+$" },
+      "propertyNames": { "type": "string", "pattern": "^[a-z0-9@$&%+#!?]+$" },
       "additionalProperties": {
         "type": "string",
         "maxLength": 120,

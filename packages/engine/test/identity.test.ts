@@ -51,16 +51,24 @@ describe('the text itself', () => {
 });
 
 describe('the text with a number or a symbol in it', () => {
-  it('is its own words with the item left out, and a re-spacing of those letters', () => {
-    // Under the literal rule the 2s are left out: "2 Fast 2 Furious" has the words fast and furious.
-    expect(isTextItself('2 Fast 2 Furious', ['furious', 'fast'])).toBe(true);
+  it('is its own tokens over the pool, or a re-spacing of its characters', () => {
+    // Under the literal rule the 2s are characters of the text: its tokens are `2`, `fast`, `2`, `furious`.
+    expect(isTextItself('2 Fast 2 Furious', ['furious', '2', 'fast', '2'])).toBe(true);
+    expect(isTextItself('2 Fast 2 Furious', ['furious', 'fast'])).toBe(false);
     expect(isTextItself('2 Fast 2 Furious', ['furious', 'two', 'fast', 'two'])).toBe(false);
+    // Read with the 2s left out, the text is `fast furious`.
     expect(isTextItself('2 Fast 2 Furious', ['furious', 'fast'], { '2': 'drop' })).toBe(true);
-    expect(isTextItself('Area 51', ['area'])).toBe(true);
-    expect(isTextItself('Area 51', 'ar ea')).toBe(true);
-    expect(sameWords('Blink-182', ['blink'])).toBe(true);
-    expect(sameWords('Reacher season 4', ['reacher', 'season'])).toBe(true);
+    expect(isTextItself('Area 51', ['area', '51'])).toBe(true);
+    expect(isTextItself('Area 51', 'ar ea51')).toBe(true);
+    expect(isTextItself('Area 51', ['area'])).toBe(false);
+    // Under a leet reading the text is its letters: `kesha`, and `hakes` is not it.
+    expect(isTextItself('Ke$ha', ['kesha'], { $: 's' })).toBe(true);
+    expect(isTextItself('Ke$ha', ['hakes'], { $: 's' })).toBe(false);
+    expect(sameWords('Blink-182', ['blink182'])).toBe(true);
+    expect(sameWords('Blink-182', ['blink'])).toBe(false);
+    expect(sameWords('Reacher season 4', ['reacher', 'season', '4'])).toBe(true);
     expect(sameWords('Reacher season 4', ['reacher', 'season'], { '4': 'drop' })).toBe(true);
+    expect(sameWords('Reacher season 4', ['reacher', 'season'])).toBe(false);
     expect(sameWords('Reacher season 4', ['reacher', 'season', 'four'])).toBe(false);
   });
 });

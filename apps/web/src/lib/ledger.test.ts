@@ -6,14 +6,17 @@ const tray = (text: string, anagram: string) =>
 
 describe('foldText', () => {
   it('folds as the search does and lists what it skipped, once each', () => {
-    // A number and a symbol of the set are left out and listed once, as typed (the literal rule).
-    expect(foldText('Beyoncé 4 & 44 Ж')).toEqual({ letters: 'beyonce', skipped: ['4', '&', '44', 'Ж'] });
-    expect(foldText('Beyoncé 4 & 44 Ж', { '4': 'drop', '44': 'drop' })).toEqual({ letters: 'beyonce', skipped: ['4', '&', '44', 'Ж'] });
-    expect(foldText('Beverly Hills 90210 ©')).toEqual({ letters: 'beverlyhills', skipped: ['90210', '©'] });
+    // A digit and a symbol of the set are characters the search uses as themselves (the literal
+    // rule); until the page counts the pool (roadmap N5) the ledger lists each run once, as typed.
+    expect(foldText('Beyoncé 4 & 44 Ж')).toEqual({ letters: 'beyonce', skipped: ['4', '&', '44', 'Ж'], skippedCount: 5 });
+    // A character a reading leaves out is listed once, every occurrence counted.
+    expect(foldText('Beyoncé 4 & 44 Ж', { '4': 'drop' })).toEqual({ letters: 'beyonce', skipped: ['4', '&', 'Ж'], skippedCount: 5 });
+    expect(foldText('Beverly Hills 90210 ©')).toEqual({ letters: 'beverlyhills', skipped: ['90210', '©'], skippedCount: 6 });
+    expect(foldText('Ke$ha', { $: 's' })).toEqual({ letters: 'kesha', skipped: [], skippedCount: 0 });
   });
 
   it('ignores apostrophes, hyphens and punctuation without listing them', () => {
-    expect(foldText("jack-o'-lantern, it's.")).toEqual({ letters: 'jackolanternits', skipped: [] });
+    expect(foldText("jack-o'-lantern, it's.")).toEqual({ letters: 'jackolanternits', skipped: [], skippedCount: 0 });
   });
 });
 
@@ -89,9 +92,10 @@ describe('the letters line', () => {
     expect(lettersLine(foldText('Dario Amodei'))).toBe('11 letters');
     expect(lettersLine(foldText('I'))).toBe('1 letter');
     expect(lettersLine(foldText('Route 66 & Ж'))).toBe('5 letters · 4 characters skipped: 66 & Ж');
-    expect(lettersLine(foldText('Route 66 & Ж', { '66': 'drop' }))).toBe('5 letters · 4 characters skipped: 66 & Ж');
+    expect(lettersLine(foldText('Route 66 & Ж', { '6': 'drop' }))).toBe('5 letters · 4 characters skipped: 6 & Ж');
     expect(lettersLine(foldText('Route 6'))).toBe('5 letters · 1 character skipped: 6');
-    expect(lettersLine(foldText('the 1000th man'))).toBe('6 letters · 6 characters skipped: 1000th');
+    // An ordinal's suffix is letters under the literal rule.
+    expect(lettersLine(foldText('the 1000th man'))).toBe('8 letters · 4 characters skipped: 1000');
     expect(lettersLine(foldText('   '))).toBe('');
   });
 });

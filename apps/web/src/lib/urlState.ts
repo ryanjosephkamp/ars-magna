@@ -87,6 +87,10 @@ export function decodeQuery(hash: string): Query {
   return {
     input,
     tier,
+    // The term classes and leet are the site's defaults until N5 gives the
+    // page its control and carries them in the address.
+    classes: DEFAULT_QUERY.classes,
+    leet: DEFAULT_QUERY.leet,
     minWordLen: clampInt(params.get(KEY.minWordLen), 1, 12, DEFAULT_QUERY.minWordLen),
     maxWords: clampInt(params.get(KEY.maxWords), 1, UNLIMITED_WORDS, DEFAULT_QUERY.maxWords),
     mustInclude,
@@ -97,8 +101,8 @@ export function decodeQuery(hash: string): Query {
 
 /**
  * The readings a link carries, kept only where the input has the item and
- * the item offers the reading: a link cannot make the page read a number a
- * way the table does not know.
+ * the item offers the reading (`self`, a letter, `drop`): a link cannot make
+ * the page read a number a way the table does not know.
  */
 export function decodeReading(raw: string | null, input: string): Reading {
   if (!raw) return DEFAULT_QUERY.reading;
@@ -265,8 +269,9 @@ export function buildHref(text: string, anagram = '', reading: Reading = DEFAULT
 
 /**
  * Where the search opens on a hit's input, read as the hit records it: a hit
- * made before phase N carries no reading and was read with every number
- * dropped, so its link says so, and one read by the defaults needs nothing.
+ * made before phase N carries no reading and was read with every digit and
+ * symbol left out, so its link says so (`r=4:drop`), and one read by the
+ * defaults, every character as itself, needs nothing.
  */
 export function searchHref(input: string, reading: Reading | null | undefined): string {
   const encoded = encodeQuery({ ...DEFAULT_QUERY, input, reading: reading ?? legacyReading(input) });

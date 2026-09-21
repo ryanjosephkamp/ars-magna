@@ -1,8 +1,10 @@
 //! Ars Magna — multi-word anagram search.
 //!
-//! Given a phrase, find every way its exact letters can be re-partitioned into
-//! dictionary words. Punctuation, digits and spacing are discarded; what remains
-//! is a multiset of 26 letters that must be consumed completely.
+//! Given a text, find every way its exact characters can be re-partitioned into
+//! dictionary words and the terms of the labelled classes (the literal rule,
+//! decisions D62 and D63). Punctuation and spacing are discarded; what remains
+//! is a multiset of its letters, digits and symbols that must be consumed
+//! completely: the pool.
 //!
 //! ```
 //! use anagram_core::{Dict, Search, SolveOptions, Tier};
@@ -13,7 +15,7 @@
 //!
 //! let mut found = Vec::new();
 //! search.enumerate(|classes| {
-//!     found.push(search.spell(&dict, classes, Tier::Full));
+//!     found.push(search.spell(&dict, classes));
 //!     anagram_core::Flow::Continue
 //! });
 //!
@@ -28,26 +30,33 @@
 //! }));
 //! ```
 //!
-//! Use [`Dict::class_words`] to recover the other spellings of a result.
+//! Use [`Search::spellings`] to recover the other spellings of a result.
 //!
 //! The text itself is never one of its own results: `dormitory` is a word
 //! here and no other word shares its letters, so the search leaves that row
 //! out and [`Search::text_row`] says so. See the `search` module docs.
 
+pub mod classes;
 pub mod counts;
 pub mod dict;
+pub mod expanded;
 mod fold_table;
 pub mod readings;
 mod readings_table;
 pub mod search;
 
-pub use counts::{normalize, normalize_with, text_words, text_words_with, Counts};
-pub use readings::{items as reading_items, parse_reading, read_input, reading_problem, Item as ReadingItem};
+pub use classes::{class_names, parse_classes, Class, ClassMask, WORDS};
+pub use counts::{is_pool_char, normalize, normalize_with, text_words, text_words_with, Counts, PoolError, Slots};
+pub use dict::{is_term, Dict, DictError, Scope, SigClass, TermList, Tier, TierBits, WordList};
+pub use expanded::{Expanded, MergedCursor, Piece, Row};
+pub use readings::{
+    describe_reading, items as reading_items, letters_of, parse_reading, read_input, reading_problem, Item as ReadingItem, DROP,
+    SELF,
+};
 pub use readings_table::DEFAULTS as READING_DEFAULTS;
-pub use dict::{Dict, DictError, SigClass, Tier, TierBits, WordList};
 pub use search::{
-    Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, TextRow,
-    DEFAULT_MEMO_CAP, UNLIMITED_WORDS,
+    Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, TextRow, DEFAULT_MEMO_CAP, NUMERAL_CAP,
+    UNLIMITED_WORDS,
 };
 
 /// One solution, as words.
@@ -58,11 +67,10 @@ pub type Solution = Vec<String>;
 /// Real callers should use [`Search`] directly so results can be streamed as
 /// they are found rather than collected; this exists for tests and the CLI.
 pub fn solve(dict: &Dict, input: &str, options: SolveOptions) -> Result<Vec<Solution>, SolveError> {
-    let tier = options.tier;
     let search = Search::prepare(dict, input, options)?;
     let mut out = Vec::new();
     search.enumerate(|classes| {
-        out.push(search.spell(dict, classes, tier));
+        out.push(search.spell(dict, classes));
         Flow::Continue
     });
     Ok(out)

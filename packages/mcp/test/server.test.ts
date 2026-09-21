@@ -82,11 +82,14 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     expect(again).toMatchObject({ ok: true, newCandidate: false, newHit: false });
   });
 
-  it('leaves a number out, records that on the candidate and the hit, and refuses a reading that would convert it', async () => {
-    // The 4 is left out (the literal rule), so its name never fits.
+  it('counts a digit as a character of the pool, records the reading on the candidate and the hit, and refuses a reading that would convert it', async () => {
+    // The 4 is a character of the pool (the literal rule): as itself the letters alone are no anagram, and its name never fits.
+    const plain = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'] } }));
+    expect(plain['ok']).toBe(false);
+    expect(String(plain['reason'])).toMatch(/reacherseason4 vs/);
     const spelled = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['four', 'as', 'one', 'searcher'] } }));
     expect(spelled['ok']).toBe(false);
-    expect(String(spelled['reason'])).toMatch(/reacherseason vs/);
+    expect(String(spelled['reason'])).toMatch(/reacherseason4 vs/);
     const unfit = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'], reading: { '4': 'year' } } }));
     expect(String(unfit['reason'])).toMatch(/reading: 4 cannot be read as year/);
     const good = parse(
@@ -100,9 +103,37 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     const hits = (await readFile(join(scratch, 'h.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(candidates.find((c) => c['id'] === 'reacherseason:titles')).toMatchObject({ reading: { '4': 'drop' } });
     expect(hits.find((h) => h['id'] === 'reacherseason:titles:as-one-searcher')).toMatchObject({ letters: 'aaceeehnorrss', reading: { '4': 'drop' } });
-    // Solve reads the input the same way and says so.
+    expect(hits.find((h) => h['id'] === 'reacherseason:titles:as-one-searcher')).not.toHaveProperty('classes');
+    // Solve reads the input the same way and says so; as itself, the count is zero and says why.
     const solved = parse(await client.callTool({ name: 'solve', arguments: { input: 'Reacher season 4', reading: { '4': 'drop' }, first: 1 } }));
-    expect(solved).toMatchObject({ letters: 'aaceeehnorrss', reading: '4 left out' });
+    expect(solved).toMatchObject({ letters: 'aaceeehnorrss', reading: '4 left out', unused: '' });
+    const itself = parse(await client.callTool({ name: 'count', arguments: { input: 'Reacher season 4' } }));
+    expect(itself).toMatchObject({ total: '0', unused: '4' });
+  });
+
+  it('tries a leet reading and writes the character where the letter went, and records a word that carries one as leet', async () => {
+    const solved = parse(await client.callTool({ name: 'solve', arguments: { input: 'Ke$ha', leet: ['$'], minWordLen: 2, first: 5 } }));
+    expect(solved).toMatchObject({ total: '5', unused: '', leet: ['$'] });
+    const results = solved['results'] as string[];
+    expect(results).toHaveLength(5);
+    for (const line of results) expect(line).toMatch(/\$.*\[.* leet, \$ as s\]$/);
+    expect(results.some((line) => line.startsWith('$hake  ['))).toBe(true);
+    // A hit made of it: the word as letters, the reading as the leet choice, the word tagged leet.
+    const good = parse(
+      await client.callTool({
+        name: 'propose_hit',
+        arguments: { input: 'Ke$ha', category: 'people', words: ['shake'], reading: { $: 's' }, classes: { shake: 'leet' }, justification: 'Kesha shakes it.' },
+      }),
+    );
+    expect(good).toMatchObject({ ok: true, hit: 'kesha:people:shake', newCandidate: true, newHit: true });
+    const hits = (await readFile(join(scratch, 'h.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(hits.find((h) => h['id'] === 'kesha:people:shake')).toMatchObject({ letters: 'aehks', reading: { $: 's' }, classes: { shake: 'leet' } });
+    // A class the dictionary does not carry the term in is refused, and so is a class on a plain word.
+    const notTerm = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Blink-182', category: 'titles', words: ['1', '2', 'link', 'b8'], classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' } } }));
+    expect(notTerm).toMatchObject({ ok: false });
+    expect(String(notTerm['reason'])).toMatch(/not a term of shorthand/);
+    const wordClassed = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'dormitory', category: 'phrases', words: ['dirty', 'room'], classes: { room: 'slang' } } }));
+    expect(String(wordClassed['reason'])).toMatch(/"room" is a word of the standard dictionary, so it has no class/);
   });
 
   it('records what the input is on the candidate and the hit, and a rationale as the justification rather than a note tag', async () => {

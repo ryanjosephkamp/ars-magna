@@ -340,11 +340,11 @@ describe.skipIf(!process.env['HITS_LIVE'])('live', () => {
 describe('a title on file under its pre-N id', () => {
   it('is the same candidate, whichever id the fetch computes for it today', () => {
     // "Reacher season 4" has been a candidate since 2026-09-11 as reacherseason:titles, its 4 left out.
-    // The literal rule leaves the 4 out too, so the ids agree; an ordinal or a symbol they would not, and
-    // legacyId says what to look for on file.
+    // Under the literal rule the 4 is a character of the pool, so a fresh fetch would id it reacherseason4:titles;
+    // legacyId says what to look for on file, so the title is never appended twice.
     const [placed] = toCandidates([{ title: 'Reacher season 4', source: 's', weight: 1 }], new Map([['Reacher season 4', { title: 'Reacher season 4', category: 'titles' as const, qid: null, subjects: [], classes: [] }]]), new Map(), '2026-09-22');
-    expect(placed!.id).toBe('reacherseason:titles');
-    expect(placed!.reading).toEqual({ '4': 'drop' });
+    expect(placed!.id).toBe('reacherseason4:titles');
+    expect(placed!.reading).toEqual({ '4': 'self' });
     expect(legacyId(placed!)).toBe('reacherseason:titles');
     expect(legacyId({ input: '18th BRICS summit', category: 'phrases' })).toBe('thbricssummit:phrases');
     expect(legacyId({ input: 'Vishwanath & Sons', category: 'titles' })).toBe('vishwanathsons:titles');

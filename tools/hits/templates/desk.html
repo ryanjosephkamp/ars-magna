@@ -241,7 +241,7 @@
   'use strict';
 
   /* The engine's reading step, inlined above with compose: an input's numbers and symbols read as the site reads them. */
-  setReadings({ readInput: readInput, fullReading: fullReading, readingProblem: readingProblem, describeReading: describeReading, parseReading: parseReading });
+  setReadings({ readInput: readInput, fullReading: fullReading, readingProblem: readingProblem, describeReading: describeReading, parseReading: parseReading, isPoolChar: isPoolChar });
 
   var DATA = JSON.parse(document.getElementById('desk-data').textContent);
   /* The Greatest Hits audit is this page with one tab: every anagram the site's Greatest Hits page shows. */
