@@ -11,7 +11,7 @@ session. This file holds only what is specific to Claude Code.
   rules, recommendations R1–R13, phases V1–V4 with their status, and follow-ups. Its V3 and V4 now run as
   the roadmap's phases C, E and F.
   - It is published as the artifact "Ars Magna Voting Plan":
-    https://claude.ai/code/artifact/9ed9ada5-95f2-4fab-b3e6-5135f0312050.
+    https://claude.ai/artifact/NxXLDPiDUBSE33YHQwUu8z.
 - `~/.claude/plans/flickering-sprouting-scott.md` is the Greatest Hits plan: phases A to I and N1 to N7, with
   the yield table.
   - All are done apart from N7 step 2 (keeping review desk decisions across devices), which is undecided.
@@ -59,16 +59,17 @@ Verifying votes:
 ## Operator manual
 
 `docs/OPERATOR.md` is published as the artifact "Ars Magna Operator Manual":
-https://claude.ai/code/artifact/e9d6ddc9-1c1b-4901-8341-7923708c416c. Republish
+https://claude.ai/artifact/69EsCS7wEfbzrTRYsUHiro. Republish
 to that URL when the file or a template in `docs/prompts/` changes on `main`.
 
-Artifacts belong to the account that published them. `handoff/ARTIFACTS.md` lists every page and the file it
+These four were published again on 2026-09-20 by the Claude account that took the project over that day; the earlier
+addresses stay with the previous account. Artifacts belong to the account that published them. `handoff/ARTIFACTS.md` lists every page and the file it
 was built from, and "Another Claude account, or another machine" in `docs/BOOTSTRAP.md` says what a move takes.
 
 ## Review desk
 
 The review desk for a phone is the private artifact "Ars Magna Review Desk":
-https://claude.ai/code/artifact/ee0c24c8-3d8f-4e95-96e2-a0add07c0485. Publish
+https://claude.ai/artifact/5hzZ5qgDXwbwyuVbCDSBCQ. Publish
 `.cache/desk/artifact.html` from `pnpm hits:desk --artifact` to that URL, as
 `docs/prompts/publish-desk.md` describes, and keep it private: its near misses
 include slurs and insults made from the letters, and a desk built with
@@ -77,6 +78,6 @@ include slurs and insults made from the letters, and a desk built with
 ## Greatest Hits audit
 
 The audit of the site's Discover page is the private artifact "Ars Magna Greatest Hits Audit":
-https://claude.ai/code/artifact/449fac53-c4cf-4877-9273-f91d13226ca6. The `greatest-hits-audit` skill
+https://claude.ai/artifact/PsqmgvQVss8qMpodnSyJU7. The `greatest-hits-audit` skill
 (`.claude/skills/`) publishes `.cache/desk/audit-artifact.html` from `pnpm hits:desk --audit --artifact`
 to that URL, as `docs/prompts/publish-audit.md` describes.
