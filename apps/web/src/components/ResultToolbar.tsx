@@ -1,3 +1,4 @@
+import type { Reading } from '@ars-magna/engine';
 import { useId } from 'react';
 import { SORT_LABEL, SORT_MODES, isSortMode, type SortMode } from '../lib/resultView.ts';
 import { buildHref } from '../lib/urlState.ts';
@@ -22,8 +23,9 @@ type Props = {
   onLoadAll(): void;
   onExport(format: ExportFormat): void;
   exporting: ExportFormat | null;
-  /** The text searched, for the link to Build. */
+  /** The text searched, for the link to Build, and how its numbers and symbols are read. */
   input: string;
+  reading: Reading;
   /**
    * The filter is dictionary words and the list is partial. `label` says how
    * many of every result contain them, as far as the count has got (counting,
@@ -59,6 +61,7 @@ export function ResultToolbar({
   exporting,
   containing,
   input,
+  reading,
 }: Props) {
   const filterId = useId();
   const sortId = useId();
@@ -143,7 +146,7 @@ export function ResultToolbar({
         <div className="flex flex-col gap-1.5">
           <span className="text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase">Build</span>
           <a
-            href={buildHref(input)}
+            href={buildHref(input, '', reading)}
             className="h-[34px] rounded-[3px] border border-rule bg-surface px-2.5 py-1.5 text-sm text-ink-soft
                        transition-colors duration-150 hover:border-accent hover:bg-accent-wash hover:text-accent"
           >

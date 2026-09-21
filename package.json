@@ -44,6 +44,7 @@
     "hits:order": "pnpm --filter @ars-magna/hits run order",
     "hits:display": "pnpm --filter @ars-magna/hits run display",
     "hits:input": "pnpm --filter @ars-magna/hits run input",
+    "hits:read": "pnpm --filter @ars-magna/hits run read",
     "hits:judged-at": "pnpm --filter @ars-magna/hits run judged-at",
     "promotions:export": "pnpm --filter @ars-magna/hits run promotions:export",
     "promotions:review": "pnpm --filter @ars-magna/hits run promotions:review",

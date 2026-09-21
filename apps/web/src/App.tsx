@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { foldLetters, formatCount, type Query } from '@ars-magna/engine';
+import { foldLetters, formatCount, fullReading, readItems, type Query } from '@ars-magna/engine';
 import { SearchField } from './components/SearchField.tsx';
 import { Controls } from './components/Controls.tsx';
 import { ResultList } from './components/ResultList.tsx';
@@ -55,7 +55,7 @@ export function App() {
     const query = decodeQuery(window.location.hash);
     // A link to one anagram carries the phrase to keep, in the sharer's order.
     // Only a phrase the letters really spell gets through.
-    return { ...splitQuery(query), kept: keptPhrases(window.location.hash, query.input) };
+    return { ...splitQuery(query), kept: keptPhrases(window.location.hash, query.input, query.reading) };
   }, []);
   const [input, setInput] = useState(initial.input);
   const [filters, setFilters] = useState(initial.filters);
@@ -82,9 +82,21 @@ export function App() {
   // what is in the field rather than silently reverting to first paint.
   const query = useMemo<Query>(() => ({ ...filters, input }), [input, filters]);
   // The same fold the engine applies, so the letters line and the search
-  // never disagree about what "Beyoncé" contains.
-  const folded = useMemo(() => foldLetters(input), [input]);
+  // never disagree about what "Beyoncé" contains, or how "Blink-182" reads.
+  const folded = useMemo(() => foldLetters(input, filters.reading), [input, filters.reading]);
   const letters = folded.letters;
+  const items = useMemo(() => readItems(input, filters.reading), [input, filters.reading]);
+  // The reader's choice for one item; choosing its default forgets it, so the address stays short.
+  const readAs = useCallback(
+    (key: string, name: string) => {
+      const item = readItems(input, filters.reading).find((i) => i.key === key);
+      const next = { ...filters.reading };
+      if (!item || name === item.default) delete next[key];
+      else next[key] = name;
+      setFilters((f) => ({ ...f, reading: next }));
+    },
+    [input, filters.reading],
+  );
 
   const {
     engine, searching, error, candidates, countedLetters, textLeftOut, answered, forms: formList, loadMore, collect, at, surpriseMe,
@@ -177,7 +189,7 @@ export function App() {
   // paint. Counts are another matter: votes load after the first count, and
   // promotions after the count for these letters.
   const shownDiscoveries = hasQuery ? discovered : null;
-  const promotions = usePromotions(pass, { letters: sorted, input, tier: query.tier, enabled: counted && discovered !== null });
+  const promotions = usePromotions(pass, { letters: sorted, input, tier: query.tier, enabled: counted && discovered !== null, reading: fullReading(input, query.reading) });
   const total = results.total;
   // A true zero is one the engine answered: an unanswered query is not empty.
   const countLine = countLineOf({ answered, searching, total, error });
@@ -233,7 +245,7 @@ export function App() {
   );
 
   const shareContext = useMemo<ShareContext>(
-    () => ({ input, total, urlFor: (phrase) => shareRowUrl(query, phrase) }),
+    () => ({ input, reading: query.reading, total, urlFor: (phrase) => shareRowUrl(query, phrase) }),
     [input, total, query],
   );
 
@@ -401,7 +413,7 @@ export function App() {
           </p>
         </header>
 
-        <SearchField value={input} onChange={setInput} letters={letters} skipped={folded.skipped} />
+        <SearchField value={input} onChange={setInput} letters={letters} skipped={folded.skipped} items={items} onReading={readAs} />
 
         <div className="mt-10">
           <Controls
@@ -554,6 +566,7 @@ export function App() {
                     exporting={exporting}
                     containing={containing}
                     input={input}
+                    reading={query.reading}
                   />
                   <ResultList
                     rows={visibleRows}

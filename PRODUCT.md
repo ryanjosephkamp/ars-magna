@@ -32,6 +32,11 @@ Two things make this different from the anagram tools that already exist:
    the vocabulary reaches, so results are reproducible and the vocabulary is
    never a mystery.
 
+Every character typed is accounted for: an accented letter folds to its base
+letter, and a number or symbol is read as letters — spelled out, as a keyboard
+letter, or left out — with the reading stated under the field and one control
+away from another.
+
 Success is a user finding the specific rearrangement they were looking for, and
 trusting that if it were not shown, it does not exist.
 

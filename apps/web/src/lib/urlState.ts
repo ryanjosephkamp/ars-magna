@@ -14,8 +14,14 @@ import {
   DEFAULT_QUERY,
   TIERS,
   UNLIMITED_WORDS,
+  DROP,
+  formatReading,
+  nonDefaultReading,
   normalizeLetters,
+  parseReading,
+  readItems,
   type Query,
+  type Reading,
   type Tier,
 } from '@ars-magna/engine';
 
@@ -28,6 +34,8 @@ const KEY = {
   mustExclude: 'x',
   /** Phrases kept at the top: a shared anagram in the order the sharer chose. */
   kept: 'p',
+  /** How the input's numbers and symbols are read, where that differs from the defaults: `182:digits,2:too`. */
+  reading: 'r',
 } as const;
 
 function clampInt(raw: string | null, min: number, max: number, fallback: number): number {
@@ -51,6 +59,9 @@ export function encodeQuery(query: Query): string {
   if (pinned.length > 0) params.set(KEY.mustInclude, pinned.join(','));
   const excluded = query.mustExclude.filter((word) => word.length > 0);
   if (excluded.length > 0) params.set(KEY.mustExclude, excluded.join(','));
+  // Only what differs from the defaults, and only for items the input has.
+  const reading = formatReading(nonDefaultReading(query.input, query.reading));
+  if (reading.length > 0) params.set(KEY.reading, reading);
 
   // URLSearchParams percent-encodes spaces as `+`, which reads badly in a
   // shared link. Spaces are legal in a fragment, so put them back.
@@ -66,20 +77,34 @@ export function decodeQuery(hash: string): Query {
   const words = (key: string) =>
     (params.get(key) ?? '')
       .split(',')
-      .map(normalizeLetters)
+      .map((word) => normalizeLetters(word))
       .filter((word) => word.length > 0);
   const mustInclude = words(KEY.mustInclude);
   // A link cannot ask for a word both ways; Must include keeps it.
   const mustExclude = words(KEY.mustExclude).filter((word) => !mustInclude.includes(word));
+  const input = params.get(KEY.input) ?? '';
 
   return {
-    input: params.get(KEY.input) ?? '',
+    input,
     tier,
     minWordLen: clampInt(params.get(KEY.minWordLen), 1, 12, DEFAULT_QUERY.minWordLen),
     maxWords: clampInt(params.get(KEY.maxWords), 1, UNLIMITED_WORDS, DEFAULT_QUERY.maxWords),
     mustInclude,
     mustExclude,
+    reading: decodeReading(params.get(KEY.reading), input),
   };
+}
+
+/**
+ * The readings a link carries, kept only where the input has the item and
+ * the item offers the reading: a link cannot make the page read a number a
+ * way the table does not know.
+ */
+export function decodeReading(raw: string | null, input: string): Reading {
+  if (!raw) return DEFAULT_QUERY.reading;
+  const parsed = parseReading(raw);
+  if (!parsed) return DEFAULT_QUERY.reading;
+  return nonDefaultReading(input, parsed);
 }
 
 /**
@@ -142,7 +167,7 @@ export function shareUrl(query: Query): string {
 export function cleanPhrase(phrase: string): string {
   return phrase
     .split(/\s+/)
-    .map(normalizeLetters)
+    .map((word) => normalizeLetters(word))
     .filter((word) => word.length > 0)
     .join(' ');
 }
@@ -166,10 +191,10 @@ function sortedLetters(letters: string): string {
  * order given and without repeats. Anything else is dropped: a link cannot
  * make the page show a phrase the letters do not spell.
  */
-export function keptPhrases(hash: string, input: string): string[] {
+export function keptPhrases(hash: string, input: string, reading: Reading = DEFAULT_QUERY.reading): string[] {
   const raw = new URLSearchParams(hash.replace(/^#/, '')).get(KEY.kept);
   if (!raw) return [];
-  const target = sortedLetters(normalizeLetters(input));
+  const target = sortedLetters(normalizeLetters(input, reading));
   if (target.length === 0) return [];
   const out: string[] = [];
   for (const item of raw.split(',')) {
@@ -183,16 +208,18 @@ export function keptPhrases(hash: string, input: string): string[] {
 
 // ------------------------------------------------------------------- Build
 
-/** The Build page's own parameters, by the same rules: `t` the text, `a` the anagram, `d` the dictionary. */
-const BUILD_KEY = { text: 't', anagram: 'a', tier: 'd' } as const;
+/** The Build page's own parameters, by the same rules: `t` the text, `a` the anagram, `d` the dictionary, `r` the text's reading. */
+const BUILD_KEY = { text: 't', anagram: 'a', tier: 'd', reading: 'r' } as const;
 
 export type BuildState = {
   readonly text: string;
   readonly anagram: string;
   readonly tier: Tier;
+  /** How the text's numbers and symbols are read, where that differs from the defaults. */
+  readonly reading: Reading;
 };
 
-export const BUILD_DEFAULT: BuildState = { text: '', anagram: '', tier: DEFAULT_QUERY.tier };
+export const BUILD_DEFAULT: BuildState = { text: '', anagram: '', tier: DEFAULT_QUERY.tier, reading: DEFAULT_QUERY.reading };
 
 /** Only what differs from an empty page, so a shared check is a short link. */
 export function encodeBuild(state: BuildState): string {
@@ -200,16 +227,20 @@ export function encodeBuild(state: BuildState): string {
   if (state.text.trim().length > 0) params.set(BUILD_KEY.text, state.text);
   if (state.anagram.trim().length > 0) params.set(BUILD_KEY.anagram, state.anagram);
   if (state.tier !== BUILD_DEFAULT.tier) params.set(BUILD_KEY.tier, state.tier);
+  const reading = formatReading(nonDefaultReading(state.text, state.reading));
+  if (reading.length > 0) params.set(BUILD_KEY.reading, reading);
   return params.toString().replace(/\+/g, '%20');
 }
 
 export function decodeBuild(hash: string): BuildState {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
   const rawTier = params.get(BUILD_KEY.tier);
+  const text = params.get(BUILD_KEY.text) ?? '';
   return {
-    text: params.get(BUILD_KEY.text) ?? '',
+    text,
     anagram: params.get(BUILD_KEY.anagram) ?? '',
     tier: TIERS.includes(rawTier as Tier) ? (rawTier as Tier) : BUILD_DEFAULT.tier,
+    reading: decodeReading(params.get(BUILD_KEY.reading), text),
   };
 }
 
@@ -227,9 +258,24 @@ export function syncBuildUrl(state: BuildState): void {
  * Discover row and the search toolbar link to. Relative, since every one of
  * them is on this site.
  */
-export function buildHref(text: string, anagram = ''): string {
-  const encoded = encodeBuild({ ...BUILD_DEFAULT, text, anagram });
+export function buildHref(text: string, anagram = '', reading: Reading = DEFAULT_QUERY.reading): string {
+  const encoded = encodeBuild({ ...BUILD_DEFAULT, text, anagram, reading });
   return `/build${encoded ? `#${encoded}` : ''}`;
+}
+
+/**
+ * Where the search opens on a hit's input, read as the hit records it: a hit
+ * made before phase N carries no reading and was read with every number
+ * dropped, so its link says so, and one read by the defaults needs nothing.
+ */
+export function searchHref(input: string, reading: Reading | null | undefined): string {
+  const encoded = encodeQuery({ ...DEFAULT_QUERY, input, reading: reading ?? legacyReading(input) });
+  return `/${encoded ? `#${encoded}` : ''}`;
+}
+
+/** The reading a record made before phase N was made under: every item left out. */
+export function legacyReading(input: string): Reading {
+  return Object.fromEntries(readItems(input).map((item) => [item.key, DROP]));
 }
 
 /** The full URL for one anagram of the current query, kept at the top in this order. */

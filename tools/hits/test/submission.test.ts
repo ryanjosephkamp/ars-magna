@@ -50,7 +50,7 @@ describe('parseIssueForm', () => {
   it('names what is missing or wrong', () => {
     expect(parseIssueForm('### Input\n\n\n### Category\n\nphrases\n### Anagram\n\nx')).toEqual({ error: 'the Input field is empty' });
     expect(parseIssueForm(body.replace('phrases', 'celebrities'))).toEqual({ error: 'unknown category "celebrities"' });
-    expect(parseIssueForm(body.replace('Dirty  Room', '123'))).toEqual({ error: 'the Anagram field has no letters' });
+    expect(parseIssueForm(body.replace('Dirty  Room', '!! ??'))).toEqual({ error: 'the Anagram field has no letters' });
     expect((parseIssueForm(body.replace('common', 'whatever')) as { tier: string }).tier).toBe('standard');
     // Extended is a real tier now, so the form must carry it through rather
     // than quietly checking the submission against the default dictionary.

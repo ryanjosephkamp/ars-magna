@@ -435,6 +435,23 @@ export function inlineCompose(source: string): string {
   return code;
 }
 
+/**
+ * An engine module as the page inlines it, before compose: its relative
+ * imports dropped, since the modules it imports are inlined ahead of it in
+ * the same script, its types stripped and its exports made plain. Only
+ * imports of a sibling file are allowed, so nothing from a package can be
+ * missing from the page.
+ */
+export function inlineModule(source: string, name: string): string {
+  const imports = source.match(/^import[^;]*;$/gm) ?? [];
+  for (const line of imports) {
+    if (!/from '\.\/[A-Za-z]+\.ts';$/.test(line)) throw new Error(`${name} imports something the page cannot inline: ${line}`);
+  }
+  const code = stripTypeScriptTypes(source.replace(/^import[^;]*;$/gm, '')).replace(/^export /gm, '');
+  if (code.toLowerCase().includes('</script')) throw new Error(`${name} must not contain a closing script tag`);
+  return code;
+}
+
 /** JSON that is safe inside a script element: no tag can close it early. */
 export function embedJson(value: unknown): string {
   return JSON.stringify(value)
@@ -466,7 +483,7 @@ const AUDIT_TITLES: [string, string][] = [
   ['<h1>Ars Magna review desk</h1>', '<h1>Greatest Hits audit</h1>'],
 ];
 
-export function renderDesk(template: string, data: DeskData, composeSource: string): string {
+export function renderDesk(template: string, data: DeskData, composeSource: string, engineSources: readonly { name: string; source: string }[] = []): string {
   if (data.mode === 'audit') {
     for (const [from, to] of AUDIT_TITLES) {
       if (template.split(from).length !== 2) throw new Error(`the desk template needs exactly one ${from}`);
@@ -477,6 +494,6 @@ export function renderDesk(template: string, data: DeskData, composeSource: stri
     if (template.split(marker).length !== 2) throw new Error(`the desk template needs exactly one ${marker}`);
   }
   const json = embedJson(data);
-  const code = inlineCompose(composeSource);
+  const code = [...engineSources.map((m) => inlineModule(m.source, m.name)), inlineCompose(composeSource)].join('\n');
   return template.replace(/\/\*DESK_(DATA|COMPOSE)\*\//g, (_match, which: string) => (which === 'DATA' ? json : code));
 }

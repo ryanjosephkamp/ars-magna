@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 import { normalizeLetters } from '@ars-magna/engine/fold';
+import { describeReading, fullReading, parseReading, readInput, readingProblem } from '@ars-magna/engine/readings';
 
 import {
   candidateIdOf,
@@ -18,21 +19,34 @@ import {
   parseSeeds,
   phraseFits,
   promptBody,
+  readingOfAdd,
+  setReadings,
   shellQuote,
   type Decision,
 } from '../src/desk/compose.ts';
 import { APPLY_DESK_PROMPT, DEEP_RUN_PROMPT } from '../src/desk.ts';
 import { candidateId, hitId } from '../src/ids.ts';
 
+// The page hands the engine's reading step to compose; the tests do the same.
+setReadings({ readInput, fullReading, readingProblem, describeReading, parseReading });
+
 describe('ids in the page', () => {
   it('fold letters exactly as the pipeline does', () => {
-    for (const text of ['Beyoncé', 'Sagrada Família', 'Straße', 'Ærøskøbing', 'Łódź', 'Þórshöfn', "Rubik's Cube", 'Play-Doh', 'Jalapeño', 'ÉCOLE', 'Dormitory 2']) {
+    for (const text of ['Beyoncé', 'Sagrada Família', 'Straße', 'Ærøskøbing', 'Łódź', 'Þórshöfn', "Rubik's Cube", 'Play-Doh', 'Jalapeño', 'ÉCOLE', 'Dormitory 2', 'Blink-182', 'Ke$ha']) {
       expect(foldLetters(text), text).toBe(normalizeLetters(text));
     }
-    expect(candidateIdOf('Sagrada Família', 'places')).toBe(candidateId('Sagrada Família', 'places'));
-    expect(hitIdOf('Dormitory', 'phrases', ['Dirty', 'room'])).toBe(hitId('Dormitory', 'phrases', ['dirty', 'room']));
+    expect(candidateIdOf('Sagrada Família', 'places')).toBe(candidateId('Sagrada Família', 'places', {}));
+    expect(hitIdOf('Dormitory', 'phrases', ['Dirty', 'room'])).toBe(hitId('Dormitory', 'phrases', ['dirty', 'room'], {}));
     expect(phraseFits('Dormitory', 'dirty room')).toBe(true);
     expect(phraseFits('Dormitory', 'dirty rooms')).toBe(false);
+    // A reading goes into the letters, the id and the fit, as it does in the pipeline.
+    expect(foldLetters('Reacher season 4', { '4': 'drop' })).toBe('reacherseason');
+    expect(candidateIdOf('Reacher season 4', 'titles', { '4': 'drop' })).toBe(candidateId('Reacher season 4', 'titles', { '4': 'drop' }));
+    expect(hitIdOf('Blink-182', 'titles', ['blink', 'two', 'eight', 'one'], { '182': 'digits' })).toBe('blinkoneeighttwo:titles:blink-eight-one-two');
+    expect(phraseFits('Reacher season 4', 'as one searcher')).toBe(false);
+    expect(phraseFits('Reacher season 4', 'as one searcher', { '4': 'drop' })).toBe(true);
+    expect(readingOfAdd({ reading: ' 4:drop ' })).toEqual({ '4': 'drop' });
+    expect(readingOfAdd({})).toBeUndefined();
   });
 
   it('quote a shell word only when it needs it', () => {
@@ -69,6 +83,8 @@ describe('commands', () => {
       { kind: 'seed', input: 'The countryside', category: 'phrases', anchors: ['city', 'dust'] },
       { kind: 'seed', input: 'Sagrada Família', category: 'places', anchors: [] },
       { kind: 'add', input: 'Dormitory', category: 'phrases', phrase: 'dirty room', tier: 'common', justification: 'A dormitory is a dirty room.' },
+      { kind: 'add', input: 'Reacher season 4', category: 'titles', phrase: 'as one searcher', tier: 'common', justification: 'A searcher.', reading: '4:drop' },
+      { kind: 'seed', input: 'Como 1907', category: 'companies', anchors: [] },
       { kind: 'describe', id: 'supergirl:titles', text: "Supergirl is DC Comics' cousin of Superman." },
     ];
     const { commands, notes } = composeCommands(decisions, today);
@@ -77,6 +93,8 @@ describe('commands', () => {
         "cat >> data/candidates.jsonl <<'EOF'",
         '{"id":"thecountryside:phrases","input":"The countryside","category":"phrases","source":"manual","first_seen":"2026-09-14","status":"new","anchors":["city","dust"]}',
         '{"id":"sagradafamilia:places","input":"Sagrada Família","category":"places","source":"manual","first_seen":"2026-09-14","status":"new"}',
+        // A seed with a number records how it is read.
+        '{"id":"comoonethousandninehundredseven:companies","input":"Como 1907","category":"companies","source":"manual","first_seen":"2026-09-14","status":"new","reading":{"1907":"spell"}}',
         'EOF',
       ].join('\n'),
       'pnpm hits:requeue --settings-before=s2 --category=titles --dry-run',
@@ -92,8 +110,12 @@ describe('commands', () => {
       'pnpm hits:set --status=featured boeing:companies:big-one doctorwho:titles:torch-wood',
       'pnpm hits:set --status=accepted arthurashe:people:ash-her-tau',
       "cargo run --release -p anagram-cli -- check Dormitory 'dirty room' --tier=common",
-      '# then call the MCP tool propose_hit with input "Dormitory", category phrases, words ["dirty","room"], tier common and justification "A dormitory is a dirty room."',
+      '# then call the MCP tool propose_hit with input "Dormitory", category phrases, words ["dirty","room"], tier common, justification "A dormitory is a dirty room."',
       'pnpm hits:set --status=accepted dormitory:phrases:dirty-room',
+      // The reading the operator typed goes to the check, to propose_hit and into the id.
+      "cargo run --release -p anagram-cli -- check 'Reacher season 4' 'as one searcher' --tier=common --read=4:drop",
+      '# then call the MCP tool propose_hit with input "Reacher season 4", category titles, words ["as","one","searcher"], tier common, justification "A searcher." and reading {"4":"drop"}',
+      'pnpm hits:set --status=accepted reacherseason:titles:as-one-searcher',
     ]);
     expect(notes).toEqual(['a:phrases:b has no justification yet, so it goes in as proposed. Give it one with pnpm hits:justify before accepting it.']);
   });

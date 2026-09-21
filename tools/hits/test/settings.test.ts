@@ -41,8 +41,8 @@ describe('presets', () => {
       '--seed=1',
       '--status=new',
     ]);
-    // s4: the listed forms' letters-words are in every tier the batch searches (2026-09-20).
-    expect(SETTINGS_VERSION).toBe('s4');
+    // s5: numbers and symbols are read as letters before the search (2026-09-21).
+    expect(SETTINGS_VERSION).toBe('s5');
   });
 
   it('take the deep preset and explicit overrides, and refuse an unknown preset', () => {

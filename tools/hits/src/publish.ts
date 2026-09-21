@@ -47,17 +47,29 @@ export type Config = { name: string; file: string; rows: Hit[] };
  * hit file holds an object keyed by word. Keyed by word, a reader infers one
  * struct field per distinct word across the whole dataset, and its type
  * changes whenever a new word gets a sense; a list keeps one type for good.
+ * `reading` is a list of `{item, reading}` for the same reason, in the order
+ * the items occur in the input: how each number and symbol of the input was
+ * read (`182`, `spell`), or null for an input without any and for a hit from
+ * before phase N, whose digits and symbols were dropped.
  */
 export type PublishedSense = { word: string; sense: string };
+export type PublishedReading = { item: string; reading: string };
 
-export type PublishedRow = Omit<Hit, 'submitter' | 'justification' | 'about' | 'wikipedia' | 'senses'> & {
+export type PublishedRow = Omit<Hit, 'submitter' | 'justification' | 'about' | 'wikipedia' | 'senses' | 'reading'> & {
   submitter: string | null;
   justification: string | null;
   about: string | null;
   wikipedia: string | null;
   senses: PublishedSense[] | null;
+  reading: PublishedReading[] | null;
   shelf: Shelf;
 };
+
+/** A hit's reading as a published row lists it, one entry per item in the input's order; null when it has none. */
+export function publishedReading(hit: Pick<Hit, 'reading'>): PublishedReading[] | null {
+  const listed = Object.entries(hit.reading ?? {}).map(([item, reading]) => ({ item, reading }));
+  return listed.length > 0 ? listed : null;
+}
 
 /** A hit's senses as a published row lists them, in reading order; null when it has none. */
 export function publishedSenses(hit: Pick<Hit, 'words' | 'senses'>): PublishedSense[] | null {
@@ -70,7 +82,7 @@ export function publishedSenses(hit: Pick<Hit, 'words' | 'senses'>): PublishedSe
 }
 
 export function publishRow(hit: Hit): PublishedRow {
-  const { submitter, justification, about, wikipedia, senses: _senses, ...rest } = hit;
+  const { submitter, justification, about, wikipedia, senses: _senses, reading: _reading, ...rest } = hit;
   const judged = hit.judge
     .filter(isV2)
     .filter((j) => j.justification)
@@ -82,6 +94,7 @@ export function publishRow(hit: Hit): PublishedRow {
     about: about ?? null,
     wikipedia: wikipedia ?? null,
     senses: publishedSenses(hit),
+    reading: publishedReading(hit),
     shelf: shelfOf(hit),
   };
 }

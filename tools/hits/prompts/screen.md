@@ -1,7 +1,7 @@
 <!-- screen_version: v1 -->
 # Screening anagrams for the Ars Magna Greatest Hits
 
-Each section below is one **input** (a person, company, product, title, place or phrase), its **category**, and a numbered list of **phrases**. Every phrase is a rearrangement of exactly the input's letters into real English words. The letters are already checked; do not re-check them.
+Each section below is one **input** (a person, company, product, title, place or phrase), its **category**, and a numbered list of **phrases**. Every phrase is a rearrangement of exactly the input's letters into real English words. The letters are already checked; do not re-check them. An input with a number or a symbol in it also has a `reading:` line saying how that became letters (`1907:spell` is *one thousand nine hundred seven* spelled out, `1907:year` is *nineteen oh seven*, `2:too` is the word *too*, `4:drop` leaves the 4 out), so a phrase may use the letters of a number's name.
 
 Your only job is to find the phrases worth judging. Keep every phrase with any arguable link to its input:
 

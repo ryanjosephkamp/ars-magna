@@ -254,6 +254,7 @@ describe('the Build page’s export', () => {
     text: 'Dormitory',
     anagram: 'dirty room',
     tier: 'standard',
+    reading: [],
     checks: { lettersMatch: 'Yes', wordsKnown: 'Yes · every word is in Standard' },
     verdict: 'All 9 letters used',
     letters: { text: letterFigures('dormitory'), anagram: letterFigures('dirtyroom') },

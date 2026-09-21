@@ -68,6 +68,12 @@
           }
         }
       }
+    },
+    "reading": {
+      "type": "object",
+      "propertyNames": { "pattern": "^([0-9]+(st|nd|rd|th)?|[@$!&+])$" },
+      "additionalProperties": { "type": "string", "pattern": "^(spell|digits|year|letter|drop|zero|oh|one|won|two|to|too|three|four|for|five|six|seven|eight|ate|nine)$" },
+      "description": "How each number and symbol of the input is read, every item of it, keyed by the item as typed without thousands separators (182, 9th, @) with the reading name: spell, digits, year, letter, drop, or a homophone word (to, too, for, ate, won, oh). Absent on a candidate made before phase N, when every number and symbol was dropped; hits:enumerate reads such a candidate afresh and re-ids it when its turn comes. The id follows the reading."
     }
   },
   "$defs": {

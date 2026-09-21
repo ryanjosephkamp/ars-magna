@@ -51,9 +51,11 @@ export const shortCode = (code: string): string => code.slice(0, 12);
 
 export type Dictionary = { repo: string; rev: string };
 
-export type ExportSearch = { input: string; words: string[]; tier: Tier; n: number; at_tier: boolean };
+export type ExportSearch = { input: string; words: string[]; tier: Tier; n: number; at_tier: boolean; reading?: Record<string, string> };
 export type ExportSubmission = {
   input: string;
+  /** How the input's numbers and symbols were read, when it has any: the reader's choice as the API stored it. */
+  reading?: Record<string, string>;
   words: string[];
   tier: Tier;
   category: Category | null;
@@ -105,6 +107,8 @@ export type ReviewVerdict = {
 export type ReviewRow = {
   kind: 'search' | 'submission';
   input: string;
+  /** How the input's numbers and symbols were read, when it has any. */
+  reading?: Record<string, string>;
   words: string[];
   tier: Tier | null;
   missing: string[];

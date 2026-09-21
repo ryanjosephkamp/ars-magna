@@ -48,6 +48,8 @@ export type SolveOptions = {
   maxWords: number;
   mustInclude?: string[];
   mustExclude?: string[];
+  /** The reader's readings of the input's numbers and symbols, item → name; the defaults where absent. */
+  reading?: Record<string, string>;
 };
 
 export class Engine {
@@ -103,6 +105,7 @@ export class Engine {
         maxWords: options.maxWords,
         mustInclude: options.mustInclude ?? [],
         mustExclude: options.mustExclude ?? [],
+        reading: options.reading ?? {},
       },
       first,
     });

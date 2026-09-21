@@ -86,7 +86,7 @@ export function useEngine(query: Query) {
     const client = clientRef.current;
     if (!client || state.engine.state !== 'ready') return;
 
-    if (normalizeLetters(query.input).length === 0) {
+    if (normalizeLetters(query.input, query.reading).length === 0) {
       results.reset();
       setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false, answered: false }));
       return;
@@ -101,7 +101,7 @@ export function useEngine(query: Query) {
         {
           onCount: (total, candidates, textLeftOut) => {
             results.setTotal(total);
-            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input), textLeftOut, answered: true }));
+            setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input, query.reading), textLeftOut, answered: true }));
           },
           onBatch: (offset, rows, done, truncated) =>
             results.append(offset, rows, done, truncated),

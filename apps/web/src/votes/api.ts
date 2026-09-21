@@ -17,6 +17,7 @@
  * CORS preflight this API never grants.
  */
 import { normalizeLetters } from '@ars-magna/engine/fold';
+import { fullReading, isReading, readingProblem } from '@ars-magna/engine/readings';
 import { isTextItself } from '@ars-magna/engine/identity';
 
 import {
@@ -221,7 +222,7 @@ function note(value: unknown): string | null {
  * A submission's note, checked: the category, what the input is, why it is
  * good, the credit and the word requests. A refusal when any breaks its rule.
  */
-function submission(body: Record<string, unknown>, words: readonly string[]): Omit<SubmissionFields, 'input' | 'words' | 'tier'> | Response {
+function submission(body: Record<string, unknown>, words: readonly string[]): Omit<SubmissionFields, 'input' | 'reading' | 'words' | 'tier'> | Response {
   const category = body['category'];
   const about = note(body['about']);
   const why = note(body['why']);
@@ -255,12 +256,14 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   const voter = body?.['voter'];
   const on = body?.['on'];
   const pass = body?.['pass'];
+  const readingSent = body?.['reading'];
   if (
     !body ||
     (via !== 'result' && !typed) ||
     typeof input !== 'string' ||
     input.trim().length === 0 ||
     input.length > MAX_INPUT ||
+    (readingSent !== undefined && readingSent !== null && !isReading(readingSent)) ||
     !Array.isArray(words) ||
     words.length === 0 ||
     words.length > MAX_WORDS ||
@@ -272,19 +275,25 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   ) {
     return refuse(400, 'bad-request', 'Send JSON with an input, its words, a tier, a voter id and on.');
   }
-  const letters = normalizeLetters(input).length;
+  // How the input's numbers and symbols are read: what was sent, checked against what the input offers,
+  // else the defaults. What is stored is the reading of every item, so the review needs no table.
+  const chosen = isReading(readingSent) ? readingSent : {};
+  const readingIssue = readingProblem(input, chosen);
+  if (readingIssue) return refuse(400, 'bad-reading', `That reading does not fit the input: ${readingIssue}.`);
+  const reading = fullReading(input, chosen);
+  const letters = normalizeLetters(input, chosen).length;
   if (letters > MAX_LETTERS) {
     return refuse(400, 'too-long', 'That input has more letters than a promotion can hold.');
   }
   if (typed && on && letters > MAX_TYPED_LETTERS) {
     return refuse(400, 'too-long', `A submission holds at most ${MAX_TYPED_LETTERS} letters.`);
   }
-  if (!promotable(input, words)) {
+  if (!promotable(input, words, chosen)) {
     return refuse(400, 'not-an-anagram', 'Those words do not use exactly the letters of the input.');
   }
   // The text's own words, in any order, and a re-spacing of it are the text, not an anagram of it.
   // Taking a promotion back always works, so only making one is refused.
-  if (on && isTextItself(input, words)) {
+  if (on && isTextItself(input, words, chosen)) {
     return refuse(400, 'text-itself', 'That is the text itself, not an anagram of it.');
   }
   // Taking a submission back needs no note; making one needs a good one.
@@ -308,7 +317,8 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
   if (!(await withinLimit(env.DISCOVERIES_DB, `promote:${connection}`, hourBucket(now), LIMITS.promote))) {
     return refuse(429, 'too-many', 'Too many promotions from this connection this hour. Try again later.');
   }
-  const fields = noted ? { input, words, tier, ...noted } : { input, words, tier, via: 'result' as const };
+  const stored = reading ? JSON.stringify(reading) : null;
+  const fields = noted ? { input, reading: stored, words, tier, ...noted } : { input, reading: stored, words, tier, via: 'result' as const };
   const count = await setPromotion(env.DISCOVERIES_DB, key, voter, on, fields, new Date(now).toISOString());
   return json({ key, on, count });
 }

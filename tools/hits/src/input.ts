@@ -9,7 +9,7 @@
  * writes nothing. The file is rewritten through the schema in its existing
  * order, so the diff is the one line.
  */
-import { candidateId } from './ids.ts';
+import { candidateId, recordReading } from './ids.ts';
 import { HITS_PATH, hitSchema, readJsonl, writeJsonl, type Hit } from './schema.ts';
 
 export function parseInputArgs(argv: readonly string[]): { id: string; input: string } {
@@ -24,18 +24,30 @@ export function parseInputArgs(argv: readonly string[]): { id: string; input: st
 
 export type InputResult = { hits: Hit[]; from: string; changed: boolean };
 
-/** Pure: the hits with the input set. Throws on an unknown id or an input that would change the id. */
+/**
+ * Pure: the hits with the input set. Throws on an unknown id or an input that
+ * would change the id. The new input is read as the hit's reading says (a hit
+ * without one was made before phase N, when every number was dropped), so
+ * "Big Brother 28" can become "Big Brother" and not "Big Brother 29"; a hit
+ * with a reading keeps the part of it the new input still has.
+ */
 export function setInput(hits: readonly Hit[], id: string, input: string): InputResult {
   const hit = hits.find((h) => h.id === id);
   if (!hit) throw new Error(`no such hit: ${id}`);
-  const expected = candidateId(hit.input, hit.category);
-  const next = candidateId(input, hit.category);
+  const expected = candidateId(hit.input, hit.category, hit.reading);
+  const next = candidateId(input, hit.category, hit.reading);
   if (next !== expected) {
     throw new Error(`"${input}" reads as ${next}, not ${expected}; an input that changes the letters or their order would change the id`);
   }
   const from = hit.input;
   if (from === input) return { hits: [...hits], from, changed: false };
-  return { hits: hits.map((h) => (h.id === id ? { ...h, input } : h)), from, changed: true };
+  const changed = { ...hit, input };
+  if (hit.reading) {
+    const reading = recordReading(input, hit.reading);
+    if (reading) changed.reading = reading;
+    else delete changed.reading;
+  }
+  return { hits: hits.map((h) => (h.id === id ? changed : h)), from, changed: true };
 }
 
 /** Read the file, set the input, and rewrite it only if it changed. */

@@ -6,13 +6,22 @@
  * preset's flags through, so the Action, a deep run and a laptop all run the
  * same command. `--limit` and `--sample` override the preset's; the queue's
  * `summary.json` records the settings version either way.
+ *
+ * First, a candidate from before phase N (no `reading`) whose input has a
+ * number or a symbol, and whose turn it is (`status: new`), is read afresh by
+ * the defaults and takes the id its letters now give, with a note naming the
+ * old one: only a queue changes what a candidate is, and this is the queue
+ * that does. One that is already enumerated keeps its id until it is
+ * requeued; one read as its hits are (`hits:read`) has a reading and moves
+ * not at all.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { CANDIDATES_PATH, REPO_ROOT, today } from './schema.ts';
+import { candidateId, recordReading } from './ids.ts';
+import { CANDIDATES_PATH, REPO_ROOT, candidateSchema, readJsonl, today, writeJsonl, type Candidate } from './schema.ts';
 import { flag, queueDir } from './queue.ts';
 import {
   QUEUE_ADDITIONS,
@@ -63,11 +72,57 @@ export function batchArgs(argv: readonly string[], out: string): string[] {
   ];
 }
 
+/**
+ * Pure: the candidates with every `new` one from before phase N whose input
+ * has items read by the defaults and re-id'd, and the ids that moved, old to
+ * new. A candidate whose new id another line already holds is left as it is
+ * and named in `clashes`, for a person to settle.
+ */
+export function rereadCandidates(
+  candidates: readonly Candidate[],
+  date: string,
+): { candidates: Candidate[]; moved: [string, string][]; clashes: [string, string][]; changed: number } {
+  const ids = new Set(candidates.map((c) => c.id));
+  const moved: [string, string][] = [];
+  const clashes: [string, string][] = [];
+  let changed = 0;
+  const out = candidates.map((c) => {
+    if (c.status !== 'new' || c.reading) return c;
+    const reading = recordReading(c.input);
+    if (!reading) return c;
+    const id = candidateId(c.input, c.category, reading);
+    changed++;
+    // The letters are as they were (every item dropped by default): the reading alone is written.
+    if (id === c.id) return { ...c, reading };
+    if (ids.has(id)) {
+      changed--;
+      clashes.push([c.id, id]);
+      return c;
+    }
+    ids.add(id);
+    moved.push([c.id, id]);
+    const note = `re-read ${date} from ${c.id}`;
+    return { ...c, id, reading, notes: c.notes ? `${c.notes}; ${note}` : note };
+  });
+  return { candidates: out, moved, clashes, changed };
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const date = flag(argv, 'date') ?? today();
   const out = queueDir(date);
   await mkdir(out, { recursive: true });
+
+  // Candidates from before phase N with a number or a symbol, whose turn it is, read afresh.
+  if (!flag(argv, 'in')) {
+    const validator = await candidateSchema();
+    const reread = rereadCandidates(await readJsonl(CANDIDATES_PATH, validator), date);
+    if (reread.changed > 0) {
+      await writeJsonl(CANDIDATES_PATH, reread.candidates, validator);
+      for (const [from, to] of reread.moved) console.log(`re-read: ${from} -> ${to}`);
+    }
+    for (const [from, to] of reread.clashes) console.log(`not re-read: ${from} would become ${to}, which exists; settle it by hand`);
+  }
 
   // Written before the engine runs, and kept: the prefilter reads it back so
   // it judges rows against the vocabulary that produced them.

@@ -21,9 +21,8 @@ import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 import { bestOrder, isRespacing, scoreOrder } from '@ars-magna/engine';
-import { normalizeLetters } from '@ars-magna/engine/fold';
 
-import { hitId, alphagram, isCategory, type Category } from './ids.ts';
+import { hitId, alphagram, isCategory, lettersOf, type Category } from './ids.ts';
 import { PREFILTERED, RAW, SUMMARY, flag, pickQueue } from './queue.ts';
 import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate, type CandidateRun } from './schema.ts';
 import { rubric } from './judge.ts';
@@ -44,6 +43,8 @@ export type RawRow = {
   zipf: number[];
   tiers: ('common' | 'standard' | 'full' | 'extended')[];
   pos: number[];
+  /** How the input's numbers and symbols were read, every item of them; absent for an input without any. */
+  reading?: Record<string, string>;
 };
 
 /**
@@ -67,6 +68,8 @@ export type Prefiltered = {
   sampled?: boolean;
   /** The anchor word of the search that found it, when one did. */
   anchor?: string;
+  /** How the input's numbers and symbols were read, every item of them; absent for an input without any. */
+  reading?: Record<string, string>;
 };
 
 export const RULES = {
@@ -100,7 +103,8 @@ export function reject(
   // input's own letters in the input's own order, in some arrangement of the
   // words. A re-spacing, not an anagram. The rule is the engine's, shared with
   // Build and the promotions API (`identity.ts`).
-  if (isRespacing(row.words, normalizeLetters(row.input))) return 'identity';
+  // The input's letters as the batch read it: by the row's reading, or, for a row from before phase N, with its digits dropped.
+  if (isRespacing(row.words, lettersOf(row.input, row.reading ?? null))) return 'identity';
   return null;
 }
 
@@ -127,13 +131,14 @@ export function prefilterRow(
   const ordered = bestOrder(row.words, row.pos);
   const masks = ordered.map((w) => row.pos[row.words.indexOf(w)] ?? 0);
   return {
-    id: hitId(row.input, row.category, row.words),
+    id: hitId(row.input, row.category, row.words, row.reading ?? null),
     candidate_id: row.id,
     input: row.input,
     category: row.category,
     words: ordered,
     display: ordered.join(' '),
-    letters: alphagram(row.input),
+    letters: alphagram(row.input, row.reading ?? null),
+    ...(row.reading ? { reading: row.reading } : {}),
     prefilter_score: score(ordered, masks, row.zipf),
     // The narrowest tier that holds every word, widest test first. A site
     // addition is outside the pinned list entirely, so it has to be asked about

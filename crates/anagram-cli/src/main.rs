@@ -14,7 +14,7 @@
 
 use anagram_core::{Counts, Cursor, Dict, Flow, Memo, Search, SolveOptions, TextRow, Tier, UNLIMITED_WORDS};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -140,6 +140,7 @@ impl Argv {
 }
 
 struct Args {
+    /// The text as typed, with its numbers and symbols read as `--read=` says: what the search is given.
     text: String,
     tier: Tier,
     min_word_len: u8,
@@ -148,10 +149,22 @@ struct Args {
     limit: usize,
 }
 
+/// `--read=182:digits,2:too`: the reader's readings of the text's numbers and
+/// symbols, checked against what the text offers. None given is the defaults.
+fn reading_flag(argv: &Argv, text: &str) -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
+    let pairs = anagram_core::parse_reading(argv.get("read").unwrap_or(""))?;
+    if let Some(problem) = anagram_core::reading_problem(text, &pairs) {
+        return Err(format!("--read: {problem}").into());
+    }
+    Ok(pairs)
+}
+
 fn parse(args: &[String]) -> Result<Args, Box<dyn std::error::Error>> {
     let argv = Argv::parse(args);
+    let typed = argv.positional.join(" ");
+    let reading = reading_flag(&argv, &typed)?;
     Ok(Args {
-        text: argv.positional.join(" "),
+        text: anagram_core::read_input(&typed, &reading),
         tier: tier_from(argv.get("tier").unwrap_or("standard")),
         min_word_len: argv.num("min-len", 3),
         max_words: argv.num("max-words", UNLIMITED_WORDS),
@@ -188,12 +201,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "check" => check(&Argv::parse(rest)),
         _ => {
             eprintln!(
-                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=]\n  \
+                "usage:\n  anagram <solve|count> \"text\" [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] [--limit=] [--read=182:digits,2:too]\n  \
                  anagram bench\n  \
                  anagram batch --in=candidates.jsonl --out=DIR [--tier=] [--min-len=] [--short-words=FILE] [--max-words=] \
                  [--additions=FILE] [--spellings=first|all] [--expand-cap=] [--limit=] [--sample=] [--seed=] \
                  [--status=new|all] [--max-nodes=] [--settings=]\n  \
-                 anagram check \"input\" \"anagram phrase\" [--tier=]"
+                 anagram check \"input\" \"anagram phrase\" [--tier=] [--read=4:drop]"
             );
             Ok(())
         }
@@ -335,6 +348,29 @@ struct Candidate {
     /// Words to search around when the input has more results than `--limit`.
     #[serde(default)]
     anchors: Vec<String>,
+    /// How the input's numbers and symbols are read, every item of them
+    /// (phase N). A candidate without one was made before phase N, when
+    /// every item was dropped, and is read that way still.
+    #[serde(default)]
+    reading: Option<BTreeMap<String, String>>,
+}
+
+impl Candidate {
+    /// The reading as `(item, name)` pairs: the candidate's own, or every item dropped.
+    fn reading_pairs(&self) -> Vec<(String, String)> {
+        match &self.reading {
+            Some(map) => map.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            None => anagram_core::reading_items(&self.input, &[])
+                .into_iter()
+                .map(|item| (item.key, "drop".to_owned()))
+                .collect(),
+        }
+    }
+
+    /// The input with its numbers and symbols read: what the search is given.
+    fn read_input(&self) -> String {
+        anagram_core::read_input(&self.input, &self.reading_pairs())
+    }
 }
 
 /// One result, as the prefilter consumes it. `count` and `index` are decimal
@@ -353,6 +389,9 @@ struct Row<'a> {
     /// The anchor word this row's search required; absent for the main search.
     #[serde(skip_serializing_if = "Option::is_none")]
     anchor: Option<&'a str>,
+    /// How the input's numbers and symbols were read, every item of them; absent for an input without any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reading: Option<&'a BTreeMap<String, String>>,
     words: Vec<String>,
     zipf: Vec<u8>,
     tiers: Vec<&'static str>,
@@ -416,6 +455,9 @@ struct Summary {
     /// the built word list's hash. Absent on a queue from before s4.
     #[serde(skip_serializing_if = "Option::is_none")]
     dictionary: Option<DictionaryId>,
+    /// The default readings of numbers and symbols the queue was enumerated
+    /// under (phase N); each row carries its input's own. Absent before s5.
+    readings: BTreeMap<&'static str, &'static str>,
     max_words: u8,
     spellings: &'static str,
     expand_cap: usize,
@@ -622,6 +664,7 @@ fn write_result(
             index: index.to_string(),
             sampled,
             anchor,
+            reading: candidate.reading.as_ref(),
             words: words.iter().map(|&w| dict.word(w).to_owned()).collect(),
             zipf: words.iter().map(|&w| dict.zipf[w as usize]).collect(),
             tiers: words
@@ -772,7 +815,13 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
         let started = Instant::now();
         eprint!("  {:<40}", candidate.input);
 
-        let search = match Search::prepare(&dict, &candidate.input, config.options(Vec::new())) {
+        // The input read as the candidate records, or with every item dropped
+        // for one from before phase N; a reading that does not fit is an error row.
+        let prepared = match anagram_core::reading_problem(&candidate.input, &candidate.reading_pairs()) {
+            Some(problem) => Err(problem),
+            None => Search::prepare(&dict, &candidate.read_input(), config.options(Vec::new())).map_err(|e| e.to_string()),
+        };
+        let search = match prepared {
             Ok(search) => search,
             Err(error) => {
                 eprintln!(" error: {error}");
@@ -809,7 +858,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
             for anchor in &candidate.anchors {
                 let word = anagram_core::normalize(anchor);
                 let forced = vec![word.clone()];
-                let summary = match Search::prepare(&dict, &candidate.input, config.options(forced.clone())) {
+                let summary = match Search::prepare(&dict, &candidate.read_input(), config.options(forced.clone())) {
                     Ok(anchored) => {
                         let pass = run_pass(&mut raw, &dict, &anchored, &candidate, Some(&word), &forced, &mut seen, &config)?;
                         rows += pass.rows;
@@ -879,6 +928,7 @@ fn batch(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
         short_words: config.short_words.len(),
         additions: (!additions.is_empty()).then_some(admitted),
         dictionary: Some(dictionary),
+        readings: anagram_core::READING_DEFAULTS.iter().copied().collect(),
         max_words: config.max_words,
         spellings: if config.all_spellings { "all" } else { "first" },
         expand_cap: config.expand_cap,
@@ -904,20 +954,19 @@ fn check(argv: &Argv) -> Result<(), Box<dyn std::error::Error>> {
         return Err("check needs two arguments: \"input\" \"anagram phrase\"".into());
     };
     let tier = tier_from(argv.get("tier").unwrap_or("standard"));
+    let reading = reading_flag(argv, input)?;
     let dict = load_dict()?;
 
-    let want = Counts::from_word(&anagram_core::normalize(input));
+    // The input read as `--read=` says (the defaults without it); the phrase is words.
+    let letters = anagram_core::normalize_with(input, &reading);
+    let want = Counts::from_word(&letters);
     let have = Counts::from_word(&anagram_core::normalize(phrase));
     let (Some(want), Some(have)) = (want, have) else {
         println!("no: a letter appears more than 127 times");
         std::process::exit(1);
     };
     if want != have {
-        println!(
-            "no: the letters differ ({} vs {})",
-            anagram_core::normalize(input),
-            anagram_core::normalize(phrase)
-        );
+        println!("no: the letters differ ({} vs {})", letters, anagram_core::normalize(phrase));
         std::process::exit(1);
     }
 

@@ -58,6 +58,8 @@ export type ReviewRowView = {
   id: string;
   kind: 'search' | 'submission';
   input: string;
+  /** How the input's numbers and symbols were read, when it has any. */
+  reading?: Record<string, string>;
   words: string[];
   promotions: number;
   category: string | null;
@@ -71,9 +73,10 @@ export function reviewView(line: ExportLine, candidates: readonly Candidate[]): 
   const submission = line.submissions[0];
   const search = line.searches[0];
   const input = submission?.input ?? search?.input ?? '';
+  const reading = submission ? submission.reading : search?.reading;
   const words = submission?.words ?? search?.words ?? line.key.slice(line.key.indexOf(':') + 1).split('-');
   const category = submission?.category ?? null;
-  const letters = normalizeLetters(input);
+  const letters = normalizeLetters(input, reading ?? {});
   const candidate = category
     ? candidates.find((c) => c.id === `${letters}:${category}`)
     : candidates.find((c) => c.id.startsWith(`${letters}:`) && c.about);
@@ -81,6 +84,7 @@ export function reviewView(line: ExportLine, candidates: readonly Candidate[]): 
     id: shortCode(line.key_sha256),
     kind: submission ? 'submission' : 'search',
     input,
+    ...(reading ? { reading } : {}),
     words,
     promotions: line.count,
     category,

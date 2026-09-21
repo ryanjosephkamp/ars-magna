@@ -37,9 +37,13 @@
 pub mod counts;
 pub mod dict;
 mod fold_table;
+pub mod readings;
+mod readings_table;
 pub mod search;
 
-pub use counts::{normalize, text_words, Counts};
+pub use counts::{normalize, normalize_with, text_words, text_words_with, Counts};
+pub use readings::{items as reading_items, parse_reading, read_input, reading_problem, Item as ReadingItem};
+pub use readings_table::DEFAULTS as READING_DEFAULTS;
 pub use dict::{Dict, DictError, SigClass, Tier, TierBits, WordList};
 pub use search::{
     Candidates, Cursor, Flow, Memo, Search, SolveError, SolveOptions, Stats, TextRow,

@@ -16,7 +16,9 @@ import {
   type Candidate,
   type Hit,
 } from '../src/schema.ts';
-import { alphagram, candidateId, hitId } from '../src/ids.ts';
+import { readingProblem } from '@ars-magna/engine/readings';
+
+import { alphagram, candidateId, hitId, lettersOf, recordReading } from '../src/ids.ts';
 import { sensesProblem } from '../src/sense.ts';
 import { displayProblemFor, readFormsMap } from '../src/display.ts';
 
@@ -60,19 +62,38 @@ const hit = (over: Partial<Hit> = {}): Hit => ({
 
 describe('ids', () => {
   it('folds accents, case, spacing and punctuation into one candidate', () => {
-    expect(candidateId('Beyoncé Knowles', 'people')).toBe('beyonceknowles:people');
-    expect(candidateId('beyonce knowles', 'people')).toBe(candidateId('BEYONCÉ KNOWLES', 'people'));
-    expect(candidateId('Coca-Cola', 'companies')).toBe('cocacola:companies');
+    expect(candidateId('Beyoncé Knowles', 'people', {})).toBe('beyonceknowles:people');
+    expect(candidateId('beyonce knowles', 'people', {})).toBe(candidateId('BEYONCÉ KNOWLES', 'people', {}));
+    expect(candidateId('Coca-Cola', 'companies', {})).toBe('cocacola:companies');
   });
 
   it('keeps the same letters apart across categories', () => {
-    expect(candidateId('Kindle', 'products')).not.toBe(candidateId('Kindle', 'companies'));
+    expect(candidateId('Kindle', 'products', {})).not.toBe(candidateId('Kindle', 'companies', {}));
   });
 
   it('makes a hit id from the words as a multiset', () => {
-    expect(hitId('dormitory', 'phrases', ['room', 'dirty'])).toBe('dormitory:phrases:dirty-room');
-    expect(hitId('dormitory', 'phrases', ['dirty', 'room'])).toBe(hitId('dormitory', 'phrases', ['room', 'dirty']));
-    expect(alphagram('Dirty Room')).toBe('dimoorrty');
+    expect(hitId('dormitory', 'phrases', ['room', 'dirty'], {})).toBe('dormitory:phrases:dirty-room');
+    expect(hitId('dormitory', 'phrases', ['dirty', 'room'], {})).toBe(hitId('dormitory', 'phrases', ['room', 'dirty'], {}));
+    expect(alphagram('Dirty Room', {})).toBe('dimoorrty');
+  });
+
+  it('reads numbers and symbols as the record says, and as before phase N without a reading', () => {
+    // The defaults: a number on its own is spelled.
+    expect(candidateId('Reacher season 4', 'titles', {})).toBe('reacherseasonfour:titles');
+    expect(candidateId('Reacher season 4', 'titles', { '4': 'drop' })).toBe('reacherseason:titles');
+    expect(candidateId('2 Fast 2 Furious', 'titles', { '2': 'too' })).toBe('toofasttoofurious:titles');
+    expect(hitId('Blink-182', 'titles', ['blink', 'two', 'eight', 'one'], { '182': 'digits' })).toBe('blinkoneeighttwo:titles:blink-eight-one-two');
+    expect(alphagram('Sardar 2', { '2': 'drop' })).toBe('aadrrs');
+    // A record with no reading was made when every digit and symbol was dropped and the letters kept, an ordinal's suffix among them.
+    expect(candidateId('Reacher season 4', 'titles', null)).toBe('reacherseason:titles');
+    expect(candidateId('Reacher season 4', 'titles', undefined)).toBe('reacherseason:titles');
+    expect(candidateId('18th BRICS summit', 'phrases', null)).toBe('thbricssummit:phrases');
+    expect(candidateId('AT&T', 'companies', null)).toBe('att:companies');
+    expect(candidateId('Ke$ha', 'people', null)).toBe('keha:people');
+    expect(lettersOf('Bl1nk 9/11', null)).toBe('blnk');
+    // What a new record stores: every item, defaults filled in; nothing for an input without items.
+    expect(recordReading('Blink-182 vs 2', { '2': 'too' })).toEqual({ '182': 'spell', '2': 'too' });
+    expect(recordReading('Beyoncé')).toBeUndefined();
   });
 });
 
@@ -177,11 +198,13 @@ describe('schemas', () => {
     const forms = await readFormsMap();
     expect(candidates.length).toBeGreaterThanOrEqual(40);
     expect(hits.length).toBeGreaterThanOrEqual(5);
-    for (const c of candidates) expect(c.id).toBe(candidateId(c.input, c.category));
+    for (const c of candidates) expect(c.id, c.input).toBe(candidateId(c.input, c.category, c.reading));
     for (const h of hits) {
-      expect(h.id).toBe(hitId(h.input, h.category, h.words));
-      expect(h.letters).toBe(alphagram(h.input));
-      expect(alphagram(h.words.join(''))).toBe(h.letters);
+      expect(h.id, h.input).toBe(hitId(h.input, h.category, h.words, h.reading));
+      expect(h.letters).toBe(alphagram(h.input, h.reading));
+      expect(alphagram(h.words.join(''), {})).toBe(h.letters);
+      // A record's reading, where it has one, names only items the input has and readings they offer.
+      if (h.reading) expect(readingProblem(h.input, h.reading), h.id).toBeNull();
       // The display reads exactly the words in their order, with listed forms, the allowed marks and capitals at most.
       expect(displayProblemFor(h.display, h.words, forms, { possessives: true }), `${h.id} displays "${h.display}"`).toBeNull();
       expect(sensesProblem(h)).toBeNull();

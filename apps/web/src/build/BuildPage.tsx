@@ -1,7 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { isTextItself, type Tier } from '@ars-magna/engine';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { fullReading, isTextItself, readItems, type Reading, type Tier } from '@ars-magna/engine';
 
 import { CheckToast } from '../components/CheckToast.tsx';
+import { ReadingLines } from '../components/ReadingLines.tsx';
 import { TierPicker } from '../components/Controls.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
@@ -45,13 +46,26 @@ export function BuildPage() {
   const [text, setText] = useState(opened.text);
   const [anagram, setAnagram] = useState(opened.anagram);
   const [tier, setTier] = useState<Tier>(opened.tier);
+  // How the text's numbers and symbols are read, where the reader chose other than the defaults.
+  const [reading, setReading] = useState<Reading>(opened.reading);
+  const items = useMemo(() => readItems(text, reading), [text, reading]);
+  const readAs = useCallback(
+    (key: string, name: string) => {
+      const item = readItems(text, reading).find((i) => i.key === key);
+      const next: Record<string, string> = { ...reading };
+      if (!item || name === item.default) delete next[key];
+      else next[key] = name;
+      setReading(next);
+    },
+    [text, reading],
+  );
   const anagramRef = useRef<HTMLTextAreaElement>(null);
   /** Where the caret last was in the anagram box, for a letter pressed while the box is not focused. */
   const caret = useRef({ start: 0, end: 0 });
   /** Where to put the caret once a pressed letter is in, while the box keeps focus. */
   const pendingCaret = useRef<number | null>(null);
 
-  const l = useMemo(() => ledger(text, anagram), [text, anagram]);
+  const l = useMemo(() => ledger(text, anagram, reading), [text, anagram, reading]);
   // The letter selected in a chart, marked in both charts, the tray and both
   // read-back lines. It lapses when neither box has it any more.
   const [picked, setPicked] = useState<string | null>(null);
@@ -86,6 +100,7 @@ export function BuildPage() {
     text,
     anagram,
     tier,
+    reading: items.map((item) => ({ item: item.key, readAs: item.offered.find((o) => o.name === item.reading)?.text ?? item.reading, name: item.reading })),
     checks: { lettersMatch: matchLabel, wordsKnown: knownLabel },
     verdict: anagramVerdict,
     letters: { text: analysis.text.letters, anagram: analysis.anagram.letters },
@@ -132,10 +147,10 @@ export function BuildPage() {
 
   // How many anagrams the text itself has in each dictionary, the chosen one
   // first: the site's own number, in a worker of its own and within a time limit.
-  const counts = useTextCounts(text, l.text.letters, tier, dictionary.status.state);
+  const counts = useTextCounts(text, l.text.letters, tier, dictionary.status.state, reading);
   const textCount = counts[tier];
 
-  useEffect(() => syncBuildUrl({ text, anagram, tier }), [text, anagram, tier]);
+  useEffect(() => syncBuildUrl({ text, anagram, tier, reading }), [text, anagram, tier, reading]);
 
   // Every figure the analysis shows, worked out once for the page and the
   // export: the page hands the dictionary's answers to the pure module.
@@ -170,7 +185,7 @@ export function BuildPage() {
   const textLine = lettersLine(l.text);
   // The text's own words in any order, or a re-spacing of it, are the text, not
   // an anagram of it: the verdict line says so and no submission is offered.
-  const itself = useMemo(() => isTextItself(text, anagram), [text, anagram]);
+  const itself = useMemo(() => isTextItself(text, anagram, reading), [text, anagram, reading]);
   const anagramVerdict = itself ? TEXT_ITSELF : verdict(l);
   const skippedInAnagram = l.anagram.skipped.length;
 
@@ -216,6 +231,7 @@ export function BuildPage() {
           <p className="font-mono text-xs text-ink-faint" aria-live="polite">
             {textLine || <span className="opacity-0">·</span>}
           </p>
+          <ReadingLines items={items} onChange={readAs} className="print:hidden" />
         </section>
 
         <section aria-labelledby={`${id}-letters`} className="mt-8 flex flex-col gap-1.5 print:hidden">
@@ -330,6 +346,7 @@ export function BuildPage() {
         {l.match && !itself && (
           <Submit
             text={text}
+            reading={fullReading(text, reading)}
             words={words}
             letters={l.text.letters.length}
             tierOf={dictionary.tierOf}

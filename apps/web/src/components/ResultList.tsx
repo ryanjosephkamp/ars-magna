@@ -12,6 +12,8 @@ import type { Row } from '../state/resultBuffer.ts';
 import { countOrderings, nextOrdering, orderings } from '../lib/orderings.ts';
 import { displayOrder, type Chosen } from '../lib/chosen.ts';
 import type { Shareable } from '../lib/share.ts';
+import type { Reading } from '@ars-magna/engine';
+
 import { buildHref } from '../lib/urlState.ts';
 import { discoveryFor, type Discovered, type RowDiscovery } from '../lib/inDiscoveries.ts';
 import { displayPhrase, type Forms } from '../lib/forms.ts';
@@ -52,6 +54,8 @@ type Props = {
 
 export type ShareContext = {
   input: string;
+  /** How the input's numbers and symbols are read, where that differs from the defaults; Build opens the same way. */
+  reading: Reading;
   /** The engine's total as reported, `>`-prefixed when a floor. */
   total: string;
   urlFor(phrase: string): string;
@@ -325,6 +329,7 @@ function ResultRow({
 
   const shareable: Shareable = {
     input: share.input,
+    reading: share.reading,
     phrase,
     url: share.urlFor(phrase),
     total: share.total,
@@ -398,11 +403,11 @@ function ResultRow({
           />
           <RowAction label="Share" active={sharing} onClick={() => setSharing((open) => !open)} />
           {/* Build opens with this row already in its boxes, to take apart by hand. */}
-          <RowLink label="Build" href={buildHref(share.input, phrase)} />
+          <RowLink label="Build" href={buildHref(share.input, phrase, share.reading)} />
           {discovery ? (
             <PublishedAction discovery={discovery} votes={votes} />
           ) : (
-            promotions && <PromoteAction words={shown} input={share.input} promotions={promotions} />
+            promotions && <PromoteAction words={shown} input={share.input} reading={share.reading} promotions={promotions} />
           )}
         </span>
       </div>
@@ -477,11 +482,11 @@ function PublishedAction({ discovery, votes }: { discovery: RowDiscovery; votes:
 }
 
 /** Promote, with its count, for a row that is not on Discover. Absent when promotions did not load, and for a blocked anagram. */
-function PromoteAction({ words, input, promotions }: { words: readonly string[]; input: string; promotions: Promotions }) {
+function PromoteAction({ words, input, reading, promotions }: { words: readonly string[]; input: string; reading: Reading; promotions: Promotions }) {
   const key = promotionKey(words);
   const blocked = useBlocked(key);
   if (promotions.status !== 'open' && promotions.status !== 'closed') return null;
-  if (!promotable(input, words) || blocked !== false) return null;
+  if (!promotable(input, words, reading) || blocked !== false) return null;
   const count = promotions.counts[key] ?? 0;
   return (
     <CountButton

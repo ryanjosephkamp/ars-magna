@@ -173,3 +173,34 @@ describe('a screened queue on disk', () => {
     expect(batches(rows, 150)).toHaveLength(1);
   });
 });
+
+describe('a reading through the screen', () => {
+  it('rides in the section as a reading: line and comes back on the rebuilt rows, in the id and the letters', () => {
+    const area: Prefiltered = {
+      ...row('areax:phrases', 'Area 51 x', 'fiver axe a one', 4),
+      id: 'areafiveonex:phrases:a-axe-fiver-one',
+      candidate_id: 'areafiveonex:phrases',
+      letters: 'aaeeefinorvx',
+      reading: { '51': 'digits' },
+    };
+    const groups = groupForScreen([area, ...ROWS]);
+    expect(groups[0]!.reading).toEqual({ '51': 'digits' });
+    const text = renderScreen(chunkScreen(groups, 100)[0]!, '# prompt', 1, 1);
+    expect(text).toContain('### areafiveonex:phrases\n\ninput: Area 51 x\nreading: 51:digits\ncategory: phrases');
+    expect(text).not.toContain('reading: \ncategory');
+    const sections = parseScreenInputs([text]);
+    expect(sections.get('areafiveonex:phrases')!.reading).toEqual({ '51': 'digits' });
+    expect(sections.get('listen:phrases')!.reading).toBeUndefined();
+    const { kept } = validateScreen([{ candidate_id: 'areafiveonex:phrases', keep: [1] }], new Map([['areafiveonex:phrases', sections.get('areafiveonex:phrases')!]]));
+    const [rebuilt] = rebuildRows(sections, parseScores(renderScores(groups)), kept);
+    expect(rebuilt).toMatchObject({ id: 'areafiveonex:phrases:a-axe-fiver-one', letters: 'aaeeefinorvx', reading: { '51': 'digits' } });
+    // A section with no reading line is a row from before phase N: its letters are the old fold's.
+    const legacy = rebuildRows(
+      new Map([['reacherseason:titles', { candidate_id: 'reacherseason:titles', input: 'Reacher season 4', category: 'titles', phrases: new Map([[1, 'as one searcher']]) }]]),
+      new Map([['reacherseason:titles', [1]]]),
+      new Map([['reacherseason:titles', new Set([1])]]),
+    );
+    expect(legacy[0]).toMatchObject({ id: 'reacherseason:titles:as-one-searcher', letters: 'aaceeehnorrss' });
+    expect(legacy[0]!.reading).toBeUndefined();
+  });
+});

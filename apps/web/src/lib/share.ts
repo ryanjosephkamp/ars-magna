@@ -8,11 +8,13 @@
  * the same pasted anywhere — a post, a message, a note — with one glyph and
  * the one number no other anagram tool can write.
  */
-import { normalizeLetters } from '@ars-magna/engine';
+import { normalizeLetters, type Reading } from '@ars-magna/engine';
 
 export type Shareable = {
   /** The text as the reader typed it. */
   input: string;
+  /** How its numbers and symbols are read, where that differs from the defaults; the letter count follows it. */
+  reading?: Reading;
   /** The anagram, in the order the reader chose. */
   phrase: string;
   /** Where the link goes: the search with this phrase kept, or a hit's page. */
@@ -42,7 +44,7 @@ function exactCount(total: string | null | undefined): string | null {
 }
 
 export function cardText(item: Shareable): string {
-  const letters = normalizeLetters(item.input).length;
+  const letters = normalizeLetters(item.input, item.reading ?? {}).length;
   const words = item.phrase.split(' ').filter((w) => w.length > 0).length;
   const facts = [
     `${letters} ${letters === 1 ? 'letter' : 'letters'}`,

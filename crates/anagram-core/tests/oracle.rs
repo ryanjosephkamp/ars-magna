@@ -594,9 +594,12 @@ fn the_text_is_never_its_own_result() {
         ("dirty rooom",       2, None, &[], &[], unlimited, TextRow::None),
         ("dorm it ory",       2, None, &[], &[], unlimited, TextRow::None),
         ("d o r m i t o r y", 1, None, &[], &[], unlimited, TextRow::None),
-        // A piece that folds to nothing is no word; a hyphen ends none.
-        ("dirty & moor",      2, None, &[], &[], unlimited, TextRow::Respelled),
-        ("dormitory 123",     2, None, &[], &[], unlimited, TextRow::Dropped),
+        // A piece that folds to nothing is no word; a hyphen ends none. An
+        // ampersand and digits are read as words since phase N ("dirty and
+        // moor", "dormitory one hundred twenty three"), so those rows are the
+        // text's own words in a longer text.
+        ("dirty ?? moor",     2, None, &[], &[], unlimited, TextRow::Respelled),
+        ("dormitory !!!",     2, None, &[], &[], unlimited, TextRow::Dropped),
         ("dor-mit'ory",       2, None, &[], &[], unlimited, TextRow::Dropped),
         // Must include keeps its slot as typed. Holding one of the words, the other decides.
         ("dirty moor",        2, None, &["dirty"], &[], unlimited, TextRow::Respelled),

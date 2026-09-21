@@ -82,6 +82,29 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     expect(again).toMatchObject({ ok: true, newCandidate: false, newHit: false });
   });
 
+  it('reads a number as the reading says, and records it on the candidate and the hit', async () => {
+    // By the defaults the 4 is spelled, so the old hit's words do not fit.
+    const spelled = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'] } }));
+    expect(spelled['ok']).toBe(false);
+    expect(String(spelled['reason'])).toMatch(/reacherseasonfour/);
+    const unfit = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'], reading: { '4': 'year' } } }));
+    expect(String(unfit['reason'])).toMatch(/reading: 4 cannot be read as year/);
+    const good = parse(
+      await client.callTool({
+        name: 'propose_hit',
+        arguments: { input: 'Reacher season 4', category: 'titles', words: ['as', 'one', 'searcher'], reading: { '4': 'drop' }, justification: 'A searcher, as Reacher is.' },
+      }),
+    );
+    expect(good).toMatchObject({ ok: true, hit: 'reacherseason:titles:as-one-searcher', newCandidate: true, newHit: true });
+    const candidates = (await readFile(join(scratch, 'c.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    const hits = (await readFile(join(scratch, 'h.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(candidates.find((c) => c['id'] === 'reacherseason:titles')).toMatchObject({ reading: { '4': 'drop' } });
+    expect(hits.find((h) => h['id'] === 'reacherseason:titles:as-one-searcher')).toMatchObject({ letters: 'aaceeehnorrss', reading: { '4': 'drop' } });
+    // Solve reads the input the same way and says so.
+    const solved = parse(await client.callTool({ name: 'solve', arguments: { input: 'Reacher season 4', reading: { '4': 'drop' }, first: 1 } }));
+    expect(solved).toMatchObject({ letters: 'aaceeehnorrss', reading: '4 left out' });
+  });
+
   it('records what the input is on the candidate and the hit, and a rationale as the justification rather than a note tag', async () => {
     const refused = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Listen', category: 'phrases', words: ['silent'], about: 'no full stop' } }));
     expect(refused).toMatchObject({ ok: false });

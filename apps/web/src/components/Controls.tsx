@@ -227,7 +227,7 @@ function WordsField({
   const commit = (next: string) => {
     const words = next
       .split(/[\s,]+/)
-      .map(normalizeLetters)
+      .map((word) => normalizeLetters(word))
       .filter((word) => word.length > 0);
     const both = inBoth(words, other);
     if (both !== null) {

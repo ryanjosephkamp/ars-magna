@@ -42,7 +42,7 @@ import { execFileSync } from 'node:child_process';
 import { aboutProblem, candidateOf, syncAbout, tidySentence } from './about.ts';
 import { checkAnagram, sameLetters } from './check.ts';
 import { repeatMessage, repeatedJustifications } from './guards.ts';
-import { alphagram, candidateId, hitId } from './ids.ts';
+import { alphagram, candidateId, hitId, recordReading } from './ids.ts';
 import { firstGlosses } from './glosses.ts';
 import { readJudgeSenses } from './sense.ts';
 import { readFormsMap, readJudgeDisplay } from './display.ts';
@@ -91,7 +91,7 @@ async function fromIssue(number: string): Promise<void> {
 
   const { Engine } = await import('./engine.ts');
   const engine = await Engine.boot();
-  const verdict = await checkAnagram(engine, parsed.input, parsed.words, parsed.tier);
+  const verdict = await checkAnagram(engine, parsed.input, parsed.words, parsed.tier, {});
   if (!verdict.ok) throw new Error(`issue #${number}: not an anagram: ${verdict.reason}`);
 
   const date = today();
@@ -99,7 +99,7 @@ async function fromIssue(number: string): Promise<void> {
   const hv = await hitSchema();
   const candidates = await readJsonl(CANDIDATES_PATH, cv);
   const hits = await readJsonl(HITS_PATH, hv);
-  const id = hitId(parsed.input, parsed.category, parsed.words);
+  const id = hitId(parsed.input, parsed.category, parsed.words, {});
   const submitted = fromSubmission(parsed, {
     candidates,
     hits,
@@ -136,12 +136,23 @@ export function fromSubmission(
   },
 ): { candidates: Candidate[]; hits: Hit[]; newCandidate: boolean; newHit: boolean; aboutWritten: boolean; synced: boolean; notes: string[] } {
   const notes: string[] = [];
-  const cid = candidateId(parsed.input, parsed.category);
-  const id = hitId(parsed.input, parsed.category, parsed.words);
+  // A submission is read by the defaults: an input with a number or a symbol records how.
+  const reading = recordReading(parsed.input);
+  const cid = candidateId(parsed.input, parsed.category, {});
+  const id = hitId(parsed.input, parsed.category, parsed.words, {});
   const existing = context.candidates.find((c) => c.id === cid);
   const candidate: Candidate = existing
     ? { ...existing }
-    : { id: cid, input: parsed.input, category: parsed.category, source: 'submission', first_seen: context.date, status: 'enumerated', notes: context.url };
+    : {
+        id: cid,
+        input: parsed.input,
+        category: parsed.category,
+        source: 'submission',
+        first_seen: context.date,
+        status: 'enumerated',
+        notes: context.url,
+        ...(reading ? { reading } : {}),
+      };
 
   const about = tidySentence(parsed.about);
   let aboutWritten = false;
@@ -171,7 +182,8 @@ export function fromSubmission(
     category: parsed.category,
     words: parsed.words,
     display: parsed.words.join(' '),
-    letters: alphagram(parsed.input),
+    letters: alphagram(parsed.input, {}),
+    ...(reading ? { reading } : {}),
     prefilter_score: 0,
     judge: [],
     submitter: context.credit,
@@ -394,6 +406,7 @@ export function hitFromRow(
     // The judge's checked display, else the words as the queue reads them.
     display: display ?? row.display,
     letters: row.letters,
+    ...(row.reading ? { reading: row.reading } : {}),
     prefilter_score: row.prefilter_score,
     judge,
     added: options.date,
@@ -853,8 +866,8 @@ async function main(): Promise<void> {
   for (const v of ok) {
     const row = batch.get(v.id)!;
     const verdict = engine
-      ? await checkAnagram(engine, row.input, row.words, row.tier)
-      : sameLetters(row.input, row.words)
+      ? await checkAnagram(engine, row.input, row.words, row.tier, row.reading ?? null)
+      : sameLetters(row.input, row.words, row.reading ?? null)
         ? { ok: true as const }
         : { ok: false as const, reason: 'the letters differ' };
     if (verdict.ok) verified.push(v);

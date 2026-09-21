@@ -249,12 +249,12 @@ export class EngineCore {
     // go over with single spaces between them, since the engine needs to know
     // what the text's own words are: the text is never its own result.
     const candidates = engine.begin(
-      foldWords(query.input).join(' '),
+      foldWords(query.input, query.reading).join(' '),
       query.tier,
       query.minWordLen,
       query.maxWords,
-      query.mustInclude.map(normalizeLetters),
-      query.mustExclude.map(normalizeLetters),
+      query.mustInclude.map((word) => normalizeLetters(word)),
+      query.mustExclude.map((word) => normalizeLetters(word)),
       maxNodes,
     );
 
@@ -285,12 +285,12 @@ export class EngineCore {
    */
   #count(id: number, query: Query, maxNodes = DEFAULT_MAX_NODES): void {
     const counted = this.#require().countQuery(
-      foldWords(query.input).join(' '),
+      foldWords(query.input, query.reading).join(' '),
       query.tier,
       query.minWordLen,
       query.maxWords,
-      query.mustInclude.map(normalizeLetters),
-      query.mustExclude.map(normalizeLetters),
+      query.mustInclude.map((word) => normalizeLetters(word)),
+      query.mustExclude.map((word) => normalizeLetters(word)),
       maxNodes,
     );
     const { total, textLeftOut } = counted;

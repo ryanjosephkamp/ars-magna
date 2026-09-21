@@ -18,6 +18,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { describeReading } from '@ars-magna/engine/readings';
+
 import { firstGlosses } from './glosses.ts';
 import type { Prefiltered } from './prefilter.ts';
 import { JUDGE_OUTPUT, SCREENED, flag, pickQueue, readJudgedRows } from './queue.ts';
@@ -145,7 +147,9 @@ export function renderBatch(
     const words = glosses
       ? `\n  words:${[...new Set(r.words)].map((w) => `\n    ${w}: ${glosses.get(w) ?? 'no definition'}`).join('')}`
       : '';
-    return `- id: ${r.id}\n  input: ${r.input}\n  category: ${r.category}${said}\n  anagram: ${r.display}${words}`;
+    // How a number or symbol in the input was read, in words, so the judge knows where those letters came from.
+    const read = r.reading ? `\n  reading: ${describeReading(r.input, r.reading)}` : '';
+    return `- id: ${r.id}\n  input: ${r.input}${read}\n  category: ${r.category}${said}\n  anagram: ${r.display}${words}`;
   });
   return `${rubricText}\n\n## Batch ${n} of ${of}: ${rows.length} candidates\n\n${lines.join('\n')}\n`;
 }

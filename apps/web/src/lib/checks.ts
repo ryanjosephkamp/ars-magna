@@ -19,7 +19,7 @@ const TIER_NAME: Record<Tier, string> = { common: 'Common', standard: 'Standard'
 export function wordsOf(anagram: string): string[] {
   return anagram
     .split(/\s+/)
-    .map(normalizeLetters)
+    .map((word) => normalizeLetters(word))
     .filter((word) => word.length > 0);
 }
 

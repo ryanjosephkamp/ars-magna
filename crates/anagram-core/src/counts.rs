@@ -187,8 +187,11 @@ impl fmt::Debug for Counts {
 /// Unicode NFKD over the Latin blocks (decompose, drop the combining marks,
 /// keep the ASCII letters) plus a hand-written list for the Latin letters
 /// that have no decomposition: ß -> ss, æ -> ae, œ -> oe, ø -> o, đ -> d,
-/// ł -> l, þ -> th, ð -> d, ı -> i. Anything else that is not a Latin letter
-/// — punctuation, spaces, digits, other scripts, emoji — is dropped.
+/// ł -> l, þ -> th, ð -> d, ı -> i. Numbers and the symbols `@ $ ! & +` are
+/// first read as letters by the default readings of `readings.rs` ("Blink-182"
+/// has the letters of *blink one hundred eighty two*, "Ke$ha" those of
+/// *kesha*); anything else that is not a Latin letter — punctuation, spaces,
+/// other scripts, emoji — is dropped.
 ///
 /// A table rather than a normalization crate because the same tables would
 /// add ~50 KB to the compressed WASM payload. The tests below check the table
@@ -196,8 +199,16 @@ impl fmt::Debug for Counts {
 /// side (`packages/engine/src/fold.ts`) carries the identical generated table
 /// and checks it against the browser's NFKD, so the two cannot drift.
 pub fn normalize(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for c in input.chars() {
+    normalize_with(input, &[])
+}
+
+/// [`normalize`] with the reader's own readings of the input's numbers and
+/// symbols (`readings.rs`): `("4", "drop")` leaves the 4 of "Reacher season 4"
+/// out, as the search did before phase N.
+pub fn normalize_with(input: &str, readings: &[(String, String)]) -> String {
+    let read = crate::readings::read_input(input, readings);
+    let mut out = String::with_capacity(read.len());
+    for c in read.chars() {
         if c.is_ascii() {
             if c.is_ascii_alphabetic() {
                 out.push(c.to_ascii_lowercase());
@@ -220,11 +231,23 @@ pub fn normalize(input: &str) -> String {
 /// White_Space plus U+FEFF, which is what `foldWords` in
 /// `packages/engine/src/fold.ts` splits on, so the two sides agree.
 pub fn text_words(input: &str) -> Vec<String> {
-    input
+    text_words_with(input, &[])
+}
+
+/// [`text_words`] with the reader's own readings: the words of "Area 51" are
+/// `area`, `fifty` and `one`, and under `("51", "digits")` `five` and `one`.
+pub fn text_words_with(input: &str, readings: &[(String, String)]) -> Vec<String> {
+    crate::readings::read_input(input, readings)
         .split(|c: char| c.is_whitespace() || c == '\u{feff}')
         .map(normalize)
         .filter(|word| !word.is_empty())
         .collect()
+}
+
+/// Whether a non-ASCII character folds to letters: the reading step's test
+/// for "a letter on both sides".
+pub(crate) fn folds_to_letters(c: char) -> bool {
+    !c.is_ascii() && fold_char(c).is_some()
 }
 
 /// The table entry for a non-ASCII character, if it folds to any letters.
@@ -287,10 +310,12 @@ mod tests {
     #[test]
     fn normalize_strips_everything_but_letters() {
         assert_eq!(normalize("Ryan Joseph Kamp"), "ryanjosephkamp");
-        assert_eq!(normalize("Route 66!"), "route");
+        // Numbers are read, and a closing exclamation mark is punctuation.
+        assert_eq!(normalize("Route 66!"), "routesixtysix");
         assert_eq!(normalize("O'Brien-Smith"), "obriensmith");
         assert_eq!(normalize(""), "");
-        assert_eq!(normalize("1234!!"), "");
+        assert_eq!(normalize("1234!!"), "onethousandtwohundredthirtyfour");
+        assert_eq!(normalize_with("1234!!", &[("1234".into(), "drop".into())]), "");
     }
 
     /// Mirrors FOLD_CASES in `packages/engine/test/fold.test.ts`. The two
@@ -310,7 +335,7 @@ mod tests {
             ("Łódź", "lodz"),
             ("Þórður", "thordur"),
             ("İstanbul", "istanbul"),
-            ("Ben Shelton 🎾 2026", "benshelton"),
+            ("Ben Shelton 🎾 2026", "bensheltontwothousandtwentysix"),
             ("Владимир", ""),
             ("東京", ""),
             // The dictionary build's two accented surfaces.
@@ -335,9 +360,9 @@ mod tests {
             ("applesauce".into(), vec!["applesauce"]),
             ("apple-sauce".into(), vec!["applesauce"]),
             ("O'Brien Smith".into(), vec!["obrien", "smith"]),
-            ("apple & sauce 2026".into(), vec!["apple", "sauce"]),
+            ("apple & sauce 2026".into(), vec!["apple", "and", "sauce", "two", "thousand", "twenty", "six"]),
             ("Beyoncé Knowles".into(), vec!["beyonce", "knowles"]),
-            ("Straße 9".into(), vec!["strasse"]),
+            ("Straße 9".into(), vec!["strasse", "nine"]),
             (between(0xa0), vec!["apple", "sauce"]),
             (between(0x85), vec!["apple", "sauce"]),
             (between(0x2028), vec!["apple", "sauce"]),
@@ -345,7 +370,8 @@ mod tests {
             (between(0xfeff), vec!["apple", "sauce"]),
             (between(0x200b), vec!["applesauce"]),
             (String::new(), vec![]),
-            ("1234 !!".into(), vec![]),
+            ("1234 !!".into(), vec!["one", "thousand", "two", "hundred", "thirty", "four"]),
+            ("!! ??".into(), vec![]),
         ];
         for (input, expected) in &cases {
             assert_eq!(&text_words(input), expected, "{input:?}");

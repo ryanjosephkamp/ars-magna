@@ -28,6 +28,12 @@ export type Query = {
    * spelling is excluded is gone, and one with other spellings shows those.
    */
   readonly mustExclude: readonly string[];
+  /**
+   * How the input's numbers and symbols are read, where the reader chose
+   * other than the defaults: item → reading name (`readings.ts`). Empty for
+   * the defaults, which is nearly always.
+   */
+  readonly reading: Readonly<Record<string, string>>;
 };
 
 export const DEFAULT_QUERY: Omit<Query, 'input'> = {
@@ -38,6 +44,7 @@ export const DEFAULT_QUERY: Omit<Query, 'input'> = {
   maxWords: UNLIMITED_WORDS,
   mustInclude: [],
   mustExclude: [],
+  reading: {},
 };
 
 export type DictCounts = {
