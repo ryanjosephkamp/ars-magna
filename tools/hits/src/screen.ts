@@ -26,7 +26,7 @@ import { SCREEN_KEEP_CAP, screenKeepProblems } from './guards.ts';
 import { alphagram, hitId, isCategory, type Category } from './ids.ts';
 import type { Prefiltered } from './prefilter.ts';
 import { PREFILTERED, SCREENED, SCREEN_OUTPUT, SCREEN_SCORES, flag, pickQueue } from './queue.ts';
-import { isDeepQueue } from './settings.ts';
+import { isDeepQueue, readQueueAdditions } from './settings.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const SCREEN_PROMPT_PATH = resolve(here, '../prompts/screen.md');
@@ -210,11 +210,21 @@ export function validateScreen(
   return { kept, problems };
 }
 
-/** The kept phrases as rows, rebuilt from the text, in input and number order. */
+/**
+ * The kept phrases as rows, rebuilt from the text, in input and number order.
+ *
+ * `admitted` is what the queue was enumerated with beyond its tier — the site's
+ * own additions, and in the names experiment the names list — read back from
+ * the queue's own `additions.txt`. A row using one of those words is
+ * `extended`, exactly as the prefilter labelled it: the screen input carries
+ * the phrases alone, so without this the row would come back as `common` and
+ * ingest's engine check would refuse it for a word Common does not have.
+ */
 export function rebuildRows(
   sections: ReadonlyMap<string, ScreenSection>,
   scores: ReadonlyMap<string, readonly number[]>,
   kept: ReadonlyMap<string, ReadonlySet<number>>,
+  admitted: ReadonlySet<string> = new Set(),
 ): Prefiltered[] {
   const rows: Prefiltered[] = [];
   for (const [id, section] of sections) {
@@ -239,8 +249,9 @@ export function rebuildRows(
         letters: alphagram(section.input, section.reading ?? null),
         ...(section.reading ? { reading: section.reading } : {}),
         prefilter_score: scoreList[n - 1]!,
-        // The s2 prefilter keeps common-tier words only.
-        tier: 'common',
+        // The prefilter keeps Common words and the words the run admitted
+        // beside them; only the latter make a row wider than Common.
+        tier: words.some((word) => admitted.has(word)) ? 'extended' : 'common',
       });
     }
   }
@@ -291,7 +302,7 @@ export async function applyScreen(dir: string): Promise<Prefiltered[]> {
         `Read those inputs' phrases again and keep only the strongest links. Nothing was written.`,
     );
   }
-  const rows = rebuildRows(sections, parseScores(await readFile(resolve(dir, SCREEN_SCORES), 'utf8')), kept);
+  const rows = rebuildRows(sections, parseScores(await readFile(resolve(dir, SCREEN_SCORES), 'utf8')), kept, await readQueueAdditions(dir));
   await writeFile(resolve(dir, SCREENED), rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
   return rows;
 }

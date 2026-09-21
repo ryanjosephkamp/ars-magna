@@ -35,8 +35,11 @@ import { bitsetGet, decodeDict, type DictForm } from './format.ts';
 export const VOCAB_DIR = resolve(REPO_ROOT, 'data/vocabulary');
 export const ADDITIONS_PATH = resolve(VOCAB_DIR, 'additions.jsonl');
 export const FORMS_PATH = resolve(VOCAB_DIR, 'forms.jsonl');
+/** The names list (phase Q1): in no tier, read by nothing on the site. */
+export const NAMES_PATH = resolve(VOCAB_DIR, 'names.jsonl');
 const SCHEMA_PATH = resolve(REPO_ROOT, 'data/schema/addition.schema.json');
 const FORM_SCHEMA_PATH = resolve(REPO_ROOT, 'data/schema/form.schema.json');
+const NAME_SCHEMA_PATH = resolve(REPO_ROOT, 'data/schema/name.schema.json');
 
 /** The most additions and forms the two lists may hold together. A number the operator may tune. */
 export const ADDITIONS_CAP = 2_000;
@@ -75,8 +78,23 @@ export type Form = {
   note?: string;
 };
 
+export type NameKind = 'person' | 'place' | 'company' | 'brand' | 'surname' | 'given';
+export type NameSource = 'wikidata' | 'census-surnames-2000' | 'census-given-1990' | 'geonames';
+
+/** One line of `names.jsonl`: a token the dictionary lacks, and where it is a name. */
+export type Name = {
+  name: string;
+  kind: NameKind;
+  source: NameSource;
+  from?: string;
+  trace: string;
+  prominence: number;
+  also?: { kind: NameKind; source: NameSource; from?: string; prominence?: number }[];
+};
+
 let validator: ValidateFunction<Addition> | null = null;
 let formValidator: ValidateFunction<Form> | null = null;
+let nameValidator: ValidateFunction<Name> | null = null;
 
 export async function additionSchema(): Promise<ValidateFunction<Addition>> {
   if (!validator) {
@@ -94,6 +112,15 @@ export async function formSchema(): Promise<ValidateFunction<Form>> {
     formValidator = ajv.compile<Form>(schema);
   }
   return formValidator;
+}
+
+export async function nameSchema(): Promise<ValidateFunction<Name>> {
+  if (!nameValidator) {
+    const ajv = new Ajv2020({ allErrors: true, strict: true });
+    const schema = JSON.parse(await readFile(NAME_SCHEMA_PATH, 'utf8')) as object;
+    nameValidator = ajv.compile<Name>(schema);
+  }
+  return nameValidator;
 }
 
 /** A readable one-line summary of why a record failed. */
@@ -115,6 +142,11 @@ export async function readAdditions(path = ADDITIONS_PATH): Promise<Addition[]> 
 /** Every listed form, in file order, through the schema; no file is no forms. */
 export async function readForms(path = FORMS_PATH): Promise<Form[]> {
   return readLines(path, await formSchema());
+}
+
+/** Every name, in file order, through the schema; no file is no names. */
+export async function readNames(path = NAMES_PATH): Promise<Name[]> {
+  return readLines(path, await nameSchema());
 }
 
 async function readLines<T>(path: string, check: ValidateFunction<T>): Promise<T[]> {
@@ -202,6 +234,29 @@ export function problemsWith(
     if (seen.has(letters)) problems.push(`${form}: its letters ${letters} are a site addition, not a word a form can spell`);
   }
 
+  return problems;
+}
+
+/**
+ * The rules the name schema cannot state, as a list of problems. Empty means
+ * the list is what `names:build` writes: every token folded, listed once, and
+ * absent from the dictionary, which `dictionary` is when it is available (the
+ * shipped list: the pin, the additions and the forms' letters-words). Without
+ * it the vocabulary rule is skipped rather than guessed at, and the caller
+ * says so.
+ */
+export function nameProblems(names: readonly Name[], dictionary: ReadonlySet<string> | null): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  let previous = '';
+  for (const { name } of names) {
+    if (normalize(name) !== name) problems.push(`${name}: not a search form; it normalizes to ${normalize(name) || 'nothing'}`);
+    if (seen.has(name)) problems.push(`${name}: listed more than once`);
+    seen.add(name);
+    if (name < previous) problems.push(`${name}: out of order after ${previous}; the list is sorted by name`);
+    previous = name;
+    if (dictionary?.has(name)) problems.push(`${name}: a word the dictionary already carries, not a name it lacks`);
+  }
   return problems;
 }
 

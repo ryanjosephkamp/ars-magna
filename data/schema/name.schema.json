@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/name.schema.json",
+  "title": "Name",
+  "description": "One name the vocabulary lacks: a single token of a notable person's, place's, company's or brand's name, a US Census surname or given name, or a GeoNames place, as data/vocabulary/names.jsonl lists them. Built by pnpm names:build from the sources pinned in tools/dict-build/src/pins.ts; not searchable by the site and in no tier. The names experiment (phase Q1) admits the list for one deep run; whether names are ever admitted by default is the operator's decision on its report.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "kind", "source", "trace", "prominence"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z]{2,45}$",
+      "description": "The search form, folded as the search folds: lowercase, accents to their base letters, nothing else. Never a word the dictionary carries."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["person", "place", "company", "brand", "surname", "given"],
+      "description": "What the name names, from the source that ranks first for it: person, place, company or brand from Wikidata; surname or given from the Census lists; place from GeoNames."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["wikidata", "census-surnames-2000", "census-given-1990", "geonames"],
+      "description": "The source the kind and the trace come from. Where several sources carry the token, `also` lists the rest."
+    },
+    "from": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "The label the token was taken from, as the source spells it: an entity's English label, a place's name, or the Census entry."
+    },
+    "trace": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where it is attested, always public: the Wikidata item, the GeoNames place, or the Census file."
+    },
+    "prominence": {
+      "type": "number",
+      "minimum": 0,
+      "description": "How prominent the source found it: Wikipedia editions with an article (Wikidata), the rank among surnames (Census surnames), the share of the population in percent (Census given names), or the population (GeoNames)."
+    },
+    "also": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "source"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["person", "place", "company", "brand", "surname", "given"] },
+          "source": { "type": "string", "enum": ["wikidata", "census-surnames-2000", "census-given-1990", "geonames"] },
+          "from": { "type": "string", "maxLength": 200 },
+          "prominence": { "type": "number", "minimum": 0 }
+        }
+      },
+      "description": "The other sources that carry the same token, each with its kind."
+    }
+  }
+}
