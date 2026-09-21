@@ -151,7 +151,7 @@ export function Gallery() {
     return hits.filter(
       (h) =>
         (category === 'all' || h.category === category) &&
-        (needle.length === 0 || h.input.toLowerCase().includes(needle) || h.display.includes(needle)),
+        (needle.length === 0 || h.input.toLowerCase().includes(needle) || h.display.toLowerCase().includes(needle)),
     );
   }, [hits, category, filter]);
 
