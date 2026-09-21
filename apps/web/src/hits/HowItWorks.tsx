@@ -153,16 +153,11 @@ export function HowItWorks() {
             never listed: <i>dog's</i> is the letters of <i>dogs</i>, which the search already finds.
           </p>
           <p className="mt-3 max-w-prose text-sm text-ink-soft">
-            A number or a symbol in the text is read as letters first, and the line under the field says how, with a control to read
-            it another way. On its own a number is spelled as a whole: <i>Blink-182</i> has the letters of <i>blink one hundred eighty
-            two</i>, and <i>9th</i> is <i>ninth</i>. It can instead be read digit by digit, as a year when it has four digits
-            (<i>nineteen oh seven</i>), as its keyboard letters where every digit has one (<i>1337</i> is <i>ieet</i>), or, for a single
-            digit, as a homophone: <i>2</i> as <i>to</i> or <i>too</i>, <i>4</i> as <i>for</i>, <i>8</i> as <i>ate</i>, <i>1</i> as{' '}
-            <i>won</i>, <i>0</i> as <i>oh</i>. Inside a word, with a letter on both sides, a digit stands for its keyboard letter
-            (<i>Bl1nk</i> is <i>blink</i>), and so do <i>$</i> and <i>!</i> (<i>Ke$ha</i>, <i>P!nk</i>); elsewhere those two are
-            punctuation. <i>@</i> stands for <i>a</i>, or is spelled <i>at</i>; <i>&amp;</i> is <i>and</i> and <i>+</i> is <i>plus</i>. A
-            number of more than four digits is left out unless read digit by digit, and any of them can be left out. A shared link carries
-            the reading, and so does a hit on Discover: one read before the readings existed was read with its digits dropped, and says so.
+            Nothing typed is ever replaced by something else: a number is never read as its name, and a symbol never as a letter or a
+            word. A number, or one of the symbols <i>@ $ &amp; % + #</i> (and <i>!</i> or <i>?</i> inside a word), is left out of the letters
+            for now, and the line under the field says which: <i>Blink-182</i> is searched as the letters of <i>blink</i>, with{' '}
+            <i>182 left out</i> beneath it. An anagram rearranges what was typed; only spaces, punctuation, apostrophes, hyphens and
+            capitals may be added or taken away.
           </p>
           <p className="mt-3 max-w-prose text-sm text-ink-soft">
             On the search page, Must exclude takes a word out of the dictionary for that search alone and leaves its other spellings, so

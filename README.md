@@ -15,18 +15,12 @@ same folding is applied to the dictionary, so the two always agree. Punctuation 
 silently, and so are spaces but for one thing: they say what the text's own words are, and
 the text itself is never listed as its own anagram (see Filtering and sorting).
 
-A number or a symbol is read as letters first, and the line under the field says how, with a
-control to read it another way. On its own a number is spelled as a whole (*Blink-182* has
-the letters of *blink one hundred eighty two*; *9th* is *ninth*), and can instead be read digit
-by digit, as a year for four digits (*nineteen oh seven*), as its keyboard letters where every
-digit has one (*1337* → *ieet*), or, for a single digit, as a homophone (*2* → *to*, *too*;
-*4* → *for*; *8* → *ate*; *1* → *won*; *0* → *oh*). Inside a word, with a letter on both
-sides, a digit stands for its keyboard letter (*Bl1nk* → *blink*), as `$` and `!` do
-(*Ke$ha*, *P!nk*); elsewhere those two are punctuation. `@` stands for *a* or is spelled
-*at*; `&` is *and* and `+` is *plus*. A number of more than four digits is left out unless
-read digit by digit, and any item can be left out. The reading rides in a shared link (`r=`)
-and on a hit's record. The letters of other scripts, other symbols and what a reading leaves
-out are skipped, and the line says how many characters were, so that never looks like a bug.
+Nothing typed is ever replaced by something else: a number is never read as its name, and a
+symbol never as a letter or a word (the literal rule). A number or a symbol of the set
+`@ $ & % + #` (and `!` or `?` inside a word) is left out of the letters for now, and the line
+under the field says which (*182 left out*); the literal phase will count them as characters
+of the anagram instead. The letters of other scripts, other symbols and the items left out
+are skipped, and the line says how many characters were, so that never looks like a bug.
 English only. An input with more than 127 copies of one letter is refused with a message
 rather than searched, since letter counts are bytes. The table is
 `scripts/readings.json`, read by the Rust engine and the TypeScript package alike.

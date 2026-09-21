@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { fullReading, isTextItself, readItems, type Reading, type Tier } from '@ars-magna/engine';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { fullReading, isTextItself, readItems, type Tier } from '@ars-magna/engine';
 
 import { CheckToast } from '../components/CheckToast.tsx';
 import { ReadingLines } from '../components/ReadingLines.tsx';
@@ -46,19 +46,9 @@ export function BuildPage() {
   const [text, setText] = useState(opened.text);
   const [anagram, setAnagram] = useState(opened.anagram);
   const [tier, setTier] = useState<Tier>(opened.tier);
-  // How the text's numbers and symbols are read, where the reader chose other than the defaults.
-  const [reading, setReading] = useState<Reading>(opened.reading);
+  // The text's numbers and symbols, each left out and said so under the box (the literal rule).
+  const reading = opened.reading;
   const items = useMemo(() => readItems(text, reading), [text, reading]);
-  const readAs = useCallback(
-    (key: string, name: string) => {
-      const item = readItems(text, reading).find((i) => i.key === key);
-      const next: Record<string, string> = { ...reading };
-      if (!item || name === item.default) delete next[key];
-      else next[key] = name;
-      setReading(next);
-    },
-    [text, reading],
-  );
   const anagramRef = useRef<HTMLTextAreaElement>(null);
   /** Where the caret last was in the anagram box, for a letter pressed while the box is not focused. */
   const caret = useRef({ start: 0, end: 0 });
@@ -231,7 +221,7 @@ export function BuildPage() {
           <p className="font-mono text-xs text-ink-faint" aria-live="polite">
             {textLine || <span className="opacity-0">·</span>}
           </p>
-          <ReadingLines items={items} onChange={readAs} className="print:hidden" />
+          <ReadingLines items={items} className="print:hidden" />
         </section>
 
         <section aria-labelledby={`${id}-letters`} className="mt-8 flex flex-col gap-1.5 print:hidden">

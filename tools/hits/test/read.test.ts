@@ -7,7 +7,6 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { rereadCandidates } from '../src/enumerate.ts';
 import { parseReadArgs, setReading } from '../src/read.ts';
 import { hitSchema, writeJsonl, type Candidate, type Hit } from '../src/schema.ts';
 
@@ -56,8 +55,8 @@ describe('hits:read', () => {
     expect([from, to, changed]).toEqual([null, '4:drop', true]);
     expect(records[0]!.reading).toEqual({ '4': 'drop' });
     expect(records[0]!.id).toBe('reacherseason:titles:as-one-searcher');
-    // Spelled, the 4 would give the letters of reacherseasonfour: another record.
-    expect(() => setReading([hit({})], 'reacherseason:titles:as-one-searcher', { '4': 'spell' })).toThrow(/reacherseasonfour:titles, not reacherseason:titles/);
+    // Nothing is converted: a reading that would spell the 4 is one the table does not offer.
+    expect(() => setReading([hit({})], 'reacherseason:titles:as-one-searcher', { '4': 'spell' })).toThrow(/4 cannot be read as spell/);
     expect(() => setReading([hit({})], 'reacherseason:titles:as-one-searcher', { '4': 'year' })).toThrow(/4 cannot be read as year/);
     expect(() => setReading([hit({})], 'reacherseason:titles:as-one-searcher', { '5': 'drop' })).toThrow(/no 5 to read/);
     expect(() => setReading([hit({})], 'nope:titles:a', { '4': 'drop' })).toThrow(/no such record/);
@@ -66,16 +65,19 @@ describe('hits:read', () => {
     expect(same.changed).toBe(false);
     const cleared = setReading(records, 'reacherseason:titles:as-one-searcher', null);
     expect([cleared.from, cleared.to, cleared.changed, cleared.records[0]!.reading]).toEqual(['4:drop', null, true, undefined]);
-    // A record read by the defaults keeps its id under a reading that spells the same letters; --clear would change it.
+    // A record made on 2026-09-21 under the withdrawn s5 rule keeps the id it was made with; a reading cannot be set or cleared on it, since either changes the id.
     const spelled = hit({ id: 'reacherseasonfour:titles:as-one-searcher-four', input: 'Reacher season 4', words: ['as', 'one', 'searcher', 'four'], display: 'as one searcher four', letters: 'aaceeefhnoorrssu', reading: { '4': 'spell' } });
     expect(() => setReading([spelled], spelled.id, null)).toThrow(/reacherseason:titles, not reacherseasonfour:titles/);
+    expect(() => setReading([spelled], spelled.id, { '4': 'drop' })).toThrow(/reacherseason:titles, not reacherseasonfour:titles/);
   });
 
   it('works on a candidate too, and records every item of the input', () => {
     const c = candidate({ id: 'blinkvs:titles', input: 'Blink-182 vs 2', category: 'titles', status: 'enumerated' });
     const { records } = setReading([c], 'blinkvs:titles', { '182': 'drop', '2': 'drop' });
     expect(records[0]!.reading).toEqual({ '182': 'drop', '2': 'drop' });
-    expect(() => setReading([c], 'blinkvs:titles', { '182': 'drop' })).toThrow(/blinkvstwo:titles, not blinkvs:titles/);
+    // Naming one item fills the rest in with the default, which is left out too; a reading the table does not offer is refused.
+    expect(setReading([c], 'blinkvs:titles', { '182': 'drop' }).records[0]!.reading).toEqual({ '182': 'drop', '2': 'drop' });
+    expect(() => setReading([c], 'blinkvs:titles', { '182': 'digits' })).toThrow(/182 cannot be read as digits/);
   });
 
   it('rewrites only the one line', async () => {
@@ -89,37 +91,5 @@ describe('hits:read', () => {
     const after = await readFile(path, 'utf8');
     expect(after.split('\n')[0]).toBe(before.split('\n')[0]);
     expect(after.split('\n')[1]).toContain('"reading":{"4":"drop"}');
-  });
-});
-
-describe('hits:enumerate reads a candidate from before phase N afresh', () => {
-  it('re-ids a new candidate with a number by the defaults, and leaves the rest alone', () => {
-    const list = [
-      candidate({}),
-      candidate({ id: 'sardar:titles', input: 'Sardar 2', category: 'titles', status: 'enumerated' }),
-      candidate({ id: 'reacherseason:titles', input: 'Reacher season 4', category: 'titles', reading: { '4': 'drop' } }),
-      candidate({ id: 'beyonce:people', input: 'Beyoncé', category: 'people' }),
-      candidate({ id: 'beverlyhills:places', input: 'Beverly Hills 90210', category: 'places', notes: 'a zip' }),
-    ];
-    const { candidates, moved, clashes, changed } = rereadCandidates(list, '2026-09-21');
-    expect(moved).toEqual([['como:companies', 'comoonethousandninehundredseven:companies']]);
-    expect(clashes).toEqual([]);
-    expect(changed).toBe(2);
-    expect(candidates[0]).toMatchObject({ id: 'comoonethousandninehundredseven:companies', reading: { '1907': 'spell' }, notes: 're-read 2026-09-21 from como:companies' });
-    // Enumerated already: untouched until requeued. Read as its hits are: untouched. No number: untouched.
-    expect(candidates[1]).toEqual(list[1]);
-    expect(candidates[2]).toEqual(list[2]);
-    expect(candidates[3]).toEqual(list[3]);
-    // A long number is dropped by default, so the letters and the id stay; the reading alone is written.
-    expect(candidates[4]).toEqual({ ...list[4], reading: { '90210': 'drop' } });
-  });
-
-  it('names a clash instead of merging two candidates', () => {
-    const list = [candidate({}), candidate({ id: 'comoonethousandninehundredseven:companies', input: 'Como 1907', reading: { '1907': 'spell' } })];
-    const { candidates, moved, clashes, changed } = rereadCandidates(list, '2026-09-21');
-    expect(moved).toEqual([]);
-    expect(clashes).toEqual([['como:companies', 'comoonethousandninehundredseven:companies']]);
-    expect(changed).toBe(0);
-    expect(candidates).toEqual(list);
   });
 });

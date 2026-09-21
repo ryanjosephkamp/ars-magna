@@ -22,7 +22,7 @@ import {
   subjectSlug,
   type Classification,
 } from '../src/classify/wikidata.ts';
-import { describable, lookupable, matchItems, reclassify, runFetch, titleOf, toCandidates, withWikidata } from '../src/fetch.ts';
+import { describable, legacyId, lookupable, matchItems, reclassify, runFetch, titleOf, toCandidates, withWikidata } from '../src/fetch.ts';
 import { previousDay, wikipediaTop } from '../src/sources/wikipedia-top.ts';
 import { USER_AGENT } from '../src/sources/source.ts';
 import { candidateSchema, type Candidate } from '../src/schema.ts';
@@ -335,4 +335,23 @@ describe.skipIf(!process.env['HITS_LIVE'])('live', () => {
     const [c] = await classifyTitles(['Dolly Parton'], { fetch, userAgent: USER_AGENT });
     expect(c!.category).toBe('people');
   }, 60_000);
+});
+
+describe('a title on file under its pre-N id', () => {
+  it('is the same candidate, whichever id the fetch computes for it today', () => {
+    // "Reacher season 4" has been a candidate since 2026-09-11 as reacherseason:titles, its 4 left out.
+    // The literal rule leaves the 4 out too, so the ids agree; an ordinal or a symbol they would not, and
+    // legacyId says what to look for on file.
+    const [placed] = toCandidates([{ title: 'Reacher season 4', source: 's', weight: 1 }], new Map([['Reacher season 4', { title: 'Reacher season 4', category: 'titles' as const, qid: null, subjects: [], classes: [] }]]), new Map(), '2026-09-22');
+    expect(placed!.id).toBe('reacherseason:titles');
+    expect(placed!.reading).toEqual({ '4': 'drop' });
+    expect(legacyId(placed!)).toBe('reacherseason:titles');
+    expect(legacyId({ input: '18th BRICS summit', category: 'phrases' })).toBe('thbricssummit:phrases');
+    expect(legacyId({ input: 'Vishwanath & Sons', category: 'titles' })).toBe('vishwanathsons:titles');
+    // reclassify: an unclassified line whose category arrives is not placed again beside its pre-N line.
+    const unclassified: Candidate = { id: 'thbricssummit:phrases', input: '18th BRICS summit', category: 'phrases', source: 'trending', first_seen: '2026-09-20', status: 'unclassified' };
+    const onFile: Candidate = { id: 'thbricssummit:phrases', input: '18th BRICS summit', category: 'phrases', source: 'trending', first_seen: '2026-09-18', status: 'enumerated' };
+    const { candidates: out } = reclassify([onFile, unclassified], new Map([['18th BRICS summit', { title: '18th BRICS summit', category: 'phrases' as const, qid: null, subjects: [], classes: [] }]]));
+    expect(out.filter((c) => c.input === '18th BRICS summit')).toHaveLength(1);
+  });
 });

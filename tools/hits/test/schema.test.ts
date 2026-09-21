@@ -77,12 +77,13 @@ describe('ids', () => {
     expect(alphagram('Dirty Room', {})).toBe('dimoorrty');
   });
 
-  it('reads numbers and symbols as the record says, and as before phase N without a reading', () => {
-    // The defaults: a number on its own is spelled.
-    expect(candidateId('Reacher season 4', 'titles', {})).toBe('reacherseasonfour:titles');
+  it('leaves numbers and symbols out as the record says, and as before phase N without a reading', () => {
+    // The one reading: a number is left out, by default and by name; a reading the table does not offer reads as the default.
+    expect(candidateId('Reacher season 4', 'titles', {})).toBe('reacherseason:titles');
     expect(candidateId('Reacher season 4', 'titles', { '4': 'drop' })).toBe('reacherseason:titles');
-    expect(candidateId('2 Fast 2 Furious', 'titles', { '2': 'too' })).toBe('toofasttoofurious:titles');
-    expect(hitId('Blink-182', 'titles', ['blink', 'two', 'eight', 'one'], { '182': 'digits' })).toBe('blinkoneeighttwo:titles:blink-eight-one-two');
+    expect(candidateId('2 Fast 2 Furious', 'titles', { '2': 'too' })).toBe('fastfurious:titles');
+    expect(hitId('Blink-182', 'titles', ['blink'], { '182': 'drop' })).toBe('blink:titles:blink');
+    expect(candidateId('the 10,000th man', 'phrases', {})).toBe('theman:phrases');
     expect(alphagram('Sardar 2', { '2': 'drop' })).toBe('aadrrs');
     // A record with no reading was made when every digit and symbol was dropped and the letters kept, an ordinal's suffix among them.
     expect(candidateId('Reacher season 4', 'titles', null)).toBe('reacherseason:titles');
@@ -92,7 +93,7 @@ describe('ids', () => {
     expect(candidateId('Ke$ha', 'people', null)).toBe('keha:people');
     expect(lettersOf('Bl1nk 9/11', null)).toBe('blnk');
     // What a new record stores: every item, defaults filled in; nothing for an input without items.
-    expect(recordReading('Blink-182 vs 2', { '2': 'too' })).toEqual({ '182': 'spell', '2': 'too' });
+    expect(recordReading('Blink-182 vs 2', { '2': 'too' })).toEqual({ '182': 'drop', '2': 'drop' });
     expect(recordReading('Beyoncé')).toBeUndefined();
   });
 });
@@ -198,8 +199,22 @@ describe('schemas', () => {
     const forms = await readFormsMap();
     expect(candidates.length).toBeGreaterThanOrEqual(40);
     expect(hits.length).toBeGreaterThanOrEqual(5);
-    for (const c of candidates) expect(c.id, c.input).toBe(candidateId(c.input, c.category, c.reading));
+    // A record made on 2026-09-21 under the withdrawn s5 rule (a reading the table no longer offers, such as
+    // `spell`) keeps the id and letters it was made with: the tools never recompute them. Every other record's
+    // id and letters follow from its input and its reading.
+    const withdrawn = (reading: Record<string, string> | undefined) => reading !== undefined && readingProblem('', {}) === null && Object.values(reading).some((v) => v !== 'drop');
+    for (const c of candidates) {
+      if (withdrawn(c.reading)) {
+        expect(c.first_seen, c.id).toBe('2026-09-21');
+        continue;
+      }
+      expect(c.id, c.input).toBe(candidateId(c.input, c.category, c.reading));
+    }
     for (const h of hits) {
+      if (withdrawn(h.reading)) {
+        expect([h.added, h.status], h.id).toEqual(['2026-09-21', 'retired']);
+        continue;
+      }
       expect(h.id, h.input).toBe(hitId(h.input, h.category, h.words, h.reading));
       expect(h.letters).toBe(alphagram(h.input, h.reading));
       expect(alphagram(h.words.join(''), {})).toBe(h.letters);

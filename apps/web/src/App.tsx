@@ -82,21 +82,11 @@ export function App() {
   // what is in the field rather than silently reverting to first paint.
   const query = useMemo<Query>(() => ({ ...filters, input }), [input, filters]);
   // The same fold the engine applies, so the letters line and the search
-  // never disagree about what "Beyoncé" contains, or how "Blink-182" reads.
+  // never disagree about what "Beyoncé" contains, or that "Blink-182" leaves its number out.
   const folded = useMemo(() => foldLetters(input, filters.reading), [input, filters.reading]);
   const letters = folded.letters;
+  // The numbers and symbols of the text, each left out and said so under the field (the literal rule).
   const items = useMemo(() => readItems(input, filters.reading), [input, filters.reading]);
-  // The reader's choice for one item; choosing its default forgets it, so the address stays short.
-  const readAs = useCallback(
-    (key: string, name: string) => {
-      const item = readItems(input, filters.reading).find((i) => i.key === key);
-      const next = { ...filters.reading };
-      if (!item || name === item.default) delete next[key];
-      else next[key] = name;
-      setFilters((f) => ({ ...f, reading: next }));
-    },
-    [input, filters.reading],
-  );
 
   const {
     engine, searching, error, candidates, countedLetters, textLeftOut, answered, forms: formList, loadMore, collect, at, surpriseMe,
@@ -413,7 +403,7 @@ export function App() {
           </p>
         </header>
 
-        <SearchField value={input} onChange={setInput} letters={letters} skipped={folded.skipped} items={items} onReading={readAs} />
+        <SearchField value={input} onChange={setInput} letters={letters} skipped={folded.skipped} items={items} />
 
         <div className="mt-10">
           <Controls

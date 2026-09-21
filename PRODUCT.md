@@ -32,10 +32,12 @@ Two things make this different from the anagram tools that already exist:
    the vocabulary reaches, so results are reproducible and the vocabulary is
    never a mystery.
 
-Every character typed is accounted for: an accented letter folds to its base
-letter, and a number or symbol is read as letters — spelled out, as a keyboard
-letter, or left out — with the reading stated under the field and one control
-away from another.
+Every character typed is accounted for, and nothing typed is ever replaced by
+something else: an accented letter folds to its base letter, and a number or a
+symbol is left out, with the line under the field saying which. A number is
+never read as its name, and a symbol never as a letter or a word. An anagram
+rearranges what was typed; only spaces, punctuation, apostrophes, hyphens and
+capitals may be added or taken away.
 
 Success is a user finding the specific rearrangement they were looking for, and
 trusting that if it were not shown, it does not exist.
