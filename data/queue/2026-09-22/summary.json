@@ -1,0 +1,41 @@
+{
+  "settings": "s6",
+  "text": "excluded",
+  "tier": "common",
+  "min_word_len": 3,
+  "short_words": 28,
+  "additions": 2,
+  "dictionary": {
+    "rev": "368bf0e4460461c985fca8bde49e4062d56c1516",
+    "full_sha256": "fa3dac892b6f3e7b2449b972f74d9805e529942afbc9d648b74da6ce319eee4f"
+  },
+  "readings": {
+    "digits": "self",
+    "symbols": "self"
+  },
+  "max_words": 5,
+  "spellings": "all",
+  "expand_cap": 64,
+  "limit": 5000,
+  "sample": 1000,
+  "seed": 1,
+  "max_nodes": 50000000,
+  "candidates": [
+    {
+      "id": "bestofthebest:titles",
+      "input": "Best of the Best",
+      "candidates": 87,
+      "count": "208",
+      "count_is_floor": false,
+      "head": 208,
+      "head_truncated": false,
+      "sampled": 0,
+      "rows": 410,
+      "capped": 0,
+      "text_dropped": false,
+      "error": null,
+      "ms": 1
+    }
+  ],
+  "rows": 410
+}
