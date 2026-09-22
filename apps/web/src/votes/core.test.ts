@@ -98,6 +98,10 @@ describe('promotions', () => {
     expect(promotionKey(['am', 'entangle'])).toBe('aaeeglmnnt:am-entangle');
     expect(KEY_PATTERN.test(promotionKey(['elegant', 'man']))).toBe(true);
     expect(KEY_PATTERN.test('aaeeglmnnt:Elegant-man')).toBe(false);
+    // A term of a class keys like a word: the characters sorted, then the terms (D62, D63).
+    expect(promotionKey(['1', '2', 'link', 'b8'])).toBe('128bikln:1-2-b8-link');
+    expect(KEY_PATTERN.test(promotionKey(['1', '2', 'link', 'b8']))).toBe(true);
+    expect(KEY_PATTERN.test(promotionKey(['tat', '&']))).toBe(true);
   });
 
   it('are published under a code, the SHA-256 of the key, the same in the Worker, the page and Node', async () => {
@@ -115,12 +119,22 @@ describe('promotions', () => {
     expect(spellingKey(['elegant', 'man'])).not.toBe(spellingKey(['entangle', 'am']));
   });
 
-  it('are offered only for well-formed words that use exactly the input’s folded letters', () => {
+  it('are offered only for well-formed terms that use exactly the input’s own characters', () => {
     expect(promotable('A gentleman', ['entangle', 'am'])).toBe(true);
     expect(promotable('Beyoncé', ['boney', 'ec'])).toBe(true);
     expect(promotable('A gentleman', ['entangle', 'ma', 'a'])).toBe(false);
     expect(promotable('A gentleman', ['Entangle', 'am'])).toBe(false);
     expect(promotable('   ', [])).toBe(false);
+    // A digit and a symbol are characters of the text, so an anagram has to use them (D62).
+    expect(promotable('Blink-182', ['1', '2', 'link', 'b8'])).toBe(true);
+    expect(promotable('Blink-182', ['blink'])).toBe(false);
+    expect(promotable('AT&T', ['tat', '&'])).toBe(true);
+    expect(promotable('Ke$ha', ['hake$'])).toBe(true);
+    // Under a reading that reads the character as a letter, the words carry the letter instead.
+    expect(promotable('Ke$ha', ['shake'], { $: 's' })).toBe(true);
+    expect(promotable('Ke$ha', ['shake'])).toBe(false);
+    // One left out is not the anagram's to use.
+    expect(promotable('Reacher season 4', ['as', 'one', 'searcher'], { '4': 'drop' })).toBe(true);
     expect(promotable('z'.repeat(MAX_LETTERS + 1), ['z'.repeat(MAX_LETTERS + 1)])).toBe(false);
     expect(promotable('a'.repeat(MAX_WORDS + 1), Array.from({ length: MAX_WORDS + 1 }, () => 'a'))).toBe(false);
   });

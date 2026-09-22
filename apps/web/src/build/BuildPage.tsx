@@ -1,9 +1,9 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { fullReading, isTextItself, readItems, type Tier } from '@ars-magna/engine';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { SELF, fullReading, isTextItself, readItems, type ClassName, type Reading, type Tier } from '@ars-magna/engine';
 
 import { CheckToast } from '../components/CheckToast.tsx';
 import { ReadingLines } from '../components/ReadingLines.tsx';
-import { TierPicker } from '../components/Controls.tsx';
+import { ClassPicker, TierPicker } from '../components/Controls.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { commonnessByWord, comparison, letterFigures, wordFigures, wordLengthRows } from '../lib/analysis.ts';
@@ -11,6 +11,7 @@ import { TEXT_ITSELF, lettersMatchLabel, wordsKnown, wordsKnownLabel, wordsOf } 
 import { buildFileStem, buildJson, buildTxt, download, type BuildReport } from '../lib/exporters.ts';
 import { holdsLetter } from '../lib/letterChart.ts';
 import { insertAt, ledger, lettersLine, readBack, verdict } from '../lib/ledger.ts';
+import { readingOf } from '../lib/readingChoice.ts';
 import { countLine, exportTotal } from '../lib/textCount.ts';
 import { decodeBuild, syncBuildUrl } from '../lib/urlState.ts';
 import { useDictionary } from '../state/useDictionary.ts';
@@ -46,11 +47,24 @@ export function BuildPage() {
   const [text, setText] = useState(opened.text);
   const [anagram, setAnagram] = useState(opened.anagram);
   const [tier, setTier] = useState<Tier>(opened.tier);
-  // The text's digits and symbols, each a character of the pool as itself, said so under the box (the literal rule). Until N5
-  // counts the pool, the ledger lists them as skipped and, with one as itself, Letters match reads No and the verdict names
-  // it: an anagram of the letters alone is not one of the text, and the API would refuse it.
-  const reading = opened.reading;
+  // The term classes the checks admit beside the dictionary's words, and how
+  // the text's digits and symbols are read: each a character of the text as
+  // itself by default (the literal rule), which the ledger counts and an
+  // anagram has to use, a letter where the reader reads one as a letter, or
+  // left out. Build checks one anagram, so there is one reading at a time and
+  // no both-ways leet choice; the lines under the box are the control.
+  const [classes, setClasses] = useState<readonly ClassName[]>(opened.classes);
+  const [reading, setReading] = useState<Reading>(opened.reading);
   const items = useMemo(() => readItems(text, reading), [text, reading]);
+  const read = useCallback((char: string, value: string) => {
+    const name = readingOf(value);
+    setReading((current) => {
+      const next = { ...current };
+      if (name === SELF) delete next[char];
+      else next[char] = name;
+      return next;
+    });
+  }, []);
   const anagramRef = useRef<HTMLTextAreaElement>(null);
   /** Where the caret last was in the anagram box, for a letter pressed while the box is not focused. */
   const caret = useRef({ start: 0, end: 0 });
@@ -70,7 +84,7 @@ export function BuildPage() {
     document.addEventListener('keydown', clear);
     return () => document.removeEventListener('keydown', clear);
   }, [selected]);
-  const marks = useMemo(() => readBack(text, anagram), [text, anagram]);
+  const marks = useMemo(() => readBack(text, anagram, reading), [text, anagram, reading]);
   const words = useMemo(() => wordsOf(anagram), [anagram]);
   const textWords = useMemo(() => wordsOf(text), [text]);
   const looked = useMemo(() => [...textWords, ...words], [textWords, words]);
@@ -78,15 +92,25 @@ export function BuildPage() {
   const pass = usePass();
   const published = usePublishedHits(true, '');
 
-  const known = wordsKnown(words, dictionary.tierOf, tier);
+  const known = wordsKnown(words, dictionary.standingOf, tier, classes);
   const knownLabel =
     words.length > 0 && dictionary.status.state === 'loading'
       ? 'Loading the dictionary…'
       : words.length > 0 && dictionary.status.state === 'failed'
         ? 'The dictionary did not load.'
-        : wordsKnownLabel(known, tier);
+        : wordsKnownLabel(known, tier, classes);
   const matchLabel = lettersMatchLabel(l);
   const checked = known.kind === 'known' || known.kind === 'unknown';
+  // The class of each term that is not a word, keyed by the term, as a hit and
+  // a promotion carry it: what the submission records beside the reading.
+  const termClasses = useMemo(() => {
+    const out: Record<string, ClassName> = {};
+    for (const word of words) {
+      const standing = dictionary.standingOf(word);
+      if (standing?.tier === null && standing.termClass !== null) out[word] = standing.termClass;
+    }
+    return out;
+  }, [words, dictionary]);
 
   const report = (): BuildReport => ({
     text,
@@ -139,10 +163,10 @@ export function BuildPage() {
 
   // How many anagrams the text itself has in each dictionary, the chosen one
   // first: the site's own number, in a worker of its own and within a time limit.
-  const counts = useTextCounts(text, l.text.letters, tier, dictionary.status.state, reading);
+  const counts = useTextCounts(text, l.text.letters, tier, dictionary.status.state, reading, classes);
   const textCount = counts[tier];
 
-  useEffect(() => syncBuildUrl({ text, anagram, tier, reading }), [text, anagram, tier, reading]);
+  useEffect(() => syncBuildUrl({ text, anagram, tier, reading, classes }), [text, anagram, tier, reading, classes]);
 
   // Every figure the analysis shows, worked out once for the page and the
   // export: the page hands the dictionary's answers to the pure module.
@@ -224,7 +248,7 @@ export function BuildPage() {
           <p className="font-mono text-xs text-ink-faint" aria-live="polite">
             {textLine || <span className="opacity-0">·</span>}
           </p>
-          <ReadingLines items={items} className="print:hidden" />
+          <ReadingLines items={items} className="print:hidden" onChange={read} />
         </section>
 
         <section aria-labelledby={`${id}-letters`} className="mt-8 flex flex-col gap-1.5 print:hidden">
@@ -281,8 +305,9 @@ export function BuildPage() {
         </section>
 
         <section aria-label="Checks" className="mt-10 flex flex-col gap-5 border-t border-rule pt-6">
-          <div className="self-start print:hidden">
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-5 self-start print:hidden">
             <TierPicker value={tier} counts={dictionary.status.state === 'ready' ? dictionary.status.counts : null} onChange={setTier} />
+            <ClassPicker value={classes} counts={dictionary.termCounts} onChange={setClasses} />
           </div>
           <dl className="flex flex-col gap-2 text-sm" aria-live="polite">
             <div className="grid grid-cols-[8rem_1fr] items-baseline gap-4">
@@ -303,7 +328,7 @@ export function BuildPage() {
           tier={tier}
           counts={counts}
           lengths={analysis.lengths}
-          typed={{ text, anagram }}
+          typed={{ text, anagram, reading }}
           selected={selected}
           onSelect={setPicked}
         />
@@ -341,8 +366,10 @@ export function BuildPage() {
             text={text}
             reading={fullReading(text, reading)}
             words={words}
+            classes={termClasses}
             letters={l.text.letters.length}
             tierOf={dictionary.tierOf}
+            standingOf={dictionary.standingOf}
             checked={checked && dictionary.status.state === 'ready'}
             published={published}
             pass={pass}

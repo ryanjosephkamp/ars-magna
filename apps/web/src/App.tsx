@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { foldLetters, formatCount, fullReading, readItems, type Query } from '@ars-magna/engine';
+import { SELF, foldLetters, formatCount, fullReading, lettersOf, readItems, type Query } from '@ars-magna/engine';
 import { SearchField } from './components/SearchField.tsx';
 import { Controls } from './components/Controls.tsx';
 import { ResultList } from './components/ResultList.tsx';
 import { PinnedStrip } from './components/PinnedStrip.tsx';
 import { useEngine, useResults } from './state/useEngine.ts';
 import { decodeQuery, keptPhrases, shareRowUrl, shareUrl, splitQuery, syncUrl } from './lib/urlState.ts';
+import { countUnit, offerFor, offerWords, type Offer } from './lib/classes.ts';
+import { chosenLeet, leetFor, leetOf, readingOf } from './lib/readingChoice.ts';
+import { termsFrom } from './lib/terms.ts';
+import { leetReadingText, type RowTerm } from './lib/rowTerms.ts';
+import { useTerms } from './state/useTerms.ts';
 import { useCopy } from './lib/useCopy.ts';
 import { choose, rowKey, type Chosen } from './lib/chosen.ts';
 import type { ShareContext } from './components/ResultList.tsx';
@@ -48,6 +53,14 @@ import {
 
 const NO_COUNTS: Readonly<Record<string, number>> = {};
 
+/**
+ * The node budget the count beside the count line runs under: the ladder's
+ * fourth rung, which settles an ordinary text in well under a second. It is an
+ * aside, not the answer, so it gives a floor (`more than 4,096`) rather than
+ * holding the page's own worker while it finishes.
+ */
+const OFFER_MAX_NODES = 640_000;
+
 export function App() {
   // The URL is the source of truth on first paint, so a shared link opens on
   // exactly the search it was copied from.
@@ -59,6 +72,13 @@ export function App() {
   }, []);
   const [input, setInput] = useState(initial.input);
   const [filters, setFilters] = useState(initial.filters);
+  // Which characters the reader has decided to read as themselves and as their
+  // letters, and which not: only the ones they chose, so typing another text
+  // takes that text's defaults (`$ ! @` on, digits off) rather than the last
+  // one's. A link that names a set of its own fills this in.
+  const [leetChosen, setLeetChosen] = useState<Readonly<Record<string, boolean>>>(() =>
+    chosenLeet(initial.input, initial.filters.reading, initial.filters.leet),
+  );
   const [surprise, setSurprise] = useState<string[] | null>(null);
   const [pinned, setPinned] = useState<string[]>(initial.kept);
   // The orders readers chose, keyed by each result's words. A kept phrase
@@ -79,8 +99,12 @@ export function App() {
 
   // `input` goes last so it always wins. Belt and braces alongside splitQuery:
   // if a stale `input` ever gets back into `filters`, the search still follows
-  // what is in the field rather than silently reverting to first paint.
-  const query = useMemo<Query>(() => ({ ...filters, input }), [input, filters]);
+  // what is in the field rather than silently reverting to first paint. The
+  // leet characters are worked out from the text each time, so they follow it.
+  const query = useMemo<Query>(
+    () => ({ ...filters, input, leet: leetFor(input, filters.reading, leetChosen) }),
+    [input, filters, leetChosen],
+  );
   // The same fold the engine applies, so the letters line and the search
   // never disagree about what "Beyoncé" contains, or that "Blink-182" leaves its number out.
   const folded = useMemo(() => foldLetters(input, filters.reading), [input, filters.reading]);
@@ -89,11 +113,14 @@ export function App() {
   const items = useMemo(() => readItems(input, filters.reading), [input, filters.reading]);
 
   const {
-    engine, searching, error, candidates, countedLetters, textLeftOut, unused, answered, forms: formList, loadMore, collect, at, surpriseMe,
-    spellings, masks, has,
+    engine, searching, error, candidates, countedLetters, textLeftOut, unused, answered, forms: formList, termCounts, loadMore, collect, at, surpriseMe,
+    spellings, masks, has, countWith,
   } = useEngine(query);
   const results = useResults();
   const { copied, copy } = useCopy();
+  // The class files' terms, for the panel's line under a term that is not a word.
+  const termList = useTerms();
+  const terms = useMemo(() => termsFrom(termList), [termList]);
   // The dictionary's listed forms, by the word they spell: how `dont` reads as
   // `don't` on this page. The engine and every key know the letters alone.
   const forms = useMemo(() => formsFrom(formList), [formList]);
@@ -106,24 +133,51 @@ export function App() {
    * Everything an expanded row needs about its words, in one call: the
    * definition and provenance from the shard files, and the other spellings of
    * the same letters from the engine. Fetched together so the row renders once
-   * rather than twice.
+   * rather than twice. A term that is not a word of the dictionary is not
+   * looked up there at all: its line comes from the class files, and the
+   * classes the engine makes from the text itself have a sentence of their own.
    */
   const wordDetails = useCallback(
-    async (words: readonly string[]): Promise<WordDetail[]> => {
+    async (list: readonly RowTerm[]): Promise<WordDetail[]> => {
+      // A leet row's term is a word of the dictionary, written with the
+      // character its letter came from, so it is looked up like any word and
+      // the panel says which character stands where.
+      const inDictionary = (term: RowTerm) => term.termClass === null || term.termClass === 'leet';
+      const words = list.filter(inDictionary).map((t) => t.word);
       const [spellingLists, infos] = await Promise.all([
         Promise.all(words.map((word) => spellings(word))),
         definitions.lookupAll(words),
       ]);
       // A spelling Must exclude took out of this search is not offered back.
-      const shown = (list: string[] | undefined) => (list ?? []).filter((w) => !query.mustExclude.includes(w));
-      return words.map((word, i) => ({
-        word,
-        display: displayWord(forms, word),
-        spellings: (shown(spellingLists[i]).length ? shown(spellingLists[i]) : [word]).map((w) => displayWord(forms, w)),
-        info: infos[i]!,
-      }));
+      const shown = (from: string[] | undefined) => (from ?? []).filter((w) => !query.mustExclude.includes(w));
+      let next = 0;
+      return list.map((rowTerm) => {
+        const { word, display, termClass } = rowTerm;
+        if (!inDictionary(rowTerm)) {
+          const term = terms.get(word);
+          return {
+            word,
+            display,
+            spellings: [display],
+            info: { word, senses: [], provenance: 'attested' as const, forms: [] },
+            ...(termClass ? { termClass } : {}),
+            ...(term ? { term } : {}),
+          };
+        }
+        const i = next++;
+        const others = shown(spellingLists[i]);
+        const leetText = termClass === 'leet' ? leetReadingText(word, display) : undefined;
+        return {
+          word,
+          display,
+          spellings: (others.length ? others : [word]).map((w) => displayWord(forms, w)),
+          info: infos[i]!,
+          ...(termClass ? { termClass } : {}),
+          ...(leetText ? { leetText } : {}),
+        };
+      });
     },
-    [definitions, spellings, query.mustExclude, forms],
+    [definitions, spellings, query.mustExclude, forms, terms],
   );
 
   useEffect(() => syncUrl(query), [query]);
@@ -134,6 +188,7 @@ export function App() {
       const next = splitQuery(decodeQuery(window.location.hash));
       setInput(next.input);
       setFilters(next.filters);
+      setLeetChosen(chosenLeet(next.input, next.filters.reading, next.filters.leet));
     };
     window.addEventListener('popstate', onPop);
     window.addEventListener('hashchange', onPop);
@@ -185,6 +240,39 @@ export function App() {
   const countLine = countLineOf({ answered, searching, total, error });
   const empty = hasQuery && countLine.kind === 'answered' && countLine.empty;
 
+  // What the term classes would add. A text with a digit or a symbol has no
+  // anagram of words alone — no word has one — so when the count is 0 for that
+  // reason the page counts once more with the classes that could use those
+  // characters and offers them beside the number. Nothing else is offered:
+  // this page has one number on it, and a second beside every ordinary search
+  // would be noise.
+  const leetable = useMemo(() => items.filter((i) => i.reading === SELF && lettersOf(i.key).length > 0).map((i) => i.key), [items]);
+  const offer = useMemo(
+    () =>
+      empty && !searching
+        ? offerFor({ unused, classes: query.classes, leet: query.leet, terms: termList, leetable })
+        : null,
+    [empty, searching, unused, query.classes, query.leet, termList, leetable],
+  );
+  const offerQuery = useMemo<Query | null>(
+    () => (offer ? { ...query, classes: [...query.classes, ...offer.classes], leet: [...query.leet, ...offer.leet] } : null),
+    [offer, query],
+  );
+  const offerKey = offerQuery ? `${letters}|${JSON.stringify(offerQuery)}` : null;
+  const [offered, setOffered] = useState<{ key: string; total: string } | null>(null);
+  useEffect(() => {
+    if (!offerQuery || !offerKey) return;
+    let live = true;
+    void countWith(offerQuery, OFFER_MAX_NODES).then((counted) => {
+      if (live && counted !== null) setOffered({ key: offerKey, total: counted });
+    });
+    return () => {
+      live = false;
+    };
+  }, [offerKey, offerQuery, countWith]);
+  // Only an answer to this search's own offer, and only one worth taking.
+  const offerTotal = offer && offered?.key === offerKey && offered.total !== '0' ? offered.total : null;
+
   // Must-include problems belong on that control; anything else is about the
   // query as a whole and replaces the result area rather than sitting beside
   // an honest-looking "0 anagrams".
@@ -196,6 +284,31 @@ export function App() {
   const patch = useCallback((next: Partial<Omit<Query, 'input'>>) => {
     setSurprise(null);
     setFilters((current) => ({ ...current, ...next }));
+  }, []);
+
+  /**
+   * One character's reading, from the line under the field: as itself, as
+   * itself and its letters, as one letter, or left out. The first two are the
+   * same reading and differ in whether the search tries the letters too, so
+   * both are set here.
+   */
+  const read = useCallback((char: string, value: string) => {
+    setSurprise(null);
+    const reading = readingOf(value);
+    setFilters((current) => {
+      const next = { ...current.reading };
+      if (reading === SELF) delete next[char];
+      else next[char] = reading;
+      return { ...current, reading: next };
+    });
+    setLeetChosen((current) => ({ ...current, [char]: leetOf(value) }));
+  }, []);
+
+  /** Turn on what the count line offered: the classes, and the characters' leet letters. */
+  const takeOffer = useCallback((offer: Offer) => {
+    setSurprise(null);
+    setFilters((current) => ({ ...current, classes: [...new Set([...current.classes, ...offer.classes])] }));
+    setLeetChosen((current) => ({ ...current, ...Object.fromEntries(offer.leet.map((char) => [char, true])) }));
   }, []);
 
   // Pins and chosen orders belong to the letters, not to the filters —
@@ -403,12 +516,21 @@ export function App() {
           </p>
         </header>
 
-        <SearchField value={input} onChange={setInput} letters={letters} skipped={folded.skipped} items={items} />
+        <SearchField
+          value={input}
+          onChange={setInput}
+          letters={letters}
+          skipped={folded.skipped}
+          items={items}
+          leet={query.leet}
+          onRead={read}
+        />
 
         <div className="mt-10">
           <Controls
             query={query}
             counts={counts}
+            termCounts={termCounts}
             onChange={patch}
             invalidWord={
               error?.code === 'UNKNOWN_WORD'
@@ -447,8 +569,11 @@ export function App() {
                       <span className="font-display text-3xl text-accent tabular-nums">
                         {formatCount(total)}
                       </span>{' '}
+                      {/* What the number holds: words alone, or the classes and leet
+                          readings the search admits, so a figure is never mistaken for
+                          the dictionary's own. */}
                       <span className="text-sm text-ink-soft">
-                        {total === '1' ? 'anagram' : 'anagrams'}
+                        {countUnit({ total, classes: query.classes, leet: query.leet, offered: offerTotal !== null })}
                       </span>
                       {/* The text is never its own anagram. When no other word shares its
                           words' letters, that row is gone and the count is one fewer: a
@@ -457,6 +582,19 @@ export function App() {
                         <>
                           {' '}
                           <span className="text-sm text-ink-faint">{TEXT_LEFT_OUT}</span>
+                        </>
+                      )}
+                      {/* The second figure: what the classes that could use this text's
+                          own digits and symbols would find, and the one press that
+                          turns them on. */}
+                      {offer && offerTotal !== null && (
+                        <>
+                          <span className="mx-2 text-sm text-rule-strong">·</span>
+                          <span className="text-sm text-ink-soft">
+                            {formatCount(offerTotal)} with {offerWords(offer)}
+                          </span>
+                          <span className="mx-2 text-sm text-rule-strong">·</span>
+                          <TextButton onClick={() => takeOffer(offer)}>Show them</TextButton>
                         </>
                       )}
                       {searching && <span className="ml-2 text-xs text-ink-faint">searching…</span>}
@@ -550,6 +688,8 @@ export function App() {
                   <ResultList
                     rows={visibleRows}
                     forms={forms}
+                    terms={terms}
+                    tagOf={(row) => results.tagOf(row)}
                     total={formatCount(total)}
                     hasMore={results.hasMore && filter.trim().length === 0}
                     onLoadMore={loadMore}
@@ -690,8 +830,9 @@ function Intro({ counts }: { counts: { extended: number } | null }) {
   return (
     <div className="text-sm">
       <p className="max-w-prose leading-relaxed text-ink-soft">
-        Type a word, a name, or a whole phrase. Every letter gets used exactly once — spaces move
-        wherever they need to, and punctuation, digits and capitals are ignored.
+        Type a word, a name, or a whole phrase. Every character gets used exactly once — spaces move
+        wherever they need to, punctuation and capitals are ignored, and a digit or a symbol is a
+        character of the text as itself.
       </p>
       <dl className="mt-8 space-y-2">
         {examples.map(([from, to]) => (

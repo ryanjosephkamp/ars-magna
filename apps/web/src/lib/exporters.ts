@@ -11,7 +11,7 @@
  * pure data with no header. Its truncation is disclosed at the point of
  * download instead.
  */
-import { type Query, type Tier } from '@ars-magna/engine';
+import { nonDefaultReading, type Query, type Tier } from '@ars-magna/engine';
 import { TIERS } from '@ars-magna/engine';
 
 import {
@@ -87,6 +87,12 @@ function metadata(input: ExportInput) {
     complete: isComplete(input),
     filters: {
       dictionary: query.tier,
+      // The term classes the search admitted, and the characters it read as
+      // letters too: two searches of the same text with different classes are
+      // different answers, so a file says which it is.
+      classes: [...query.classes],
+      leet: [...query.leet],
+      reading: nonDefaultReading(query.input, query.reading),
       minWordLength: query.minWordLen,
       maxWords: query.maxWords >= 64 ? null : query.maxWords,
       mustInclude: [...query.mustInclude],
@@ -166,6 +172,13 @@ ${meta.exported.toLocaleString()} of ${
 
 Letters       ${meta.letters}
 Dictionary    ${meta.filters.dictionary}
+Terms         ${meta.filters.classes.join(', ') || 'words alone'}
+Read as well  ${
+    Object.entries(meta.filters.reading)
+      .map(([item, name]) => `${item} as ${name === 'drop' ? 'left out' : name}`)
+      .concat(meta.filters.leet.map((char) => `${char} as itself or its letter`))
+      .join(', ') || '—'
+  }
 Min word len  ${meta.filters.minWordLength}
 Max words     ${meta.filters.maxWords ?? 'any'}
 Must include  ${meta.filters.mustInclude.join(', ') || '—'}

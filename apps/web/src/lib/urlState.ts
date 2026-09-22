@@ -11,19 +11,25 @@
  * `#q=dormitory` rather than a wall of parameters.
  */
 import {
+  CLASSES,
   DEFAULT_QUERY,
+  SEARCH_CLASSES_DEFAULT,
   TIERS,
   UNLIMITED_WORDS,
   DROP,
   formatReading,
+  lettersOf,
   nonDefaultReading,
   normalizeLetters,
   parseReading,
   readItems,
+  type ClassName,
   type Query,
   type Reading,
   type Tier,
 } from '@ars-magna/engine';
+
+import { defaultLeet } from './readingChoice.ts';
 
 const KEY = {
   input: 'q',
@@ -34,9 +40,18 @@ const KEY = {
   mustExclude: 'x',
   /** Phrases kept at the top: a shared anagram in the order the sharer chose. */
   kept: 'p',
-  /** How the input's numbers and symbols are read, where that differs from the defaults: `182:digits,2:too`. */
+  /** How the input's numbers and symbols are read, where that differs from the defaults: `$:s,4:drop`. */
   reading: 'r',
+  /** The term classes turned on, in table order: `shorthand,blends`. Absent for the default, words alone. */
+  classes: 'c',
+  /** The characters read as themselves and as their leet letters: `$!`. Absent for the default, empty for none. */
+  leet: 'l',
 } as const;
+
+/** The same set as a key, so two sets are compared without order mattering. */
+function leetKey(chars: readonly string[]): string {
+  return [...chars].sort().join('');
+}
 
 function clampInt(raw: string | null, min: number, max: number, fallback: number): number {
   if (raw === null) return fallback;
@@ -62,6 +77,12 @@ export function encodeQuery(query: Query): string {
   // Only what differs from the defaults, and only for items the input has.
   const reading = formatReading(nonDefaultReading(query.input, query.reading));
   if (reading.length > 0) params.set(KEY.reading, reading);
+  // The classes turned on, and the characters leet is on for where that is not
+  // this text's default: an empty `l` is "none", which a link must be able to say.
+  const classes = CLASSES.filter((name) => query.classes.includes(name));
+  if (leetKey(classes) !== leetKey(SEARCH_CLASSES_DEFAULT)) params.set(KEY.classes, classes.join(','));
+  const leet = query.leet.filter((char) => readItems(query.input, query.reading).some((item) => item.key === char));
+  if (leetKey(leet) !== leetKey(defaultLeet(query.input, query.reading))) params.set(KEY.leet, leet.join(''));
 
   // URLSearchParams percent-encodes spaces as `+`, which reads badly in a
   // shared link. Spaces are legal in a fragment, so put them back.
@@ -83,20 +104,44 @@ export function decodeQuery(hash: string): Query {
   // A link cannot ask for a word both ways; Must include keeps it.
   const mustExclude = words(KEY.mustExclude).filter((word) => !mustInclude.includes(word));
   const input = params.get(KEY.input) ?? '';
+  const reading = decodeReading(params.get(KEY.reading), input);
 
   return {
     input,
     tier,
-    // The term classes and leet are the site's defaults until N5 gives the
-    // page its control and carries them in the address.
-    classes: DEFAULT_QUERY.classes,
-    leet: DEFAULT_QUERY.leet,
+    classes: decodeClasses(params.get(KEY.classes)),
+    leet: decodeLeet(params.get(KEY.leet), input, reading),
     minWordLen: clampInt(params.get(KEY.minWordLen), 1, 12, DEFAULT_QUERY.minWordLen),
     maxWords: clampInt(params.get(KEY.maxWords), 1, UNLIMITED_WORDS, DEFAULT_QUERY.maxWords),
     mustInclude,
     mustExclude,
-    reading: decodeReading(params.get(KEY.reading), input),
+    reading,
   };
+}
+
+/**
+ * The classes a link turns on, in table order, each one the engine knows;
+ * anything else is dropped, so a link cannot ask for a class that is not a
+ * class. Absent is the default: words alone.
+ */
+export function decodeClasses(raw: string | null): ClassName[] {
+  if (raw === null) return [...SEARCH_CLASSES_DEFAULT];
+  const named = raw.split(',').map((name) => name.trim());
+  return CLASSES.filter((name) => named.includes(name));
+}
+
+/**
+ * The characters a link reads as themselves and as their leet letters: only
+ * characters the input has, that offer a letter, and that the reading leaves
+ * as themselves. Absent is this text's default (`$ ! @`); empty is none, which
+ * is how a link says the reader turned them off.
+ */
+export function decodeLeet(raw: string | null, input: string, reading: Reading = DEFAULT_QUERY.reading): string[] {
+  if (raw === null) return defaultLeet(input, reading);
+  const asked = new Set([...raw]);
+  return readItems(input, reading)
+    .filter((item) => asked.has(item.key) && item.reading === 'self' && lettersOf(item.key).length > 0)
+    .map((item) => item.key);
 }
 
 /**
@@ -212,8 +257,8 @@ export function keptPhrases(hash: string, input: string, reading: Reading = DEFA
 
 // ------------------------------------------------------------------- Build
 
-/** The Build page's own parameters, by the same rules: `t` the text, `a` the anagram, `d` the dictionary, `r` the text's reading. */
-const BUILD_KEY = { text: 't', anagram: 'a', tier: 'd', reading: 'r' } as const;
+/** The Build page's own parameters, by the same rules: `t` the text, `a` the anagram, `d` the dictionary, `r` the text's reading, `c` the classes. */
+const BUILD_KEY = { text: 't', anagram: 'a', tier: 'd', reading: 'r', classes: 'c' } as const;
 
 export type BuildState = {
   readonly text: string;
@@ -221,9 +266,17 @@ export type BuildState = {
   readonly tier: Tier;
   /** How the text's numbers and symbols are read, where that differs from the defaults. */
   readonly reading: Reading;
+  /** The term classes the checks admit beside the dictionary's words. */
+  readonly classes: readonly ClassName[];
 };
 
-export const BUILD_DEFAULT: BuildState = { text: '', anagram: '', tier: DEFAULT_QUERY.tier, reading: DEFAULT_QUERY.reading };
+export const BUILD_DEFAULT: BuildState = {
+  text: '',
+  anagram: '',
+  tier: DEFAULT_QUERY.tier,
+  reading: DEFAULT_QUERY.reading,
+  classes: SEARCH_CLASSES_DEFAULT,
+};
 
 /** Only what differs from an empty page, so a shared check is a short link. */
 export function encodeBuild(state: BuildState): string {
@@ -233,6 +286,8 @@ export function encodeBuild(state: BuildState): string {
   if (state.tier !== BUILD_DEFAULT.tier) params.set(BUILD_KEY.tier, state.tier);
   const reading = formatReading(nonDefaultReading(state.text, state.reading));
   if (reading.length > 0) params.set(BUILD_KEY.reading, reading);
+  const classes = CLASSES.filter((name) => state.classes.includes(name));
+  if (leetKey(classes) !== leetKey(SEARCH_CLASSES_DEFAULT)) params.set(BUILD_KEY.classes, classes.join(','));
   return params.toString().replace(/\+/g, '%20');
 }
 
@@ -245,6 +300,7 @@ export function decodeBuild(hash: string): BuildState {
     anagram: params.get(BUILD_KEY.anagram) ?? '',
     tier: TIERS.includes(rawTier as Tier) ? (rawTier as Tier) : BUILD_DEFAULT.tier,
     reading: decodeReading(params.get(BUILD_KEY.reading), text),
+    classes: decodeClasses(params.get(BUILD_KEY.classes)),
   };
 }
 
@@ -262,8 +318,13 @@ export function syncBuildUrl(state: BuildState): void {
  * Discover row and the search toolbar link to. Relative, since every one of
  * them is on this site.
  */
-export function buildHref(text: string, anagram = '', reading: Reading = DEFAULT_QUERY.reading): string {
-  const encoded = encodeBuild({ ...BUILD_DEFAULT, text, anagram, reading });
+export function buildHref(
+  text: string,
+  anagram = '',
+  reading: Reading = DEFAULT_QUERY.reading,
+  classes: readonly ClassName[] = SEARCH_CLASSES_DEFAULT,
+): string {
+  const encoded = encodeBuild({ ...BUILD_DEFAULT, text, anagram, reading, classes });
   return `/build${encoded ? `#${encoded}` : ''}`;
 }
 
@@ -273,8 +334,16 @@ export function buildHref(text: string, anagram = '', reading: Reading = DEFAULT
  * symbol left out, so its link says so (`r=4:drop`), and one read by the
  * defaults, every character as itself, needs nothing.
  */
-export function searchHref(input: string, reading: Reading | null | undefined): string {
-  const encoded = encodeQuery({ ...DEFAULT_QUERY, input, reading: reading ?? legacyReading(input) });
+export function searchHref(
+  input: string,
+  reading: Reading | null | undefined,
+  classes: readonly ClassName[] = SEARCH_CLASSES_DEFAULT,
+): string {
+  // A hit whose terms are not all words needs its classes on to be among the
+  // results; its reading decides the leet characters, since one the hit fixed
+  // (`$` as s) is read that way and not both ways.
+  const chosen = reading ?? legacyReading(input);
+  const encoded = encodeQuery({ ...DEFAULT_QUERY, input, reading: chosen, classes, leet: defaultLeet(input, chosen) });
   return `/${encoded ? `#${encoded}` : ''}`;
 }
 

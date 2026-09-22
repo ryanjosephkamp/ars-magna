@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ClassName } from '@ars-magna/engine';
 
 import type { PromotionsBody } from '../votes/api.ts';
 import { promotionKey } from '../votes/core.ts';
@@ -14,8 +15,12 @@ export type Promotions = {
   counts: Readonly<Record<string, number>>;
   mine: ReadonlySet<string>;
   busy: ReadonlySet<string>;
-  /** Promote, or take back a promotion of, `words` in the order the reader sees them. */
-  toggle(words: readonly string[]): void;
+  /**
+   * Promote, or take back a promotion of, `words` in the order the reader sees
+   * them, with the class of each term that is not a word of the dictionary, so
+   * the review knows what `b8` is (D63).
+   */
+  toggle(words: readonly string[], classes?: Readonly<Record<string, ClassName>>): void;
 };
 
 const GENERIC = 'Your promotion did not save. Try again.';
@@ -76,7 +81,8 @@ export function usePromotions(
     if (!enabled || letters.length === 0 || loadedRef.current === letters) return;
     let live = true;
     const timer = setTimeout(() => {
-      fetch(`/api/promotions?letters=${letters}&voter=${voter}`, { cache: 'no-store' })
+      // The characters are the pool's, so `&`, `+` and `#` have to be encoded.
+      fetch(`/api/promotions?letters=${encodeURIComponent(letters)}&voter=${voter}`, { cache: 'no-store' })
         .then((r) => (r.ok ? (r.json() as Promise<PromotionsBody>) : Promise.reject(new Error(String(r.status)))))
         .then((body) => {
           if (!live || lettersRef.current !== letters) return;
@@ -95,7 +101,7 @@ export function usePromotions(
   }, [enabled, letters, voter]);
 
   const toggle = useCallback(
-    (words: readonly string[]) => {
+    (words: readonly string[], classes: Readonly<Record<string, ClassName>> = {}) => {
       const key = promotionKey(words);
       if (status !== 'open' || busyRef.current.has(key)) return;
       const on = !tallyRef.current.mine.has(key);
@@ -108,7 +114,14 @@ export function usePromotions(
       void (async () => {
         try {
           // The input's reading goes with it, every item of it, so the review reads the input as the reader did.
-          const body = await send<{ key: string; on: boolean; count: number }>('/api/promote', { input, words: [...words], tier, on, ...(reading ? { reading } : {}) });
+          const body = await send<{ key: string; on: boolean; count: number }>('/api/promote', {
+            input,
+            words: [...words],
+            tier,
+            on,
+            ...(reading ? { reading } : {}),
+            ...(Object.keys(classes).length > 0 ? { classes } : {}),
+          });
           if (lettersRef.current === pressedFor) setTally((t) => withCount(t, key, body.on, body.count));
         } catch (error) {
           if (lettersRef.current === pressedFor) setTally((t) => withVote(t, key, !on));

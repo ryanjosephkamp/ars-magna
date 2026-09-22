@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from 'react';
+import type { ClassName } from '@ars-magna/engine';
 
 import { SECTIONS, type PublicHit } from '../hits/build.ts';
-import { submissionTier, wordRequestSentence, wordRequests, type TierOf } from '../lib/checks.ts';
+import { submissionTier, wordRequestSentence, wordRequests, type StandingOf, type TierOf } from '../lib/checks.ts';
 import { ActionProblem, type Pass } from '../state/usePass.ts';
 import { useBlocked } from '../state/usePublishedHits.ts';
 import type { PromotionsBody } from '../votes/api.ts';
@@ -46,10 +47,13 @@ type Props = {
   reading: Record<string, string> | null;
   /** The anagram's words, folded, in the order typed. */
   words: readonly string[];
-  /** How many letters the text has. */
+  /** The class of each term that is not a word of the dictionary, keyed by the term. */
+  classes: Readonly<Record<string, ClassName>>;
+  /** How many characters the text has. */
   letters: number;
   tierOf: TierOf;
-  /** Every word's tier has been looked up. */
+  standingOf: StandingOf;
+  /** Every term's tier and class have been looked up. */
   checked: boolean;
   /** The published hits, once loaded. */
   published: readonly PublicHit[] | null;
@@ -61,7 +65,7 @@ type Props = {
  * anagram with a note for the review. The API is the search page's Promote,
  * with `via: 'typed'`, behind the same check and the same hourly limit.
  */
-export function Submit({ text, reading, words, letters, tierOf, checked, published, pass }: Props) {
+export function Submit({ text, reading, words, classes, letters, tierOf, standingOf, checked, published, pass }: Props) {
   const key = promotionKey(words);
   const onDiscover = published?.find((hit) => promotionKey(hit.words) === key) ?? null;
   const blocked = useBlocked(key);
@@ -89,7 +93,20 @@ export function Submit({ text, reading, words, letters, tierOf, checked, publish
   } else if (blocked) {
     body = <p className="mt-4 max-w-prose text-sm text-ink-soft">This anagram cannot be submitted.</p>;
   } else {
-    body = <Form key={key} promotionKey={key} text={text} reading={reading} words={words} tierOf={tierOf} checked={checked} pass={pass} />;
+    body = (
+      <Form
+        key={key}
+        promotionKey={key}
+        text={text}
+        reading={reading}
+        words={words}
+        classes={classes}
+        tierOf={tierOf}
+        standingOf={standingOf}
+        checked={checked}
+        pass={pass}
+      />
+    );
   }
 
   return (
@@ -109,7 +126,9 @@ function Form({
   text,
   reading,
   words,
+  classes,
   tierOf,
+  standingOf,
   checked,
   pass,
 }: {
@@ -117,7 +136,9 @@ function Form({
   text: string;
   reading: Record<string, string> | null;
   words: readonly string[];
+  classes: Readonly<Record<string, ClassName>>;
   tierOf: TierOf;
+  standingOf: StandingOf;
   checked: boolean;
   pass: Pass;
 }) {
@@ -135,7 +156,7 @@ function Form({
   // what shows that a submission is still there after a reload.
   useEffect(() => {
     let live = true;
-    fetch(`/api/promotions?letters=${sortedLetters(words.join(''))}&voter=${pass.voter}`, { cache: 'no-store' })
+    fetch(`/api/promotions?letters=${encodeURIComponent(sortedLetters(words.join('')))}&voter=${pass.voter}`, { cache: 'no-store' })
       .then((r) => (r.ok ? (r.json() as Promise<PromotionsBody>) : Promise.reject(new Error(String(r.status)))))
       .then((answer) => {
         if (live) setPromo({ count: answer.counts[key] ?? 0, mine: answer.mine.includes(key), open: answer.open });
@@ -148,13 +169,15 @@ function Form({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, pass.voter]);
 
-  const missing = checked ? wordRequests(words, tierOf) : [];
+  const missing = checked ? wordRequests(words, standingOf) : [];
   const aboutText = tidyNote(about);
   const aboutIssue = aboutText.length > 0 ? aboutProblem(aboutText) : null;
   const payload = {
     input: text.trim(),
-    // Every item's reading, so the review reads the text as the reader did.
+    // Every item's reading, so the review reads the text as the reader did,
+    // and the class of each term that is not a word, so it knows what it is.
     ...(reading ? { reading } : {}),
+    ...(Object.keys(classes).length > 0 ? { classes } : {}),
     words: [...words],
     tier: submissionTier(words, tierOf),
     on: true,

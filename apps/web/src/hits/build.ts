@@ -5,6 +5,8 @@
  * here; the script does the file work.
  */
 
+import { CLASSES, type ClassName } from '@ars-magna/engine';
+
 export type Category = 'people' | 'companies' | 'products' | 'titles' | 'places' | 'phrases';
 
 /** Greatest Hits (featured), Interesting, or A stretch. */
@@ -32,6 +34,8 @@ export type HitRecord = {
   letters: string;
   /** How the input's numbers and symbols are read, every item of them; absent on a hit from before phase N, whose items were dropped. */
   reading?: Record<string, string>;
+  /** The class of each term that is not a word of the dictionary, keyed by the term (D63); absent when every term is a word. */
+  classes?: Record<string, ClassName>;
   judge: JudgeRecord[];
   submitter?: string;
   added: string;
@@ -57,6 +61,12 @@ export type PublicHit = {
   letters: string;
   /** How the input's numbers and symbols are read, so the search opens on the same letters; absent on a hit from before phase N. */
   reading?: Record<string, string>;
+  /**
+   * The class of each term that is not a word of the dictionary, keyed by the
+   * term: what the row is labelled with and the panel explains. Absent when
+   * every term is a word, which is every hit today.
+   */
+  classes?: Record<string, ClassName>;
   justification: string;
   shelf: Shelf;
   score: number | null;
@@ -83,6 +93,17 @@ export type PublicHit = {
 };
 
 export const CATEGORIES: readonly Category[] = ['people', 'companies', 'products', 'titles', 'places', 'phrases'];
+
+/**
+ * The classes a hit's terms come from, once each, in the plan's table order:
+ * what the row is labelled with, and what its links carry so the search and
+ * Build open with the same terms admitted. Empty for a hit of words alone,
+ * which is every hit today.
+ */
+export function hitClasses(hit: Pick<PublicHit, 'classes'>): ClassName[] {
+  const named = Object.values(hit.classes ?? {});
+  return CLASSES.filter((name) => named.includes(name));
+}
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   people: 'People',
@@ -143,6 +164,7 @@ export function toPublic(hit: HitRecord): PublicHit {
     words: hit.words,
     letters: hit.letters,
     ...(hit.reading ? { reading: hit.reading } : {}),
+    ...(hit.classes && Object.keys(hit.classes).length > 0 ? { classes: hit.classes } : {}),
     // The operator's own sentence first, then the v2 judge's, then the v1 rationale, then a submitter's note.
     justification: hit.justification ?? v2?.justification ?? v1?.rationale ?? note ?? '',
     shelf: shelfOf(hit),

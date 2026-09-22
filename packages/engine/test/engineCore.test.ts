@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { EngineCore, parseTag } from '../src/engineCore.ts';
-import { DEFAULT_QUERY, type Query, type Response } from '../src/protocol.ts';
+import { DEFAULT_QUERY, type ClassName, type Query, type Response } from '../src/protocol.ts';
 import { encodeClasses } from '../../../tools/dict-build/src/format.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -712,6 +712,25 @@ describe.skipIf(!built)('EngineCore with the term classes', () => {
     expect(texts).not.toContain('182');
     expect(texts).toContain('18 2');
     expect(texts.some((t) => t.includes('28'))).toBe(false);
+  });
+
+  it('says which class carries a term the tiers do not, and nothing for a word', async () => {
+    const lookup = async (word: string, classes?: ClassName[]) => {
+      port.reset();
+      await core.handle(classes ? { k: 'lookup', id: 9, word, tier: 'extended', classes } : { k: 'lookup', id: 9, word, tier: 'extended' });
+      return port.last('lookup')!;
+    };
+    // A word of the dictionary is found without a class, and carries none.
+    expect(await lookup('dormitory')).toEqual({ found: true, k: 'lookup', id: 9 });
+    expect(await lookup('dormitory', ['blends', 'shorthand'])).toEqual({ found: true, k: 'lookup', id: 9 });
+    // A term is found only with its class, and the answer names it.
+    expect(await lookup('b8')).toMatchObject({ found: false });
+    expect(await lookup('b8', ['blends'])).toMatchObject({ found: true, termClass: 'blends' });
+    expect(await lookup('b8', ['shorthand', 'blends', 'names'])).toMatchObject({ found: true, termClass: 'blends' });
+    expect(await lookup('b8', ['shorthand'])).toMatchObject({ found: false });
+    expect(await lookup('eiffel', ['names'])).toMatchObject({ found: true, termClass: 'names' });
+    // Nothing has it, whatever is asked for.
+    expect(await lookup('qzx', ['blends', 'names'])).toMatchObject({ found: false });
   });
 
   it('parses a packed tag line as the engine writes it', () => {

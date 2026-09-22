@@ -22,7 +22,7 @@ import type {
 export * from './protocol.ts';
 export { readForms } from './dictForms.ts';
 export { bestOrder, scoreOrder, TAG_BIT, TAGS, MIN_GAIN, type Tag } from './wordOrder.ts';
-export { foldChar, foldLetters, foldWords, isSkipped, legacyLetters, normalizeLetters, type Folded } from './fold.ts';
+export { foldChar, foldLetters, foldWords, isSkipped, legacyLetters, normalizeLetters, poolChars, type Folded, type PoolChar } from './fold.ts';
 export {
   AS_ITSELF,
   DROP,
@@ -37,6 +37,7 @@ export {
   lettersOf,
   nonDefaultReading,
   parseReading,
+  readChars,
   readInput,
   readItems,
   readText,
@@ -70,6 +71,9 @@ export type SolveHandlers = {
 
 /** A count on its own: the total (`>` in front for a floor), whether the text's own row was left out of it, and the characters nothing uses. */
 export type CountAnswer = { readonly total: string; readonly textLeftOut: boolean; readonly unused: string };
+
+/** What the dictionary says about one word: whether it is in the tier or a class, and which class. */
+export type Lookup = { readonly found: boolean; readonly termClass?: ClassName };
 
 export type EngineStatus =
   | { readonly state: 'loading' }
@@ -238,8 +242,17 @@ export class ArsMagnaClient {
   }
 
   /** Whether `word` exists at `tier`, or is a term of one of `classes`. Used to validate "must include" chips. */
-  has(word: string, tier: Tier, classes: readonly ClassName[] = []): Promise<boolean> {
-    return this.#ask<boolean>((id) => (classes.length > 0 ? { k: 'lookup', id, word, tier, classes } : { k: 'lookup', id, word, tier }));
+  async has(word: string, tier: Tier, classes: readonly ClassName[] = []): Promise<boolean> {
+    return (await this.lookup(word, tier, classes)).found;
+  }
+
+  /**
+   * Whether `word` exists at `tier` or as a term of one of `classes`, and the
+   * class that carries it when no tier does: what the Build page's Words known
+   * names beside a term (`b8 is a blend`).
+   */
+  lookup(word: string, tier: Tier, classes: readonly ClassName[] = []): Promise<Lookup> {
+    return this.#ask<Lookup>((id) => (classes.length > 0 ? { k: 'lookup', id, word, tier, classes } : { k: 'lookup', id, word, tier }));
   }
 
   /** Part-of-speech masks for `words`, in order. */
@@ -331,7 +344,8 @@ export class ArsMagnaClient {
       this.#pending.delete(message.id);
       if (message.k === 'error') oneShot.reject(new Error(message.message));
       else if (message.k === 'spellings') oneShot.resolve(message.words as never);
-      else if (message.k === 'lookup') oneShot.resolve(message.found as never);
+      else if (message.k === 'lookup')
+        oneShot.resolve((message.termClass ? { found: message.found, termClass: message.termClass } : { found: message.found }) as never);
       else if (message.k === 'masks') oneShot.resolve(message.masks as never);
       else if (message.k === 'count')
         oneShot.resolve({ total: message.total, textLeftOut: message.textLeftOut, unused: message.unused } as never);

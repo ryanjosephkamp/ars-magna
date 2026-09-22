@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { CLASS_WORD, listOf } from '../lib/classes.ts';
 import { Definitions } from '../lib/definitions.ts';
 import { useCopy } from '../lib/useCopy.ts';
 import { buildHref, legacyReading, searchHref } from '../lib/urlState.ts';
@@ -12,6 +13,7 @@ import {
   CATEGORIES,
   CATEGORY_LABEL,
   FOLD,
+  hitClasses,
   SECTIONS,
   inOrder,
   linkedSection,
@@ -445,13 +447,18 @@ export function Gallery() {
                                   {hit.display}
                                 </button>
                                 <span className="flex shrink-0 items-center gap-3 font-mono text-[11px]">
+                                  {/* A row whose terms are not all words of the dictionary says which
+                                      classes they come from; the panel says what each term is. */}
+                                  {hitClasses(hit).length > 0 && (
+                                    <span className="text-ink-faint">{listOf(hitClasses(hit).map((name) => CLASS_WORD[name]), 'and')}</span>
+                                  )}
                                   <span className="text-ink-faint">{CATEGORY_LABEL[hit.category]}</span>
                                   <VoteButton hit={hit} votes={votes} reserve />
                                   <RowAction label="Share" active={sharing === hit.id} onClick={() => toggleShare(hit.id)} />
-                                  <a href={buildHref(hit.input, hit.display, hit.reading ?? legacyReading(hit.input))} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
+                                  <a href={buildHref(hit.input, hit.display, hit.reading ?? legacyReading(hit.input), hitClasses(hit))} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
                                     Build
                                   </a>
-                                  <a href={searchHref(hit.input, hit.reading)} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
+                                  <a href={searchHref(hit.input, hit.reading, hitClasses(hit))} className="text-ink-faint transition-colors duration-150 hover:text-accent md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100">
                                     Every anagram
                                   </a>
                                 </span>

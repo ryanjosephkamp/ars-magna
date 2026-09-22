@@ -12,6 +12,10 @@ type Props = {
   skipped: number;
   /** The text's digits and symbols, each with how it stands. */
   items: readonly ReadItem[];
+  /** The characters read as themselves and as their leet letters. */
+  leet: readonly string[];
+  /** Set a character's reading: as itself, as itself and its letters, as one letter, or left out. */
+  onRead(char: string, value: string): void;
 };
 
 /**
@@ -19,7 +23,7 @@ type Props = {
  * Set in the display face at reading size so the text they type already looks
  * like the results it will become.
  */
-export function SearchField({ value, onChange, letters, skipped, items }: Props) {
+export function SearchField({ value, onChange, letters, skipped, items, leet, onRead }: Props) {
   const id = useId();
   const field = useRef<HTMLInputElement>(null);
 
@@ -71,7 +75,7 @@ export function SearchField({ value, onChange, letters, skipped, items }: Props)
           </>
         )}
       </p>
-      <ReadingLines items={items} className="mt-2" />
+      <ReadingLines items={items} className="mt-2" onChange={onRead} leet={leet} leetOffered />
     </div>
   );
 }

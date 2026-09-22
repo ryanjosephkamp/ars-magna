@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm run hits && vite",
-    "build": "pnpm run hits && tsc --noEmit && vite build",
+    "dev": "pnpm run data && vite",
+    "build": "pnpm run data && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "hits": "node --experimental-strip-types scripts/build-hits.ts"
+    "data": "pnpm run hits && pnpm run terms",
+    "hits": "node --experimental-strip-types scripts/build-hits.ts",
+    "terms": "node --experimental-strip-types scripts/build-terms.ts"
   },
   "dependencies": {
     "@ars-magna/engine": "workspace:*",

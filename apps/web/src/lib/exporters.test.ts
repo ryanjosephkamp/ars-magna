@@ -71,7 +71,7 @@ describe('toJson', () => {
     expect(b.letters).toBe('dimoorrty');
   });
 
-  it('records the query that produced it', () => {
+  it('records the query that produced it, the term classes and the readings among them', () => {
     const parsed = JSON.parse(
       toJson(
         input({
@@ -83,11 +83,22 @@ describe('toJson', () => {
     expect(parsed.letters).toBe('dimoorrty');
     expect(parsed.filters).toEqual({
       dictionary: 'full',
+      classes: [],
+      leet: [],
+      reading: {},
       minWordLength: 4,
       maxWords: 2,
       mustInclude: ['room'],
       mustExclude: ['dirt'],
     });
+    // A search with a class on, and a character read both ways, says so: two searches of one
+    // text with different terms are different answers.
+    const classed = JSON.parse(
+      toJson(input({ query: query({ input: 'Ke$ha', classes: ['symbols'], leet: ['$'] }), letters: 'ke$ha' })),
+    );
+    expect(classed.filters.classes).toEqual(['symbols']);
+    expect(classed.filters.leet).toEqual(['$']);
+    expect(classed.filters.reading).toEqual({});
   });
 
   it('reports an unlimited word count as null rather than the sentinel', () => {

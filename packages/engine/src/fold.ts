@@ -32,7 +32,7 @@
  * `legacyLetters`, the fold as it was before phase N.
  */
 import { FOLD_TABLE } from './foldTable.ts';
-import { NO_READING, isPoolChar, readText, type Reading } from './readings.ts';
+import { NO_READING, isPoolChar, readChars, readText, type Reading } from './readings.ts';
 import { CHARACTERS } from './readingsTable.ts';
 
 /** Letters of any script, digits, and "other symbols" (which is where emoji live). */
@@ -78,6 +78,28 @@ export function foldLetters(input: string, reading: Reading = NO_READING): Folde
     else if (COUNTS_AS_SKIPPED.test(char)) skipped++;
   }
   return { letters, skipped };
+}
+
+/** One typed character and what it puts into the pool: its folded letters, itself, or nothing. */
+export type PoolChar = { readonly char: string; readonly pool: string };
+
+/**
+ * Each character of the input with what it contributes to the pool, one entry
+ * per code point as typed: a letter folded to its base letter (`ß` gives two),
+ * a digit or a symbol of the set as itself, the letter a leet reading puts in
+ * its place, and nothing for punctuation, another script's letter, or an item
+ * left out. Joined, these are exactly `foldLetters(input, reading).letters`,
+ * which `fold.test.ts` holds them to; the Build page needs them apart, to draw
+ * a line from each character the reader typed to where it went.
+ */
+export function poolChars(input: string, reading: Reading = NO_READING): PoolChar[] {
+  const read = readChars(input, reading);
+  return [...input].map((char, i) => {
+    const as = read[i] ?? '';
+    if (as.length === 0) return { char, pool: '' };
+    const folded = foldChar(as);
+    return { char, pool: folded.length > 0 ? folded : isPoolChar(as) ? as : '' };
+  });
 }
 
 /** Every digit and symbol of the pool's set, for `legacyLetters` to strip. None needs escaping in a character class. */

@@ -1,5 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { NO_READING, type Reading } from '@ars-magna/engine';
+
 import { MAP_LIMIT, letterMap, mapFits } from '../lib/letterMap.ts';
 
 const LABEL = 'text-[11px] font-medium tracking-[0.08em] text-ink-faint uppercase';
@@ -23,15 +25,18 @@ type Line = { letter: string; x1: number; x2: number };
 export function LetterMap({
   text,
   anagram,
+  reading = NO_READING,
   selected,
   onSelect,
 }: {
   text: string;
   anagram: string;
+  /** How the text's digits and symbols are read: one left out has no character to draw. */
+  reading?: Reading;
   selected: string | null;
   onSelect(letter: string | null): void;
 }) {
-  const map = useMemo(() => letterMap(text, anagram), [text, anagram]);
+  const map = useMemo(() => letterMap(text, anagram, reading), [text, anagram, reading]);
   const lettersOf = (side: typeof map.text) => side.reduce((n, c) => n + c.letters.length, 0);
   const textLetters = lettersOf(map.text);
   const anagramLetters = lettersOf(map.anagram);
@@ -102,7 +107,7 @@ export function LetterMap({
         Letter map
       </h3>
       {!fits ? (
-        <p className="mt-2 text-sm text-ink-soft">{`The letter map draws texts of up to ${MAP_LIMIT} letters.`}</p>
+        <p className="mt-2 text-sm text-ink-soft">{`The letter map draws texts of up to ${MAP_LIMIT} characters.`}</p>
       ) : (
         <>
           {/* Sideways only: a glyph that runs a pixel past the rows must not make the map scroll up and down. */}
@@ -127,7 +132,7 @@ export function LetterMap({
             </div>
           </div>
           <p className="mt-2 max-w-prose text-xs text-ink-faint">
-            A line runs from each letter of the text to where it goes in the anagram.
+            A line runs from each character of the text to where it goes in the anagram.
             <span className="print:hidden"> Select a letter to follow its lines.</span>
           </p>
         </>

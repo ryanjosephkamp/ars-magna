@@ -43,3 +43,5 @@ dataset-vocabulary/
 # Built by apps/web/scripts/build-hits.ts from data/hits.jsonl before every dev and build.
 apps/web/public/hits.json
 apps/web/public/hits/
+# Built by apps/web/scripts/build-terms.ts from the class files in data/vocabulary/.
+apps/web/public/terms.json

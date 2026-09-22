@@ -258,14 +258,24 @@ artifact does not carry, a term it carries that no file lists, or a class bit th
 dictionary has not been rebuilt since the line changed, and the check names the term and says to run
 `pnpm dict:fetch && pnpm dict:build` and commit the artifacts with `[dict]`. Without that the term would
 merge and ship as a line nobody can search: CI rebuilds and compares the artifacts only on a `[dict]`
-commit. `pnpm vocab:publish` refuses on the same difference (see "The vocabulary dataset"). On the command
-line a class is admitted by name, and the site passes no class until N5 gives it the control:
+commit. `pnpm vocab:publish` refuses on the same difference (see "The vocabulary dataset"). A class is admitted by
+name: on the site, the **Terms** control beside the dictionary picker, one checkbox each, off
+until a reader ticks one, and the address carries the ones turned on (`#q=Blink-182&c=shorthand,blends`);
+on the command line, `--classes=`:
 
 ```bash
 cargo run --release -p anagram-cli -- solve "Blink-182" --classes=shorthand,blends
 cargo run --release -p anagram-cli -- check "Blink-182" "1 2 link b8" --classes=shorthand,blends
 cargo run --release -p anagram-cli -- solve "Eiffel Tower" --classes=names
 ```
+
+The site reads the terms themselves from `apps/web/public/terms.json`, which
+`apps/web/scripts/build-terms.ts` writes from the class files before every dev run and build, as
+`build-hits.ts` writes `hits.json`. It carries each term's class, what it reads as, its gloss and
+its trace — what the word panel shows under a term, and what `/api/promote` holds a submitted term
+to. It is not committed and never edited by hand: change a class file and it follows. The
+`classes` artifact the engine loads carries a term and its class bits alone, which is why the
+words a reader sees come from this file instead.
 
 A single digit is a term of two kinds at once when shorthand and numerals are both on (`2` reads *to* and
 *two*): it is one candidate, tagged `numerals`, the first class of the mask in the table's order, so a row
@@ -786,9 +796,13 @@ run says whether reordered numerals are wanted); the other classes are terms of 
 the class files `data/vocabulary/{symbols,shorthand,blends,acronyms}.jsonl` (`slang.jsonl` with G1) and
 the names list into the `classes` artifact, committed with `[dict]`, and loaded by the site and the CLI
 when the manifest names it (see "Term classes" for the files, the tool and the check). The files exist
-since N4 (43 terms, and the names list's 9,463 names as the names class), the artifact ships, and the site
-passes no class until N5 gives it the control: nothing a reader sees has changed, and every count of words
-alone is what it was. A term of letters alone (`amy`) is a spelling of its letters' class and changes no count; a term
+since N4 (43 terms, and the names list's 9,463 names as the names class), the artifact ships, and since N5
+the site has the control: the **Terms** checkboxes beside the dictionary picker, off until a reader ticks
+one, so every count of words alone is what it was. When a search of words alone finds nothing because the
+text has characters no word can use, the page counts once more with the classes that could use them and
+offers them beside the number — `0 anagrams with known words · 16 with numerals, shorthand or blends ·
+Show them` — and the one press turns on exactly those. A term that is not a word is underlined on its row,
+dotted, and the panel under it gives its class, what it reads as, its gloss and its trace. A term of letters alone (`amy`) is a spelling of its letters' class and changes no count; a term
 that opens a class of its own (`u`, `wtf`, `b8`) is admitted at any length by its class, and a word under
 the minimum length stays out as before: where a term of letters spells such a word's class (`ta` beside `at`
 at a minimum of 3), the class is admitted for the term alone and shows the term, never the word.
@@ -801,8 +815,11 @@ reading, merged: the first three such characters expand, so at most 8 searches f
 `1 6 7`. A fixed reading (`r=$:s` in a link, `--read=$:s`, a record's `reading`) is one search. Every row
 carries its tags: the class of each term that is not a word, the words as written (the character where
 its letter went, `$hake` for *shake* under `$` as s), and the reading it was found under. The site's
-accepted default is leet on for `$ ! @` and off for digits (`SEARCH_LEET_DEFAULT` in the engine package),
-which N5 passes once it renders the tags; until then the site passes none.
+accepted default is leet on for `$ ! @` and off for digits (`SEARCH_LEET_DEFAULT` in the engine package).
+Each line under the field is that choice: `as itself`, `as itself or s` (both ways, the default for those
+three), `as s` (one reading), or `left out`. The address carries the characters read both ways where they
+differ from the text's default (`l=8`, and an empty `l=` for none) beside `r=` for a fixed reading, and
+`SEARCH_CLASSES_DEFAULT` in the same file is where the classes' own default lives.
 
 ```bash
 cargo run --release -p anagram-cli -- count "Blink-182"
@@ -944,7 +961,10 @@ the order they saw, the `tier` they searched, `via` (`result` from a search, `ty
 migration `0003`), `why`, `credit` and `missing` (its word requests); the rest leave them empty. `converted_to`
 (migration `0004`) is the hit a promotion's vote went to, once its anagram is published; the row stays.
 `reading` (migration `0005`) is how the reader read the input's numbers and symbols, every item of them, as
-JSON, or null for an input without any (see "Numbers and symbols").
+JSON, or null for an input without any (see "Numbers and symbols"). `classes` (migration `0006`) is the class
+of each term that is not a word of the dictionary, keyed by the term (`{"b8": "blends"}`), or null when every
+term is a word, which is every promotion made before the site had the Terms control; the promotions export
+carries it, and the review reads it from roadmap N6 on.
 `promotion_counts` holds each key's count, recounted with every change. A promotion of an anagram already on
 Discover is refused, and the search page shows Vote for it instead. A promotion of the text itself is refused
 too, typed from Build or pressed on a search row: the text's own words in any order, and a re-spacing of it,

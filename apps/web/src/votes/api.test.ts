@@ -3,6 +3,7 @@
  * migrations, a fixed clock and a fake Turnstile.
  */
 import { describe, expect, it } from 'vitest';
+import type { ClassName } from '@ars-magna/engine';
 
 import { LIMITS, MAX_TYPED_LETTERS, PASS_TTL_MS, keySha256, verifyPass } from './core.ts';
 import {
@@ -45,6 +46,15 @@ function setup(options: { turnstile?: boolean; open?: string; promotionsOpen?: s
     },
     published: async () => ({ ids: new Set([HIT, OTHER]), keys: new Set([PUBLISHED_KEY]) }),
     blockedKeys: async () => new Set(await Promise.all((options.blocked ?? []).map(keySha256))),
+    // The class files' terms, as terms.json carries them.
+    terms: async () =>
+      new Map<string, ClassName>([
+        ['b8', 'blends'],
+        ['1', 'shorthand'],
+        ['2', 'shorthand'],
+        ['&', 'symbols'],
+        ['wtf', 'acronyms'],
+      ]),
   };
   const env: Env = {
     DISCOVERIES_DB: db,
@@ -202,9 +212,17 @@ describe('POST /api/promote and GET /api/promotions', () => {
     expect(await t.promotions('aaeeglmnnt', ALICE)).toEqual({ open: true, counts: { [PROMOTED_KEY]: 1 }, mine: [PROMOTED_KEY] });
     expect((await t.promotions('dimoorrty')).counts).toEqual({ 'dimoorrty:dirty-room': 1 });
 
+    // A text with a digit or a symbol is keyed by those characters too, and its rows
+    // take promotions like any other, so the lookup takes the pool, not the letters alone.
+    await t.promote({ input: 'Blink-182', words: ['1', '2', 'link', 'b8'], tier: 'standard', voter: ALICE, pass: alice, on: true });
+    expect((await t.promotions('128bikln')).counts).toEqual({ '128bikln:1-2-b8-link': 1 });
+
     const bad = await getPromotions(new Request(`${ORIGIN}/api/promotions?letters=A%20gentleman`), t.env);
     expect(bad.status).toBe(400);
-    expect(await bad.json()).toEqual({ error: 'bad-request', message: 'Send the letters to look up, a to z.' });
+    expect(await bad.json()).toEqual({
+      error: 'bad-request',
+      message: 'Send the characters to look up: letters, digits and the symbols the search uses.',
+    });
     expect((await getPromotions(new Request(`${ORIGIN}/api/promotions`), t.env)).status).toBe(400);
     expect((await getPromotions(new Request(`${ORIGIN}/api/promotions?letters=${'a'.repeat(201)}`), t.env)).status).toBe(400);
   });
@@ -228,6 +246,7 @@ describe('POST /api/promote and GET /api/promotions', () => {
         missing: null,
         created_at: '2026-09-15T12:00:00.000Z',
         about: null,
+        classes: null,
         converted_to: null,
         reading: null,
       },
@@ -264,6 +283,26 @@ describe('POST /api/promote and GET /api/promotions', () => {
     expect(await status({ input: 'The Godfather', words: ['the', 'god', 'father'], tier: 'standard' })).toEqual([400, 'text-itself']);
     const itself = await t.promote({ input: 'Apple sauce', words: ['sauce', 'apple'], tier: 'standard', voter: ALICE, pass: alice, on: true });
     expect(await itself.json()).toEqual({ error: 'text-itself', message: 'That is the text itself, not an anagram of it.' });
+    // A term that is not a word of letters has to be one the class files list, or a
+    // numeral of the text's own digits; anything else is not a term at all.
+    expect(await status({ input: 'Blink-182', words: ['1', '2', 'link', 'b8'], tier: 'standard' })).toEqual([200, undefined]);
+    expect(await status({ input: 'Sardar 2', words: ['radars', '2'], tier: 'standard' })).toEqual([200, undefined]);
+    // A re-spacing of the text is the text, digits and all: "Blink-182" is one word to the fold.
+    expect(await status({ input: 'Blink-182', words: ['blink', '182'], tier: 'standard' })).toEqual([400, 'text-itself']);
+    expect(await status({ input: 'Blink-18b9', words: ['blink', '18', 'b9'], tier: 'standard' })).toEqual([400, 'not-a-term']);
+    const notATerm = await t.promote({ input: 'Blink-18b9', words: ['blink', '18', 'b9'], tier: 'standard', voter: ALICE, pass: alice, on: true });
+    expect(await notATerm.json()).toEqual({ error: 'not-a-term', message: 'b9 is not a word, and no class lists it.' });
+    // The classes a submission names have to be the ones the files give those terms.
+    expect(await status({ input: 'Blink-182', words: ['1', '2', 'link', 'b8'], tier: 'standard', classes: { b8: 'blends' } })).toEqual([200, undefined]);
+    expect(await status({ input: 'Blink-182', words: ['1', '2', 'link', 'b8'], tier: 'standard', classes: { b8: 'shorthand' } })).toEqual([
+      400,
+      'bad-classes',
+    ]);
+    expect(await status({ input: 'Blink-182', words: ['1', '2', 'link', 'b8'], tier: 'standard', classes: { qzx: 'blends' } })).toEqual([
+      400,
+      'bad-classes',
+    ]);
+    expect(await status({ input: 'Sardar 2', words: ['radars', '2'], tier: 'standard', classes: { '2': 'numerals' } })).toEqual([200, undefined]);
     // A different spelling of the same letters is an anagram, and goes through.
     expect((await t.promote({ input: 'Apple sauce', words: ['cause', 'apple'], tier: 'standard', voter: ALICE, pass: alice, on: true })).status).toBe(200);
 
@@ -390,11 +429,35 @@ describe('POST /api/promote with via "typed": a submission from the Build page',
         missing: null,
         created_at: '2026-09-15T12:00:00.000Z',
         about: 'A gentleman is a courteous man, as the phrase has it.',
+        classes: null,
         converted_to: null,
         reading: null,
       },
     ]);
     expect(JSON.stringify(t.db.sqlite.prepare('SELECT * FROM rate_limits').all())).not.toContain(IP);
+  });
+
+  it('records the class of each term that is not a word, beside the reading', async () => {
+    const t = setup();
+    const alice = await t.passFor(ALICE);
+    const response = await t.promote({
+      input: 'Blink-182',
+      words: ['1', '2', 'link', 'b8'],
+      classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' },
+      tier: 'standard',
+      via: 'typed',
+      category: 'companies',
+      voter: ALICE,
+      pass: alice,
+      on: true,
+    });
+    expect(response.status).toBe(200);
+    const row = t.db.sqlite.prepare('SELECT words, reading, classes FROM promotions').get() as Record<string, string>;
+    expect(row).toEqual({
+      words: '1 2 link b8',
+      reading: JSON.stringify({ '1': 'self', '8': 'self', '2': 'self' }),
+      classes: JSON.stringify({ '1': 'shorthand', '2': 'shorthand', b8: 'blends' }),
+    });
   });
 
   it('keeps empty notes as null and word requests as words', async () => {

@@ -3,6 +3,7 @@ import {
   ArsMagnaClient,
   DEFAULT_QUERY,
   normalizeLetters,
+  type ClassName,
   type DictForm,
   type EngineStatus,
   type ErrorCode,
@@ -111,8 +112,8 @@ export function useEngine(query: Query) {
             results.setTotal(total);
             setState((s) => ({ ...s, candidates, countedLetters: normalizeLetters(query.input, query.reading), textLeftOut, unused, answered: true }));
           },
-          onBatch: (offset, rows, done, truncated) =>
-            results.append(offset, rows, done, truncated),
+          onBatch: (offset, rows, done, truncated, tags) =>
+            results.append(offset, rows, done, truncated, tags),
           onDone: () => setState((s) => ({ ...s, searching: false })),
           onError: (code, message) => {
             results.reset();
@@ -204,6 +205,23 @@ export function useEngine(query: Query) {
     }
   }, [query.tier]);
 
+  /**
+   * How many anagrams another query has, counted on this page's own worker
+   * under a node budget: what the count line's second figure is, the one that
+   * says what the term classes would add. The worker is idle by then — a
+   * search that found nothing has no rows to page — and a `count` leaves the
+   * session the list pages through as it was, so nothing waits behind it.
+   */
+  const countWith = useCallback(async (other: Query, maxNodes: number): Promise<string | null> => {
+    const client = clientRef.current;
+    if (!client) return null;
+    try {
+      return (await client.count(other, maxNodes))?.total ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   /** Whether a dictionary tier carries a word. False when the engine cannot say. */
   const has = useCallback(async (word: string, tier: Query['tier']): Promise<boolean> => {
     const client = clientRef.current;
@@ -215,10 +233,25 @@ export function useEngine(query: Query) {
     }
   }, []);
 
-  return { ...state, forms: state.engine.state === 'ready' ? state.engine.forms : NO_DICT_FORMS, loadMore, collect, at, surpriseMe, spellings, masks, has };
+  return {
+    ...state,
+    forms: state.engine.state === 'ready' ? state.engine.forms : NO_DICT_FORMS,
+    termCounts: state.engine.state === 'ready' ? state.engine.classes : NO_CLASS_COUNTS,
+    loadMore,
+    collect,
+    at,
+    surpriseMe,
+    spellings,
+    masks,
+    has,
+    countWith,
+  };
 }
 
 /** One empty list for every render before the dictionary is ready, so it is stable. */
 const NO_DICT_FORMS: readonly DictForm[] = [];
+
+/** The same, for the terms each class carries: none until the dictionary says. */
+const NO_CLASS_COUNTS: Readonly<Partial<Record<ClassName, number>>> = {};
 
 export { DEFAULT_QUERY };

@@ -18,14 +18,16 @@ the text itself is never listed as its own anagram (see Filtering and sorting).
 Nothing typed is ever replaced by something else: a number is never read as its name, and a
 symbol never as a letter or a word (the literal rule). A digit, or a symbol of the set
 `@ $ & % + #` (and `!` or `?` inside a word), is a character of the text like a letter, and an
-anagram uses it as itself; the line under the field counts the characters and says how each
-stands (*1 as itself*). No word has a digit, so a text with one has no anagram of words alone,
-and the page says which characters nothing uses; the labelled term classes that can use them
-(a numeral, a symbol read as its word, a shorthand character, a blend, an acronym, a name) and the
-leet readings (`$` as s, written back where the letter went) are the engine's, their lists ship with
-the dictionary, and the site's controls for them are the next phase. The
-letters of other scripts and other symbols are skipped, and the line says how many characters
-were, so that never looks like a bug.
+anagram uses it as itself; the line under the field counts the characters and gives each one a
+line of its own saying how it stands (*1 as itself*), which is also the control that reads it as
+one of its letters (*$ as itself or s*, the default for `$ ! @`) or leaves it out. No word has a
+digit, so a text with one has no anagram of words alone; the page says which characters nothing
+uses, and counts once more with the labelled term classes that could use them, offering them
+beside the number (*0 anagrams with known words · 16 with numerals, shorthand or blends · Show
+them*). The **Terms** control beside the dictionary picker turns a class on — numerals, symbols,
+shorthand, blends, acronyms, names — and the address carries the ones turned on (`c=`, `l=`).
+Words alone is the default. The letters of other scripts and other symbols are skipped, and the
+line says how many characters were, so that never looks like a bug.
 English only. An input with more than 127 copies of one letter is refused with a message
 rather than searched, since letter counts are bytes. The table is
 `scripts/readings.json`, read by the Rust engine and the TypeScript package alike.
@@ -77,7 +79,10 @@ source (`&` and, `u` you, `b8` bait, `btw`), plus the names list as the names cl
 or more. `pnpm vocab:term` proposes one, `pnpm vocab:check` holds the files to their rules (a term is
 never a word of the dictionary: `lol` and `faq` are words already), and `dict:build` emits them as the
 `classes` artifact beside the word list, which does not move. A search admits a class by naming it
-(`--classes=shorthand,blends` on the command line); words alone is the default everywhere.
+(the Terms control on the site, `--classes=shorthand,blends` on the command line); words alone is
+the default everywhere. A term that is not a word is underlined on the row, dotted, and the word
+panel gives its class, what it reads as, its meaning and its source, from `public/terms.json`,
+which the build writes from the class files.
 
 ## Definitions
 
@@ -137,7 +142,9 @@ red, and one line says what is wrong (`2 extra a · 1 missing t`). Tapping a let
 tray adds it at the caret. Two checks follow: *Letters match*, and *Words known*, which asks
 the same engine and dictionary as the search, at the tier you choose, and names each word it
 lacks. When the letters match, the anagram can be submitted to Discover: a promotion with a
-category and an optional note, kept for the review.
+category and an optional note, kept for the review. Both checks count the pool: an anagram of
+"Blink-182" has to use the 1, the 8 and the 2, and *Words known* names the class of each term that
+is not a word (`b8 is a blend`), from the Terms control there too.
 
 Beneath the boxes, an analysis of both sides in figures, on one grid so each line sits level
 across the two: letters, distinct letters, vowels, the letters among them rarest in English, the
@@ -150,8 +157,8 @@ them, and how common they are, in bands over its frequency byte and word by word
 rare to everyday. For the text alone it states the site's own number, every anagram the text has
 in each of the four dictionaries, the chosen one first, each counted in a worker of its own for at
 most four seconds, which reads `more than` when the time runs out first. For texts of up to 60
-letters, a letter map sets the text above the anagram with a fine line from each letter to where
-it went. With both boxes
+characters, a letter map sets the text above the anagram with a fine line from each character to
+where it went, digits and symbols among them. With both boxes
 filled, the two are set side by side, with the ordering score each reads at and the words they
 share. Everything there is type: labelled lines and thin bars, never a tile or a card.
 

@@ -33,11 +33,20 @@ export function isClassName(value: string): value is ClassName {
 }
 
 /**
- * The characters Search turns leet on for by default once it renders the tags
- * (roadmap N5): the three symbols whose letter is plain. A digit in a text is
- * usually a number, so digits are off. Until N5 the site passes none.
+ * The characters Search turns leet on for by default (roadmap N5): the three
+ * symbols whose letter is plain. A digit in a text is usually a number, so
+ * digits are off. The reader changes it a character at a time under the field.
  */
 export const SEARCH_LEET_DEFAULT: readonly string[] = ['$', '!', '@'];
+
+/**
+ * The term classes Search admits before the reader turns any on: none, which
+ * is D63's "words alone is the default everywhere". Every class is one tick of
+ * the Terms control, and the address carries the ones turned on. D63's table
+ * reads numerals and symbols as on for Search, which its own prose and the
+ * manual contradict; this constant is where that call lives.
+ */
+export const SEARCH_CLASSES_DEFAULT: readonly ClassName[] = [];
 
 export type Query = {
   readonly input: string;
@@ -289,7 +298,17 @@ export type Response =
     }
   | { readonly k: 'solved'; readonly id: number; readonly stats: SolveStats }
   | { readonly k: 'spellings'; readonly id: number; readonly words: readonly string[] }
-  | { readonly k: 'lookup'; readonly id: number; readonly found: boolean }
+  | {
+      readonly k: 'lookup';
+      readonly id: number;
+      readonly found: boolean;
+      /**
+       * The class that carries the word when no tier of the dictionary does:
+       * the first of the asked classes in table order, as a row's tag names
+       * it. Absent for a word of the tier, and for a word nothing has.
+       */
+      readonly termClass?: ClassName;
+    }
   | { readonly k: 'masks'; readonly id: number; readonly masks: readonly number[] }
   | { readonly k: 'zipf'; readonly id: number; readonly zipf: readonly number[] }
   | {
