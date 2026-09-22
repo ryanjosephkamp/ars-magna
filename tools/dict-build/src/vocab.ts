@@ -33,6 +33,11 @@
  * `vocab:term` proposes a line as `vocab:add` does. The names list joins the
  * classes as the `names` class in the build, under its floor of three
  * letters; it stays outside the cap and outside this file's checks on it.
+ *
+ * The files say what should be admissible; the committed `classes` artifact is
+ * what the site loads. `committedClasses` reads that artifact back and
+ * `classArtifactProblems` holds the two together, so a term added without a
+ * rebuild is caught here rather than shipping unadmitted.
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -40,9 +45,9 @@ import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020.js';
 
 import { DIST_DIR, REPO_ROOT } from './paths.ts';
 import { normalize } from './normalize.ts';
-import { bitsetGet, decodeDict, TERM_PATTERN, type DictForm } from './format.ts';
+import { bitsetGet, decodeClasses, decodeDict, TERM_PATTERN, type ClassTerm, type DictForm } from './format.ts';
 import { NAME_FLOOR, tokensOf } from './tokens.ts';
-import type { ClassName } from '../../../packages/engine/src/protocol.ts';
+import { CLASSES, type ClassName } from '../../../packages/engine/src/protocol.ts';
 
 export const VOCAB_DIR = resolve(REPO_ROOT, 'data/vocabulary');
 export const ADDITIONS_PATH = resolve(VOCAB_DIR, 'additions.jsonl');
@@ -492,4 +497,81 @@ export async function committedDictionary(): Promise<{
     forms,
     source,
   };
+}
+
+/**
+ * The committed `classes` artifact, decoded: every term the site can admit and
+ * its class bits, in the artifact's own order.
+ *
+ * `null` when there is no manifest or the manifest names no `classes` file,
+ * which is what a checkout with no class file and no name anywhere looks like:
+ * the build emits the artifact only when there is a term to carry.
+ */
+export async function committedClasses(): Promise<ClassTerm[] | null> {
+  type Manifest = { files: Record<string, { name: string } | undefined> };
+  let manifest: Manifest;
+  try {
+    manifest = JSON.parse(await readFile(resolve(DIST_DIR, 'manifest.json'), 'utf8')) as Manifest;
+  } catch {
+    return null;
+  }
+  const classes = manifest.files['classes']?.name;
+  if (!classes) return null;
+  return decodeClasses(new Uint8Array(await readFile(resolve(DIST_DIR, classes))));
+}
+
+/** The classes a term's bits name, in the table's order, for a message a reader can act on. */
+function bitNames(bits: number): string {
+  const named = CLASSES.filter((_, i) => (bits & (1 << i)) !== 0);
+  return named.length > 0 ? named.join(' and ') : `no class (${bits})`;
+}
+
+/** What to do about any of these problems: the artifact is built, not edited. */
+const REBUILD = 'run pnpm dict:fetch && pnpm dict:build and commit the artifacts with [dict] in the message';
+
+/**
+ * The class files and the names list held to the committed `classes` artifact,
+ * term for term and bit for bit, as a list of problems. Empty means the site
+ * admits exactly what the files list.
+ *
+ * `vocab:check` refuses a term that is a word by reading the committed word
+ * list; this is the other half. The artifact is built, and CI rebuilds it only
+ * on a `[dict]` commit, so without this a line appended to a class file — or a
+ * names list rebuilt under a new token rule — would pass every check, merge,
+ * and ship an artifact the site loads without the term, while `vocab:publish`
+ * announced the term as admissible.
+ *
+ * `terms` is `classTerms(readClassEntries())`: what a rebuild would carry.
+ * `artifact` is `committedClasses()`: what the site actually loads.
+ */
+export function classArtifactProblems(
+  terms: readonly ClassTerm[],
+  artifact: readonly ClassTerm[] | null,
+): string[] {
+  const problems: string[] = [];
+  if (artifact === null) {
+    if (terms.length > 0) {
+      problems.push(
+        `the class files and the names list carry ${terms.length.toLocaleString()} terms and the manifest names no classes artifact; ${REBUILD}`,
+      );
+    }
+    return problems;
+  }
+
+  const committed = new Map(artifact.map((t) => [t.term, t.bits]));
+  const listed = new Map(terms.map((t) => [t.term, t.bits]));
+  for (const { term, bits } of terms) {
+    const have = committed.get(term);
+    if (have === undefined) {
+      problems.push(`${term}: listed as ${bitNames(bits)}, and the committed classes artifact does not carry it; ${REBUILD}`);
+    } else if (have !== bits) {
+      problems.push(`${term}: listed as ${bitNames(bits)}, and the committed classes artifact carries it as ${bitNames(have)}; ${REBUILD}`);
+    }
+  }
+  for (const { term, bits } of artifact) {
+    if (!listed.has(term)) {
+      problems.push(`${term}: carried by the committed classes artifact as ${bitNames(bits)}, and no class file or the names list lists it; ${REBUILD}`);
+    }
+  }
+  return problems;
 }

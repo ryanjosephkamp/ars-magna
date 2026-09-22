@@ -11,7 +11,9 @@ import {
   ADDITIONS_CAP,
   TERMS_CAP,
   additionSchema,
+  classArtifactProblems,
   classSchema,
+  committedClasses,
   formSchema,
   problemsWith,
   readAdditions,
@@ -24,7 +26,7 @@ import {
   type Form,
   type TermClass,
 } from '../src/vocab.ts';
-import { classCounts, classTerms, readClassEntries } from '../src/classes.ts';
+import { classBit, classCounts, classTerms, readClassEntries } from '../src/classes.ts';
 import { NAME_FLOOR } from '../src/tokens.ts';
 import { decodeClasses, decodeDict, encodeClasses, encodeDict } from '../src/format.ts';
 
@@ -230,6 +232,20 @@ describe('the class schemas', () => {
     expect(symbol({ ...amp, term: '&&' })).toBe(false);
   });
 
+  it('read as lowercase words, and as the word I, which idk begins with', async () => {
+    const acronym = await classSchema('acronyms');
+    const shorthand = await classSchema('shorthand');
+    // The one capital English spells in a word of its own.
+    expect(acronym({ ...wtf, term: 'idk', reads_as: "I don't know" })).toBe(true);
+    expect(acronym({ ...wtf, term: 'iirc', reads_as: 'if I remember correctly' })).toBe(true);
+    expect(shorthand({ ...u, reads_as: 'I' })).toBe(true);
+    // Every other capital, and a hyphen or space with nothing after it, stay out.
+    expect(acronym({ ...wtf, term: 'idk', reads_as: 'I Do Not Know' })).toBe(false);
+    expect(acronym({ ...wtf, reads_as: 'What the fuck' })).toBe(false);
+    expect(shorthand({ ...u, reads_as: 'you ' })).toBe(false);
+    expect(shorthand({ ...u, reads_as: 'you-' })).toBe(false);
+  });
+
   it('refuse what a reader or the build could not use', async () => {
     const check = await classSchema('blends');
     const withField = (over: Record<string, unknown>) => check({ ...b8, ...over });
@@ -328,5 +344,53 @@ describe('the committed class files', () => {
     expect(terms.find((t) => t.term === 'eiffel')).toEqual({ term: 'eiffel', bits: 64 });
     // The artifact round-trips.
     expect(decodeClasses(encodeClasses(terms))).toEqual(terms);
+  });
+});
+
+describe('the class files against the committed classes artifact', () => {
+  const listed = [
+    { term: '&', bits: classBit('symbols') },
+    { term: '2', bits: classBit('shorthand') },
+    { term: 'b8', bits: classBit('blends') },
+    { term: 'eiffel', bits: classBit('names') },
+  ];
+  const rebuild = 'run pnpm dict:fetch && pnpm dict:build and commit the artifacts with [dict] in the message';
+
+  it('agree when the artifact is what the files would build', () => {
+    expect(classArtifactProblems(listed, decodeClasses(encodeClasses(listed)))).toEqual([]);
+    expect(classArtifactProblems([], null)).toEqual([]);
+  });
+
+  it('name the term the artifact lacks, which is the term the site cannot admit', () => {
+    const artifact = decodeClasses(encodeClasses(listed.filter((t) => t.term !== 'b8')));
+    expect(classArtifactProblems(listed, artifact)).toEqual([
+      `b8: listed as blends, and the committed classes artifact does not carry it; ${rebuild}`,
+    ]);
+  });
+
+  it('name the term no file lists any more, and the term whose classes moved', () => {
+    const artifact = decodeClasses(encodeClasses([...listed, { term: '10q', bits: classBit('blends') }]));
+    expect(classArtifactProblems(listed, artifact)).toEqual([
+      `10q: carried by the committed classes artifact as blends, and no class file or the names list lists it; ${rebuild}`,
+    ]);
+    const moved = decodeClasses(
+      encodeClasses(listed.map((t) => (t.term === '2' ? { term: '2', bits: classBit('blends') } : t))),
+    );
+    expect(classArtifactProblems(listed, moved)).toEqual([
+      `2: listed as shorthand, and the committed classes artifact carries it as blends; ${rebuild}`,
+    ]);
+  });
+
+  it('refuse a class file with a term while the manifest names no artifact', () => {
+    expect(classArtifactProblems(listed, null)).toEqual([
+      `the class files and the names list carry 4 terms and the manifest names no classes artifact; ${rebuild}`,
+    ]);
+  });
+
+  it('hold the committed files and names list to the committed artifact, term for term and bit for bit', async () => {
+    const artifact = await committedClasses();
+    expect(artifact).not.toBeNull();
+    expect(artifact!.length).toBe(9_506);
+    expect(classArtifactProblems(classTerms(await readClassEntries()), artifact)).toEqual([]);
   });
 });

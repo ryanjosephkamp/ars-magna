@@ -14,7 +14,9 @@
  * so it needs no 330 MB fetch and publishes exactly what the site ships. A
  * checkout whose artifacts are older than `additions.jsonl` is refused: the
  * two would disagree, and a dataset that disagrees with the site is worse
- * than no dataset.
+ * than no dataset. A checkout whose `classes` artifact is older than a class
+ * file is refused the same way, since publishing a term the site cannot admit
+ * announces a vocabulary the search does not have.
  *
  * The token comes from `HF_TOKEN`, or from the file the `hf` CLI writes at
  * ~/.cache/huggingface/token, exactly as `hits:publish` does.
@@ -27,6 +29,8 @@ import { fileURLToPath } from 'node:url';
 import { REPO_ROOT } from './paths.ts';
 import {
   CLASS_FILES,
+  classArtifactProblems,
+  committedClasses,
   committedDictionary,
   readAdditions,
   readClassFiles,
@@ -36,6 +40,7 @@ import {
   type Form,
   type TermClass,
 } from './vocab.ts';
+import { classTerms, readClassEntries } from './classes.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(here, '../templates/vocabulary-card.md');
@@ -204,6 +209,25 @@ async function main(): Promise<void> {
     console.error('the artifacts are older than additions.jsonl or forms.jsonl; run pnpm dict:build && pnpm dict:shards first');
     process.exit(1);
   }
+
+  // The same guard for the terms: the class files and the names list against
+  // the committed `classes` artifact, which is what the site actually loads.
+  const classArtifact = await committedClasses();
+  const classTrouble = classArtifactProblems(classTerms(await readClassEntries()), classArtifact);
+  if (classTrouble.length > 0) {
+    console.error(
+      `the committed classes artifact and the class files disagree over ${classTrouble.length} term${classTrouble.length === 1 ? '' : 's'}:`,
+    );
+    for (const problem of classTrouble.slice(0, 20)) console.error(`  ${problem}`);
+    if (classTrouble.length > 20) console.error(`  … and ${classTrouble.length - 20} more`);
+    console.error('publishing now would announce a term the site cannot admit');
+    process.exit(1);
+  }
+  console.log(
+    classArtifact === null
+      ? 'no classes artifact, and no term in the class files or the names list to carry'
+      : `${classArtifact.length.toLocaleString('en-US')} terms in the committed classes artifact, the class files and the names list term for term and bit for bit`,
+  );
 
   const date = new Date().toISOString().slice(0, 10);
   const files = await buildDataset({
