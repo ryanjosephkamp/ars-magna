@@ -358,6 +358,10 @@ pub struct Candidates {
     dict_classes: usize,
     /// This query's own candidates, virtual class `dict_classes + k`.
     virtuals: Vec<Virtual>,
+    /// Dictionary classes below `min_word_len` that only a term of the mask
+    /// let in (`ta` beside `at`), ascending: their words are still under the
+    /// length rule, so only their terms of the mask are shown. Usually empty.
+    terms_only: Vec<u32>,
 }
 
 impl Candidates {
@@ -371,9 +375,14 @@ impl Candidates {
 
     /// The spellings of a class this query may show, in the order `spell`
     /// prefers them: a dictionary class's words and terms in scope, or a
-    /// virtual class's one text as a pseudo index.
+    /// virtual class's one text as a pseudo index. A class that only a term
+    /// of the mask let in below `min_word_len` shows its terms alone: the
+    /// length rule still governs its words (`kiln ta`, never `at kiln`).
     fn spellings<'a>(&'a self, dict: &'a Dict, class: u32, scope: Scope) -> Box<dyn Iterator<Item = u32> + 'a> {
         match (class as usize).checked_sub(self.dict_classes) {
+            None if self.terms_only.binary_search(&class).is_ok() => {
+                Box::new(dict.class_words(class as usize, scope).filter(|&w| dict.is_term(w)))
+            }
             None => Box::new(dict.class_words(class as usize, scope)),
             Some(k) => Box::new(std::iter::once(VIRTUAL | k as u32)),
         }
@@ -418,7 +427,9 @@ impl Candidates {
     ///
     /// The length rule is for words: a class below `min_word_len` stays when
     /// `short_words` names it or a term class of the mask spells it (`u`, `2`),
-    /// since a term is governed by its class. After the dictionary's classes
+    /// since a term is governed by its class. A class kept by a term alone is
+    /// marked `terms_only`, so its words, which the rule still excludes, are
+    /// never shown for it (`ta` beside `at` at a minimum of 3 spells `ta`). After the dictionary's classes
     /// come this query's own: the terms with a digit or symbol that fit,
     /// counted through `slots`, and, with the numerals class on, every
     /// numeral the pool's digits make, each written in the text's own digit
@@ -445,11 +456,11 @@ impl Candidates {
             .map(|index| index as u32)
             .collect();
 
+        let mut terms_only = Vec::new();
         for (index, sig) in dict.classes.iter().enumerate() {
-            if sig.len < options.min_word_len
-                && !admitted.contains(&(index as u32))
-                && sig.term_bits & options.classes == 0
-            {
+            // Under the length rule and not on the allowlist: in only through a term of the mask, and then by its terms alone.
+            let by_term_only = sig.len < options.min_word_len && !admitted.contains(&(index as u32));
+            if by_term_only && sig.term_bits & options.classes == 0 {
                 continue;
             }
             if !sig.counts.fits_in(target) {
@@ -460,12 +471,18 @@ impl Candidates {
             }
             // Checked last, and only for a query that excludes anything: every
             // class that reaches here fits the letters, which is few of them.
-            if !excluded.is_empty() && dict.class_words(index, scope).all(|w| excluded.contains(&w)) {
+            // A class in by its terms alone is out once every such term is excluded.
+            if !excluded.is_empty()
+                && dict.class_words(index, scope).all(|w| excluded.contains(&w) || (by_term_only && !dict.is_term(w)))
+            {
                 continue;
             }
             counts.push(sig.counts);
             len.push(sig.len);
             class.push(index as u32);
+            if by_term_only {
+                terms_only.push(index as u32);
+            }
         }
 
         let dict_classes = dict.classes.len();
@@ -514,6 +531,7 @@ impl Candidates {
             longest,
             dict_classes,
             virtuals,
+            terms_only,
         })
     }
 
@@ -2033,6 +2051,53 @@ mod tests {
         assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 0, "wtf is the text itself");
         let search = Search::prepare(&dict, "w tf", SolveOptions { min_word_len: 4, ..with(Class::Acronyms.bit()) }).unwrap();
         assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 1, "a term is governed by its class, not the minimum length");
+    }
+
+    #[test]
+    fn a_class_let_in_by_a_term_below_the_length_rule_shows_its_terms_alone() {
+        fn row(words: &[(&str, &'static str)]) -> Vec<(String, &'static str)> {
+            let mut r: Vec<(String, &'static str)> = words.iter().map(|(w, c)| (w.to_string(), *c)).collect();
+            r.sort();
+            r
+        }
+        // `ta` (acronyms) spells the class of `at`: at a minimum of 3 the class is in through the term alone.
+        let dict = Dict::from_words_and_terms(
+            ["at", "cat", "act", "link", "blink", "kiln"],
+            [("ta", Class::Acronyms.bit()), ("u", Class::Shorthand.bit()), ("r", Class::Shorthand.bit())],
+        )
+        .unwrap();
+        let min3 = |classes: ClassMask| SolveOptions { min_word_len: 3, ..with(classes) };
+        assert!(tagged(&dict, "link ta", min3(0)).is_empty(), "words alone: nothing under 3 letters places the t and a");
+        // The row is `kiln ta`, the term tagged; `at`, a word the rule excludes, is never shown for the class,
+        // whether the text spells it as the term or as the word.
+        for input in ["link ta", "link at"] {
+            let found = tagged(&dict, input, min3(Class::Acronyms.bit()));
+            assert_eq!(found, vec![row(&[("kiln", "words"), ("ta", "acronyms")])], "{input:?}");
+            let search = Search::prepare(&dict, input, min3(Class::Acronyms.bit())).unwrap();
+            assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, 1, "{input:?}: the count was already right");
+        }
+        // Excluding the term takes the class out with it: its words were never in.
+        let excluded = SolveOptions { exclude: vec!["ta".into()], ..min3(Class::Acronyms.bit()) };
+        assert!(tagged(&dict, "link ta", excluded).is_empty());
+        // At a minimum of 2 the word is a spelling again, and leads as the commoner.
+        let found = tagged(&dict, "link ta", with(Class::Acronyms.bit()));
+        assert_eq!(found, vec![row(&[("kiln", "words"), ("at", "words")])]);
+        // An allowlisted word admits its class outright, term or no term.
+        let listed = SolveOptions { short_words: Some(vec!["at".into()]), ..min3(0) };
+        assert_eq!(tagged(&dict, "link ta", listed), vec![row(&[("kiln", "words"), ("at", "words")])]);
+        // A term that opens a class of its own is untouched: `u` and `r` at a minimum of 3.
+        let found = tagged(&dict, "ur link", min3(Class::Shorthand.bit()));
+        assert_eq!(found, vec![row(&[("kiln", "words"), ("r", "shorthand"), ("u", "shorthand")])]);
+
+        // On the classed fixture: names on at a minimum of 4 shows `amy` for the letters of `yam`, never the
+        // three-letter `may`, and with words alone the letters have nothing.
+        let dict = classed();
+        let min4 = |classes: ClassMask| SolveOptions { min_word_len: 4, ..with(classes) };
+        assert!(tagged(&dict, "yam", min4(0)).is_empty());
+        assert_eq!(tagged(&dict, "yam", min4(Class::Names.bit())), vec![row(&[("amy", "names")])]);
+        assert!(tagged(&dict, "amy", min4(Class::Names.bit())).is_empty(), "amy is the text itself, and may is under the rule");
+        // Under the minimum the words lead again.
+        assert_eq!(tagged(&dict, "yam", with(Class::Names.bit())), vec![row(&[("may", "words")])]);
     }
 
     #[test]

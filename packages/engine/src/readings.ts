@@ -1,8 +1,8 @@
 /**
  * The items of an input, and how each stands: every distinct digit or symbol
- * of the pool. A digit is always an item; `@ & % + #` are items wherever they
- * stand, and `$ ! ?` only inside a word, with a letter on both sides, where
- * they are characters rather than marks.
+ * of the pool. A digit is always an item; `@ $ & % + #` are items wherever
+ * they stand (`$5` as `Ke$ha`), and `! ?` only inside a word, with a letter
+ * on both sides, where they are characters rather than marks.
  *
  * The literal rule (roadmap phase N, decisions D62 and D63, accepted
  * 2026-09-21): an anagram rearranges what was typed, and nothing is

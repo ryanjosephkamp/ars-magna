@@ -39,6 +39,14 @@ describe('Letters match', () => {
     expect(lettersMatchLabel(ledger('Dario Amodei', ''))).toBe('—');
     expect(lettersMatchLabel(ledger('', 'doomer'))).toBe('—');
   });
+
+  it('reads No while a digit or symbol of the text stands as itself, so no Submit is offered for what the API refuses', () => {
+    expect(lettersMatchLabel(ledger('Blink-182', 'blink'))).toBe('No');
+    expect(lettersMatchLabel(ledger('Ke$ha', 'hake'))).toBe('No');
+    expect(lettersMatchLabel(ledger('Reacher season 4', 'as one searcher', { '4': 'drop' }))).toBe('Yes');
+    expect(lettersMatchLabel(ledger('Ke$ha', 'shake', { $: 's' }))).toBe('Yes');
+    expect(lettersMatchLabel(ledger('Blink-182', ''))).toBe('—');
+  });
 });
 
 describe('Words known', () => {

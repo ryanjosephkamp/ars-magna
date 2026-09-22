@@ -24,7 +24,7 @@ pub(crate) static CHARACTERS: [Character; 18] = [
     Character { ch: '8', inside_word_only: false, letters: &['b'] },
     Character { ch: '9', inside_word_only: false, letters: &['g'] },
     Character { ch: '@', inside_word_only: false, letters: &['a'] },
-    Character { ch: '$', inside_word_only: true, letters: &['s'] },
+    Character { ch: '$', inside_word_only: false, letters: &['s'] },
     Character { ch: '!', inside_word_only: true, letters: &['i'] },
     Character { ch: '?', inside_word_only: true, letters: &[] },
     Character { ch: '&', inside_word_only: false, letters: &[] },
@@ -41,7 +41,7 @@ pub static DEFAULTS: [(&str, &str); 2] = [
 
 /// `(input, overrides as item:name pairs, the read text)`, walked by the tests.
 #[cfg_attr(not(test), allow(dead_code))]
-pub(crate) static CASES: [(&str, &str, &str); 57] = [
+pub(crate) static CASES: [(&str, &str, &str); 60] = [
     ("Blink-182", "", "Blink-182"),
     ("Blink-182", "1:drop,8:drop,2:drop", "Blink-"),
     ("Blink-182", "1:i,8:b,2:z", "Blink-ibz"),
@@ -72,7 +72,10 @@ pub(crate) static CASES: [(&str, &str, &str); 57] = [
     ("Hello! World?", "", "Hello World"),
     ("wow!!", "", "wow"),
     ("a!b!c", "", "a!b!c"),
-    ("$5 off", "", "5 off"),
+    ("$5 off", "", "$5 off"),
+    ("$5 off", "$:drop", "5 off"),
+    ("$hake", "", "$hake"),
+    ("$hake", "$:s", "shake"),
     ("Bl1nk", "", "Bl1nk"),
     ("Bl1nk", "1:i", "Blink"),
     ("h3llo l33t", "3:e", "hello leet"),

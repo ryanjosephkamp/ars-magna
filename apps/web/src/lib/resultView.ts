@@ -6,6 +6,7 @@
  * that can be done. The interface says which of the two it is doing, and offers
  * to load everything when the total is small enough for that to be honest.
  */
+import type { ErrorCode } from '@ars-magna/engine';
 import type { Row } from '../state/resultBuffer.ts';
 
 export type SortMode = 'default' | 'az' | 'za' | 'fewest' | 'most' | 'longest';
@@ -96,4 +97,24 @@ export function countLineOf(state: {
 }): { readonly kind: 'unanswered' } | { readonly kind: 'answered'; readonly total: string; readonly empty: boolean } {
   if (!state.answered) return { kind: 'unanswered' };
   return { kind: 'answered', total: state.total, empty: !state.searching && state.total === '0' && state.error === null };
+}
+
+/**
+ * What the notice reads when the query as a whole failed, in place of the
+ * results: a sentence of the page's own for each refusal the engine can
+ * make of a text, and the engine's message after a plain sentence for
+ * anything else. A must-include problem never gets here; it sits on its
+ * control.
+ */
+export function queryNotice(error: { readonly code: ErrorCode; readonly message: string }): string {
+  switch (error.code) {
+    case 'TOO_MANY_REPEATS':
+      return 'A letter appears more than 127 times, which is more of one letter than the search can hold.';
+    case 'TOO_MANY_CHARACTERS':
+      return 'The text has more than six different digits and symbols, which is more than the search can hold.';
+    case 'TOO_MANY_NUMERALS':
+      return "The text's digits make more numerals than the search can hold.";
+    default:
+      return `The search failed. ${error.message}`;
+  }
 }

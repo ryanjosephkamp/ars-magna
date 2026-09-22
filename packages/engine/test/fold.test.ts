@@ -31,11 +31,12 @@ export const FOLD_CASES: readonly (readonly [string, string, number])[] = [
   ['1234!!', '1234', 0],
   ['!! ??', '', 0],
   ['Beverly Hills 90210', 'beverlyhills90210', 0],
-  // The symbols of the set are characters of the pool; `!` and `?` only inside a word.
+  // The symbols of the set are characters of the pool wherever they stand; `!` and `?` only inside a word.
   ['Blink-182', 'blink182', 0],
   ['Ke$ha', 'ke$ha', 0],
   ['P!nk wh?t Hello! what?', 'p!nkwh?thellowhat', 0],
-  ['AT&T C++ 50% #1 @home $5', 'at&tc++50%#1@home5', 0],
+  ['AT&T C++ 50% #1 @home $5', 'at&tc++50%#1@home$5', 0],
+  ['$5 off', '$5off', 0],
   // A symbol outside the set is skipped and counted, like a letter of another script.
   ['a ~ b | c', 'abc', 0],
   ['a © b', 'ab', 1],

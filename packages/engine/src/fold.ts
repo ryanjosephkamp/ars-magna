@@ -15,8 +15,8 @@
  * sides, and `fold.test.ts` checks it against the browser's own NFKD over the
  * covered ranges, so the two cannot drift.
  *
- * A digit, or one of the symbols `@ $ & % + #` (`!` and `?` inside a word), is
- * a character of the pool (`readings.ts`, roadmap phase N, the literal rule):
+ * A digit, or one of the symbols `@ $ & % + #` wherever it stands (`!` and `?`
+ * inside a word), is a character of the pool (`readings.ts`, roadmap phase N, the literal rule):
  * "Blink-182" is the pool `blink182` and "Ke$ha" is `ke$ha`, a term of an
  * anagram uses each as itself, and the line under the field says how each
  * stands (`1 as itself`). A reader may read one as a letter (`$` as s) or

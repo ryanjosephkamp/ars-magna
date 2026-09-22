@@ -1,5 +1,5 @@
 {
-  "$comment": "The characters of an input that are not letters, and how each stands (roadmap phase N, the literal rule, decisions D62 and D63, accepted 2026-09-21). An item is one distinct digit or symbol of the pool: a digit, or one of the symbols below (`!` and `?` are items only inside a word, with a letter on both sides; elsewhere they are punctuation and carry nothing). Each item reads as itself (`self`, the default: the character is a character of the pool, used by an anagram as itself), as one of its `letters` (the leet readings: `$` as s, `7` as t or v; the search puts the character back where the letter went and says so), or as `drop` (left out, as the site read every item before phase N3). Nothing is converted: a number is never read as its name and a symbol never as a word. `scripts/gen-readings.py` emits this table into crates/anagram-core/src/readings_table.rs and packages/engine/src/readingsTable.ts; the item finder is written by hand on each side (readings.rs, readings.ts) and held to the `cases` below by a test on each side. `|` as l is a leet reading in the wider world, but `|` is not a character of the pool, so it is not here. Edit this file, then run the generator.",
+  "$comment": "The characters of an input that are not letters, and how each stands (roadmap phase N, the literal rule, decisions D62 and D63, accepted 2026-09-21). An item is one distinct digit or symbol of the pool: a digit, or one of the symbols below (`@ $ & % + #` wherever they stand; `!` and `?` are items only inside a word, with a letter on both sides; elsewhere they are punctuation and carry nothing). Each item reads as itself (`self`, the default: the character is a character of the pool, used by an anagram as itself), as one of its `letters` (the leet readings: `$` as s, `7` as t or v; the search puts the character back where the letter went and says so), or as `drop` (left out, as the site read every item before phase N3). Nothing is converted: a number is never read as its name and a symbol never as a word. `scripts/gen-readings.py` emits this table into crates/anagram-core/src/readings_table.rs and packages/engine/src/readingsTable.ts; the item finder is written by hand on each side (readings.rs, readings.ts) and held to the `cases` below by a test on each side. `|` as l is a leet reading in the wider world, but `|` is not a character of the pool, so it is not here. Edit this file, then run the generator.",
   "characters": {
     "0": { "insideWordOnly": false, "letters": ["o"] },
     "1": { "insideWordOnly": false, "letters": ["i", "l"] },
@@ -12,7 +12,7 @@
     "8": { "insideWordOnly": false, "letters": ["b"] },
     "9": { "insideWordOnly": false, "letters": ["g"] },
     "@": { "insideWordOnly": false, "letters": ["a"] },
-    "$": { "insideWordOnly": true, "letters": ["s"] },
+    "$": { "insideWordOnly": false, "letters": ["s"] },
     "!": { "insideWordOnly": true, "letters": ["i"] },
     "?": { "insideWordOnly": true, "letters": [] },
     "&": { "insideWordOnly": false, "letters": [] },
@@ -55,7 +55,10 @@
     ["Hello! World?", "", "Hello World"],
     ["wow!!", "", "wow"],
     ["a!b!c", "", "a!b!c"],
-    ["$5 off", "", "5 off"],
+    ["$5 off", "", "$5 off"],
+    ["$5 off", "$:drop", "5 off"],
+    ["$hake", "", "$hake"],
+    ["$hake", "$:s", "shake"],
     ["Bl1nk", "", "Bl1nk"],
     ["Bl1nk", "1:i", "Blink"],
     ["h3llo l33t", "3:e", "hello leet"],

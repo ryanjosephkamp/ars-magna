@@ -15,7 +15,7 @@ import type { WordDetail } from './components/WordDetails.tsx';
 import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
-import { applyView, countLineOf, type SortMode } from './lib/resultView.ts';
+import { applyView, countLineOf, queryNotice, type SortMode } from './lib/resultView.ts';
 import { displayPhrase, displayWord, formsFrom } from './lib/forms.ts';
 import {
   FILTER_COUNT_LIMIT_MS,
@@ -435,18 +435,7 @@ export function App() {
 
           {engine.state === 'ready' && !hasQuery && <Intro counts={counts} />}
 
-          {engine.state === 'ready' && hasQuery && queryError && (
-            <Notice>
-              {queryError.code === 'TOO_MANY_REPEATS' ? (
-                <>
-                  A letter appears more than 127 times, which is more of one letter than the
-                  search can hold.
-                </>
-              ) : (
-                <>The search failed. {queryError.message}</>
-              )}
-            </Notice>
-          )}
+          {engine.state === 'ready' && hasQuery && queryError && <Notice>{queryNotice(queryError)}</Notice>}
 
           {engine.state === 'ready' && hasQuery && !queryError && (
             <>

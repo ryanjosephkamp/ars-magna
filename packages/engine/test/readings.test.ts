@@ -52,7 +52,8 @@ describe('the generated table', () => {
     expect(lettersOf('a')).toEqual([]);
     for (const [char, spec] of Object.entries(table.CHARACTERS)) {
       expect(isPoolChar(char), char).toBe(true);
-      expect(spec.insideWordOnly, char).toBe('$!?'.includes(char));
+      // `@ $ & % + #` are items wherever they stand (D62); `!` and `?` only inside a word.
+      expect(spec.insideWordOnly, char).toBe('!?'.includes(char));
     }
     for (const char of ['a', '|', '~', '-', ' ', '©']) expect(isPoolChar(char), char).toBe(false);
   });
@@ -102,6 +103,10 @@ describe('readItems', () => {
     expect(readItems('1,000').map((i) => [i.key, i.count])).toEqual([['1', 1], ['0', 3]]);
     // A run is its distinct digits; separators and an ordinal's suffix are letters or nothing.
     expect(readItems('Hello! Ke$ha wh?t @ AT&T C++ 50% #1 9th').map((i) => i.key)).toEqual(['$', '?', '@', '&', '+', '5', '0', '%', '#', '1', '9']);
+    // A `$` is an item wherever it stands, offered as itself, as s, or left out; `!` and `?` only inside a word.
+    expect(readItems('$5 off $h!t').map((i) => [i.key, i.count])).toEqual([['$', 2], ['5', 1], ['!', 1]]);
+    expect(readItems('$5 off')[0]!.offered.map((o) => o.name)).toEqual(['self', 's', 'drop']);
+    expect(readItems('Hello! what?')).toEqual([]);
     expect(readItems('1000th 10,000th 100,000th').map((i) => [i.key, i.count])).toEqual([['1', 3], ['0', 12]]);
     expect(readItems('no items')).toEqual([]);
   });
@@ -153,6 +158,10 @@ describe('the fold follows the reading', () => {
     expect(normalizeLetters('the 10,000th man')).toBe('the10000thman');
     expect(normalizeLetters('Reacher season 4', { '4': 'drop' })).toBe('reacherseason');
     expect(normalizeLetters('Ke$ha', { $: 's' })).toBe('kesha');
+    expect(normalizeLetters('$5 off')).toBe('$5off');
+    expect(normalizeLetters('$5 off', { $: 'drop' })).toBe('5off');
+    expect(normalizeLetters('$hake', { $: 's' })).toBe('shake');
+    expect(foldLetters('$5 off', { $: 'drop' })).toEqual({ letters: '5off', skipped: 1 });
     expect(normalizeLetters('h3llo l33t', { '3': 'e' })).toBe('helloleet');
     expect(foldLetters('Beverly Hills 90210')).toEqual({ letters: 'beverlyhills90210', skipped: 0 });
     expect(foldLetters('Beverly Hills 90210', { '0': 'drop' })).toEqual({ letters: 'beverlyhills921', skipped: 2 });
@@ -171,6 +180,7 @@ describe('the fold follows the reading', () => {
     expect(legacyLetters('AT&T')).toBe('att');
     expect(legacyLetters('Vishwanath & Sons')).toBe('vishwanathsons');
     expect(legacyLetters('Ke$ha')).toBe('keha');
+    expect(legacyLetters('$5 off')).toBe('off');
     expect(legacyLetters('P!nk wh?t')).toBe('pnkwht');
     expect(legacyLetters('Bl1nk 9/11 C++ 50% #1 @home')).toBe('blnkchome');
     expect(legacyLetters('Reacher season 4')).toBe('reacherseason');
