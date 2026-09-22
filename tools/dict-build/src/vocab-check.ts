@@ -9,10 +9,13 @@
  *
  * It covers both lists, the additions and the forms, under their one cap; the
  * term class files under theirs (a term of the pool's characters, never a
- * word of the dictionary, never twice unless its line says so); and the names
- * list under its floor. What it cannot check is the part that matters most —
- * whether a word or a term belongs in the vocabulary at all. That is the
- * operator's judgement, made by merging.
+ * word of the dictionary, never twice unless its line says so); the names
+ * list under its floor; and the class files and that list against the
+ * committed `classes` artifact, term for term and bit for bit, since a term
+ * the artifact lacks is one the site cannot admit however well the line
+ * reads. What it cannot check is the part that matters most — whether a word
+ * or a term belongs in the vocabulary at all. That is the operator's
+ * judgement, made by merging.
  */
 import {
   ADDITIONS_CAP,
@@ -20,7 +23,9 @@ import {
   FORMS_PATH,
   NAMES_PATH,
   TERMS_CAP,
+  classArtifactProblems,
   classFilePath,
+  committedClasses,
   committedDictionary,
   nameProblems,
   problemsWith,
@@ -30,6 +35,7 @@ import {
   readNames,
   termProblems,
 } from './vocab.ts';
+import { classTerms, readClassEntries } from './classes.ts';
 import { NAME_FLOOR } from './tokens.ts';
 
 async function main(): Promise<void> {
@@ -107,6 +113,27 @@ async function main(): Promise<void> {
     }
   }
   console.log(`✓ the class files are admissible`);
+
+  // The artifact is what the site loads, and the build is what writes it. CI
+  // rebuilds and compares the artifacts only on a `[dict]` commit, so without
+  // this a term appended to a class file, or a names list rebuilt under a new
+  // token rule, would pass every rule above, merge, and ship an artifact the
+  // site searches without it.
+  const artifact = await committedClasses();
+  const artifactTrouble = classArtifactProblems(classTerms(await readClassEntries()), artifact);
+  if (artifactTrouble.length > 0) {
+    console.error(
+      `\n✗ ${artifactTrouble.length} term${artifactTrouble.length === 1 ? '' : 's'} where the class files and the names list differ from the committed classes artifact:`,
+    );
+    for (const problem of artifactTrouble.slice(0, 20)) console.error(`  ${problem}`);
+    if (artifactTrouble.length > 20) console.error(`  … and ${artifactTrouble.length - 20} more`);
+    process.exit(1);
+  }
+  console.log(
+    artifact === null
+      ? `✓ no classes artifact, and no term in the class files or the names list to carry`
+      : `✓ ${artifact.length.toLocaleString()} terms in the committed classes artifact, the class files and the names list term for term and bit for bit`,
+  );
 }
 
 await main();

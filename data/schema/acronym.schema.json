@@ -23,8 +23,8 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 80,
-      "pattern": "^[a-z][a-z' -]*$",
-      "description": "What the term stands for when it is read: the word or words it reads as (`and` for `&`, `you` for `u`, `bait` for `b8`, `by the way` for `btw`). Lowercase; a reader sees it in the word panel beside the gloss."
+      "pattern": "^(?:I|[a-z][a-z']*)(?:[ -](?:I|[a-z][a-z']*))*$",
+      "description": "What the term stands for when it is read: the word or words it reads as (`and` for `&`, `you` for `u`, `bait` for `b8`, `I don't know` for `idk`). Lowercase, except the word I, which is a word of English and is written as one; a reader sees it in the word panel beside the gloss."
     },
     "gloss": {
       "type": "string",

@@ -191,17 +191,21 @@ word, a text-messaging blend, an initialism. The literal rule (D62) says an anag
 of the text as itself, and no word has a digit or a symbol, so a text with one has no anagram of words
 alone; the **term classes** (D63) are what can use them. Every term of an anagram is a word of the
 dictionary or a term of a labelled class, every result carries the classes its terms come from, and words
-alone is the default everywhere: a class is on only when a search names it. The classes with a file, and
-the file of each, public like the additions:
+alone is the default everywhere: a class is on only when a search names it.
 
-| Class | What it is | Examples | File |
-|---|---|---|---|
-| symbols | a symbol of the set as itself, read as its word | `&` and · `@` at · `%` percent · `+` plus · `#` number · `$` dollars | `data/vocabulary/symbols.jsonl` |
-| shorthand | one character read as a word | `u` you · `r` are · `y` why · `k` okay · `2` to · `4` for · `8` ate · `1` won · `f` (crude) | `shorthand.jsonl` |
-| blends | letters and digits that sound like a word | `b8` · `gr8` · `m8` · `str8` · `2day` · `2nite` · `b4` · `4ever` · `1der` · `10q` | `blends.jsonl` |
-| acronyms | initialisms and text abbreviations, written in capitals where they are | `wtf` (crude) · `btw` · `omg` · `idk` · `brb` · `tbh` · `fyi` · `asap` · `rsvp` · `diy` · `thx` · `pls` · `ur` | `acronyms.jsonl` |
-| names | the names list, three letters or more (see "The names list") | `eiffel` · `berne` · `taft` | `names.jsonl`, built, never edited |
-| slang | informal words the pinned list lacks, with their tone | `rizz` · `sus` · `yeet` | `slang.jsonl`, with G1's Wiktionary extract; no file yet |
+Every class with terms has a file in `data/vocabulary/`: `symbols.jsonl`, `shorthand.jsonl`,
+`blends.jsonl` and `acronyms.jsonl`, public like the additions; `names.jsonl`, which `pnpm names:build`
+writes and nobody edits by hand; and `slang.jsonl`, which waits for G1's Wiktionary extract and does not
+exist yet.
+
+| Class | What it is | Examples |
+|---|---|---|
+| symbols | a symbol of the set as itself, read as its word | `&` and · `@` at · `%` percent · `+` plus · `#` number · `$` dollars |
+| shorthand | one character read as a word | `u` you · `r` are · `y` why · `k` okay · `2` to · `4` for · `8` ate · `1` won · `f` (crude) |
+| blends | letters and digits that sound like a word | `b8` · `gr8` · `m8` · `str8` · `2day` · `2nite` · `b4` · `4ever` · `1der` · `10q` |
+| acronyms | initialisms and text abbreviations, written in capitals where they are | `wtf` (crude) · `btw` · `omg` · `idk` · `brb` · `tbh` · `fyi` · `asap` · `rsvp` · `diy` · `thx` · `pls` · `ur` |
+| names | the names list, three letters or more (see "The names list") | `eiffel` · `berne` · `taft` |
+| slang | informal words the pinned list lacks, with their tone | `rizz` · `sus` · `yeet` |
 
 Numerals (`182`, `28`, in the text's own digit order) and leet readings (`$` as s) are generated from the
 text by the engine and have no file. **A term is never a word of the dictionary**: `lol`, `faq` and the
@@ -248,7 +252,13 @@ merge the pull request that adds it.
 `pnpm vocab:check` runs on every pull request over all the class files and the names list: every line
 through its schema, a term of the pool's characters only, never a word of the committed dictionary, never
 twice in a file, in two files or in a file and the names list only when its line says `also`, the cap; and
-for names the floor of three letters and that each name is a token of the label it came from. On the command
+for names the floor of three letters and that each name is a token of the label it came from. It then holds
+the files and the list to the **committed `classes` artifact**, term for term and bit for bit: a term the
+artifact does not carry, a term it carries that no file lists, or a class bit that differs means the
+dictionary has not been rebuilt since the line changed, and the check names the term and says to run
+`pnpm dict:fetch && pnpm dict:build` and commit the artifacts with `[dict]`. Without that the term would
+merge and ship as a line nobody can search: CI rebuilds and compares the artifacts only on a `[dict]`
+commit. `pnpm vocab:publish` refuses on the same difference (see "The vocabulary dataset"). On the command
 line a class is admitted by name, and the site passes no class until N5 gives it the control:
 
 ```bash
@@ -420,8 +430,9 @@ pnpm vocab:publish --dry-run
 
 It reads the **committed artifacts**, not the pinned sources, so it needs no 330 MB fetch and
 publishes exactly what the site ships. It refuses to run when an addition, or a form's letters-word, is
-missing from those artifacts: that means the dictionary has not been rebuilt since the word was added, and
-publishing would announce a word the site cannot find.
+missing from those artifacts, and when the class files and the names list differ from the committed
+`classes` artifact by a term or a class bit: either means the dictionary has not been rebuilt since the
+word or the term was added, and publishing would announce a word or a term the site cannot find.
 
 ## Review a routine pull request
 
