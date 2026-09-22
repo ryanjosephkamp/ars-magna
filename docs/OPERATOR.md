@@ -658,8 +658,9 @@ fields until it is a hit; promoted with `hits:ingest --only`, it takes the judge
 ## Numbers and symbols
 
 **The literal rule (D62, accepted 2026-09-21).** An anagram uses exactly the text's characters: its letters
-(accents folded, case free), its digits and the symbols `@ $ & % + #` (`!` and `?` inside a word), each as
-itself. Spaces, punctuation, apostrophes, hyphens and capitals may be added or removed; nothing is
+(accents folded, case free), its digits and the symbols `@ $ & % + #` wherever they stand (`$5 off` has a `$`
+as much as `Ke$ha` does), and `!` and `?` inside a word only (with a letter on both sides; elsewhere they are
+punctuation), each as itself. Spaces, punctuation, apostrophes, hyphens and capitals may be added or removed; nothing is
 replaced. A number is never read as its name, and a symbol never as a letter or a word, unless a reader
 chooses a leet reading for that one character and the result says so. Every term of an anagram is a word
 of the dictionary or a term of a labelled class (D63); words alone is the default everywhere. Phase N's
@@ -671,22 +672,26 @@ as a letter is: "Blink-182" is the pool `b l i n k 1 8 2`, and the line under th
 characters. Each such character is an **item**, and reads as itself (`self`, the default), as one of its
 leet letters (`$` as s, `7` as t or v; the table below), or as `drop`, left out, which is what every item
 was between the fix and N3 and how the records made then still read. An item is one character: `Blink-182`
-has the items `1`, `8` and `2`, one line each under the field (`1 as itself`); the ordinal `9th` is the
-digit `9` and the letters `th`; `1,000` is a `1` and three `0`s.
+has the items `1`, `8` and `2`, one line each under the field (`1 as itself`); `$5 off` reads `$ as itself`
+and `5 as itself`; the ordinal `9th` is the digit `9` and the letters `th`; `1,000` is a `1` and three `0`s.
+A text with more than six different digits and symbols is refused, and the search page says so in a sentence
+(`The text has more than six different digits and symbols, which is more than the search can hold.`).
 
 No word has a digit, so with words alone a text with one has no anagram: the count is 0, and the engine says
 which characters nothing uses (`unused`; the search page reads *No word has a 1, 8 or 2*). The **term
 classes** are what can use them: a search takes the classes to admit as a mask beside the tier
 (`Query.classes` over the worker, `--classes=` on the CLI, `classes` on the MCP), and with the mask empty it
-is today's search. Numerals are made from the pool's digits (`182`, `18 2`, `1 82`, never the text itself);
-the other classes are terms of a second, small list beside the dictionary, built by `pnpm dict:build` from
+is today's search. Numerals are made from the pool's digits, in the text's own digit order (`182` gives
+`182`, `18 2`, `1 82`, `12 8`, never the text itself; "Big Brother 28" gives `28` and never `82`, until N6's deep
+run says whether reordered numerals are wanted); the other classes are terms of a second, small list beside the dictionary, built by `pnpm dict:build` from
 the class files `data/vocabulary/{symbols,shorthand,blends,acronyms,slang}.jsonl` into the `classes`
 artifact, committed with `[dict]`, and loaded by the site and the CLI when the manifest names it. The
 files do not exist yet (N4 seeds them, and gives the names list its floor), so `dict:build` emits no
 artifact, the shipped dictionary is words alone, and the site passes no class until N5 gives it the
 control. A term of letters alone (`amy`) is a spelling of its letters' class and changes no count; a term
 that opens a class of its own (`u`, `wtf`, `b8`) is admitted at any length by its class, and a word under
-the minimum length stays out as before.
+the minimum length stays out as before: where a term of letters spells such a word's class (`ta` beside `at`
+at a minimum of 3), the class is admitted for the term alone and shows the term, never the word.
 
 **Leet is generative, not a lexicon.** The table `scripts/readings.json` gives each character its letters:
 `0` o · `1` i l · `2` z · `3` e · `4` a · `5` s · `6` g b · `7` t v · `8` b · `9` g · `@` a · `$` s · `!`
@@ -736,7 +741,11 @@ way. `anagram solve|count|check --read=` says the same.
 has a digit or a symbol (`waits for the literal rule`), and the batch runs over the rest with no class
 admitted (`SETTINGS_VERSION` stays `s6`; the queue's `summary.json` records the defaults, now `self`).
 `hits:fetch` ids a new title with a digit by its pool (`como1907:companies`, `reading` all `self`) and
-still skips one on file under its pre-N id (`legacyId`). A batch row carries `classes` when a term is not
+skips one on file under any id it has had, since the same input and category is the same candidate: its
+pre-N id (`legacyId`, the digits and symbols left out), the id of the withdrawn `s5` day (`UFC 331` as
+`ufcthreehundredthirtyone:phrases`) or its pool id. `hits:fetch --reclassify` places an unclassified
+candidate under its own reading where that reading still gives the record its letters, and otherwise, for a
+record from before phase N or from the `s5` day, reads it afresh by the defaults and records that reading. A batch row carries `classes` when a term is not
 a word, the prefilter exempts such a term from the word rules, and the screen carries the classes after
 a bar on the phrase line (`1 2 link b8 | 1 shorthand · 2 shorthand · b8 blends`); none of that fires until
 N6 admits a class.
@@ -913,9 +922,14 @@ it splits a text into words as the engine does (`foldWords`). The search still l
 "applesauce" is a different word from "apple sauce".
 
 **The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
-numbers and the symbols `@ $ ! & +` read as letters first, by the defaults or the reading chosen under the
-text box (see "Numbers and symbols"); apostrophes, hyphens and punctuation carry no letters; letters of other scripts,
-other symbols and what a reading leaves out are listed as skipped. *Words known* reads each word between spaces against the tier the reader picks, and names a
+apostrophes, hyphens and punctuation carry no letters; letters of other scripts, other symbols and what a
+reading leaves out are listed as skipped. A digit or a symbol of the pool is a character of the text as
+itself (see "Numbers and symbols"), which an anagram of the letters alone does not use and the search and
+`/api/promote` refuse; until roadmap N5 counts the pool on Build, the ledger lists such a run as skipped
+(`5 letters · 3 characters skipped: 182`), *Letters match* reads `No` while the text has one as itself, the
+verdict line names them once the letters are right (`The anagram does not use the text's 1, 8 and 2.`), and
+no Submit is offered. A reading that leaves the character out (`r=4:drop`, the five kept hits' Build links)
+matches as before. *Words known* reads each word between spaces against the tier the reader picks, and names a
 word it lacks: `doomer is in Extended, not Standard` for a word a wider tier has, `qzx is not in the dictionary`
 for one no tier has. A typed `don't` is the word `dont`, a listed form's letters, known at every tier (see
 "Add a form to the vocabulary"); a typed `dog's` is the word `dogs`, and keeps its apostrophe only if you set it

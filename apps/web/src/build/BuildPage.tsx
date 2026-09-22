@@ -46,7 +46,9 @@ export function BuildPage() {
   const [text, setText] = useState(opened.text);
   const [anagram, setAnagram] = useState(opened.anagram);
   const [tier, setTier] = useState<Tier>(opened.tier);
-  // The text's digits and symbols, each a character of the pool as itself, said so under the box (the literal rule); the ledger lists them as skipped until N5 counts the pool.
+  // The text's digits and symbols, each a character of the pool as itself, said so under the box (the literal rule). Until N5
+  // counts the pool, the ledger lists them as skipped and, with one as itself, Letters match reads No and the verdict names
+  // it: an anagram of the letters alone is not one of the text, and the API would refuse it.
   const reading = opened.reading;
   const items = useMemo(() => readItems(text, reading), [text, reading]);
   const anagramRef = useRef<HTMLTextAreaElement>(null);
@@ -174,7 +176,8 @@ export function BuildPage() {
 
   const textLine = lettersLine(l.text);
   // The text's own words in any order, or a re-spacing of it, are the text, not
-  // an anagram of it: the verdict line says so and no submission is offered.
+  // an anagram of it: the verdict line says so and no submission is offered. Nor
+  // is one while `l.match` is false, which a character of the text as itself makes it.
   const itself = useMemo(() => isTextItself(text, anagram, reading), [text, anagram, reading]);
   const anagramVerdict = itself ? TEXT_ITSELF : verdict(l);
   const skippedInAnagram = l.anagram.skipped.length;

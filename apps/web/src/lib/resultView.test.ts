@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyView, countLineOf, isSortMode, matches, SORT_MODES, type SortMode } from './resultView.ts';
+import { applyView, countLineOf, isSortMode, matches, queryNotice, SORT_MODES, type SortMode } from './resultView.ts';
 
 const rows = [
   ['dormitory'],
@@ -153,5 +153,29 @@ describe('countLineOf', () => {
     expect(countLineOf({ answered: true, searching: false, total: '115', error: null })).toEqual({ kind: 'answered', total: '115', empty: false });
     // A word the tier lacks is an answer with no results, said on the control, not as `Nothing spells`.
     expect(countLineOf({ answered: true, searching: false, total: '0', error: { code: 'UNKNOWN_WORD' } })).toEqual({ kind: 'answered', total: '0', empty: false });
+  });
+});
+
+describe('queryNotice', () => {
+  it('has a sentence of its own for each refusal the engine can make of a text', () => {
+    expect(queryNotice({ code: 'TOO_MANY_REPEATS', message: 'a letter appears more than 127 times' })).toBe(
+      'A letter appears more than 127 times, which is more of one letter than the search can hold.',
+    );
+    // `1234567` on the page read the engine's message raw before the fix after N3.
+    expect(queryNotice({ code: 'TOO_MANY_CHARACTERS', message: 'more than six different digits and symbols' })).toBe(
+      'The text has more than six different digits and symbols, which is more than the search can hold.',
+    );
+    expect(queryNotice({ code: 'TOO_MANY_NUMERALS', message: 'the digits make more than 4096 numerals' })).toBe(
+      "The text's digits make more numerals than the search can hold.",
+    );
+  });
+
+  it('falls back to a plain sentence and the message for anything else, and every notice is a sentence', () => {
+    expect(queryNotice({ code: 'INTERNAL', message: 'unreachable' })).toBe('The search failed. unreachable');
+    for (const code of ['TOO_MANY_REPEATS', 'TOO_MANY_CHARACTERS', 'TOO_MANY_NUMERALS', 'FETCH_FAILED'] as const) {
+      const notice = queryNotice({ code, message: 'x.' });
+      expect(notice).toMatch(/^[A-Z].*\.$/);
+      expect(notice).not.toContain('!');
+    }
   });
 });

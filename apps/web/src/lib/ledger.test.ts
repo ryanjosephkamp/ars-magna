@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { foldText, insertAt, ledger, lettersLine, readBack, verdict } from './ledger.ts';
+import { foldText, insertAt, ledger, lettersLine, readBack, unusedSentence, verdict } from './ledger.ts';
 
 const tray = (text: string, anagram: string) =>
   Object.fromEntries(ledger(text, anagram).tray.map((l) => [l.letter, [l.have, l.left]]));
@@ -60,6 +60,27 @@ describe('the ledger', () => {
     expect(ledger('?', '?').match).toBe(false);
   });
 
+  it('does not match while a digit or symbol of the text stands as itself, which no anagram of the letters uses', () => {
+    // Live after N3, "Blink-182" against "blink" read Yes and offered a Submit that /api/promote refuses (not-an-anagram).
+    const l = ledger('Blink-182', 'blink');
+    expect(l.unused).toEqual(['1', '8', '2']);
+    expect(l.match).toBe(false);
+    expect(l.extra).toEqual([]);
+    expect(l.missing).toEqual([]);
+    // The letters line still lists the run as skipped.
+    expect(lettersLine(l.text)).toBe('5 letters · 3 characters skipped: 182');
+    expect(ledger('Ke$ha', 'hake').unused).toEqual(['$']);
+    expect(ledger('Ke$ha', 'hake').match).toBe(false);
+    // A reading that leaves the item out owes it nothing: the five kept hits' Build links.
+    expect(ledger('Reacher season 4', 'as one searcher', { '4': 'drop' })).toMatchObject({ unused: [], match: true });
+    expect(ledger('Vishwanath & Sons', 'shows a vast inn h', { '&': 'drop' })).toMatchObject({ unused: [], match: true });
+    // A leet reading makes the character a letter, so nothing is unused.
+    expect(ledger('Ke$ha', 'shake', { $: 's' })).toMatchObject({ unused: [], match: true });
+    // Each character once, in the order first typed, whatever the reading of the others.
+    expect(ledger('Beverly Hills 90210', 'x', { '0': 'drop' }).unused).toEqual(['9', '2', '1']);
+    expect(ledger('Dormitory', 'dirty room').unused).toEqual([]);
+  });
+
   it('ignores apostrophes, hyphens, punctuation, spacing and case in both boxes, and folds accents', () => {
     expect(ledger("It's dormitory", 'Dirty-room, its.').match).toBe(true);
     expect(ledger('Beyoncé', 'obey-NCE').match).toBe(true);
@@ -84,6 +105,24 @@ describe('the verdict line', () => {
   it('counts the letters on a match', () => {
     expect(verdict(ledger('Dario Amodei', 'I da AI doomer'))).toBe('All 11 letters used');
     expect(verdict(ledger('A', 'a'))).toBe('All 1 letter used');
+  });
+
+  it('names the characters of the text the anagram does not use, once the letters are right', () => {
+    expect(verdict(ledger('Blink-182', 'blink'))).toBe("The anagram does not use the text's 1, 8 and 2.");
+    expect(verdict(ledger('Ke$ha', 'hake'))).toBe("The anagram does not use the text's $.");
+    expect(verdict(ledger('Sardar 2', 'radars'))).toBe("The anagram does not use the text's 2.");
+    expect(verdict(ledger('Area 51', 'area'))).toBe("The anagram does not use the text's 5 and 1.");
+    expect(unusedSentence(['1', '8', '2', '&'])).toBe("The anagram does not use the text's 1, 8, 2 and &.");
+    // The letters come first: while they are wrong, the line reads as it always did.
+    expect(verdict(ledger('Blink-182', 'blinx'))).toBe('1 extra x · 1 missing k');
+    expect(verdict(ledger('Blink-182', ''))).toBe('');
+    // With the reading leaving the character out, the match is a match.
+    expect(verdict(ledger('Reacher season 4', 'as one searcher', { '4': 'drop' }))).toBe('All 13 letters used');
+    // Every sentence here is one: a capital, a full stop, no exclamation mark.
+    for (const s of [unusedSentence(['1']), unusedSentence(['1', '8']), unusedSentence(['1', '8', '2'])]) {
+      expect(s).toMatch(/^[A-Z].*\.$/);
+      expect(s).not.toContain('!');
+    }
   });
 });
 

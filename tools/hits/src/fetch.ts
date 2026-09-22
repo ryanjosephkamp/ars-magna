@@ -102,8 +102,11 @@ export function reclassify(
       out.push(c);
       continue;
     }
-    // Placed under its own reading, or, for a candidate from before phase N, read afresh by the defaults.
-    const reading = c.reading ?? recordReading(c.input);
+    // Placed under its own reading where that reading still gives the record its letters; else read afresh by
+    // the defaults: a candidate from before phase N, or one whose reading the table withdrew (`spell`, the s5 day),
+    // which would otherwise be re-id'd under its pool while keeping a reading that no longer says how it reads.
+    const own = c.reading && candidateId(c.input, c.category, c.reading) === c.id ? c.reading : undefined;
+    const reading = own ?? recordReading(c.input);
     const id = candidateId(c.input, category, reading ?? {});
     const placed: Candidate = { ...c, id, category, status: 'new', ...(reading ? { reading } : {}) };
     const legacy = candidateId(c.input, category, null);
@@ -125,6 +128,23 @@ export function reclassify(
 /** The id a candidate would have had before phase N: its digits and symbols left out of the letters. */
 export function legacyId(c: Pick<Candidate, 'input' | 'category'>): string {
   return candidateId(c.input, c.category, null);
+}
+
+/**
+ * The candidates not yet on file. The same input and category under any id
+ * is the same candidate: a line made before phase N carries its pre-N id, a
+ * line from the s5 day the id of a reading since withdrawn (`UFC 331` as
+ * `ufcthreehundredthirtyone:phrases`), a line since N3 its pool id. So each
+ * line on file is known by its id and by its pre-N id, and a title is fresh
+ * only when neither of its own matches. Pure.
+ */
+export function notOnFile(candidates: readonly Candidate[], onFile: readonly Pick<Candidate, 'id' | 'input' | 'category'>[]): Candidate[] {
+  const known = new Set<string>();
+  for (const line of onFile) {
+    known.add(line.id);
+    known.add(legacyId(line));
+  }
+  return candidates.filter((c) => !known.has(c.id) && !known.has(legacyId(c)));
 }
 
 /**
@@ -313,10 +333,9 @@ export async function runFetch(options: {
   const wanting = placed.filter(describable);
   const items = wanting.length > 0 ? await describeItems(wanting.map((c) => c.wikidata_qid!), deps) : new Map<string, WikidataItem>();
   const candidates = placed.map((c) => (describable(c) ? withWikidata(c, items.get(c.wikidata_qid!)) : c));
-  // A title on file under the id it had before phase N (its number left out) is the same candidate, not a new one.
+  // A title on file under any id it has had (its pre-N id, an s5 id, its pool id) is the same candidate, not a new one.
   const validator = await candidateSchema();
-  const onFile = new Set((await readJsonl(CANDIDATES_PATH, validator)).map((c) => c.id));
-  const fresh = candidates.filter((c) => !onFile.has(legacyId(c)));
+  const fresh = notOnFile(candidates, await readJsonl(CANDIDATES_PATH, validator));
   const added = options.dryRun ? [] : await appendJsonl(CANDIDATES_PATH, fresh, validator);
 
   const tally = new Map<string, number>();

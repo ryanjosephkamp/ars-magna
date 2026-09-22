@@ -22,7 +22,7 @@ import {
   subjectSlug,
   type Classification,
 } from '../src/classify/wikidata.ts';
-import { describable, legacyId, lookupable, matchItems, reclassify, runFetch, titleOf, toCandidates, withWikidata } from '../src/fetch.ts';
+import { describable, legacyId, lookupable, matchItems, notOnFile, reclassify, runFetch, titleOf, toCandidates, withWikidata } from '../src/fetch.ts';
 import { previousDay, wikipediaTop } from '../src/sources/wikipedia-top.ts';
 import { USER_AGENT } from '../src/sources/source.ts';
 import { candidateSchema, type Candidate } from '../src/schema.ts';
@@ -353,5 +353,40 @@ describe('a title on file under its pre-N id', () => {
     const onFile: Candidate = { id: 'thbricssummit:phrases', input: '18th BRICS summit', category: 'phrases', source: 'trending', first_seen: '2026-09-18', status: 'enumerated' };
     const { candidates: out } = reclassify([onFile, unclassified], new Map([['18th BRICS summit', { title: '18th BRICS summit', category: 'phrases' as const, qid: null, subjects: [], classes: [] }]]));
     expect(out.filter((c) => c.input === '18th BRICS summit')).toHaveLength(1);
+  });
+});
+
+describe('a title on file only under an s5 id', () => {
+  const classified = (title: string, category: 'phrases' | 'titles') =>
+    new Map([[title, { title, category, qid: null, subjects: [], classes: [] }]]);
+  // "UFC 331" was fetched on the s5 day (2026-09-21) with its number spelled, and has no line under its pre-N id.
+  const s5: Candidate = { id: 'ufcthreehundredthirtyone:phrases', input: 'UFC 331', category: 'phrases', source: 'trending', first_seen: '2026-09-21', status: 'unclassified', reading: { '331': 'spell' } };
+
+  it('is not appended again when the same title trends', () => {
+    const [today] = toCandidates([{ title: 'UFC 331', source: 's', weight: 1 }], new Map(), new Map(), '2026-09-22');
+    expect(today!.id).toBe('ufc331:phrases');
+    expect(legacyId(today!)).toBe('ufc:phrases');
+    // Neither its pool id nor its pre-N id is the s5 line's id, yet the input and category are the same candidate.
+    expect(notOnFile([today!], [s5])).toEqual([]);
+    // A line under its pre-N id, and one under its pool id, catch it too; another input does not.
+    expect(notOnFile([today!], [{ id: 'ufc:phrases', input: 'UFC 331', category: 'phrases' }])).toEqual([]);
+    expect(notOnFile([today!], [{ id: 'ufc331:phrases', input: 'UFC 331', category: 'phrases' }])).toEqual([]);
+    expect(notOnFile([today!], [{ id: 'ufcfightnight:phrases', input: 'UFC Fight Night', category: 'phrases' }])).toEqual([today!]);
+    // The same letters as another category are another candidate, as they always were.
+    const [asTitle] = toCandidates([{ title: 'UFC 331', source: 's', weight: 1 }], classified('UFC 331', 'titles'), new Map(), '2026-09-22');
+    expect(notOnFile([asTitle!], [s5])).toEqual([asTitle!]);
+  });
+
+  it('carries the current reading when reclassify re-ids it under its pool', () => {
+    const { candidates: out, moved } = reclassify([s5], classified('UFC 331', 'titles'));
+    expect(moved.map((m) => m.id)).toEqual(['ufc331:titles']);
+    expect(out[0]).toMatchObject({ id: 'ufc331:titles', category: 'titles', status: 'new', reading: { '3': 'self', '1': 'self' } });
+    // A reading that still gives the record its letters is kept: the 4 left out stays left out.
+    const dropped: Candidate = { id: 'reacherseason:phrases', input: 'Reacher season 4', category: 'phrases', source: 'trending', first_seen: '2026-09-21', status: 'unclassified', reading: { '4': 'drop' } };
+    const kept = reclassify([dropped], classified('Reacher season 4', 'titles'));
+    expect(kept.candidates[0]).toMatchObject({ id: 'reacherseason:titles', reading: { '4': 'drop' } });
+    // And a line from before phase N, with no reading, is read afresh by the defaults, as before.
+    const preN: Candidate = { id: 'reacherseason:phrases', input: 'Reacher season 4', category: 'phrases', source: 'trending', first_seen: '2026-09-11', status: 'unclassified' };
+    expect(reclassify([preN], classified('Reacher season 4', 'titles')).candidates[0]).toMatchObject({ id: 'reacherseason4:titles', reading: { '4': 'self' } });
   });
 });

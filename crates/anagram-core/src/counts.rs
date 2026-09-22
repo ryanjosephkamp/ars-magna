@@ -313,8 +313,8 @@ impl fmt::Debug for Counts {
 /// Unicode NFKD over the Latin blocks (decompose, drop the combining marks,
 /// keep the ASCII letters) plus a hand-written list for the Latin letters
 /// that have no decomposition: ß -> ss, æ -> ae, œ -> oe, ø -> o, đ -> d,
-/// ł -> l, þ -> th, ð -> d, ı -> i. A digit, or one of `@ $ & % + #` (`!` and
-/// `?` inside a word), is a character of the pool and stays as itself
+/// ł -> l, þ -> th, ð -> d, ı -> i. A digit, or one of `@ $ & % + #` wherever
+/// it stands (`!` and `?` inside a word), is a character of the pool and stays as itself
 /// (`readings.rs`, the literal rule): "Blink-182" is `blink182`, "Ke$ha" is
 /// `ke$ha`, and a term of an anagram uses each as itself. A reader may read
 /// one as a letter (`$` as s) or leave it out; that is [`normalize_with`].
@@ -495,7 +495,7 @@ mod tests {
         assert_eq!(normalize("Blink-182"), "blink182");
         assert_eq!(normalize("Ke$ha"), "ke$ha");
         assert_eq!(normalize("P!nk wh?t Hello! what?"), "p!nkwh?thellowhat");
-        assert_eq!(normalize("AT&T C++ 50% #1 @home $5"), "at&tc++50%#1@home5");
+        assert_eq!(normalize("AT&T C++ 50% #1 @home $5"), "at&tc++50%#1@home$5");
         assert_eq!(normalize_with("1234!!", &[("1".into(), "drop".into()), ("2".into(), "drop".into())]), "34");
         assert_eq!(normalize_with("Ke$ha", &[("$".into(), "s".into())]), "kesha");
         assert_eq!(normalize_with("Reacher season 4", &[("4".into(), "drop".into())]), "reacherseason");

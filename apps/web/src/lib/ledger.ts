@@ -10,7 +10,10 @@
  * search uses as itself (the literal rule); until the page's map and checks
  * count the pool (roadmap N5), the ledger lists each as skipped, so a reader
  * sees it did not count here, and a reading that leaves one out lists it too.
- * Pure, so the tests run it without a page.
+ * But an anagram counted over the letters alone has not used such a
+ * character, and the search and the API refuse it, so the boxes do not match
+ * while the text has one as itself: `unused` names them and the verdict says
+ * so, and no submission is offered. Pure, so the tests run it without a page.
  */
 import { NO_READING, foldChar, isPoolChar, isSkipped, readItems, readText, type Reading } from '@ars-magna/engine';
 
@@ -78,7 +81,14 @@ export type Ledger = {
   readonly extra: readonly LetterCount[];
   /** Letters of the text the anagram has not used, a to z. */
   readonly missing: readonly LetterCount[];
-  /** Both boxes have letters, and they are the same letters. */
+  /**
+   * The text's digits and symbols read as themselves, each once, in the order
+   * first typed (`1 8 2` for "Blink-182"): characters an anagram must use
+   * that the ledger, counting letters until N5, cannot see it use. One left
+   * out by the reading is not here; it is skipped, and the anagram owes it nothing.
+   */
+  readonly unused: readonly string[];
+  /** Both boxes have letters, they are the same letters, and the text has no character as itself the anagram cannot use. */
   readonly match: boolean;
 };
 
@@ -100,14 +110,31 @@ export function ledger(text: string, anagram: string, reading: Reading = NO_READ
   });
   const extra = tray.filter((l) => l.left < 0).map((l) => ({ letter: l.letter, count: -l.left }));
   const missing = tray.filter((l) => l.left > 0).map((l) => ({ letter: l.letter, count: l.left }));
-  const match = t.letters.length > 0 && a.letters.length > 0 && extra.length === 0 && missing.length === 0;
-  return { text: t, anagram: a, tray, extra, missing, match };
+  const unused = readItems(text, reading)
+    .filter((item) => item.reading === 'self')
+    .map((item) => item.key);
+  const match = t.letters.length > 0 && a.letters.length > 0 && extra.length === 0 && missing.length === 0 && unused.length === 0;
+  return { text: t, anagram: a, tray, extra, missing, unused, match };
+}
+
+/** `1, 8 and 2`: the characters of the text an anagram must use, for a sentence. */
+function listUnused(unused: readonly string[]): string {
+  if (unused.length <= 1) return unused.join('');
+  return `${unused.slice(0, -1).join(', ')} and ${unused.at(-1)}`;
+}
+
+/** The verdict when the letters match but the text has a character as itself the anagram has not used. */
+export function unusedSentence(unused: readonly string[]): string {
+  return `The anagram does not use the text's ${listUnused(unused)}.`;
 }
 
 /**
  * The one line under the anagram that says what is wrong: `2 extra a · 1
- * missing t`, extras first, a to z within each. On a match it says so with the
- * count, `All 11 letters used`; with no anagram yet, nothing.
+ * missing t`, extras first, a to z within each. With the letters right but a
+ * digit or symbol of the text standing as itself, which no anagram of the
+ * letters uses, the sentence that names them (`The anagram does not use the
+ * text's 1, 8 and 2.`). On a match it says so with the count, `All 11 letters
+ * used`; with no anagram yet, nothing.
  */
 export function verdict(l: Ledger): string {
   if (l.anagram.letters.length === 0) return '';
@@ -115,6 +142,7 @@ export function verdict(l: Ledger): string {
     const n = l.text.letters.length;
     return `All ${n.toLocaleString('en-US')} ${n === 1 ? 'letter' : 'letters'} used`;
   }
+  if (l.extra.length === 0 && l.missing.length === 0 && l.unused.length > 0) return unusedSentence(l.unused);
   return [...l.extra.map((e) => `${e.count} extra ${e.letter}`), ...l.missing.map((m) => `${m.count} missing ${m.letter}`)].join(' · ');
 }
 

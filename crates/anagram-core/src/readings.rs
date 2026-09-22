@@ -1,7 +1,7 @@
 //! The items of an input, and how each stands: every distinct digit or symbol
-//! of the pool. A digit is always an item; `@ & % + #` are items wherever they
-//! stand, and `$ ! ?` only inside a word, with a letter on both sides, where
-//! they are characters rather than marks.
+//! of the pool. A digit is always an item; `@ $ & % + #` are items wherever
+//! they stand (`$5` as `Ke$ha`), and `! ?` only inside a word, with a letter
+//! on both sides, where they are characters rather than marks.
 //!
 //! The literal rule (roadmap phase N, decisions D62 and D63, accepted
 //! 2026-09-21): an anagram rearranges what was typed, and nothing is
@@ -251,11 +251,18 @@ mod tests {
         assert_eq!(keys, ["1", "0"]);
         assert_eq!((list[0].count, list[1].count), (2, 7));
 
-        let list = items("Hello! Ke$ha wh?t @ AT&T C++ 50% #1 9th", &[]);
+        let list = items("Hello! Ke$ha wh?t @ AT&T C++ 50% #1 9th $5", &[]);
         let keys: Vec<&str> = list.iter().map(|i| i.key.as_str()).collect();
         assert_eq!(keys, ["$", "?", "@", "&", "+", "5", "0", "%", "#", "1", "9"]);
         assert_eq!(list[4].count, 2);
         assert_eq!(list[3].offered, ["self", "drop"], "& has no leet letter");
+        // A `$` is an item wherever it stands (D62), a `!` or `?` only inside a word.
+        assert_eq!((list[0].count, list[5].count), (2, 2), "the $ and the 5 of `$5` are items");
+        let list = items("$5 off $h!t", &[]);
+        let keys: Vec<&str> = list.iter().map(|i| i.key.as_str()).collect();
+        assert_eq!(keys, ["$", "5", "!"]);
+        assert_eq!(list[0].offered, ["self", "s", "drop"]);
+        assert!(items("Hello! what?", &[]).is_empty());
 
         assert_eq!(letters_of('7'), &['t', 'v']);
         assert_eq!(letters_of('&'), &[] as &[char]);
@@ -284,6 +291,9 @@ mod tests {
         assert_eq!(crate::normalize("Blink-182"), "blink182");
         assert_eq!(crate::normalize("Ke$ha"), "ke$ha");
         assert_eq!(crate::normalize("Hello!"), "hello");
+        assert_eq!(crate::normalize("$5 off"), "$5off");
+        assert_eq!(crate::normalize_with("$5 off", &parse_reading("$:drop").unwrap()), "5off");
+        assert_eq!(crate::normalize_with("$hake", &parse_reading("$:s").unwrap()), "shake");
         assert_eq!(crate::normalize("the 10,000th man"), "the10000thman");
         assert_eq!(crate::text_words("Area 51"), ["area", "51"]);
         assert_eq!(crate::text_words("AT&T"), ["at&t"]);
