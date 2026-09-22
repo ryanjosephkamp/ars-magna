@@ -184,18 +184,101 @@ was enumerated with (`dictionary`: the pinned revision and the word list's hash)
 literal phase to enumerate it (see "Numbers and symbols"). A hit's words are always the letters, or a
 term's characters; its display carries the form only by your command (phase P2).
 
+## Term classes
+
+When a term that is not a word should be admissible: a symbol read as its word, a character read as a
+word, a text-messaging blend, an initialism. The literal rule (D62) says an anagram uses every character
+of the text as itself, and no word has a digit or a symbol, so a text with one has no anagram of words
+alone; the **term classes** (D63) are what can use them. Every term of an anagram is a word of the
+dictionary or a term of a labelled class, every result carries the classes its terms come from, and words
+alone is the default everywhere: a class is on only when a search names it. The classes with a file, and
+the file of each, public like the additions:
+
+| Class | What it is | Examples | File |
+|---|---|---|---|
+| symbols | a symbol of the set as itself, read as its word | `&` and · `@` at · `%` percent · `+` plus · `#` number · `$` dollars | `data/vocabulary/symbols.jsonl` |
+| shorthand | one character read as a word | `u` you · `r` are · `y` why · `k` okay · `2` to · `4` for · `8` ate · `1` won · `f` (crude) | `shorthand.jsonl` |
+| blends | letters and digits that sound like a word | `b8` · `gr8` · `m8` · `str8` · `2day` · `2nite` · `b4` · `4ever` · `1der` · `10q` | `blends.jsonl` |
+| acronyms | initialisms and text abbreviations, written in capitals where they are | `wtf` (crude) · `btw` · `omg` · `idk` · `brb` · `tbh` · `fyi` · `asap` · `rsvp` · `diy` · `thx` · `pls` · `ur` | `acronyms.jsonl` |
+| names | the names list, three letters or more (see "The names list") | `eiffel` · `berne` · `taft` | `names.jsonl`, built, never edited |
+| slang | informal words the pinned list lacks, with their tone | `rizz` · `sus` · `yeet` | `slang.jsonl`, with G1's Wiktionary extract; no file yet |
+
+Numerals (`182`, `28`, in the text's own digit order) and leet readings (`$` as s) are generated from the
+text by the engine and have no file. **A term is never a word of the dictionary**: `lol`, `faq` and the
+single letters `a`, `i`, `b`, `c` and `n` are words of English OpenList already, need no class, and are
+refused by the tool, the check and the build alike. Each line of a class file carries the term as the search
+folds it (lowercase letters, digits and the symbols of the text; each class has its own pattern, in
+`data/schema/{symbol,shorthand,blend,acronym}.schema.json`), `reads_as` (what it stands for: `and`, `you`,
+`bait`, `by the way`), a `gloss` a reader can read, a public `trace` (always a URL, usually the term's
+Wiktionary entry, whose text-messaging and initialism senses attest the seeds), `proposed_by` and `added`;
+and where it applies `tone: crude` (the term or its reading is an expletive; a crude term's class is off by
+default and the rules on anagrams of living people apply to it), `written` on an acronym (`WTF`, `RSVP`,
+how it is usually written when that is capitals, for Discover), `also` (the other classes the term is meant
+to be in too, so a term in two files carries both bits on purpose) and a `note`. The four files share a cap
+of 2,000 terms, a tripwire like the additions'. No tool admits a term: a term joins the dictionary when you
+merge the pull request that adds it.
+
+1. Propose it. The command appends one line to the class's file through its schema and every rule the
+   check enforces:
+
+   ```bash
+   pnpm vocab:term blends 2moro "tomorrow" "Text-messaging spelling of tomorrow." --trace=https://en.wiktionary.org/wiki/2moro
+   ```
+
+   The class is one of `symbols`, `shorthand`, `blends`, `acronyms` (or `slang`, once its file exists),
+   then the term, what it reads as, and the gloss; `--tone=crude`, `--written=WTF`, `--also=names`,
+   `--proposed-by=` and `--note=` as needed. It refuses a term of the wrong characters for its class, a word
+   of the dictionary, one listed already, one that is in another class or the names list without `--also=`
+   saying so, and a trace that is not a URL.
+
+2. Rebuild the dictionary. The build reads the class files and the names list and emits the `classes`
+   artifact beside the word list and the tiers; the word list, its tiers and their hashes do not move:
+
+   ```bash
+   pnpm dict:fetch && pnpm dict:build
+   ```
+
+   The fetch needs about 330 MB in `.cache/` and is paid once per machine. The manifest's `counts.classes`
+   says how many terms each class carries, and the definition shards do not change, since no word did.
+
+3. Run the four suites, commit everything including `apps/web/public/dict/` with **`[dict]`** in the
+   message so CI rebuilds the artifacts and compares them, and open a pull request whose body states the
+   artifacts' hashes before and after (`full` and `tiers` must not move). Merging is what admits the term.
+
+`pnpm vocab:check` runs on every pull request over all the class files and the names list: every line
+through its schema, a term of the pool's characters only, never a word of the committed dictionary, never
+twice in a file, in two files or in a file and the names list only when its line says `also`, the cap; and
+for names the floor of three letters and that each name is a token of the label it came from. On the command
+line a class is admitted by name, and the site passes no class until N5 gives it the control:
+
+```bash
+cargo run --release -p anagram-cli -- solve "Blink-182" --classes=shorthand,blends
+cargo run --release -p anagram-cli -- check "Blink-182" "1 2 link b8" --classes=shorthand,blends
+cargo run --release -p anagram-cli -- solve "Eiffel Tower" --classes=names
+```
+
+A single digit is a term of two kinds at once when shorthand and numerals are both on (`2` reads *to* and
+*two*): it is one candidate, tagged `numerals`, the first class of the mask in the table's order, so a row
+is never listed twice. The vocabulary dataset carries the four files (see "The vocabulary dataset"); the
+names list is not published there.
+
 ## The names list
 
 The vocabulary has no names. English OpenList leaves them out by rule, and a name enters only as an
 addition of kind `name`, one at a time, so a nightly can never write "he bugs Gore" for George Bush.
-Whether names should be admitted as a set is the question of phase Q: the experiment (Q1) built a list
-and ran it once, and the default (Q2) is your decision on that run's report. Until then **the list is
-not vocabulary**: `data/vocabulary/names.jsonl` is in no tier, nothing on the site reads it, the
-vocabulary dataset does not carry it, and it counts against no cap.
+Whether names should be admitted as a set was the question of phase Q: the experiment (Q1) built a list
+and ran it once, and the literal rule (D63) folded the answer into the term classes: since phase N4 the
+list is the **names class**, carried by the `classes` artifact and admitted only when a search names it
+(`--classes=names`; the site's `Include names` control comes with N5). **The list is still not vocabulary**:
+`data/vocabulary/names.jsonl` is in no tier, the vocabulary dataset does not carry it, and it counts
+against no cap.
 
 **What it holds.** About ten thousand single tokens the dictionary lacks, each folded as the search
-folds (`beyonce`, `sao` dropped as a particle, `xiv` as a regnal number), with its kind and where it
-came from: people, places, companies and brands from Wikidata by prominence (the number of Wikipedia
+folds (`beyonce`, `sao` dropped as a particle, `xiv` as a regnal number), three letters or more (the
+class's floor; `bp` and `au` are not names the search should spell), and never a token of a piece of a
+label with a digit in it (`TF1`, `20th Century Studios`, `Se7en` give nothing for that piece, since a
+digit is a character of the text, never part of a word; `Boeing 747` still gives `boeing`), with its kind
+and where it came from: people, places, companies and brands from Wikidata by prominence (the number of Wikipedia
 editions with an article, from a threshold per kind: 100 for a person, so only the world's best-known
 people; never a private person), surnames from the 2000 US Census (the first 5,000 by rank), given
 names from the 1990 US Census (borne by 0.01% of the population or more), and places from GeoNames
@@ -228,7 +311,10 @@ from are kept outside the repository, in `handoff/2026-09-21/phase-q1/sources/`,
 into `.cache/names/` reproduces it exactly. The 2010 Census surname file is what the list should
 have used; on 2026-09-21 the Census site's edge returned a cached "Request Rejected" page for it,
 so the 2000 list stands in. `pnpm vocab:check` holds the committed list to its rules on every pull
-request: every token folded, listed once, in order, and absent from the dictionary.
+request: every token folded, three letters or more, listed once, in order, absent from the dictionary, and
+a token of the label it came from. A change to the token rule (`tokensOf` in `tools/dict-build/src/tokens.ts`)
+is followed by `pnpm names:build` from the cached answers and a `[dict]` rebuild, since the artifact
+carries the list.
 
 **Run the experiment again, or another like it.** The engine admits a word only when its dictionary
 carries it, so a deep run with names needs a build that does:
@@ -306,20 +392,22 @@ different reason, the tier enumeration runs at, and adding it is not the remedy.
 
 The site's vocabulary is published so its results can be checked rather than taken on trust:
 [ars-magna-vocabulary](https://huggingface.co/datasets/ryanjosephkamp/ars-magna-vocabulary), linked
-in the site footer under "The words". Two files, plus a card naming the pinned revision:
+in the site footer under "The words". The word list, the two lists of the site's own decisions, the four
+class files, plus a card naming the pinned revision:
 
 | File | What it is |
 |---|---|
 | `vocabulary.txt` | Every word the site accepts, sorted, one per line: the union the engine searches, the forms' letters-words included. |
 | `additions.jsonl` | The site's own words, each with its gloss, trace, and the revision it was added on top of. |
 | `forms.jsonl` | The site's listed forms (`it's`, `don't`), each with the word its letters spell, its gloss, trace, and the revision it was added on top of. |
+| `symbols.jsonl`, `shorthand.jsonl`, `blends.jsonl`, `acronyms.jsonl` | The term classes (see "Term classes"), one file each, every row with its class and the revision it was refused as a word against. The names list is not published. |
 
 **English OpenList is credited, never republished as itself and never modified.** The union is a
 derived artifact, published because a claim to find every anagram is only checkable against a
 stated word list. The card sends a reader to English OpenList's own dataset for the list itself.
 
 The **Publish vocabulary** Action does it, on a merge to `main` that changes
-`data/vocabulary/additions.jsonl` or `forms.jsonl`, or rebuilds the dictionary. It uses the same `HF_TOKEN` secret as
+`data/vocabulary/additions.jsonl`, `forms.jsonl` or a class file, or rebuilds the dictionary. It uses the same `HF_TOKEN` secret as
 the hits dataset, and creates the dataset on Hugging Face the first time it runs. Pause it with
 `gh variable set PUBLISH_VOCABULARY --body off`, and resume with `gh variable delete
 PUBLISH_VOCABULARY`.
@@ -684,11 +772,12 @@ classes** are what can use them: a search takes the classes to admit as a mask b
 is today's search. Numerals are made from the pool's digits, in the text's own digit order (`182` gives
 `182`, `18 2`, `1 82`, `12 8`, never the text itself; "Big Brother 28" gives `28` and never `82`, until N6's deep
 run says whether reordered numerals are wanted); the other classes are terms of a second, small list beside the dictionary, built by `pnpm dict:build` from
-the class files `data/vocabulary/{symbols,shorthand,blends,acronyms,slang}.jsonl` into the `classes`
-artifact, committed with `[dict]`, and loaded by the site and the CLI when the manifest names it. The
-files do not exist yet (N4 seeds them, and gives the names list its floor), so `dict:build` emits no
-artifact, the shipped dictionary is words alone, and the site passes no class until N5 gives it the
-control. A term of letters alone (`amy`) is a spelling of its letters' class and changes no count; a term
+the class files `data/vocabulary/{symbols,shorthand,blends,acronyms}.jsonl` (`slang.jsonl` with G1) and
+the names list into the `classes` artifact, committed with `[dict]`, and loaded by the site and the CLI
+when the manifest names it (see "Term classes" for the files, the tool and the check). The files exist
+since N4 (43 terms, and the names list's 9,463 names as the names class), the artifact ships, and the site
+passes no class until N5 gives it the control: nothing a reader sees has changed, and every count of words
+alone is what it was. A term of letters alone (`amy`) is a spelling of its letters' class and changes no count; a term
 that opens a class of its own (`u`, `wtf`, `b8`) is admitted at any length by its class, and a word under
 the minimum length stays out as before: where a term of letters spells such a word's class (`ta` beside `at`
 at a minimum of 3), the class is admitted for the term alone and shows the term, never the word.
@@ -753,7 +842,9 @@ N6 admits a class.
 **The dictionary build** folds its sources as before phase N (`legacyLetters`: every digit and symbol of
 the set removed), so the word list, its tiers and their hashes are byte for byte what they were
 (`full.fa3dac892b6f.bin`, `tiers.91666655b877.bits`), and `pnpm dict:verify` proves it. The `classes`
-artifact is emitted only when a class file has a term, and a term that is a word of the list is refused.
+artifact (`classes.e2e3f4589aa4.bin` since N4) is emitted only when a class file or the names list has a
+term, and a term that is a word of the list is refused; `dict:verify` also fails when a committed artifact
+is missing from the rebuild.
 
 ## Display on a hit
 

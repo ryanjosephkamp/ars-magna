@@ -2,8 +2,8 @@ name: Publish vocabulary
 
 # The site's vocabulary is a stated authority, so it is published where it can
 # be checked: the union it searches, plus the short list of words it adds on
-# top of the pin. Runs when an addition is accepted or the dictionary is
-# rebuilt. English OpenList is credited, never modified, and never republished
+# top of the pin, and the term classes beside the words. Runs when an addition,
+# a form or a term is accepted or the dictionary is rebuilt. English OpenList is credited, never modified, and never republished
 # as itself.
 
 on:
@@ -12,6 +12,11 @@ on:
     paths:
       - 'data/vocabulary/additions.jsonl'
       - 'data/vocabulary/forms.jsonl'
+      - 'data/vocabulary/symbols.jsonl'
+      - 'data/vocabulary/shorthand.jsonl'
+      - 'data/vocabulary/blends.jsonl'
+      - 'data/vocabulary/acronyms.jsonl'
+      - 'data/vocabulary/slang.jsonl'
       - 'apps/web/public/dict/manifest.json'
       - 'tools/dict-build/src/vocab-publish.ts'
       - 'tools/dict-build/templates/vocabulary-card.md'

@@ -7,14 +7,16 @@
  *                               for what came back, for `NAMES` in pins.ts
  *
  * The vocabulary has no names: English OpenList leaves them out by rule, and a
- * name enters today only as an addition of kind `name`, one at a time. This
- * list is the other side of the experiment that decides whether names should
- * be admitted as a set: about ten thousand single tokens the dictionary lacks,
- * from Wikidata by prominence (people, places, companies and brands, notable
- * entities only), the US Census surname and given-name lists, and GeoNames,
- * each with its kind and its source. A deep run admits it with
- * `pnpm hits:enumerate --names`; nothing on the site reads it, and it is in no
- * tier.
+ * name enters the word list only as an addition of kind `name`, one at a time.
+ * This list is the other side of the experiment that decided whether names
+ * should be admitted as a set: about ten thousand single tokens the dictionary
+ * lacks, from Wikidata by prominence (people, places, companies and brands,
+ * notable entities only), the US Census surname and given-name lists, and
+ * GeoNames, each with its kind and its source. A deep run admits it with
+ * `pnpm hits:enumerate --names`. Since phase N4 the list is also the `names`
+ * term class (decision D63): `dict:build` carries every name of three letters
+ * or more in the `classes` artifact, in no tier, admitted only when a search
+ * names the class; the site passes no class until N5.
  *
  * Deterministic from the cached sources: same answers in, byte-identical list
  * out, which `--verify` checks. Two sources move (see `NAMES` in pins.ts), so
@@ -28,8 +30,8 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import { CACHE_DIR } from './paths.ts';
-import { normalize } from './normalize.ts';
 import { NAMES } from './pins.ts';
+import { tokensOf } from './tokens.ts';
 import { NAMES_PATH, committedDictionary, nameProblems, readNames, type Name, type NameKind, type NameSource } from './vocab.ts';
 
 const run = promisify(execFile);
@@ -38,49 +40,9 @@ export const NAMES_CACHE = resolve(CACHE_DIR, 'names');
 
 // ------------------------------------------------------------------ tokens
 
-/**
- * The pieces of a name that are not names: particles, articles and
- * prepositions of the languages names come in, and the abbreviations that
- * follow a person. Most are English words already and would fall to the
- * dictionary rule anyway; these are the ones that are not.
- */
-export const PARTICLES: ReadonlySet<string> = new Set([
-  'da', 'das', 'de', 'dei', 'del', 'della', 'delle', 'dello', 'dem', 'den', 'der', 'des', 'di', 'do', 'dos', 'du',
-  'el', 'la', 'las', 'le', 'les', 'lo', 'los',
-  'van', 'von', 'vom', 'zu', 'zum', 'zur', 'ter', 'ten',
-  'al', 'bin', 'ibn', 'bint', 'abu', 'ben', 'bar',
-  'san', 'santa', 'santo', 'sao', 'saint', 'sainte', 'st', 'ste',
-  'jr', 'sr', 'mc', 'mac',
-  'und', 'et', 'och', 'og',
-]);
-
-/** A Roman numeral, as a regnal number is written: `II`, `XIV`, `MDCCLXXVI`. */
-export function isRomanNumeral(token: string): boolean {
-  return /^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/.test(token) && token.length > 0;
-}
-
-/** Where one token of a label ends and the next begins. */
-const SEPARATOR = /[\s\-\u2010-\u2015'\u2018\u2019.,()/&:;"\u201c\u201d!?]+/u;
-
-/**
- * The tokens of a label, as the search would fold them: each piece between
- * separators, lowercase with accents folded, kept when it is two letters or
- * more and neither a particle nor a Roman numeral. `Rio de Janeiro` gives
- * `rio` and `janeiro`; `Louis XIV` gives `louis`. A name is its letters: the
- * digits and symbols of `3M`, `Boeing 747` or `Canal+` are dropped before the
- * fold rather than read as words, which the search does for a text since
- * phase N.
- */
-export function tokensOf(label: string): string[] {
-  const out: string[] = [];
-  for (const piece of label.split(SEPARATOR)) {
-    const token = normalize(piece.replace(/[^\p{L}\p{M}]+/gu, ''));
-    if (token.length < 2 || token.length > 45) continue;
-    if (PARTICLES.has(token) || isRomanNumeral(token)) continue;
-    if (!out.includes(token)) out.push(token);
-  }
-  return out;
-}
+// The tokens of a label live in `tokens.ts`, shared with the checks; they are
+// re-exported here so the build reads as one file.
+export { NAME_FLOOR, PARTICLES, isRomanNumeral, tokensOf } from './tokens.ts';
 
 // -------------------------------------------------------------- attestation
 

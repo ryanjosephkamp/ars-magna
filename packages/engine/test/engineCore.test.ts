@@ -546,12 +546,28 @@ describe.skipIf(!built)('EngineCore', () => {
     expect(port.last('zipf')!.zipf).toEqual([]);
   });
 
-  it('reports the terms of each class with ready: none, for a dictionary of words alone', async () => {
+  it('reports the terms of each class with ready, as the manifest counts them', async () => {
     const fresh = new Collector();
     const again = new EngineCore(fresh, { wasmInput: await readFile(wasmPath), fetchImpl: fileFetch });
     await again.handle({ k: 'init', id: 1, baseUrl: '/dict' });
     const ready = fresh.last('ready')!;
-    expect(ready.classes).toEqual({ numerals: 0, symbols: 0, shorthand: 0, blends: 0, acronyms: 0, leet: 0, names: 0, slang: 0 });
+    // The shipped dictionary carries the class files and the names list since
+    // N4; numerals and leet are generated and never counted. A dictionary of
+    // words alone would report every class as 0.
+    const manifest = JSON.parse(await readFile(resolve(dictDir, 'manifest.json'), 'utf8')) as { counts: { classes?: Record<string, number> } };
+    const counted = manifest.counts.classes ?? {};
+    expect(ready.classes).toEqual({
+      numerals: 0,
+      symbols: counted['symbols'] ?? 0,
+      shorthand: counted['shorthand'] ?? 0,
+      blends: counted['blends'] ?? 0,
+      acronyms: counted['acronyms'] ?? 0,
+      leet: 0,
+      names: counted['names'] ?? 0,
+      slang: counted['slang'] ?? 0,
+    });
+    expect(ready.classes.shorthand).toBeGreaterThan(0);
+    expect(ready.classes.names).toBeGreaterThan(9_000);
   });
 
   it('refuses more than six different digits and symbols with its own code', async () => {
@@ -570,9 +586,10 @@ describe.skipIf(!built)('EngineCore', () => {
 
 /**
  * The same core over the same dictionary, plus a `classes` artifact of a few
- * dozen terms served in the manifest's place: the fixture N3 tests against
- * until N4 seeds the class files. The shipped manifest names no classes, so
- * the site's own dictionary is words alone.
+ * dozen terms served in the shipped one's place: the fixture N3 wrote, kept
+ * so these cases do not move when a class file gains a term. The shipped
+ * artifact, from the class files and the names list, is what the CLI and the
+ * site load.
  */
 describe.skipIf(!built)('EngineCore with the term classes', () => {
   let core: EngineCore;

@@ -4,9 +4,11 @@
  * Build the vocabulary dataset and push it to Hugging Face.
  *
  * The site's promise is that its vocabulary is stated, not implied. This is
- * where it is stated: the union it actually searches (`vocabulary.txt`) and
- * the short list of words it adds on top of the pin (`additions.jsonl`),
- * with the pinned revision named in both the card and every addition row.
+ * where it is stated: the union it actually searches (`vocabulary.txt`), the
+ * short list of words it adds on top of the pin (`additions.jsonl`), its
+ * listed forms, and the term classes it can admit beside the words (the
+ * class files, one dataset file each), with the pinned revision named in the
+ * card and in every row.
  *
  * It reads the committed dictionary artifacts rather than the pinned sources,
  * so it needs no 330 MB fetch and publishes exactly what the site ships. A
@@ -23,7 +25,17 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { REPO_ROOT } from './paths.ts';
-import { committedDictionary, readAdditions, readForms, type Addition, type Form } from './vocab.ts';
+import {
+  CLASS_FILES,
+  committedDictionary,
+  readAdditions,
+  readClassFiles,
+  readForms,
+  type Addition,
+  type ClassTermLine,
+  type Form,
+  type TermClass,
+} from './vocab.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(here, '../templates/vocabulary-card.md');
@@ -43,6 +55,16 @@ export function publishAddition(addition: Addition, source: { repo: string; rev:
 export function publishForm(form: Form, source: { repo: string; rev: string }): PublishedForm {
   return { ...form, pinned_repo: source.repo, pinned_rev: source.rev };
 }
+
+/** A term of a class as published: its line, the class, and the pin it was refused as a word against. */
+export type PublishedTerm = ClassTermLine & { class: TermClass; pinned_repo: string; pinned_rev: string };
+
+export function publishTerm(term: ClassTermLine, name: TermClass, source: { repo: string; rev: string }): PublishedTerm {
+  return { ...term, class: name, pinned_repo: source.repo, pinned_rev: source.rev };
+}
+
+/** The class files the dataset always carries, empty where the class has no terms, so every config resolves. */
+export const PUBLISHED_CLASSES: readonly TermClass[] = ['symbols', 'shorthand', 'blends', 'acronyms'];
 
 /**
  * Every word the additions claim, and every letters-word the forms spell,
@@ -64,16 +86,25 @@ export async function renderCard(options: {
   pinned: number;
   additions: number;
   forms: number;
+  /** How many terms each published class file carries. */
+  classes?: Partial<Record<TermClass, number>>;
   source: { repo: string; rev: string };
   datasetId: string;
   date: string;
 }): Promise<string> {
   const template = await readFile(TEMPLATE_PATH, 'utf8');
+  const classes = options.classes ?? {};
+  const terms = PUBLISHED_CLASSES.reduce((n, name) => n + (classes[name] ?? 0), 0);
   return template
     .replaceAll('{{TOTAL}}', options.total.toLocaleString('en-US'))
     .replaceAll('{{PINNED}}', options.pinned.toLocaleString('en-US'))
     .replaceAll('{{ADDITIONS}}', String(options.additions))
     .replaceAll('{{FORMS}}', String(options.forms))
+    .replaceAll('{{SYMBOLS}}', String(classes.symbols ?? 0))
+    .replaceAll('{{SHORTHAND}}', String(classes.shorthand ?? 0))
+    .replaceAll('{{BLENDS}}', String(classes.blends ?? 0))
+    .replaceAll('{{ACRONYMS}}', String(classes.acronyms ?? 0))
+    .replaceAll('{{TERMS}}', String(terms))
     .replaceAll('{{SOURCE_REPO}}', options.source.repo)
     .replaceAll('{{REV_SHORT}}', options.source.rev.slice(0, 7))
     .replaceAll('{{REV}}', options.source.rev)
@@ -87,6 +118,8 @@ export async function buildDataset(options: {
   pinned: ReadonlySet<string>;
   additions: readonly Addition[];
   forms?: readonly Form[];
+  /** The class files' lines, by class; a class absent here is published empty. */
+  classes?: ReadonlyMap<TermClass, readonly ClassTermLine[]>;
   source: { repo: string; rev: string };
   out: string;
   datasetId: string;
@@ -94,6 +127,7 @@ export async function buildDataset(options: {
 }): Promise<string[]> {
   await mkdir(options.out, { recursive: true });
   const forms = options.forms ?? [];
+  const classes = options.classes ?? new Map<TermClass, readonly ClassTermLine[]>();
 
   const sorted = [...options.words].sort();
   await writeFile(resolve(options.out, 'vocabulary.txt'), sorted.map((w) => `${w}\n`).join(''));
@@ -105,6 +139,15 @@ export async function buildDataset(options: {
     resolve(options.out, 'forms.jsonl'),
     forms.map((f) => JSON.stringify(publishForm(f, options.source)) + '\n').join(''),
   );
+  const counts: Partial<Record<TermClass, number>> = {};
+  for (const name of PUBLISHED_CLASSES) {
+    const lines = classes.get(name) ?? [];
+    counts[name] = lines.length;
+    await writeFile(
+      resolve(options.out, CLASS_FILES[name]),
+      lines.map((t) => JSON.stringify(publishTerm(t, name, options.source)) + '\n').join(''),
+    );
+  }
   await writeFile(
     resolve(options.out, 'README.md'),
     await renderCard({
@@ -112,12 +155,13 @@ export async function buildDataset(options: {
       pinned: options.pinned.size,
       additions: options.additions.length,
       forms: forms.length,
+      classes: counts,
       source: options.source,
       datasetId: options.datasetId,
       date: options.date,
     }),
   );
-  return ['vocabulary.txt', 'additions.jsonl', 'forms.jsonl', 'README.md'];
+  return ['vocabulary.txt', 'additions.jsonl', 'forms.jsonl', ...PUBLISHED_CLASSES.map((name) => CLASS_FILES[name]), 'README.md'];
 }
 
 async function token(): Promise<string> {
@@ -152,6 +196,7 @@ async function main(): Promise<void> {
   }
   const additions = await readAdditions();
   const forms = await readForms();
+  const classes = await readClassFiles();
 
   const missing = missingFromDictionary(additions, new Set(dictionary.words), forms);
   if (missing.length > 0) {
@@ -166,6 +211,7 @@ async function main(): Promise<void> {
     pinned: dictionary.pinned,
     additions,
     forms,
+    classes,
     source: dictionary.source,
     out,
     datasetId: repo,
@@ -173,10 +219,11 @@ async function main(): Promise<void> {
   });
 
   const formOnly = dictionary.forms.filter((f) => f.shown).length;
+  const terms = [...classes.values()].reduce((n, lines) => n + lines.length, 0);
   console.log(
     `${dictionary.words.length.toLocaleString('en-US')} words ` +
       `(${dictionary.pinned.size.toLocaleString('en-US')} pinned at ${dictionary.source.rev.slice(0, 7)} + ${additions.length} added + ` +
-      `${formOnly} from the ${forms.length} listed forms) ` +
+      `${formOnly} from the ${forms.length} listed forms), ${terms} terms of ${classes.size} classes ` +
       `-> ${out}/{${files.join(',')}}`,
   );
   if (dryRun) {
@@ -194,7 +241,7 @@ async function main(): Promise<void> {
   await uploadFiles({
     repo: repoRef,
     accessToken,
-    commitTitle: `Publish ${dictionary.words.length} words, ${additions.length} of them the site's own, with ${forms.length} listed forms (${date})`,
+    commitTitle: `Publish ${dictionary.words.length} words, ${additions.length} of them the site's own, with ${forms.length} listed forms and ${terms} terms of the classes (${date})`,
     files: await Promise.all(
       files.map(async (file) => ({
         path: file,

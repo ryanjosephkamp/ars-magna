@@ -11,10 +11,10 @@ Code) adds only what is specific to that harness and never restates a rule from 
 
 - **Never modify the English OpenList (EOL) or CEOL repositories, datasets, or directories anywhere on
   this machine.** Dictionary inputs change only through `tools/dict-build/src/pins.ts` and `tiers.ts`, the
-  vocabulary files `data/vocabulary/additions.jsonl` and `forms.jsonl` (`pnpm vocab:add`, `vocab:form`) and the
-  term class files beside them (`symbols.jsonl`, `shorthand.jsonl`, `blends.jsonl`, `acronyms.jsonl`, `slang.jsonl`,
-  which `dict:build` emits as the `classes` artifact once one has a term), and a rebuilt dictionary is committed
-  with `[dict]` in the message so CI verifies it.
+  vocabulary files `data/vocabulary/additions.jsonl` and `forms.jsonl` (`pnpm vocab:add`, `vocab:form`), the
+  term class files beside them (`symbols.jsonl`, `shorthand.jsonl`, `blends.jsonl`, `acronyms.jsonl`, and
+  `slang.jsonl` with G1; `pnpm vocab:term`) and the names list (`pnpm names:build`), which `dict:build` emits together
+  as the `classes` artifact, and a rebuilt dictionary is committed with `[dict]` in the message so CI verifies it.
 - Nothing enters the published dataset without a person's merge. A hit is published when a person
   merges the pull request that makes it `accepted`, whether the judge routine shelved it or
   `pnpm hits:set` set it. Greatest Hits (`featured`) changes only when the operator promotes a hit by
@@ -46,7 +46,7 @@ Code) adds only what is specific to that harness and never restates a rule from 
 | `tools/dict-build` | pinned fetch (Hub, then the `openlist-368bf0e4` release), tiers, artifacts |
 | `tools/hits` | fetch → enumerate → prefilter → screen → judge → ingest → set → publish |
 | `tools/hits/src/desk`, `tools/hits/templates/desk.html` | the review desk: `pnpm hits:desk` builds it into `.cache/desk/index.html` |
-| `data/` | `candidates.jsonl`, `hits.jsonl`, `schema/`, `queue/<date>/`, `counts/<date>/` (the day's votes, and promotions by code), `promotions/` (the review's decisions and the block list, by code) |
+| `data/` | `candidates.jsonl`, `hits.jsonl`, `schema/`, `vocabulary/` (the additions, the forms, the class files, the names list), `queue/<date>/`, `counts/<date>/` (the day's votes, and promotions by code), `promotions/` (the review's decisions and the block list, by code) |
 | `tools/hits/src/promotions` | the promotions review: export, review, ingest, apply, block. Reader text lives only in the private repository `ars-magna-promotions` and `.cache/promotions/` |
 | `automation/` | `judge-routine.md` (the judge's instructions) and `RUNBOOK.md` (the pipeline) |
 | `docs/OPERATOR.md` | the operator manual: one section per workflow, each with its prompt |
@@ -83,7 +83,9 @@ pnpm hits:desk --promotions=../ars-magna-promotions  # add the Promoted tab: wha
 pnpm hits:monthly                             # the monthly vote review: whether it is this month's turn, and the rows to read again
 pnpm hits:desk --audit                        # build the Greatest Hits audit into .cache/desk/audit.html
 pnpm hits:requeue --settings-before=s2 --dry-run   # send older candidates back to new
-pnpm names:build                              # the names list, data/vocabulary/names.jsonl (phase Q1); --verify compares with the committed one
+pnpm names:build                              # the names list, data/vocabulary/names.jsonl (phase Q1, the names class since N4); --verify compares with the committed one
+pnpm vocab:term blends 2moro "tomorrow" "Text-messaging spelling of tomorrow." --trace=https://en.wiktionary.org/wiki/2moro   # propose a term of a class (OPERATOR "Term classes")
+pnpm vocab:check                              # the additions, the forms, the class files and the names list, against their rules
 cargo run --release -p anagram-cli -- check "Dormitory" "dirty room" --tier=common
 cargo run --release -p anagram-cli -- solve "Blink-182" --classes=shorthand,blends   # the term classes admitted (D63)
 cargo run --release -p anagram-cli -- solve 'Ke$ha' --leet='$'                       # $ tried as s, written back where the s went

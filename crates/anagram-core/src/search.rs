@@ -502,6 +502,15 @@ impl Candidates {
             }
             if options.classes & Class::Numerals.bit() != 0 {
                 for text in numerals(pool, target, slots)? {
+                    // A listed term that is a numeral too (`2`, shorthand for
+                    // `to`) is one candidate, not two: the same characters are
+                    // the same anagram, whichever way the term reads. It is
+                    // tagged numerals, the first class of the mask in table
+                    // order, as a term in two files would be.
+                    if let Some(listed) = virtuals.iter_mut().find(|v| v.text == text) {
+                        listed.class = Class::Numerals;
+                        continue;
+                    }
                     let c = Counts::in_slots(&text, slots).expect("a numeral's digits have slots");
                     virtuals.push(Virtual { text, counts: c, class: Class::Numerals });
                 }
@@ -2126,6 +2135,20 @@ mod tests {
         assert!(found.iter().all(|r| r.iter().all(|(_, c)| *c == "numerals")));
         // The digits are written in the text's own order: 8 then 2 is `82`, never `28`.
         assert!(!texts.iter().any(|r| r.contains(&"28")), "{texts:?}");
+
+        // A listed term that is a numeral too is one candidate: with shorthand and
+        // numerals both on, `blink 1 8 2` is one row, tagged numerals, and the count
+        // is the count of the rows, not of the ways each digit could be read.
+        let both = with(Class::Numerals.bit() | Class::Shorthand.bit());
+        let rows = tagged(&dict, "Blink-182", both.clone());
+        let words_of = |r: &Vec<(String, &'static str)>| r.iter().map(|(w, _)| w.clone()).collect::<Vec<_>>();
+        let single: Vec<&Vec<(String, &'static str)>> = rows.iter().filter(|r| words_of(r) == ["1", "2", "8", "blink"]).collect();
+        assert_eq!(single.len(), 1, "{rows:?}");
+        assert!(single[0].iter().filter(|(w, _)| w != "blink").all(|(_, c)| *c == "numerals"), "{single:?}");
+        let distinct: std::collections::HashSet<Vec<String>> = rows.iter().map(words_of).collect();
+        assert_eq!(distinct.len(), rows.len(), "every row is a different anagram: {rows:?}");
+        let search = Search::prepare(&dict, "Blink-182", both).unwrap();
+        assert_eq!(search.count(&mut Memo::new(), u64::MAX).0, rows.len() as u128);
 
         // Too many distinct characters, and too many numerals, are errors that say so.
         assert_eq!(Search::prepare(&dict, "1234567", with(0)).err(), Some(SolveError::TooManyCharacters));
