@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { buildDataset, missingFromDictionary, publishAddition, renderCard } from '../src/vocab-publish.ts';
-import type { Addition, Form } from '../src/vocab.ts';
+import type { Addition, ClassTermLine, Form, TermClass } from '../src/vocab.ts';
 
 const source = { repo: 'ryanjosephkamp/english-openlist', rev: '368bf0e4460461c985fca8bde49e4062d56c1516' };
 
@@ -49,7 +49,7 @@ describe('the dataset folder', () => {
       datasetId: 'ryanjosephkamp/ars-magna-vocabulary',
       date: '2026-09-16',
     });
-    expect(files).toEqual(['vocabulary.txt', 'additions.jsonl', 'forms.jsonl', 'README.md']);
+    expect(files).toEqual(['vocabulary.txt', 'additions.jsonl', 'forms.jsonl', 'symbols.jsonl', 'shorthand.jsonl', 'blends.jsonl', 'acronyms.jsonl', 'README.md']);
 
     // Sorted, one per line, trailing newline: a reader splits on whitespace.
     expect(await readFile(join(out, 'vocabulary.txt'), 'utf8')).toBe('apple\ndoomer\nzebra\n');
@@ -66,6 +66,48 @@ describe('the dataset folder', () => {
     expect(card).toContain(source.rev);
     // No forms given: the file is still written, empty, so the card's config always resolves.
     expect(await readFile(join(out, 'forms.jsonl'), 'utf8')).toBe('');
+    // And so is every class file.
+    expect(await readFile(join(out, 'blends.jsonl'), 'utf8')).toBe('');
+    expect(card).toContain('| `blends.jsonl` | 0 |');
+  });
+
+  it('writes the class files beside the words, each row with its class and the pin it was refused as a word against', async () => {
+    const out = await mkdtemp(join(tmpdir(), 'ars-magna-vocab-ds-'));
+    const b8: ClassTermLine = {
+      term: 'b8',
+      reads_as: 'bait',
+      gloss: 'Text-messaging spelling of bait.',
+      trace: 'https://en.wiktionary.org/wiki/b8',
+      proposed_by: 'ryanjosephkamp',
+      added: '2026-09-22',
+    };
+    const wtf: ClassTermLine = { ...b8, term: 'wtf', reads_as: 'what the fuck', gloss: 'Initialism of what the fuck.', trace: 'https://en.wiktionary.org/wiki/WTF', written: 'WTF', tone: 'crude' };
+    const classes = new Map<TermClass, ClassTermLine[]>([
+      ['blends', [b8]],
+      ['acronyms', [wtf]],
+    ]);
+    await buildDataset({
+      words: ['bait', 'zebra'],
+      pinned: new Set(['bait', 'zebra']),
+      additions: [],
+      classes,
+      source,
+      out,
+      datasetId: 'ryanjosephkamp/ars-magna-vocabulary',
+      date: '2026-09-22',
+    });
+    const blends = (await readFile(join(out, 'blends.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l));
+    expect(blends).toEqual([{ ...b8, class: 'blends', pinned_repo: source.repo, pinned_rev: source.rev }]);
+    const acronyms = (await readFile(join(out, 'acronyms.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l));
+    expect(acronyms[0]).toMatchObject({ term: 'wtf', class: 'acronyms', written: 'WTF', tone: 'crude' });
+    expect(await readFile(join(out, 'symbols.jsonl'), 'utf8')).toBe('');
+    const card = await readFile(join(out, 'README.md'), 'utf8');
+    expect(card).not.toMatch(/\{\{[A-Z_]+\}\}/);
+    expect(card).toContain('| `blends.jsonl` | 1 |');
+    expect(card).toContain('| `acronyms.jsonl` | 1 |');
+    expect(card).toContain('| `symbols.jsonl` | 0 |');
+    expect(card).toContain('The 2 terms of the');
+    expect(card).toContain('config_name: acronyms');
   });
 
   it('writes the forms beside the additions, each with the pin it sits on top of', async () => {

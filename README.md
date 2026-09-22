@@ -21,8 +21,9 @@ symbol never as a letter or a word (the literal rule). A digit, or a symbol of t
 anagram uses it as itself; the line under the field counts the characters and says how each
 stands (*1 as itself*). No word has a digit, so a text with one has no anagram of words alone,
 and the page says which characters nothing uses; the labelled term classes that can use them
-(a numeral, a shorthand character, a blend) and the leet readings (`$` as s, written back where
-the letter went) are the engine's, and the site's controls for them are the next phase. The
+(a numeral, a symbol read as its word, a shorthand character, a blend, an acronym, a name) and the
+leet readings (`$` as s, written back where the letter went) are the engine's, their lists ship with
+the dictionary, and the site's controls for them are the next phase. The
 letters of other scripts and other symbols are skipped, and the line says how many characters
 were, so that never looks like a bug.
 English only. An input with more than 127 copies of one letter is refused with a message
@@ -69,6 +70,14 @@ are not (`dont`, 35 of the 53 forms), the letters-word joins every tier, since a
 everyday English, and a row shows `don't` with its apostrophe. The dictionary artifact carries the
 forms in a section of their own beside the letters-only word list, so the search engine never sees an
 apostrophe; results, promotion keys and hit ids carry the letters alone. Possessives are never listed.
+
+Beside the words are the term classes: `data/vocabulary/symbols.jsonl`, `shorthand.jsonl`,
+`blends.jsonl` and `acronyms.jsonl`, one term per line with what it reads as, a meaning and a public
+source (`&` and, `u` you, `b8` bait, `btw`), plus the names list as the names class, three letters
+or more. `pnpm vocab:term` proposes one, `pnpm vocab:check` holds the files to their rules (a term is
+never a word of the dictionary: `lol` and `faq` are words already), and `dict:build` emits them as the
+`classes` artifact beside the word list, which does not move. A search admits a class by naming it
+(`--classes=shorthand,blends` on the command line); words alone is the default everywhere.
 
 ## Definitions
 

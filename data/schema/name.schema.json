@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ars-magna.pages.dev/schema/name.schema.json",
   "title": "Name",
-  "description": "One name the vocabulary lacks: a single token of a notable person's, place's, company's or brand's name, a US Census surname or given name, or a GeoNames place, as data/vocabulary/names.jsonl lists them. Built by pnpm names:build from the sources pinned in tools/dict-build/src/pins.ts; not searchable by the site and in no tier. The names experiment (phase Q1) admits the list for one deep run; whether names are ever admitted by default is the operator's decision on its report.",
+  "description": "One name the vocabulary lacks: a single token of a notable person's, place's, company's or brand's name, a US Census surname or given name, or a GeoNames place, as data/vocabulary/names.jsonl lists them. Built by pnpm names:build from the sources pinned in tools/dict-build/src/pins.ts; in no tier. The names experiment (phase Q1) admitted the list for one deep run; since phase N4 the list is the names term class (decision D63), carried by the classes artifact and admitted only when a search names the class.",
   "type": "object",
   "additionalProperties": false,
   "required": ["name", "kind", "source", "trace", "prominence"],
   "properties": {
     "name": {
       "type": "string",
-      "pattern": "^[a-z]{2,45}$",
-      "description": "The search form, folded as the search folds: lowercase, accents to their base letters, nothing else. Never a word the dictionary carries."
+      "pattern": "^[a-z]{3,45}$",
+      "description": "The search form, folded as the search folds: lowercase, accents to their base letters, nothing else, three letters or more (the names class enters with a floor of three, decision D63). Never a word the dictionary carries."
     },
     "kind": {
       "type": "string",

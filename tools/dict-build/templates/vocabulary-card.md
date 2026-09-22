@@ -12,6 +12,14 @@ configs:
     data_files: additions.jsonl
   - config_name: forms
     data_files: forms.jsonl
+  - config_name: symbols
+    data_files: symbols.jsonl
+  - config_name: shorthand
+    data_files: shorthand.jsonl
+  - config_name: blends
+    data_files: blends.jsonl
+  - config_name: acronyms
+    data_files: acronyms.jsonl
 ---
 
 # Ars Magna Vocabulary
@@ -21,7 +29,10 @@ claim to find *every* anagram of your letters can be checked rather than taken o
 
 It is three things: **English OpenList at one pinned revision**, a short, public list of
 **the site's own additions**, and a short list of **the site's listed forms**, the contractions
-whose letters the search knows. Nothing else. A word the site accepts is in one of them.
+whose letters the search knows. Nothing else. A word the site accepts is in one of them. Beside
+the words are **the term classes**: the short lists of terms that are not words (`&`, `u`, `b8`,
+`btw`) which a search can admit by class, off unless a reader turns one on, each with what it reads
+as, a meaning and a source.
 
 ## What is here
 
@@ -30,6 +41,10 @@ whose letters the search knows. Nothing else. A word the site accepts is in one 
 | `vocabulary.txt` | {{TOTAL}} | Every word the site accepts, one per line, sorted. The union below. |
 | `additions.jsonl` | {{ADDITIONS}} | The site's own words, each with a meaning and a source. |
 | `forms.jsonl` | {{FORMS}} | The site's listed forms: spellings with an apostrophe or hyphen, each with the word its letters spell, a meaning and a source. |
+| `symbols.jsonl` | {{SYMBOLS}} | The symbols class: a symbol of the text as itself, read as its word (`&` and, `@` at). |
+| `shorthand.jsonl` | {{SHORTHAND}} | The shorthand class: one character read as a word (`u` you, `2` to). |
+| `blends.jsonl` | {{BLENDS}} | The blends class: letters and digits that sound like a word (`b8` bait, `gr8` great). |
+| `acronyms.jsonl` | {{ACRONYMS}} | The acronyms class: initialisms and text abbreviations the word list lacks (`btw`, `thx`). |
 
 ## The pin
 
@@ -79,6 +94,33 @@ letters of `dogs`, which the search already finds. Each of the {{FORMS}} rows ca
 | `pos` | The parts of speech the form can be, where given. |
 | `pinned_repo`, `pinned_rev` | The revision it was added on top of. |
 
+## The term classes
+
+An anagram on the site uses exactly the text's characters: its letters, its digits and the symbols
+`@ $ & % + #`, each as itself. No word has a digit or a symbol, so a text with one has no anagram of
+words alone; the **term classes** are what can use them. Every term of an anagram is a word of the
+vocabulary above or a term of a labelled class, every result carries the classes its terms come
+from, and words alone is the default: a reader turns a class on by choice. Numerals (`182`, `28`)
+and leet readings (`$` as s) are generated from the text and have no list. The {{TERMS}} terms of the
+four listed classes are here, one file per class, and never overlap the words: a term English
+OpenList already carries as a word (`lol`, `faq`, the letters `a`, `i`, `b`, `c`, `n`) needs no
+class and is refused. Each row carries:
+
+| Field | What it holds |
+|---|---|
+| `term` | The term as the search folds it: lowercase letters, digits and the symbols of the text. |
+| `reads_as` | What it stands for when read: `and`, `you`, `bait`, `by the way`. |
+| `gloss`, `trace`, `proposed_by`, `added` | As for an addition; the trace is always a public URL, usually the term's Wiktionary entry. |
+| `tone` | `crude` where the term or its reading is an expletive; such a term's class is off by default. |
+| `written` | Acronyms only: how the term is usually written when that is capitals (`WTF`, `RSVP`). |
+| `also` | The other classes the term is listed in too, when that is meant. |
+| `class` | The class of the file the row came from. |
+| `pinned_repo`, `pinned_rev` | The revision the term was refused as a word against. |
+
+The names class (the site's list of about ten thousand names of people, places, companies and
+brands that the word list lacks, three letters or more) is built from public sources into the same
+artifact and is not published here; it lives in the site's repository as `data/vocabulary/names.jsonl`.
+
 ## The tiers
 
 The site offers four nested dictionaries. This dataset is the widest of them:
@@ -103,6 +145,9 @@ print(additions[0]["word"], "—", additions[0]["gloss"])
 
 forms = load_dataset("{{DATASET_ID}}", "forms", split="train")
 print(forms[0]["form"], "is the letters", forms[0]["letters"])
+
+blends = load_dataset("{{DATASET_ID}}", "blends", split="train")
+print(blends[0]["term"], "reads as", blends[0]["reads_as"])
 ```
 
 `vocabulary.txt` is a plain sorted word list, one word per line:

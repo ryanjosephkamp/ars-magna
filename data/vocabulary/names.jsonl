@@ -38,7 +38,6 @@
 {"name":"abruzzo","kind":"place","source":"wikidata","from":"Abruzzo","trace":"https://www.wikidata.org/wiki/Q1284","prominence":146}
 {"name":"absolut","kind":"brand","source":"wikidata","from":"Absolut Vodka","trace":"https://www.wikidata.org/wiki/Q332378","prominence":40}
 {"name":"abuja","kind":"place","source":"wikidata","from":"Abuja","trace":"https://www.wikidata.org/wiki/Q3787","prominence":199,"also":[{"kind":"place","source":"geonames","from":"Abuja","prominence":2690000}]}
-{"name":"ac","kind":"company","source":"wikidata","from":"AC Sparta Prague","trace":"https://www.wikidata.org/wiki/Q193481","prominence":55}
 {"name":"acapulco","kind":"place","source":"wikidata","from":"Acapulco de Juárez","trace":"https://www.wikidata.org/wiki/Q81398","prominence":110,"also":[{"kind":"place","source":"geonames","from":"Acapulco de Juárez","prominence":658609}]}
 {"name":"accenture","kind":"company","source":"wikidata","from":"Accenture","trace":"https://www.wikidata.org/wiki/Q338825","prominence":51}
 {"name":"accra","kind":"place","source":"wikidata","from":"Accra","trace":"https://www.wikidata.org/wiki/Q3761","prominence":198,"also":[{"kind":"place","source":"geonames","from":"Accra","prominence":1963264}]}
@@ -565,7 +564,6 @@
 {"name":"atwell","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3997}
 {"name":"atwood","kind":"person","source":"wikidata","from":"Margaret Atwood","trace":"https://www.wikidata.org/wiki/Q183492","prominence":109,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":1977}]}
 {"name":"atyrau","kind":"place","source":"wikidata","from":"Atyrau","trace":"https://www.wikidata.org/wiki/Q486913","prominence":82}
-{"name":"au","kind":"place","source":"wikidata","from":"Port-au-Prince","trace":"https://www.wikidata.org/wiki/Q34261","prominence":157,"also":[{"kind":"place","source":"geonames","from":"Port-au-Prince","prominence":1234742}]}
 {"name":"aubrey","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first","prominence":0.019}
 {"name":"auch","kind":"place","source":"wikidata","from":"Auch","trace":"https://www.wikidata.org/wiki/Q181725","prominence":80}
 {"name":"auchan","kind":"brand","source":"wikidata","from":"Auchan","trace":"https://www.wikidata.org/wiki/Q758603","prominence":37}
@@ -1172,7 +1170,6 @@
 {"name":"boynton","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4757}
 {"name":"bozeman","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4839}
 {"name":"bozhou","kind":"place","source":"geonames","from":"Bozhou","trace":"https://www.geonames.org/1816234","prominence":1409436}
-{"name":"bp","kind":"company","source":"wikidata","from":"BP","trace":"https://www.wikidata.org/wiki/Q152057","prominence":66}
 {"name":"brabant","kind":"place","source":"wikidata","from":"North Brabant","trace":"https://www.wikidata.org/wiki/Q1101","prominence":119}
 {"name":"brackett","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3156}
 {"name":"bradbury","kind":"person","source":"wikidata","from":"Ray Bradbury","trace":"https://www.wikidata.org/wiki/Q40640","prominence":119,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":4050}]}
@@ -1401,7 +1398,6 @@
 {"name":"bystrica","kind":"place","source":"wikidata","from":"Banská Bystrica","trace":"https://www.wikidata.org/wiki/Q144983","prominence":92}
 {"name":"bytedance","kind":"company","source":"wikidata","from":"ByteDance","trace":"https://www.wikidata.org/wiki/Q55606242","prominence":51}
 {"name":"bytom","kind":"place","source":"wikidata","from":"Bytom","trace":"https://www.wikidata.org/wiki/Q102350","prominence":80}
-{"name":"ca","kind":"place","source":"wikidata","from":"Cà Mau","trace":"https://www.wikidata.org/wiki/Q25262","prominence":107}
 {"name":"cabanatuan","kind":"place","source":"geonames","from":"Cabanatuan City","trace":"https://www.geonames.org/1721906","prominence":343672}
 {"name":"cabimas","kind":"place","source":"geonames","from":"Cabimas","trace":"https://www.geonames.org/3647651","prominence":351736}
 {"name":"cabinda","kind":"place","source":"geonames","from":"Cabinda","trace":"https://www.geonames.org/2243271","prominence":550000}
@@ -2409,7 +2405,6 @@
 {"name":"dowling","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2137}
 {"name":"downey","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1225}
 {"name":"doyle","kind":"person","source":"wikidata","from":"Arthur Conan Doyle","trace":"https://www.wikidata.org/wiki/Q35610","prominence":183,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":391},{"kind":"given","source":"census-given-1990","prominence":0.022}]}
-{"name":"dr","kind":"brand","source":"wikidata","from":"Dr Pepper","trace":"https://www.wikidata.org/wiki/Q623561","prominence":40}
 {"name":"drayton","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4669}
 {"name":"dreamworks","kind":"company","source":"wikidata","from":"DreamWorks","trace":"https://www.wikidata.org/wiki/Q192557","prominence":65}
 {"name":"drenthe","kind":"place","source":"wikidata","from":"Drenthe","trace":"https://www.wikidata.org/wiki/Q772","prominence":115}
@@ -2418,7 +2413,6 @@
 {"name":"driggers","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4510}
 {"name":"driscoll","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1413}
 {"name":"drummond","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1937}
-{"name":"ds","kind":"brand","source":"wikidata","from":"DS Automobiles","trace":"https://www.wikidata.org/wiki/Q16040593","prominence":33}
 {"name":"duane","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first","prominence":0.077}
 {"name":"duarte","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":997}
 {"name":"dubai","kind":"place","source":"wikidata","from":"Dubai","trace":"https://www.wikidata.org/wiki/Q612","prominence":219,"also":[{"kind":"place","source":"geonames","from":"Dubai","prominence":3790000}]}
@@ -2492,7 +2486,6 @@
 {"name":"dykstra","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4404}
 {"name":"dylan","kind":"person","source":"wikidata","from":"Bob Dylan","trace":"https://www.wikidata.org/wiki/Q392","prominence":184,"also":[{"kind":"given","source":"census-given-1990","prominence":0.016}]}
 {"name":"dyson","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2869}
-{"name":"ea","kind":"company","source":"wikidata","from":"EA Sports","trace":"https://www.wikidata.org/wiki/Q869106","prominence":41}
 {"name":"eads","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3682}
 {"name":"earhart","kind":"person","source":"wikidata","from":"Amelia Earhart","trace":"https://www.wikidata.org/wiki/Q3355","prominence":126}
 {"name":"earle","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3900}
@@ -2815,7 +2808,6 @@
 {"name":"fayette","kind":"place","source":"geonames","from":"Lexington-Fayette","trace":"https://www.geonames.org/4297999","prominence":314488}
 {"name":"fayyum","kind":"place","source":"geonames","from":"Al Fayyum","trace":"https://www.geonames.org/361320","prominence":519047}
 {"name":"fazio","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4492}
-{"name":"fc","kind":"company","source":"wikidata","from":"Juventus FC","trace":"https://www.wikidata.org/wiki/Q1422","prominence":132}
 {"name":"federico","kind":"person","source":"wikidata","from":"Federico Fellini","trace":"https://www.wikidata.org/wiki/Q7371","prominence":161,"also":[{"kind":"given","source":"census-given-1990","prominence":0.01}]}
 {"name":"feeney","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3475}
 {"name":"feicheng","kind":"place","source":"geonames","from":"Feicheng","trace":"https://www.geonames.org/1789176","prominence":968100}
@@ -2897,7 +2889,6 @@
 {"name":"floyd","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":469,"also":[{"kind":"given","source":"census-given-1990","prominence":0.107}]}
 {"name":"flydubai","kind":"company","source":"wikidata","from":"flydubai","trace":"https://www.wikidata.org/wiki/Q1048495","prominence":45}
 {"name":"flynn","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":487}
-{"name":"fo","kind":"person","source":"wikidata","from":"Dario Fo","trace":"https://www.wikidata.org/wiki/Q765","prominence":109}
 {"name":"fogarty","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4168}
 {"name":"foggia","kind":"place","source":"wikidata","from":"Foggia","trace":"https://www.wikidata.org/wiki/Q13464","prominence":107}
 {"name":"fogle","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3289}
@@ -2985,7 +2976,6 @@
 {"name":"friuli","kind":"place","source":"wikidata","from":"Friuli Venezia Giulia","trace":"https://www.wikidata.org/wiki/Q1250","prominence":133}
 {"name":"fromm","kind":"person","source":"wikidata","from":"Erich Fromm","trace":"https://www.wikidata.org/wiki/Q57085","prominence":105}
 {"name":"frye","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":862}
-{"name":"fu","kind":"person","source":"wikidata","from":"Du Fu","trace":"https://www.wikidata.org/wiki/Q33772","prominence":138}
 {"name":"fuchs","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2612}
 {"name":"fuentes","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":530}
 {"name":"fugate","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3263}
@@ -3878,7 +3868,6 @@
 {"name":"hsbc","kind":"company","source":"wikidata","from":"HSBC","trace":"https://www.wikidata.org/wiki/Q190464","prominence":62}
 {"name":"hsinchu","kind":"place","source":"geonames","from":"Hsinchu","trace":"https://www.geonames.org/1675151","prominence":453536}
 {"name":"hsu","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2254}
-{"name":"hu","kind":"person","source":"wikidata","from":"Hu Jintao","trace":"https://www.wikidata.org/wiki/Q15029","prominence":122,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":2747}]}
 {"name":"huai","kind":"place","source":"geonames","from":"Huai'an","trace":"https://www.geonames.org/1797873","prominence":4556230}
 {"name":"huaibei","kind":"place","source":"geonames","from":"Huaibei","trace":"https://www.geonames.org/1807700","prominence":1113321}
 {"name":"huaihua","kind":"place","source":"geonames","from":"Huaihua","trace":"https://www.geonames.org/1807689","prominence":552622}
@@ -4004,7 +3993,6 @@
 {"name":"iker","kind":"person","source":"wikidata","from":"Iker Casillas","trace":"https://www.wikidata.org/wiki/Q11584","prominence":100}
 {"name":"ikorodu","kind":"place","source":"geonames","from":"Ebute Ikorodu","trace":"https://www.geonames.org/2344082","prominence":535619}
 {"name":"iksan","kind":"place","source":"geonames","from":"Iksan","trace":"https://www.geonames.org/1843491","prominence":307000}
-{"name":"il","kind":"person","source":"wikidata","from":"Kim Il-sung","trace":"https://www.wikidata.org/wiki/Q41117","prominence":160,"also":[{"kind":"place","source":"geonames","from":"Ha'il","prominence":605930}]}
 {"name":"ila","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.014}
 {"name":"ile","kind":"place","source":"wikidata","from":"Île-de-France","trace":"https://www.wikidata.org/wiki/Q13917","prominence":146,"also":[{"kind":"place","source":"geonames","from":"Ile-Ife","prominence":560000}]}
 {"name":"ilene","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.011}
@@ -4056,7 +4044,6 @@
 {"name":"ionesco","kind":"person","source":"wikidata","from":"Eugène Ionesco","trace":"https://www.wikidata.org/wiki/Q46706","prominence":103}
 {"name":"iowa","kind":"place","source":"wikidata","from":"Iowa","trace":"https://www.wikidata.org/wiki/Q1546","prominence":224}
 {"name":"ipoh","kind":"place","source":"geonames","from":"Ipoh","trace":"https://www.geonames.org/1734634","prominence":759952}
-{"name":"iq","kind":"place","source":"geonames","from":"Ḩadā’iq al Qubbah","trace":"https://www.geonames.org/356436","prominence":339612}
 {"name":"iqaluit","kind":"place","source":"wikidata","from":"Iqaluit","trace":"https://www.wikidata.org/wiki/Q2030","prominence":91}
 {"name":"iqbal","kind":"person","source":"wikidata","from":"Muhammad Iqbal","trace":"https://www.wikidata.org/wiki/Q484141","prominence":110}
 {"name":"iquique","kind":"place","source":"wikidata","from":"Iquique","trace":"https://www.wikidata.org/wiki/Q14440","prominence":95}
@@ -4206,7 +4193,6 @@
 {"name":"jayne","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.018}
 {"name":"jayson","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first","prominence":0.01}
 {"name":"jazeera","kind":"company","source":"wikidata","from":"Al Jazeera","trace":"https://www.wikidata.org/wiki/Q13477","prominence":89}
-{"name":"jd","kind":"person","source":"wikidata","from":"JD Vance","trace":"https://www.wikidata.org/wiki/Q28935729","prominence":112}
 {"name":"jeanette","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.115}
 {"name":"jeanie","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.013}
 {"name":"jeanine","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.017}
@@ -4261,7 +4247,6 @@
 {"name":"jhansi","kind":"place","source":"geonames","from":"Jhānsi","trace":"https://www.geonames.org/1269006","prominence":412927}
 {"name":"jharkhand","kind":"place","source":"wikidata","from":"Jharkhand","trace":"https://www.wikidata.org/wiki/Q1184","prominence":133}
 {"name":"jhumra","kind":"place","source":"geonames","from":"Chak Jhumra","trace":"https://www.geonames.org/1175748","prominence":385169}
-{"name":"ji","kind":"place","source":"geonames","from":"Ji’an","trace":"https://www.geonames.org/1806445","prominence":538699}
 {"name":"jiading","kind":"place","source":"geonames","from":"Jiading","trace":"https://www.geonames.org/1806508","prominence":1886100}
 {"name":"jiamusi","kind":"place","source":"geonames","from":"Jiamusi","trace":"https://www.geonames.org/2036581","prominence":549549}
 {"name":"jiang","kind":"person","source":"wikidata","from":"Jiang Zemin","trace":"https://www.wikidata.org/wiki/Q16597","prominence":100,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":3791}]}
@@ -4683,7 +4668,6 @@
 {"name":"knudson","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4532}
 {"name":"knut","kind":"person","source":"wikidata","from":"Knut Hamsun","trace":"https://www.wikidata.org/wiki/Q40826","prominence":135}
 {"name":"knutson","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2009}
-{"name":"ko","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3152}
 {"name":"kobe","kind":"place","source":"wikidata","from":"Kobe","trace":"https://www.wikidata.org/wiki/Q48320","prominence":133,"also":[{"kind":"person","source":"wikidata","from":"Kobe Bryant","prominence":114},{"kind":"place","source":"geonames","from":"Kobe","prominence":1525152}]}
 {"name":"koblenz","kind":"place","source":"wikidata","from":"Koblenz","trace":"https://www.wikidata.org/wiki/Q3104","prominence":115}
 {"name":"koch","kind":"person","source":"wikidata","from":"Robert Koch","trace":"https://www.wikidata.org/wiki/Q37193","prominence":125,"also":[{"kind":"company","source":"wikidata","from":"Heckler & Koch","prominence":45},{"kind":"surname","source":"census-surnames-2000","prominence":657}]}
@@ -5041,7 +5025,6 @@
 {"name":"leyen","kind":"person","source":"wikidata","from":"Ursula von der Leyen","trace":"https://www.wikidata.org/wiki/Q60772","prominence":120}
 {"name":"leyva","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1749}
 {"name":"lezhe","kind":"place","source":"wikidata","from":"Lezhë","trace":"https://www.wikidata.org/wiki/Q169160","prominence":87}
-{"name":"lg","kind":"company","source":"wikidata","from":"LG Group","trace":"https://www.wikidata.org/wiki/Q136778","prominence":76}
 {"name":"lhasa","kind":"place","source":"wikidata","from":"Lhasa","trace":"https://www.wikidata.org/wiki/Q5869","prominence":136,"also":[{"kind":"place","source":"geonames","from":"Lhasa","prominence":867900}]}
 {"name":"lhoka","kind":"place","source":"geonames","from":"Lhoka","trace":"https://www.geonames.org/8067345","prominence":353700}
 {"name":"lianjiang","kind":"place","source":"geonames","from":"Lianjiang","trace":"https://www.geonames.org/1804120","prominence":1363470}
@@ -5219,7 +5202,6 @@
 {"name":"lozada","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4945}
 {"name":"lozano","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":734}
 {"name":"ltd","kind":"company","source":"wikidata","from":"Canonical Ltd.","trace":"https://www.wikidata.org/wiki/Q39064","prominence":50}
-{"name":"lu","kind":"person","source":"wikidata","from":"Lu Xun","trace":"https://www.wikidata.org/wiki/Q23114","prominence":128,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":1424},{"kind":"place","source":"geonames","from":"Lu’an","prominence":1644344}]}
 {"name":"luancheng","kind":"place","source":"geonames","from":"Luancheng","trace":"https://www.geonames.org/1802204","prominence":597130}
 {"name":"luanda","kind":"place","source":"wikidata","from":"Luanda","trace":"https://www.wikidata.org/wiki/Q3897","prominence":185,"also":[{"kind":"place","source":"geonames","from":"Luanda","prominence":2776168}]}
 {"name":"luang","kind":"place","source":"wikidata","from":"Luang Prabang","trace":"https://www.wikidata.org/wiki/Q190165","prominence":87}
@@ -5293,7 +5275,6 @@
 {"name":"luzhou","kind":"place","source":"geonames","from":"Luzhou","trace":"https://www.geonames.org/1801640","prominence":998900}
 {"name":"lviv","kind":"place","source":"wikidata","from":"Lviv Oblast","trace":"https://www.wikidata.org/wiki/Q164193","prominence":108,"also":[{"kind":"place","source":"geonames","from":"Lviv","prominence":717273}]}
 {"name":"lvmh","kind":"company","source":"wikidata","from":"LVMH","trace":"https://www.wikidata.org/wiki/Q504998","prominence":55}
-{"name":"ly","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1421}
 {"name":"lydia","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.086}
 {"name":"lyle","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2570,"also":[{"kind":"given","source":"census-given-1990","prominence":0.038}]}
 {"name":"lyles","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2128}
@@ -6323,7 +6304,6 @@
 {"name":"newsome","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1438}
 {"name":"neymar","kind":"person","source":"wikidata","from":"Neymar","trace":"https://www.wikidata.org/wiki/Q142794","prominence":156}
 {"name":"nezahualcoyotl","kind":"place","source":"geonames","from":"Ciudad Nezahualcoyotl","trace":"https://www.geonames.org/3530589","prominence":1077208}
-{"name":"ng","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1168}
 {"name":"ngerulmud","kind":"place","source":"wikidata","from":"Ngerulmud","trace":"https://www.wikidata.org/wiki/Q515229","prominence":88}
 {"name":"nghi","kind":"place","source":"geonames","from":"Nghi Sơn","trace":"https://www.geonames.org/1572532","prominence":302210}
 {"name":"ngo","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1355}
@@ -6454,7 +6434,6 @@
 {"name":"nutt","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4582}
 {"name":"nuuk","kind":"place","source":"wikidata","from":"Nuuk","trace":"https://www.wikidata.org/wiki/Q226","prominence":148}
 {"name":"nuwas","kind":"person","source":"wikidata","from":"Abu Nuwas","trace":"https://www.wikidata.org/wiki/Q5670","prominence":161}
-{"name":"nv","kind":"company","source":"wikidata","from":"Koninklijke Philips NV","trace":"https://www.wikidata.org/wiki/Q170416","prominence":77}
 {"name":"nvidia","kind":"company","source":"wikidata","from":"Nvidia","trace":"https://www.wikidata.org/wiki/Q182477","prominence":81}
 {"name":"nye","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2821}
 {"name":"nyiregyhaza","kind":"place","source":"wikidata","from":"Nyíregyháza","trace":"https://www.wikidata.org/wiki/Q171223","prominence":90}
@@ -6755,7 +6734,6 @@
 {"name":"payne","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":183}
 {"name":"payton","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1440}
 {"name":"paz","kind":"place","source":"wikidata","from":"La Paz","trace":"https://www.wikidata.org/wiki/Q1491","prominence":158,"also":[{"kind":"person","source":"wikidata","from":"Octavio Paz","prominence":121},{"kind":"surname","source":"census-surnames-2000","prominence":1858},{"kind":"place","source":"geonames","from":"La Paz","prominence":2004652}]}
-{"name":"pc","kind":"brand","source":"wikidata","from":"ASUS Eee PC","trace":"https://www.wikidata.org/wiki/Q221952","prominence":33}
 {"name":"pdo","kind":"brand","source":"wikidata","from":"Grana Padano PDO","trace":"https://www.wikidata.org/wiki/Q940319","prominence":37}
 {"name":"pdvsa","kind":"brand","source":"wikidata","from":"PDVSA","trace":"https://www.wikidata.org/wiki/Q718194","prominence":35}
 {"name":"pearce","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1054}
@@ -6934,7 +6912,6 @@
 {"name":"plutarch","kind":"person","source":"wikidata","from":"Plutarch","trace":"https://www.wikidata.org/wiki/Q41523","prominence":161}
 {"name":"plymouth","kind":"place","source":"wikidata","from":"Plymouth","trace":"https://www.wikidata.org/wiki/Q43382","prominence":109}
 {"name":"plzen","kind":"place","source":"wikidata","from":"Plzeň","trace":"https://www.wikidata.org/wiki/Q43453","prominence":119}
-{"name":"po","kind":"place","source":"geonames","from":"Sham Shui Po","trace":"https://www.geonames.org/1818953","prominence":431090}
 {"name":"podgorica","kind":"place","source":"wikidata","from":"Podgorica","trace":"https://www.wikidata.org/wiki/Q23564","prominence":192}
 {"name":"podkarpackie","kind":"place","source":"wikidata","from":"Podkarpackie Voivodeship","trace":"https://www.wikidata.org/wiki/Q54175","prominence":102}
 {"name":"podlaskie","kind":"place","source":"wikidata","from":"Podlaskie Voivodeship","trace":"https://www.wikidata.org/wiki/Q54177","prominence":103}
@@ -7100,7 +7077,6 @@
 {"name":"qitaihe","kind":"place","source":"geonames","from":"Qitaihe","trace":"https://www.geonames.org/2035261","prominence":345033}
 {"name":"qods","kind":"place","source":"geonames","from":"Qods","trace":"https://www.geonames.org/120292","prominence":309605}
 {"name":"qom","kind":"place","source":"geonames","from":"Qom","trace":"https://www.geonames.org/119208","prominence":900000}
-{"name":"qu","kind":"place","source":"geonames","from":"Chéngguān Qū","trace":"https://www.geonames.org/13527052","prominence":478275}
 {"name":"quach","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4305}
 {"name":"qualcomm","kind":"company","source":"wikidata","from":"Qualcomm","trace":"https://www.wikidata.org/wiki/Q544847","prominence":56,"also":[{"kind":"brand","source":"wikidata","from":"Qualcomm Snapdragon","prominence":39}]}
 {"name":"qualls","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2948}
@@ -7133,7 +7109,6 @@
 {"name":"qujing","kind":"place","source":"geonames","from":"Qujing","trace":"https://www.geonames.org/1797318","prominence":1408500}
 {"name":"quora","kind":"company","source":"wikidata","from":"Quora","trace":"https://www.wikidata.org/wiki/Q51711","prominence":54}
 {"name":"quzhou","kind":"place","source":"geonames","from":"Quzhou","trace":"https://www.geonames.org/1797264","prominence":902767}
-{"name":"ra","kind":"place","source":"geonames","from":"Ra’s Bayrūt","trace":"https://www.geonames.org/268743","prominence":1251739}
 {"name":"rabelais","kind":"person","source":"wikidata","from":"François Rabelais","trace":"https://www.wikidata.org/wiki/Q131018","prominence":134}
 {"name":"rabin","kind":"person","source":"wikidata","from":"Yitzhak Rabin","trace":"https://www.wikidata.org/wiki/Q34060","prominence":114}
 {"name":"rabindranath","kind":"person","source":"wikidata","from":"Rabindranath Tagore","trace":"https://www.wikidata.org/wiki/Q7241","prominence":246}
@@ -7304,7 +7279,6 @@
 {"name":"rhodes","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":310}
 {"name":"rhonda","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first","prominence":0.162}
 {"name":"rhone","kind":"place","source":"wikidata","from":"Auvergne-Rhône-Alpes","trace":"https://www.wikidata.org/wiki/Q18338206","prominence":120}
-{"name":"ri","kind":"place","source":"geonames","from":"Man’gyŏngdae-ri","trace":"https://www.geonames.org/1874533","prominence":321690}
 {"name":"ribeirao","kind":"place","source":"geonames","from":"Ribeirão Preto","trace":"https://www.geonames.org/3451328","prominence":698642}
 {"name":"rica","kind":"place","source":"wikidata","from":"Costa Rica","trace":"https://www.wikidata.org/wiki/Q800","prominence":302}
 {"name":"ricardo","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first","prominence":0.093}
@@ -7483,7 +7457,6 @@
 {"name":"royan","kind":"place","source":"wikidata","from":"Royan","trace":"https://www.wikidata.org/wiki/Q81909","prominence":82}
 {"name":"royce","kind":"brand","source":"wikidata","from":"Rolls-Royce Motor Cars","trace":"https://www.wikidata.org/wiki/Q234803","prominence":62,"also":[{"kind":"company","source":"wikidata","from":"Rolls-Royce Motor Cars","prominence":62},{"kind":"given","source":"census-given-1990","prominence":0.016}]}
 {"name":"royer","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3069}
-{"name":"rt","kind":"company","source":"wikidata","from":"RT","trace":"https://www.wikidata.org/wiki/Q22868","prominence":65}
 {"name":"rtl","kind":"company","source":"wikidata","from":"RTL Group","trace":"https://www.wikidata.org/wiki/Q921159","prominence":44}
 {"name":"ruben","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first","prominence":0.082}
 {"name":"rubens","kind":"person","source":"wikidata","from":"Peter Paul Rubens","trace":"https://www.wikidata.org/wiki/Q5599","prominence":172}
@@ -7530,7 +7503,6 @@
 {"name":"ryazan","kind":"place","source":"wikidata","from":"Ryazan Oblast","trace":"https://www.wikidata.org/wiki/Q2753","prominence":124,"also":[{"kind":"place","source":"geonames","from":"Ryazan’","prominence":538962}]}
 {"name":"ryder","kind":"person","source":"wikidata","from":"Winona Ryder","trace":"https://www.wikidata.org/wiki/Q101797","prominence":100,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":2370}]}
 {"name":"rzeszow","kind":"place","source":"wikidata","from":"Rzeszów","trace":"https://www.wikidata.org/wiki/Q598","prominence":100}
-{"name":"sa","kind":"company","source":"wikidata","from":"Omega SA","trace":"https://www.wikidata.org/wiki/Q659224","prominence":40}
 {"name":"saab","kind":"company","source":"wikidata","from":"Saab Group","trace":"https://www.wikidata.org/wiki/Q219501","prominence":51}
 {"name":"saadi","kind":"person","source":"wikidata","from":"Saadi","trace":"https://www.wikidata.org/wiki/Q170302","prominence":119}
 {"name":"saakashvili","kind":"person","source":"wikidata","from":"Mikheil Saakashvili","trace":"https://www.wikidata.org/wiki/Q43330","prominence":121}
@@ -7978,7 +7950,6 @@
 {"name":"situbondo","kind":"place","source":"geonames","from":"Situbondo","trace":"https://www.geonames.org/1626801","prominence":685967}
 {"name":"sivas","kind":"place","source":"wikidata","from":"Sivas","trace":"https://www.wikidata.org/wiki/Q107401","prominence":90}
 {"name":"sizemore","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1674}
-{"name":"sk","kind":"company","source":"wikidata","from":"SK Slavia Prague","trace":"https://www.wikidata.org/wiki/Q194393","prominence":57,"also":[{"kind":"place","source":"geonames","from":"Arkhangel’sk","prominence":349742}]}
 {"name":"skaggs","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1876}
 {"name":"skelton","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2291}
 {"name":"skidmore","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3091}
@@ -7998,7 +7969,6 @@
 {"name":"slovakia","kind":"place","source":"wikidata","from":"Slovakia","trace":"https://www.wikidata.org/wiki/Q214","prominence":341}
 {"name":"slovan","kind":"company","source":"wikidata","from":"FC Slovan Liberec","trace":"https://www.wikidata.org/wiki/Q221671","prominence":43}
 {"name":"slovenia","kind":"place","source":"wikidata","from":"Slovenia","trace":"https://www.wikidata.org/wiki/Q215","prominence":331}
-{"name":"sm","kind":"brand","source":"wikidata","from":"SM Entertainment","trace":"https://www.wikidata.org/wiki/Q483938","prominence":47,"also":[{"kind":"company","source":"wikidata","from":"SM Entertainment","prominence":47}]}
 {"name":"smalley","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2866}
 {"name":"smallwood","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1811}
 {"name":"smashburger","kind":"brand","source":"wikidata","from":"Smashburger","trace":"https://www.wikidata.org/wiki/Q17061332","prominence":35}
@@ -8202,7 +8172,6 @@
 {"name":"stuttgart","kind":"place","source":"wikidata","from":"Stuttgart","trace":"https://www.wikidata.org/wiki/Q1022","prominence":182,"also":[{"kind":"place","source":"geonames","from":"Stuttgart","prominence":612663}]}
 {"name":"stutzman","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4292}
 {"name":"styria","kind":"place","source":"wikidata","from":"Styria","trace":"https://www.wikidata.org/wiki/Q41358","prominence":120}
-{"name":"su","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3835}
 {"name":"suarez","kind":"person","source":"wikidata","from":"Luis Suárez","trace":"https://www.wikidata.org/wiki/Q26517","prominence":114,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":658}]}
 {"name":"subang","kind":"place","source":"geonames","from":"Kampung Baru Subang","trace":"https://www.geonames.org/1771023","prominence":833571}
 {"name":"subaru","kind":"company","source":"wikidata","from":"Subaru","trace":"https://www.wikidata.org/wiki/Q172741","prominence":60}
@@ -8447,8 +8416,6 @@
 {"name":"tete","kind":"place","source":"geonames","from":"Tete","trace":"https://www.geonames.org/1026014","prominence":357000}
 {"name":"tetouan","kind":"place","source":"wikidata","from":"Tétouan","trace":"https://www.wikidata.org/wiki/Q185157","prominence":87,"also":[{"kind":"place","source":"geonames","from":"Tétouan","prominence":415810}]}
 {"name":"texaco","kind":"brand","source":"wikidata","from":"Texaco","trace":"https://www.wikidata.org/wiki/Q775060","prominence":36}
-{"name":"tf","kind":"company","source":"wikidata","from":"TF1","trace":"https://www.wikidata.org/wiki/Q214683","prominence":47}
-{"name":"th","kind":"company","source":"wikidata","from":"20th Century Studios","trace":"https://www.wikidata.org/wiki/Q434841","prominence":87,"also":[{"kind":"place","source":"geonames","from":"6th of October City","prominence":368650}]}
 {"name":"thabo","kind":"person","source":"wikidata","from":"Thabo Mbeki","trace":"https://www.wikidata.org/wiki/Q101547","prominence":108}
 {"name":"thacker","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1607}
 {"name":"thaddeus","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first","prominence":0.012}
@@ -8679,7 +8646,6 @@
 {"name":"tskhinval","kind":"place","source":"wikidata","from":"Tskhinval","trace":"https://www.wikidata.org/wiki/Q79863","prominence":111}
 {"name":"tsmc","kind":"company","source":"wikidata","from":"TSMC","trace":"https://www.wikidata.org/wiki/Q713418","prominence":54}
 {"name":"tsuen","kind":"place","source":"geonames","from":"Tsuen Wan","trace":"https://www.geonames.org/1818209","prominence":318916}
-{"name":"tu","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4745,"also":[{"kind":"place","source":"geonames","from":"Bắc Từ Liêm","prominence":340605}]}
 {"name":"tubbs","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2709}
 {"name":"tucson","kind":"place","source":"wikidata","from":"Tucson","trace":"https://www.wikidata.org/wiki/Q18575","prominence":124,"also":[{"kind":"place","source":"geonames","from":"Tucson","prominence":542629}]}
 {"name":"tucuman","kind":"place","source":"geonames","from":"San Miguel de Tucumán","trace":"https://www.geonames.org/3836873","prominence":548866}
@@ -8972,7 +8938,6 @@
 {"name":"vladivostok","kind":"place","source":"wikidata","from":"Vladivostok","trace":"https://www.wikidata.org/wiki/Q959","prominence":162,"also":[{"kind":"place","source":"geonames","from":"Vladivostok","prominence":604901}]}
 {"name":"vlore","kind":"place","source":"wikidata","from":"Vlorë","trace":"https://www.wikidata.org/wiki/Q159610","prominence":136}
 {"name":"vmware","kind":"company","source":"wikidata","from":"VMware","trace":"https://www.wikidata.org/wiki/Q11407","prominence":44}
-{"name":"vo","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1296}
 {"name":"vodafone","kind":"company","source":"wikidata","from":"Vodafone","trace":"https://www.wikidata.org/wiki/Q122141","prominence":61}
 {"name":"vogel","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1052}
 {"name":"vogt","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1863}
@@ -8998,7 +8963,6 @@
 {"name":"vorpommern","kind":"place","source":"wikidata","from":"Mecklenburg-Vorpommern","trace":"https://www.wikidata.org/wiki/Q1196","prominence":166}
 {"name":"vosges","kind":"place","source":"wikidata","from":"Saint-Dié-des-Vosges","trace":"https://www.wikidata.org/wiki/Q34427","prominence":118}
 {"name":"voss","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1618}
-{"name":"vu","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1247}
 {"name":"vue","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3822}
 {"name":"vueling","kind":"company","source":"wikidata","from":"Vueling","trace":"https://www.wikidata.org/wiki/Q646741","prominence":47}
 {"name":"vukovar","kind":"place","source":"wikidata","from":"Vukovar","trace":"https://www.wikidata.org/wiki/Q5867","prominence":80}
@@ -9203,7 +9167,6 @@
 {"name":"witte","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3458}
 {"name":"wizz","kind":"company","source":"wikidata","from":"Wizz Air","trace":"https://www.wikidata.org/wiki/Q335147","prominence":53}
 {"name":"wladyslaw","kind":"person","source":"wikidata","from":"Władysław Reymont","trace":"https://www.wikidata.org/wiki/Q121180","prominence":108}
-{"name":"wm","kind":"given","source":"census-given-1990","trace":"https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first","prominence":0.033}
 {"name":"wofford","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":3843}
 {"name":"wojcik","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4246}
 {"name":"wole","kind":"person","source":"wikidata","from":"Wole Soyinka","trace":"https://www.wikidata.org/wiki/Q41488","prominence":112}
@@ -9242,7 +9205,6 @@
 {"name":"wozniak","kind":"person","source":"wikidata","from":"Steve Wozniak","trace":"https://www.wikidata.org/wiki/Q483382","prominence":105,"also":[{"kind":"surname","source":"census-surnames-2000","prominence":3802}]}
 {"name":"wray","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2257}
 {"name":"wroclaw","kind":"place","source":"geonames","from":"Wrocław","trace":"https://www.geonames.org/3081368","prominence":672545}
-{"name":"wu","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":683}
 {"name":"wuchang","kind":"place","source":"geonames","from":"Wuchang","trace":"https://www.geonames.org/1791351","prominence":1102188}
 {"name":"wuchuan","kind":"place","source":"geonames","from":"Wuchuan","trace":"https://www.geonames.org/1800829","prominence":907354}
 {"name":"wuhan","kind":"place","source":"wikidata","from":"Wuhan","trace":"https://www.wikidata.org/wiki/Q11746","prominence":180,"also":[{"kind":"place","source":"geonames","from":"Wuhan","prominence":13739000}]}
@@ -9344,8 +9306,6 @@
 {"name":"yesenin","kind":"person","source":"wikidata","from":"Sergei Yesenin","trace":"https://www.wikidata.org/wiki/Q31628","prominence":111}
 {"name":"yeung","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4984}
 {"name":"yevpatoriya","kind":"place","source":"wikidata","from":"Yevpatoriya","trace":"https://www.wikidata.org/wiki/Q33345","prominence":82}
-{"name":"yg","kind":"brand","source":"wikidata","from":"YG Entertainment","trace":"https://www.wikidata.org/wiki/Q50595","prominence":48,"also":[{"kind":"company","source":"wikidata","from":"YG Entertainment","prominence":48}]}
-{"name":"yi","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":2189}
 {"name":"yibin","kind":"place","source":"geonames","from":"Yibin","trace":"https://www.geonames.org/1786770","prominence":836340}
 {"name":"yichang","kind":"place","source":"geonames","from":"Yichang","trace":"https://www.geonames.org/1786764","prominence":1350150}
 {"name":"yichun","kind":"place","source":"geonames","from":"Yichun","trace":"https://www.geonames.org/1786746","prominence":1045952}
@@ -9374,7 +9334,6 @@
 {"name":"youngblood","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":1884}
 {"name":"yount","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4255}
 {"name":"yousafzai","kind":"person","source":"wikidata","from":"Malala Yousafzai","trace":"https://www.wikidata.org/wiki/Q32732","prominence":156}
-{"name":"yu","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":874}
 {"name":"yuanping","kind":"place","source":"geonames","from":"Yuanping","trace":"https://www.geonames.org/1786060","prominence":526000}
 {"name":"yucatan","kind":"place","source":"wikidata","from":"Yucatán","trace":"https://www.wikidata.org/wiki/Q60176","prominence":111}
 {"name":"yuen","kind":"surname","source":"census-surnames-2000","trace":"https://www2.census.gov/topics/genealogy/2000surnames/names.zip","prominence":4639}

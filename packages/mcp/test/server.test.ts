@@ -129,9 +129,14 @@ describe.skipIf(!built)('ars-magna MCP server', () => {
     const hits = (await readFile(join(scratch, 'h.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(hits.find((h) => h['id'] === 'kesha:people:shake')).toMatchObject({ letters: 'aehks', reading: { $: 's' }, classes: { shake: 'leet' } });
     // A class the dictionary does not carry the term in is refused, and so is a class on a plain word.
-    const notTerm = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Blink-182', category: 'titles', words: ['1', '2', 'link', 'b8'], classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' } } }));
+    const notTerm = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Blink-182', category: 'titles', words: ['1', '2', 'link', 'b8'], classes: { '1': 'shorthand', '2': 'shorthand', b8: 'acronyms' } } }));
     expect(notTerm).toMatchObject({ ok: false });
-    expect(String(notTerm['reason'])).toMatch(/not a term of shorthand/);
+    expect(String(notTerm['reason'])).toMatch(/not a term of acronyms/);
+    // The same terms under the classes the files list them in (N4) are accepted, and the hit carries them.
+    const termed = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'Blink-182', category: 'titles', words: ['1', '2', 'link', 'b8'], classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' }, justification: 'A link, baited.' } }));
+    expect(termed).toMatchObject({ ok: true, newHit: true });
+    const withTerms = (await readFile(join(scratch, 'h.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(withTerms.find((h) => h['id'] === String(termed['hit']))).toMatchObject({ classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' } });
     const wordClassed = parse(await client.callTool({ name: 'propose_hit', arguments: { input: 'dormitory', category: 'phrases', words: ['dirty', 'room'], classes: { room: 'slang' } } }));
     expect(String(wordClassed['reason'])).toMatch(/"room" is a word of the standard dictionary, so it has no class/);
   });

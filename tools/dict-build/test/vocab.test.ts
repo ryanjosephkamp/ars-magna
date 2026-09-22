@@ -9,15 +9,24 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ADDITIONS_CAP,
+  TERMS_CAP,
   additionSchema,
+  classSchema,
   formSchema,
   problemsWith,
   readAdditions,
+  readClassFiles,
   readForms,
+  readNames,
+  termProblems,
   type Addition,
+  type ClassTermLine,
   type Form,
+  type TermClass,
 } from '../src/vocab.ts';
-import { decodeDict, encodeDict } from '../src/format.ts';
+import { classCounts, classTerms, readClassEntries } from '../src/classes.ts';
+import { NAME_FLOOR } from '../src/tokens.ts';
+import { decodeClasses, decodeDict, encodeClasses, encodeDict } from '../src/format.ts';
 
 const doomer: Addition = {
   word: 'doomer',
@@ -176,5 +185,148 @@ describe('the forms section of the artifact', () => {
     expect(decodeDict(encodeDict({ words, zipf: null, tier: 3 })).forms).toEqual([]);
     // A form's letters must be a word of the list, or the page would show a spelling the search cannot find.
     expect(() => encodeDict({ words, zipf: null, forms: [{ letters: 'youre', form: "you're", shown: true }], tier: 3 })).toThrow(/not a word of the list/);
+  });
+});
+
+const b8: ClassTermLine = {
+  term: 'b8',
+  reads_as: 'bait',
+  gloss: 'Text-messaging spelling of bait.',
+  trace: 'https://en.wiktionary.org/wiki/b8',
+  proposed_by: 'ryanjosephkamp',
+  added: '2026-09-22',
+};
+const wtf: ClassTermLine = { ...b8, term: 'wtf', reads_as: 'what the fuck', gloss: 'Initialism of what the fuck.', trace: 'https://en.wiktionary.org/wiki/WTF', written: 'WTF', tone: 'crude' };
+const u: ClassTermLine = { ...b8, term: 'u', reads_as: 'you', gloss: 'The letter u for you.', trace: 'https://en.wiktionary.org/wiki/u' };
+/** An acronym line to rename: no `written`, which must be the term's own letters. */
+const { written: _wtfWritten, ...acr } = wtf;
+const amp: ClassTermLine = { ...b8, term: '&', reads_as: 'and', gloss: 'The ampersand.', trace: 'https://en.wiktionary.org/wiki/%26' };
+
+describe('the class schemas', () => {
+  it('accept a line of each class as vocab:term writes it', async () => {
+    expect((await classSchema('blends'))(b8)).toBe(true);
+    expect((await classSchema('acronyms'))(wtf)).toBe(true);
+    expect((await classSchema('shorthand'))(u)).toBe(true);
+    expect((await classSchema('shorthand'))({ ...u, term: '2', reads_as: 'to' })).toBe(true);
+    expect((await classSchema('symbols'))(amp)).toBe(true);
+    expect((await classSchema('acronyms'))({ ...wtf, also: ['names'] })).toBe(true);
+  });
+
+  it('hold each class to its own characters', async () => {
+    const blend = await classSchema('blends');
+    const acronym = await classSchema('acronyms');
+    const shorthand = await classSchema('shorthand');
+    const symbol = await classSchema('symbols');
+    // A blend has letters and digits; letters alone are an acronym, one character is shorthand.
+    expect(blend({ ...b8, term: 'bait' })).toBe(false);
+    expect(blend({ ...b8, term: '88' })).toBe(false);
+    expect(blend({ ...b8, term: 'B8' })).toBe(false);
+    expect(acronym({ ...wtf, term: 'w00t' })).toBe(false);
+    expect(acronym({ ...wtf, term: 'WTF' })).toBe(false);
+    expect(shorthand({ ...u, term: 'ur' })).toBe(false);
+    expect(shorthand({ ...u, term: '&' })).toBe(false);
+    // The symbols are the six that stand anywhere; `!` is a pool character only inside a word.
+    expect(symbol({ ...amp, term: '!' })).toBe(false);
+    expect(symbol({ ...amp, term: '&&' })).toBe(false);
+  });
+
+  it('refuse what a reader or the build could not use', async () => {
+    const check = await classSchema('blends');
+    const withField = (over: Record<string, unknown>) => check({ ...b8, ...over });
+    expect(withField({ gloss: 'no capital letter.' })).toBe(false);
+    expect(withField({ gloss: 'No full stop' })).toBe(false);
+    // A trace is a public URL, never a note.
+    expect(withField({ trace: 'heard it somewhere' })).toBe(false);
+    expect(withField({ tone: 'rude' })).toBe(false);
+    expect(withField({ also: [] })).toBe(false);
+    expect(withField({ also: ['emoji'] })).toBe(false);
+    // `written` belongs to acronyms alone; `class` is the file, not a field.
+    expect(withField({ written: 'B8' })).toBe(false);
+    expect(withField({ class: 'blends' })).toBe(false);
+    const { reads_as: _dropped, ...noReading } = b8;
+    expect(check(noReading)).toBe(false);
+  });
+});
+
+describe('the rules the class schemas cannot state', () => {
+  const files = (over: Partial<Record<TermClass, ClassTermLine[]>>) => new Map(Object.entries(over) as [TermClass, ClassTermLine[]][]);
+
+  it('refuse a word of the dictionary, a repeat, a written form with other letters, and a list over the cap', () => {
+    expect(termProblems(files({ blends: [b8], acronyms: [wtf] }), new Set(['bait']))).toEqual([]);
+    // `lol` and `faq` are words of the pin already; so are the letters a, i, b, c and n.
+    expect(termProblems(files({ acronyms: [{ ...acr, term: 'lol' }] }), new Set(['lol']))).toEqual([
+      'acronyms: lol: a word of the dictionary already, which needs no class',
+    ]);
+    expect(termProblems(files({ shorthand: [{ ...u, term: 'b' }] }), new Set(['b']))).toEqual([
+      'shorthand: b: a word of the dictionary already, which needs no class',
+    ]);
+    expect(termProblems(files({ blends: [b8, b8] }), new Set())).toEqual(['blends: b8: listed more than once']);
+    expect(termProblems(files({ acronyms: [{ ...wtf, written: 'WTH' }] }), new Set())).toEqual([
+      'acronyms: wtf: written as WTH, whose letters are not the term\'s',
+    ]);
+    const many = Array.from({ length: TERMS_CAP + 1 }, (_, i) => ({ ...acr, term: `x${i.toString(36).replace(/[^a-z]/g, 'q')}` }));
+    expect(termProblems(files({ acronyms: many }), new Set()).filter((p) => /cap/.test(p))).toEqual([
+      `${TERMS_CAP + 1} terms across the class files is over the cap of ${TERMS_CAP} together`,
+    ]);
+  });
+
+  it('allow a term in two classes, or in a class and the names list, only when its line says also', () => {
+    const inTwo = files({ acronyms: [{ ...acr, term: 'ur' }], shorthand: [{ ...u, term: 'ur' }] });
+    expect(termProblems(inTwo, new Set())).toEqual([
+      'acronyms: ur: listed in shorthand too; say also: ["shorthand"] if that is meant',
+      'shorthand: ur: listed in acronyms too; say also: ["acronyms"] if that is meant',
+    ]);
+    const meant = files({ acronyms: [{ ...acr, term: 'ur', also: ['shorthand'] }], shorthand: [{ ...u, term: 'ur', also: ['acronyms'] }] });
+    expect(termProblems(meant, new Set())).toEqual([]);
+    // One side saying so is not enough.
+    const half = files({ acronyms: [{ ...acr, term: 'ur', also: ['shorthand'] }], shorthand: [{ ...u, term: 'ur' }] });
+    expect(termProblems(half, new Set())).toEqual(['shorthand: ur: listed in acronyms too; say also: ["acronyms"] if that is meant']);
+    // A term that is a name of the names list too.
+    expect(termProblems(files({ acronyms: [{ ...acr, term: 'nasa' }] }), new Set(), new Set(['nasa']))).toEqual([
+      'acronyms: nasa: a name of the names list too; say also: ["names"] if that is meant',
+    ]);
+    expect(termProblems(files({ acronyms: [{ ...acr, term: 'nasa', also: ['names'] }] }), new Set(), new Set(['nasa']))).toEqual([]);
+    // And `also` must be true: the files and the list decide the bits.
+    expect(termProblems(files({ acronyms: [{ ...acr, term: 'nasa', also: ['names'] }] }), new Set(), new Set())).toEqual([
+      'acronyms: nasa: says also names, but is not listed there',
+    ]);
+    expect(termProblems(files({ acronyms: [{ ...wtf, also: ['blends'] }] }), new Set())).toEqual([
+      'acronyms: wtf: says also blends, but is not listed there',
+    ]);
+    expect(termProblems(files({ acronyms: [{ ...wtf, also: ['acronyms'] }] }), new Set())).toEqual(['acronyms: wtf: also names its own class']);
+  });
+
+  it('skips the word rule rather than guessing when no dictionary is committed', () => {
+    expect(termProblems(files({ acronyms: [{ ...acr, term: 'lol' }] }), null)).toEqual([]);
+  });
+});
+
+describe('the committed class files', () => {
+  it('seed the plan\'s examples, each through its schema, and are admissible together with the names list', async () => {
+    const files = await readClassFiles();
+    expect([...files.keys()]).toEqual(['symbols', 'shorthand', 'blends', 'acronyms']);
+    expect(files.get('symbols')!.map((l) => l.term).sort()).toEqual(['#', '$', '%', '&', '+', '@']);
+    expect(files.get('shorthand')!.map((l) => l.term)).toEqual(expect.arrayContaining(['u', 'r', 'y', 'k', 'f', '2', '4', '8', '1']));
+    expect(files.get('blends')!.map((l) => l.term)).toEqual(expect.arrayContaining(['b8', 'gr8', '2day', '10q']));
+    expect(files.get('acronyms')!.map((l) => l.term)).toEqual(expect.arrayContaining(['wtf', 'btw', 'thx', 'pls', 'ur']));
+    // The crude ones say so; the initialisms say how they are written.
+    expect(files.get('shorthand')!.find((l) => l.term === 'f')!.tone).toBe('crude');
+    expect(files.get('acronyms')!.find((l) => l.term === 'wtf')).toMatchObject({ tone: 'crude', written: 'WTF' });
+    expect(files.get('acronyms')!.find((l) => l.term === 'thx')!.written).toBeUndefined();
+    const names = new Set((await readNames()).map((n) => n.name));
+    expect(termProblems(files, null, names)).toEqual([]);
+  });
+
+  it('are the terms the build carries, with the names list as the names class under its floor', async () => {
+    const entries = await readClassEntries();
+    const counts = classCounts(entries);
+    expect(counts).toMatchObject({ symbols: 6, shorthand: 9, blends: 15, acronyms: 13 });
+    expect(counts.names).toBeGreaterThan(9_000);
+    expect(entries.filter((e) => e.class === 'names').every((e) => e.term.length >= NAME_FLOOR)).toBe(true);
+    const terms = classTerms(entries);
+    expect(terms.find((t) => t.term === 'b8')).toEqual({ term: 'b8', bits: 8 });
+    expect(terms.find((t) => t.term === 'eiffel')).toEqual({ term: 'eiffel', bits: 64 });
+    // The artifact round-trips.
+    expect(decodeClasses(encodeClasses(terms))).toEqual(terms);
   });
 });

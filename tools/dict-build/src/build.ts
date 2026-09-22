@@ -313,11 +313,14 @@ async function main(): Promise<void> {
   );
 
   // The term classes (the literal rule, D63): a second, small list beside the
-  // words, each term with its class bits, in an artifact of its own. Nothing
-  // here touches the word list, its tiers or their hashes; with no class file
-  // present there is no artifact at all.
+  // words, each term with its class bits, in an artifact of its own: the
+  // class files, and the names list as the names class under its floor.
+  // Nothing here touches the word list, its tiers or their hashes; with no
+  // term anywhere there is no artifact at all.
   console.log('\n3b. term classes');
-  const classEntries = await readClassEntries();
+  // The names experiment's build carries the names as words, so there they
+  // are no class; every other build carries them as the names class.
+  const classEntries = (await readClassEntries()).filter((entry) => !(withNames && entry.class === 'names'));
   const wordSet = new Set(words);
   for (const { term, class: name } of classEntries) {
     if (wordSet.has(term)) {
@@ -492,6 +495,11 @@ async function main(): Promise<void> {
       else if (before.sha256 !== a.sha256) {
         drift.push(`${a.key}: ${before.sha256.slice(0, 12)} → ${a.sha256.slice(0, 12)}`);
       }
+    }
+    // A committed artifact the rebuild no longer emits (the classes, once a
+    // class file is gone) is drift too.
+    for (const key of Object.keys(previous.files)) {
+      if (!artifacts.some((a) => a.key === key)) drift.push(`${key}: committed, but the rebuild emits no such artifact`);
     }
     if (drift.length) {
       console.error(`\n✗ artifacts drifted:\n  ${drift.join('\n  ')}`);

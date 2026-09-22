@@ -11,6 +11,7 @@
     "shards": "node --max-old-space-size=2048 --experimental-strip-types src/shards.ts",
     "vocab:add": "node --experimental-strip-types src/vocab-add.ts",
     "vocab:form": "node --experimental-strip-types src/vocab-form.ts",
+    "vocab:term": "node --experimental-strip-types src/vocab-term.ts",
     "vocab:check": "node --experimental-strip-types src/vocab-check.ts",
     "vocab:publish": "node --experimental-strip-types src/vocab-publish.ts",
     "names:build": "node --experimental-strip-types src/names.ts"

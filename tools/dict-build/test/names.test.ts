@@ -15,12 +15,13 @@ import {
   parseSurnames,
   parseWikidata,
   tokensOf,
+  NAME_FLOOR,
   type Attestation,
 } from '../src/names.ts';
 import { nameProblems, nameSchema, readNames, type Name } from '../src/vocab.ts';
 
 describe('tokens of a label', () => {
-  it('folds each piece as the search folds it, two letters or more', () => {
+  it('folds each piece as the search folds it, three letters or more', () => {
     expect(tokensOf('Taylor Swift')).toEqual(['taylor', 'swift']);
     expect(tokensOf('Beyoncé Knowles-Carter')).toEqual(['beyonce', 'knowles', 'carter']);
     expect(tokensOf("O'Brien")).toEqual(['brien']);
@@ -41,12 +42,29 @@ describe('tokens of a label', () => {
     expect(isRomanNumeral('')).toBe(false);
   });
 
-  it('gives nothing for a label with no Latin letters, and reads no digit as a word', () => {
+  it('gives nothing for a label with no Latin letters, and nothing for a piece with a digit in it', () => {
     expect(tokensOf('東京')).toEqual([]);
     expect(tokensOf('42')).toEqual([]);
     expect(tokensOf('3M')).toEqual([]);
     expect(tokensOf('Boeing 747')).toEqual(['boeing']);
     expect(tokensOf('Canal+')).toEqual(['canal']);
+    // A piece with a digit yields no token: the search reads a digit as a
+    // character of the text (D62), so `TF1` is not the name `tf`, `Se7en` not
+    // `seen`, and `20th` not `th`; the other pieces stand.
+    expect(tokensOf('TF1')).toEqual([]);
+    expect(tokensOf('Se7en')).toEqual([]);
+    expect(tokensOf('20th Century Studios')).toEqual(['century', 'studios']);
+    expect(tokensOf('6th of October City')).toEqual(['october', 'city']);
+    expect(tokensOf('B2B Holdings')).toEqual(['holdings']);
+  });
+
+  it('keeps a token of three letters or more, the names class floor', () => {
+    expect(NAME_FLOOR).toBe(3);
+    expect(tokensOf('BP')).toEqual([]);
+    expect(tokensOf('Dr Pepper')).toEqual(['pepper']);
+    expect(tokensOf('Port-au-Prince')).toEqual(['port', 'prince']);
+    expect(tokensOf('AC Sparta Prague')).toEqual(['sparta', 'prague']);
+    expect(tokensOf('Ada')).toEqual(['ada']);
   });
 });
 
@@ -165,27 +183,42 @@ describe('the name schema and the list-level rules', () => {
     const check = await nameSchema();
     expect(check({ ...line, name: 'Amodei' })).toBe(false);
     expect(check({ ...line, name: 'a' })).toBe(false);
+    // The floor of three letters (D63).
+    expect(check({ ...line, name: 'bp' })).toBe(false);
+    expect(check({ ...line, name: 'ada' })).toBe(true);
     expect(check({ ...line, kind: 'deity' })).toBe(false);
     expect(check({ ...line, source: 'a friend' })).toBe(false);
     expect(check({ ...line, gloss: 'Not a field here.' })).toBe(false);
     expect(check({ ...line, also: [] })).toBe(false);
   });
 
-  it('names a dictionary word, a repeat and a line out of order', () => {
+  it('names a dictionary word, a repeat, a line out of order, one under the floor and one its label does not yield', () => {
     const lines: Name[] = [line, { ...line, name: 'zebra' }, { ...line, name: 'amodei' }, { ...line, name: 'Ångström' }];
     expect(nameProblems(lines, new Set(['zebra']))).toEqual([
       'zebra: a word the dictionary already carries, not a name it lacks',
+      'zebra: not a token of its label "Dario Amodei"',
       'amodei: listed more than once',
       'amodei: out of order after zebra; the list is sorted by name',
       'Ångström: not a search form; it normalizes to angstrom',
+      'Ångström: not a token of its label "Dario Amodei"',
     ]);
     expect(nameProblems([line], null)).toEqual([]);
+    // Lines an older build wrote: a two-letter token, and a token of a piece with a digit.
+    expect(nameProblems([{ ...line, name: 'tf', from: 'TF1' }], null)).toEqual([
+      'tf: under the floor of 3 letters',
+      'tf: not a token of its label "TF1"',
+    ]);
+    expect(nameProblems([{ ...line, name: 'seen', from: 'Se7en' }], null)).toEqual(['seen: not a token of its label "Se7en"']);
+    // A Census line has no label to hold it to.
+    const { from: _none, ...census } = line;
+    expect(nameProblems([{ ...census, kind: 'surname', source: 'census-surnames-2000' }], null)).toEqual([]);
   });
 
   it('holds the committed list to the rules', async () => {
     const names = await readNames();
     expect(names.length).toBeGreaterThan(9_000);
     expect(names.length).toBeLessThan(11_000);
+    expect(names.every((n) => n.name.length >= NAME_FLOOR)).toBe(true);
     expect(nameProblems(names, null)).toEqual([]);
   });
 });

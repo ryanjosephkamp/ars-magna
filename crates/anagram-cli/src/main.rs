@@ -63,10 +63,14 @@ fn load_dict_with_id() -> Result<(Dict, DictionaryId), Box<dyn std::error::Error
     })?;
 
     // Small hand-rolled extraction; the manifest is tiny and stable. `field_of`
-    // reads the string that follows the first `"field"` after `"key"`.
-    let field_of = |key: &str, field: &str| -> Option<String> {
+    // reads the string that follows the first `"field"` after `"key"`, from
+    // `from` on. An artifact is looked up from the `"files"` section, since
+    // `counts` names the same keys (`full`, and `classes` since N4) and an
+    // anchor found there would read the next file's name, the word list's,
+    // as the term list's.
+    let field_of = |from: usize, key: &str, field: &str| -> Option<String> {
         let anchor = format!("\"{key}\"");
-        let start = manifest.find(&anchor)? + anchor.len();
+        let start = from + manifest[from..].find(&anchor)? + anchor.len();
         let rest = &manifest[start..];
         let field_anchor = format!("\"{field}\"");
         let field_at = rest.find(&field_anchor)? + field_anchor.len();
@@ -75,16 +79,17 @@ fn load_dict_with_id() -> Result<(Dict, DictionaryId), Box<dyn std::error::Error
         let close = after[open..].find('"')?;
         Some(after[open..open + close].to_owned())
     };
-    let name_of = |key: &str| field_of(key, "name");
+    let files_at = manifest.find("\"files\"").unwrap_or(0);
+    let name_of = |key: &str| field_of(files_at, key, "name");
 
     let full = name_of("full").ok_or("manifest is missing the full artifact")?;
     let tiers = name_of("tiers").ok_or("manifest is missing the tiers artifact")?;
     // The terms of the classes, when a build emitted them (`dict:build` does
-    // only once a class file has a term); a dictionary of words alone without.
+    // once a class file has a term); a dictionary of words alone without.
     let classes = name_of("classes");
     let id = DictionaryId {
-        rev: field_of("source", "rev").unwrap_or_default(),
-        full_sha256: field_of("full", "sha256").unwrap_or_default(),
+        rev: field_of(0, "source", "rev").unwrap_or_default(),
+        full_sha256: field_of(files_at, "full", "sha256").unwrap_or_default(),
     };
 
     let dict_bytes = fs::read(dist.join(&full))?;
