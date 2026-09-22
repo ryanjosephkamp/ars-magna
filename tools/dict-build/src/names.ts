@@ -16,7 +16,8 @@
  * `pnpm hits:enumerate --names`. Since phase N4 the list is also the `names`
  * term class (decision D63): `dict:build` carries every name of three letters
  * or more in the `classes` artifact, in no tier, admitted only when a search
- * names the class; the site passes no class until N5.
+ * names the class: the site's Terms control since N5, `--classes=names` on the
+ * command line.
  *
  * Deterministic from the cached sources: same answers in, byte-identical list
  * out, which `--verify` checks. Two sources move (see `NAMES` in pins.ts), so
