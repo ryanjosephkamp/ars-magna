@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TIERS, type Tier } from '@ars-magna/engine';
+import { NO_READING, TIERS, type Reading, type Tier } from '@ars-magna/engine';
 
 import {
   BAND_EDGES,
@@ -358,8 +358,8 @@ type Props = {
   counts: TierCounts;
   /** The rows both word-length charts share, and their scale. */
   lengths: { rows: readonly LengthRow[]; most: number };
-  /** The two boxes as typed, for the letter map. */
-  typed: { text: string; anagram: string };
+  /** The two boxes as typed, and how the text's digits and symbols are read, for the letter map. */
+  typed: { text: string; anagram: string; reading?: Reading };
 } & Selection;
 
 /**
@@ -401,7 +401,7 @@ export function Analysis({ text, anagram, comparison: side, tier, counts, length
         </p>
       )}
 
-      <LetterMap text={typed.text} anagram={typed.anagram} selected={selected} onSelect={onSelect} />
+      <LetterMap text={typed.text} anagram={typed.anagram} reading={typed.reading ?? NO_READING} selected={selected} onSelect={onSelect} />
 
       {/* On a phone the label sits above the four lines, so the figures have the width: a saturated floor
           reads `more than` and some forty digits. */}

@@ -24,13 +24,21 @@ export const PASS_TTL_MS = 2 * 60 * 60 * 1000;
 /** The most actions of each kind one connection may take in an hour. */
 export const LIMITS = { vote: 120, promote: 120, pass: 20 } as const;
 
-/** One word of a promoted anagram: lowercase letters, as the engine returns them. */
-export const WORD_PATTERN = /^[a-z]{1,45}$/;
+/**
+ * One term of a promoted anagram, as the engine returns it: lowercase letters,
+ * and the digits and symbols of the pool for a term of a labelled class (`b8`,
+ * `&`, `182`). The same characters `data/schema/hit.schema.json` allows in a
+ * hit's words, so a promotion and the hit made from it agree.
+ */
+export const WORD_PATTERN = /^[a-z0-9@$&%+#!?]{1,45}$/;
 
-/** A promotion's key: the letters sorted, a colon, then the words sorted and joined with hyphens. */
-export const KEY_PATTERN = /^[a-z]+:[a-z]+(-[a-z]+)*$/;
+/** A promotion's key: the characters sorted, a colon, then the terms sorted and joined with hyphens. */
+export const KEY_PATTERN = /^[a-z0-9@$&%+#!?]+:[a-z0-9@$&%+#!?]+(-[a-z0-9@$&%+#!?]+)*$/;
 
-/** The most letters a promotion, or a lookup of promotions, may have. */
+/** A run of the pool's characters, as a lookup of promotions sends them: the letters, the digits and the symbols of the set. */
+export const POOL_PATTERN = /^[a-z0-9@$&%+#!?]+$/;
+
+/** The most characters a promotion, or a lookup of promotions, may have. */
 export const MAX_LETTERS = 200;
 
 /** The most words a promoted anagram may have: the engine's own limit. */
@@ -39,7 +47,7 @@ export const MAX_WORDS = 64;
 /** The most characters of the input a promotion keeps. */
 export const MAX_INPUT = 500;
 
-/** The most letters a submission from the Build page may have. A number the operator may tune; the page itself has no cap. */
+/** The most characters a submission from the Build page may have. A number the operator may tune; the page itself has no cap. */
 export const MAX_TYPED_LETTERS = 80;
 
 /** The most characters of a submission's "Why it is good". */
@@ -77,7 +85,7 @@ export function aboutProblem(text: string): string | null {
   return null;
 }
 
-/** Letters in alphabetical order: the shape Discover keys a hit's letters by. */
+/** Characters in order: the shape Discover keys a hit's letters by, digits and symbols among them. */
 export function sortedLetters(letters: string): string {
   return [...letters].sort().join('');
 }

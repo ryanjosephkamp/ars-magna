@@ -63,10 +63,29 @@ export type PromotionRow = {
   converted_to?: string | null;
   /** The reader's reading of the input's numbers and symbols, as JSON, or null. */
   reading?: string | null;
+  /** The class of each term that is not a word of the dictionary, as JSON, or null (D63). */
+  classes?: string | null;
 };
 
 /** The columns the export may read. `voter` is never among them. */
-export const EXPORT_COLUMNS = ['key', 'input', 'words', 'tier', 'via', 'category', 'about', 'why', 'credit', 'missing', 'created_at', 'converted_to', 'reading'] as const;
+export const EXPORT_COLUMNS = [
+  'key',
+  'input',
+  'words',
+  'tier',
+  'via',
+  'category',
+  'about',
+  'why',
+  'credit',
+  'missing',
+  'created_at',
+  'converted_to',
+  'reading',
+  // The classes a submission's terms came from, kept so nothing the reader's
+  // page knew is lost; the review reads them from N6 on (M0 rule 2).
+  'classes',
+] as const;
 
 /** A row's reading as an object, or undefined when it has none or the column does not parse. */
 export function rowReading(row: Pick<PromotionRow, 'reading'>): Record<string, string> | undefined {

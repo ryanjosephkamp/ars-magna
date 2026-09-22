@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Tier } from '@ars-magna/engine';
+import type { ClassName } from '@ars-magna/engine';
 import {
   TEXT_ITSELF,
+  classesUsed,
   lettersMatchLabel,
   submissionTier,
   wordRequestSentence,
@@ -9,6 +11,7 @@ import {
   wordsKnown,
   wordsKnownLabel,
   wordsOf,
+  type StandingOf,
   type TierOf,
 } from './checks.ts';
 import { ledger } from './ledger.ts';
@@ -16,6 +19,16 @@ import { ledger } from './ledger.ts';
 /** The narrowest tiers the real dictionary gives these words. */
 const TIERS: Record<string, Tier | null> = { i: 'common', da: 'common', ai: 'common', doomer: 'extended', starer: 'standard', qzx: null, radioo: null };
 const tierOf: TierOf = (word) => (word in TIERS ? TIERS[word] : undefined);
+
+/** The classes the real class files give these terms; every other word is no term. */
+const CLASSES: Record<string, ClassName> = { b8: 'blends', '1': 'shorthand', '2': 'shorthand', '&': 'symbols', wtf: 'acronyms', eiffel: 'names' };
+const standingOf: StandingOf = (word) => {
+  if (word in TIERS) {
+    const tier = TIERS[word]!;
+    return { tier, termClass: tier === null ? (CLASSES[word] ?? null) : null };
+  }
+  return word in CLASSES ? { tier: null, termClass: CLASSES[word]! } : undefined;
+};
 
 describe('wordsOf', () => {
   it('reads the chunks between spaces as words, folded, apostrophes and hyphens carrying no letters', () => {
@@ -40,9 +53,14 @@ describe('Letters match', () => {
     expect(lettersMatchLabel(ledger('', 'doomer'))).toBe('—');
   });
 
-  it('reads No while a digit or symbol of the text stands as itself, so no Submit is offered for what the API refuses', () => {
+  it('counts the pool, so an anagram has to use the text’s digits and symbols as themselves', () => {
+    // The letters alone leave the 1, the 8 and the 2 of the text unused.
     expect(lettersMatchLabel(ledger('Blink-182', 'blink'))).toBe('No');
     expect(lettersMatchLabel(ledger('Ke$ha', 'hake'))).toBe('No');
+    // An anagram that uses them as terms of a class matches, as the search's own count does.
+    expect(lettersMatchLabel(ledger('Blink-182', '1 2 link b8'))).toBe('Yes');
+    expect(lettersMatchLabel(ledger('AT&T', 'tat &'))).toBe('Yes');
+    // A reading that leaves a character out, or reads it as a letter, matches as before.
     expect(lettersMatchLabel(ledger('Reacher season 4', 'as one searcher', { '4': 'drop' }))).toBe('Yes');
     expect(lettersMatchLabel(ledger('Ke$ha', 'shake', { $: 's' }))).toBe('Yes');
     expect(lettersMatchLabel(ledger('Blink-182', ''))).toBe('—');
@@ -51,28 +69,52 @@ describe('Letters match', () => {
 
 describe('Words known', () => {
   it('knows every word the chosen tier has', () => {
-    const result = wordsKnown(['i', 'da', 'ai', 'doomer'], tierOf, 'extended');
-    expect(result).toEqual({ kind: 'known' });
+    const result = wordsKnown(['i', 'da', 'ai', 'doomer'], standingOf, 'extended');
+    expect(result).toEqual({ kind: 'known', terms: [] });
     expect(wordsKnownLabel(result, 'extended')).toBe('Yes · every word is in Extended');
   });
 
   it('names a word a wider tier has, and one no tier has, once each', () => {
-    const result = wordsKnown(['i', 'da', 'ai', 'doomer', 'qzx', 'doomer'], tierOf, 'standard');
+    const result = wordsKnown(['i', 'da', 'ai', 'doomer', 'qzx', 'doomer'], standingOf, 'standard');
     expect(result).toEqual({
       kind: 'unknown',
+      terms: [],
       words: [
-        { word: 'doomer', tier: 'extended' },
-        { word: 'qzx', tier: null },
+        { word: 'doomer', tier: 'extended', termClass: null },
+        { word: 'qzx', tier: null, termClass: null },
       ],
     });
     expect(wordsKnownLabel(result, 'standard')).toBe('No · doomer is in Extended, not Standard · qzx is not in the dictionary');
-    expect(wordsKnownLabel(wordsKnown(['starer'], tierOf, 'common'), 'common')).toBe('No · starer is in Standard, not Common');
+    expect(wordsKnownLabel(wordsKnown(['starer'], standingOf, 'common'), 'common')).toBe('No · starer is in Standard, not Common');
+  });
+
+  it('names each term’s class where the class is on', () => {
+    const result = wordsKnown(['1', '2', 'i', 'b8'], standingOf, 'common', ['shorthand', 'blends']);
+    expect(result).toEqual({
+      kind: 'known',
+      terms: [
+        { word: '1', tier: null, termClass: 'shorthand' },
+        { word: '2', tier: null, termClass: 'shorthand' },
+        { word: 'b8', tier: null, termClass: 'blends' },
+      ],
+    });
+    expect(wordsKnownLabel(result, 'common', ['shorthand', 'blends'])).toBe(
+      'Yes · every word is in Common · 1 is shorthand · 2 is shorthand · b8 is a blend',
+    );
+    expect(classesUsed(result)).toEqual(['shorthand', 'blends']);
+  });
+
+  it('says what a term is when its class is not turned on, rather than calling it no word', () => {
+    const result = wordsKnown(['i', 'b8', 'qzx'], standingOf, 'common', ['shorthand']);
+    expect(wordsKnownLabel(result, 'common', ['shorthand'])).toBe(
+      'No · b8 is a blend, not turned on · qzx is not in the dictionary',
+    );
   });
 
   it('waits for every answer, and says nothing about an empty anagram', () => {
-    expect(wordsKnown(['doomer', 'unasked'], tierOf, 'standard')).toEqual({ kind: 'pending' });
+    expect(wordsKnown(['doomer', 'unasked'], standingOf, 'standard')).toEqual({ kind: 'pending' });
     expect(wordsKnownLabel({ kind: 'pending' }, 'standard')).toBe('Checking…');
-    expect(wordsKnown([], tierOf, 'standard')).toEqual({ kind: 'empty' });
+    expect(wordsKnown([], standingOf, 'standard')).toEqual({ kind: 'empty' });
     expect(wordsKnownLabel({ kind: 'empty' }, 'standard')).toBe('—');
   });
 });
@@ -87,9 +129,10 @@ describe('what a submission records', () => {
     expect(submissionTier(['qzx'], tierOf)).toBe('extended');
   });
 
-  it('asks for the words no tier has, and only those', () => {
-    expect(wordRequests(['i', 'doomer', 'qzx', 'radioo', 'qzx'], tierOf)).toEqual(['qzx', 'radioo']);
-    expect(wordRequests(['i', 'doomer'], tierOf)).toEqual([]);
+  it('asks for the words no tier has, and only those: a term of a class is not a word request', () => {
+    expect(wordRequests(['i', 'doomer', 'qzx', 'radioo', 'qzx'], standingOf)).toEqual(['qzx', 'radioo']);
+    expect(wordRequests(['i', 'doomer'], standingOf)).toEqual([]);
+    expect(wordRequests(['b8', '1', 'qzx'], standingOf)).toEqual(['qzx']);
   });
 
   it('says so in the exact sentence', () => {

@@ -11,10 +11,19 @@
  * mutated in place, so identity can't be the change signal.
  */
 
+import type { RowTag } from '@ars-magna/engine';
+
 export type Row = readonly string[];
 
 class ResultBuffer {
   #rows: Row[] = [];
+  /**
+   * The tags of the rows that have one, by the row's words: the classes its
+   * terms come from and how each is written. Kept by words rather than by
+   * index because the list filters and sorts, which would break a parallel
+   * array; a row is its words, so two rows never share a key.
+   */
+  #tags = new Map<string, RowTag>();
   #version = 0;
   #listeners = new Set<() => void>();
   #scheduled = false;
@@ -47,10 +56,16 @@ class ResultBuffer {
 
   reset(): void {
     this.#rows = [];
+    this.#tags.clear();
     this.total = '0';
     this.hasMore = false;
     this.truncated = false;
     this.#notify();
+  }
+
+  /** A row's tag, or undefined for a row of plain words, which is every row of a search of words alone. */
+  tagOf(row: Row): RowTag | undefined {
+    return this.#tags.get(row.join(' '));
   }
 
   setTotal(total: string): void {
@@ -62,9 +77,11 @@ class ResultBuffer {
    * Place a batch at `offset`. Batches can in principle arrive out of order, so
    * rows are written by index rather than pushed.
    */
-  append(offset: number, rows: readonly Row[], done: boolean, truncated = false): void {
+  append(offset: number, rows: readonly Row[], done: boolean, truncated = false, tags?: readonly (RowTag | null)[]): void {
     for (let i = 0; i < rows.length; i++) {
       this.#rows[offset + i] = rows[i]!;
+      const tag = tags?.[i];
+      if (tag) this.#tags.set(rows[i]!.join(' '), tag);
     }
     this.hasMore = !done;
     this.truncated ||= truncated;

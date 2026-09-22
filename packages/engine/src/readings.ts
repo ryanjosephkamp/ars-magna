@@ -180,6 +180,26 @@ export function readText(input: string, overrides: Reading = NO_READING): { text
 }
 
 /**
+ * What each character of the input is read as, one entry per code point of
+ * `[...input]`: the character itself, the letter a leet reading puts in its
+ * place, or the empty string for an item left out and for a `!` or `?` that is
+ * punctuation. `readText` is these joined; the Build page needs them apart, to
+ * draw a line from each character the reader typed to where it went.
+ */
+export function readChars(input: string, overrides: Reading = NO_READING): string[] {
+  const chars = [...input];
+  const letterAt = (j: number): boolean => j >= 0 && j < chars.length && isLetter(chars[j]!);
+  return chars.map((c, i) => {
+    const spec = symbol(c);
+    if (!spec) return c;
+    if (spec.insideWordOnly && !(letterAt(i - 1) && letterAt(i + 1))) return '';
+    const { reading } = chosen({ start: 0, end: 0, char: c, spec }, overrides);
+    if (reading === SELF) return c;
+    return reading === DROP ? '' : reading;
+  });
+}
+
+/**
  * The distinct items of the input, in order of first occurrence, each with
  * the reading in force: what a record stores and the interface lists.
  */

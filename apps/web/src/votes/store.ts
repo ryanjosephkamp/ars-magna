@@ -76,13 +76,23 @@ export async function readMyPromotions(db: D1Database, voter: string, letters: s
 }
 
 /** What a promotion from a search records beyond its key and voter. */
-export type PromotionFields = { input: string; reading: string | null; words: readonly string[]; tier: string; via: 'result' };
+export type PromotionFields = {
+  input: string;
+  reading: string | null;
+  /** The class of each term that is not a word, as JSON, or null when every term is a word. */
+  classes: string | null;
+  words: readonly string[];
+  tier: string;
+  via: 'result';
+};
 
 /** What a submission from the Build page records: a promotion with a note. Empty notes are kept as null. */
 export type SubmissionFields = {
   input: string;
   /** The reading of every number and symbol of the input, as JSON, or null for an input without any. */
   reading: string | null;
+  /** The class of each term that is not a word of the dictionary, as JSON, or null. */
+  classes: string | null;
   words: readonly string[];
   tier: string;
   via: 'typed';
@@ -120,9 +130,10 @@ export async function setPromotion(
   } else if (fields.via === 'typed') {
     change = db
       .prepare(
-        'INSERT INTO promotions (key, voter, input, reading, words, tier, via, category, about, why, credit, missing, created_at) ' +
-          "VALUES (?, ?, ?, ?, ?, ?, 'typed', ?, ?, ?, ?, ?, ?) " +
-          "ON CONFLICT (key, voter) DO UPDATE SET input = excluded.input, reading = excluded.reading, words = excluded.words, tier = excluded.tier, via = 'typed', " +
+        'INSERT INTO promotions (key, voter, input, reading, classes, words, tier, via, category, about, why, credit, missing, created_at) ' +
+          "VALUES (?, ?, ?, ?, ?, ?, ?, 'typed', ?, ?, ?, ?, ?, ?) " +
+          'ON CONFLICT (key, voter) DO UPDATE SET input = excluded.input, reading = excluded.reading, classes = excluded.classes, ' +
+          "words = excluded.words, tier = excluded.tier, via = 'typed', " +
           'category = excluded.category, about = excluded.about, why = excluded.why, credit = excluded.credit, missing = excluded.missing',
       )
       .bind(
@@ -130,6 +141,7 @@ export async function setPromotion(
         voter,
         fields.input,
         fields.reading,
+        fields.classes,
         fields.words.join(' '),
         fields.tier,
         fields.category,
@@ -142,9 +154,9 @@ export async function setPromotion(
   } else {
     change = db
       .prepare(
-        'INSERT INTO promotions (key, voter, input, reading, words, tier, via, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        'INSERT INTO promotions (key, voter, input, reading, classes, words, tier, via, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
       )
-      .bind(key, voter, fields.input, fields.reading, fields.words.join(' '), fields.tier, fields.via, at);
+      .bind(key, voter, fields.input, fields.reading, fields.classes, fields.words.join(' '), fields.tier, fields.via, at);
   }
   const recount = db
     .prepare(

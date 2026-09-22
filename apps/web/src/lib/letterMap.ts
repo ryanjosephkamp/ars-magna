@@ -1,24 +1,26 @@
 /**
- * The letter map: which letter of the text goes to which letter of the
+ * The letter map: which character of the text goes to which character of the
  * anagram, so the page can draw a line from each to where it went.
  *
- * Letters fold as the search folds them (`fold.ts`): an accented letter is its
- * base letter, and a character that folds to two (`ß` is ss) carries both. A
- * letter that repeats is matched in order, the first in the text to the first
- * in the anagram and so on, so one letter's lines never cross each other. What
- * is left over has no line: a letter of the text the anagram has not used, or
+ * Characters fold as the search folds them (`fold.ts`): an accented letter is
+ * its base letter, one that folds to two (`ß` is ss) carries both, and a digit
+ * or a symbol of the set is a character of the text as itself (the literal
+ * rule), so the map draws it and lines it to where it went. A character that
+ * repeats is matched in order, the first in the text to the first in the
+ * anagram and so on, so one character's lines never cross each other. What is
+ * left over has no line: a character of the text the anagram has not used, or
  * one the anagram uses beyond what the text has. Pure, so the tests run it
  * without a page.
  */
-import { foldChar } from '@ars-magna/engine';
+import { NO_READING, poolChars, type Reading } from '@ars-magna/engine';
 
-/** How many letters the map draws, on either side; past it the page says so in a sentence instead. */
+/** How many characters the map draws, on either side; past it the page says so in a sentence instead. */
 export const MAP_LIMIT = 60;
 
-/** One typed character and the letters it folds to; none for a space or punctuation. */
+/** One typed character and what it puts into the pool; none for a space, punctuation or a character left out. */
 export type MapChar = { readonly char: string; readonly letters: string };
 
-/** One line of the map: a letter, from its place in the text to its place in the anagram. */
+/** One line of the map: a character, from its place in the text to its place in the anagram. */
 export type MapLink = {
   readonly letter: string;
   /** Which character of the text, and of the anagram, the line joins. */
@@ -41,14 +43,13 @@ export type LetterMap = {
 
 type Slot = { char: number; letter: number };
 
-function chars(input: string): { chars: MapChar[]; slots: Map<string, Slot[]> } {
+function chars(input: string, reading: Reading = NO_READING): { chars: MapChar[]; slots: Map<string, Slot[]> } {
   const out: MapChar[] = [];
   const slots = new Map<string, Slot[]>();
   let letter = 0;
-  [...input].forEach((char, i) => {
-    const letters = foldChar(char);
-    out.push({ char, letters });
-    for (const l of letters) {
+  poolChars(input, reading).forEach(({ char, pool }, i) => {
+    out.push({ char, letters: pool });
+    for (const l of pool) {
       const list = slots.get(l) ?? [];
       list.push({ char: i, letter: letter++ });
       slots.set(l, list);
@@ -57,9 +58,9 @@ function chars(input: string): { chars: MapChar[]; slots: Map<string, Slot[]> } 
   return { chars: out, slots };
 }
 
-/** The map for a text and an anagram of it, as far as their letters agree. */
-export function letterMap(text: string, anagram: string): LetterMap {
-  const t = chars(text);
+/** The map for a text and an anagram of it, as far as their characters agree. The text is read as the page reads it. */
+export function letterMap(text: string, anagram: string, reading: Reading = NO_READING): LetterMap {
+  const t = chars(text, reading);
   const a = chars(anagram);
   const links: MapLink[] = [];
   const missing = new Set<number>();
@@ -76,12 +77,12 @@ export function letterMap(text: string, anagram: string): LetterMap {
   return { text: t.chars, anagram: a.chars, links, missing: [...missing].sort((x, y) => x - y), extra: [...extra].sort((x, y) => x - y) };
 }
 
-/** Whether the map is drawn: both sides have letters, and neither has more than the limit. */
+/** Whether the map is drawn: both sides have characters, and neither has more than the limit. */
 export function mapFits(textLetters: number, anagramLetters: number, limit = MAP_LIMIT): boolean {
   return textLetters > 0 && anagramLetters > 0 && textLetters <= limit && anagramLetters <= limit;
 }
 
-/** The map as a line of the export: each letter of the text, where it is and where it went, counting letters from 1. */
+/** The map as a line of the export: each character of the text, where it is and where it went, counting from 1. */
 export function mapLine(map: LetterMap): string {
   return map.links.map((l) => `${l.letter} ${l.from + 1}→${l.to + 1}`).join(' · ') || '—';
 }

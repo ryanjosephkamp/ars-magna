@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
+import { describeReading } from '@ars-magna/engine';
+
 import { WordDetails, type WordDetail } from '../components/WordDetails.tsx';
 import type { Definitions } from '../lib/definitions.ts';
 import { countOrderings } from '../lib/orderingCount.ts';
+import { termsFrom, writtenTerm } from '../lib/terms.ts';
+import { useTerms } from '../state/useTerms.ts';
+import { legacyReading } from '../lib/urlState.ts';
 import { googleUrl, type PublicHit } from './build.ts';
 
 const LABEL = 'mb-1.5 font-mono text-[11px] tracking-[0.08em] text-ink-faint uppercase';
@@ -17,26 +22,44 @@ const OUT = 'text-ink-soft underline decoration-rule-strong underline-offset-4 t
  */
 export function HitDetails({ hit, definitions, id }: { hit: PublicHit; definitions: Definitions; id: string }) {
   const [details, setDetails] = useState<WordDetail[] | null>(null);
+  const terms = termsFrom(useTerms());
 
   useEffect(() => {
     let live = true;
-    // A word used twice is explained once.
+    // A word used twice is explained once. A term that is not a word of the
+    // dictionary is not looked up there: its line comes from the class files.
     const words = [...new Set(hit.words)];
-    void definitions.lookupAll(words).then((infos) => {
-      if (live) {
-        setDetails(
-          words.map((word, i) => {
-            const sense = hit.senses?.[word];
-            return { word, spellings: [word], info: infos[i]!, ...(sense === undefined ? {} : { sense }) };
-          }),
-        );
-      }
+    const classOf = (word: string) => hit.classes?.[word];
+    void definitions.lookupAll(words.filter((word) => classOf(word) === undefined)).then((infos) => {
+      if (!live) return;
+      let next = 0;
+      setDetails(
+        words.map((word) => {
+          const sense = hit.senses?.[word];
+          const termClass = classOf(word);
+          if (termClass !== undefined) {
+            const term = terms.get(word);
+            return {
+              word,
+              display: writtenTerm(terms, word),
+              spellings: [writtenTerm(terms, word)],
+              info: { word, senses: [], provenance: 'attested' as const, forms: [] },
+              termClass,
+              ...(term ? { term } : {}),
+            };
+          }
+          return { word, spellings: [word], info: infos[next++]!, ...(sense === undefined ? {} : { sense }) };
+        }),
+      );
     });
     return () => {
       live = false;
     };
-  }, [definitions, hit.words, hit.senses]);
+  }, [definitions, hit.words, hit.senses, hit.classes, terms]);
 
+  // How the input's digits and symbols were read, in words: the five hits made
+  // with a character left out say so, as decision D63 asked.
+  const reading = describeReading(hit.input, hit.reading ?? legacyReading(hit.input));
   const count = countOrderings(hit.words);
 
   return (
@@ -55,8 +78,15 @@ export function HitDetails({ hit, definitions, id }: { hit: PublicHit; definitio
         </p>
       </div>
 
+      {reading.length > 0 && (
+        <div>
+          <p className={LABEL}>Numbers and symbols</p>
+          <p className="font-mono text-xs text-ink-soft">{reading}</p>
+        </div>
+      )}
+
       <div>
-        <p className={LABEL}>Words</p>
+        <p className={LABEL}>{hit.classes ? 'Words and terms' : 'Words'}</p>
         <WordDetails details={details} />
       </div>
 

@@ -1,16 +1,36 @@
+import type { ClassName } from '@ars-magna/engine';
+
+import { CLASS_CHIP, GENERATED_SENTENCE } from '../lib/classes.ts';
 import { PROVENANCE_LABEL, shouldExplain, type WordInfo } from '../lib/definitions.ts';
+import type { Term } from '../lib/terms.ts';
 
 export type WordDetail = {
-  /** The word as the engine knows it: letters only. */
+  /** The word as the engine knows it: letters, or a term's own characters. */
   readonly word: string;
-  /** The word as the row shows it: a listed form (`don't`) where it is the only spelling of its letters, else the word. */
+  /** The word as the row shows it: a listed form (`don't`), a term's capitals (`WTF`), or the word. */
   readonly display?: string;
   /** Every spelling of the anagram class this word belongs to, including itself, as rows show them. */
   readonly spellings: readonly string[];
   readonly info: WordInfo;
   /** The sense the word reads in, in one anagram on Discover; shown before the dictionary's. */
   readonly sense?: string;
+  /** The class this term comes from, when it is not a word of the dictionary. */
+  readonly termClass?: ClassName;
+  /** The class file's line for the term: what it reads as, its gloss and its trace. */
+  readonly term?: Term;
+  /** The leet reading this word carries, as the line under the field says it: `$ as s`. */
+  readonly leetText?: string;
 };
+
+/** What a trace's link reads: the site it points at, so a reader knows where they are going. */
+function traceLabel(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    return host.endsWith('wiktionary.org') ? 'Wiktionary' : host;
+  } catch {
+    return 'Where it comes from';
+  }
+}
 
 const POS_LABEL: Record<string, string> = {
   n: 'noun',
@@ -40,7 +60,7 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
 
   return (
     <dl className="space-y-2.5">
-      {details.map(({ word, display = word, spellings, info, sense: reading }) => {
+      {details.map(({ word, display = word, spellings, info, sense: reading, termClass, term, leetText }) => {
         const others = spellings.filter((s) => s !== display);
         const explain = shouldExplain(info);
         // A listed form under a word the dictionary has of its own (`it's` under
@@ -50,8 +70,44 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
 
         return (
           <div key={word} className="sm:flex sm:gap-3">
-            <dt className="font-display shrink-0 text-base text-ink sm:w-32">{display}</dt>
+            <dt
+              className={`font-display shrink-0 text-base text-ink sm:w-32 ${
+                termClass ? 'underline decoration-dotted decoration-rule-strong underline-offset-4' : ''
+              }`}
+            >
+              {display}
+            </dt>
             <dd className="min-w-0 flex-1">
+              {/* A term that is not a word of the dictionary: what it stands for,
+                  its class, its meaning and where it comes from. The class alone
+                  for one the engine makes from the text (a numeral, a name). */}
+              {termClass && (
+                <>
+                  <p className="text-ink">
+                    <span className="font-mono text-[10px] tracking-wide text-ink-faint">
+                      {CLASS_CHIP[termClass]}
+                      {term?.tone === 'crude' ? ' · crude' : ''}
+                    </span>
+                    {term ? ` ${term.reads}` : ''}
+                  </p>
+                  {term && <p className="text-ink-soft">{term.gloss}</p>}
+                  {!term && GENERATED_SENTENCE[termClass] && <p className="text-ink-faint">{GENERATED_SENTENCE[termClass]}</p>}
+                  {term && (
+                    <p>
+                      <a
+                        href={term.trace}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-ink-faint underline decoration-rule-strong underline-offset-4 transition-colors duration-150 hover:text-accent hover:decoration-accent"
+                      >
+                        {traceLabel(term.trace)}
+                      </a>
+                    </p>
+                  )}
+                </>
+              )}
+              {/* A word the reader is shown with a character where its letter went. */}
+              {leetText !== undefined && <p className="font-mono text-[11px] text-ink-faint">{leetText}</p>}
               {/* The reading this anagram uses, where the dictionary's first
                   sense would not explain it. The dictionary keeps its own order
                   beneath: this is one hit's sense, not the word's. */}
@@ -80,7 +136,8 @@ export function WordDetails({ details }: { details: readonly WordDetail[] | null
                     </li>
                   ))}
                 </ul>
-              ) : explain ? null : (
+              ) : explain || termClass ? null : (
+                // A term of a class is explained by its own line above; the dictionary has no entry to miss.
                 <p className="text-ink-faint">No definition found.</p>
               )}
 

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters } from '../src/fold.ts';
+import { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters, poolChars } from '../src/fold.ts';
 import { FOLD_RANGES, FOLD_TABLE } from '../src/foldTable.ts';
 
 /** `[input, letters, skipped]` — mirrored in the Rust unit tests. */
@@ -138,6 +138,45 @@ const WORD_BREAKS = [
   0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
   0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
 ];
+
+describe('poolChars', () => {
+  it('gives one entry per character typed, with what each puts into the pool', () => {
+    expect(poolChars('Ke$ha')).toEqual([
+      { char: 'K', pool: 'k' },
+      { char: 'e', pool: 'e' },
+      { char: '$', pool: '$' },
+      { char: 'h', pool: 'h' },
+      { char: 'a', pool: 'a' },
+    ]);
+    // A letter that folds to two carries both; a space and a hyphen carry nothing.
+    expect(poolChars('Straße-x').map((c) => c.pool)).toEqual(['s', 't', 'r', 'a', 'ss', 'e', '', 'x']);
+    // A `!` inside a word is a character of the pool; one at the end is punctuation.
+    expect(poolChars('$h!t!').map((c) => c.pool)).toEqual(['$', 'h', '!', 't', '']);
+  });
+
+  it('reads each character as the reading says, and gives nothing for one left out', () => {
+    expect(poolChars('Ke$ha', { $: 's' }).map((c) => c.pool)).toEqual(['k', 'e', 's', 'h', 'a']);
+    expect(poolChars('Ke$ha', { $: 'drop' }).map((c) => c.pool)).toEqual(['k', 'e', '', 'h', 'a']);
+    expect(poolChars('Reacher season 4', { '4': 'drop' }).at(-1)).toEqual({ char: '4', pool: '' });
+  });
+
+  it('joins back to exactly what the fold makes of the text, whatever the reading', () => {
+    const cases: [string, Record<string, string>][] = [
+      ['Blink-182', {}],
+      ['Blink-182', { '8': 'b' }],
+      ['Blink-182', { '1': 'drop', '2': 'z' }],
+      ['Beyoncé 4 & 44 Ж', {}],
+      ['Beyoncé 4 & 44 Ж', { '4': 'drop' }],
+      ['$h!t? really', {}],
+      ["jack-o'-lantern, it's.", {}],
+      ['the 1,000th man', {}],
+      ['Straße', {}],
+    ];
+    for (const [input, reading] of cases) {
+      expect(poolChars(input, reading).map((c) => c.pool).join(''), input).toBe(foldLetters(input, reading).letters);
+    }
+  });
+});
 
 describe('foldWords', () => {
   it.each(WORD_CASES)('splits %j', (input, words) => {

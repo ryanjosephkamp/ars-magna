@@ -154,10 +154,23 @@ export function HowItWorks() {
           </p>
           <p className="mt-3 max-w-prose text-sm text-ink-soft">
             Nothing typed is ever replaced by something else: a number is never read as its name, and a symbol never as a letter or a
-            word. A number, or one of the symbols <i>@ $ &amp; % + #</i> (and <i>!</i> or <i>?</i> inside a word), is left out of the letters
-            for now, and the line under the field says which: <i>Blink-182</i> is searched as the letters of <i>blink</i>, with{' '}
-            <i>182 left out</i> beneath it. An anagram rearranges what was typed; only spaces, punctuation, apostrophes, hyphens and
-            capitals may be added or taken away.
+            word. A digit, or one of the symbols <i>@ $ &amp; % + #</i> (and <i>!</i> or <i>?</i> inside a word), is a character of the
+            text like a letter, and an anagram has to use it as itself: <i>Blink-182</i> is eight characters, and the line under the
+            field gives each digit one of its own, <i>1 as itself</i>. An anagram rearranges what was typed; only spaces, punctuation,
+            apostrophes, hyphens and capitals may be added or taken away.
+          </p>
+          <p className="mt-3 max-w-prose text-sm text-ink-soft">
+            No word has a digit, so a text with one has no anagram of words alone. What can use them are the{' '}
+            <b className="font-medium text-ink">term classes</b>, and each is one tick of Terms, beside the dictionary: a numeral of the
+            text's own digits (<i>182</i>), a symbol read as its word (<i>&amp;</i> and), a character read as a word (<i>2</i> to), a
+            blend that sounds like one (<i>b8</i> bait), an initialism (<i>WTF</i>), or a name (<i>eiffel</i>). Words alone is what the
+            page does before you turn one on, and the count line offers the ones that would help. A term that is not a word is
+            underlined on its row; opening the row says what it is, what it stands for and where it comes from.
+          </p>
+          <p className="mt-3 max-w-prose text-sm text-ink-soft">
+            A digit or a symbol may also stand for one letter — <i>$</i> as s, <i>7</i> as t or v — which is the line's own choice under
+            the field. The search then tries the character both ways and writes it where the letter went, so <i>Ke$ha</i> gives{' '}
+            <i>$hake</i>. It is on for <i>$</i>, <i>!</i> and <i>@</i>, and off for digits, since a digit in a text is usually a number.
           </p>
           <p className="mt-3 max-w-prose text-sm text-ink-soft">
             On the search page, Must exclude takes a word out of the dictionary for that search alone and leaves its other spellings, so

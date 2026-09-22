@@ -219,7 +219,7 @@ describe('the Build page in the address', () => {
   it('writes only the boxes that hold something, and the dictionary only when it differs', () => {
     expect(encodeBuild(BUILD_DEFAULT)).toBe('');
     expect(encodeBuild({ ...BUILD_DEFAULT, text: 'Dario Amodei' })).toBe('t=Dario%20Amodei');
-    expect(encodeBuild({ text: 'Dario Amodei', anagram: 'I da AI doomer', tier: 'extended', reading: {} })).toBe(
+    expect(encodeBuild({ text: 'Dario Amodei', anagram: 'I da AI doomer', tier: 'extended', reading: {}, classes: [] })).toBe(
       't=Dario%20Amodei&a=I%20da%20AI%20doomer&d=extended',
     );
     // The one reading is the default, so a link never carries `r=` today; a reading the table does not offer is dropped.
@@ -232,9 +232,11 @@ describe('the Build page in the address', () => {
     const cases = [
       BUILD_DEFAULT,
       { ...BUILD_DEFAULT, text: 'Dormitory', anagram: 'dirty room' },
-      { text: "It's a dog's life", anagram: 'Legit, sad foils', tier: 'full' as const, reading: {} },
-      { text: 'Beyoncé & 4', anagram: 'obey nce', tier: 'common' as const, reading: {} },
-      { text: 'Blink-182 & 4', anagram: '', tier: 'standard' as const, reading: {} },
+      { text: "It's a dog's life", anagram: 'Legit, sad foils', tier: 'full' as const, reading: {}, classes: [] },
+      { text: 'Beyoncé & 4', anagram: 'obey nce', tier: 'common' as const, reading: {}, classes: [] },
+      { text: 'Blink-182 & 4', anagram: '', tier: 'standard' as const, reading: {}, classes: [] },
+      // The classes the checks admit ride along, in the plan's table order.
+      { text: 'Blink-182', anagram: '1 2 link b8', tier: 'standard' as const, reading: {}, classes: ['shorthand', 'blends'] as const },
     ];
     for (const original of cases) {
       expect(decodeBuild(`#${encodeBuild(original)}`)).toEqual(original);
@@ -256,6 +258,56 @@ describe('the Build page in the address', () => {
   });
 });
 
+describe('the term classes in the address', () => {
+  it('writes the classes turned on, in the table’s order, and nothing for words alone', () => {
+    const blink = { ...DEFAULT_QUERY, input: 'Blink-182' };
+    expect(encodeQuery(blink)).toBe('q=Blink-182');
+    expect(encodeQuery({ ...blink, classes: ['shorthand', 'blends'] })).toBe('q=Blink-182&c=shorthand%2Cblends');
+    expect(encodeQuery({ ...blink, classes: ['blends', 'numerals'] })).toBe('q=Blink-182&c=numerals%2Cblends');
+  });
+
+  it('reads back only classes the engine knows, and words alone for anything else', () => {
+    expect(decodeQuery('#q=Blink-182&c=shorthand,blends').classes).toEqual(['shorthand', 'blends']);
+    expect(decodeQuery('#q=Blink-182&c=blends,shorthand').classes).toEqual(['shorthand', 'blends']);
+    expect(decodeQuery('#q=Blink-182&c=wingdings').classes).toEqual([]);
+    expect(decodeQuery('#q=Blink-182&c=').classes).toEqual([]);
+    expect(decodeQuery('#q=Blink-182').classes).toEqual([]);
+  });
+
+  it('writes the characters read both ways only where they differ from this text’s default', () => {
+    // `$` reads both ways by default, so a link that keeps the default says nothing.
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: 'Ke$ha', leet: ['$'] })).toBe('q=Ke%24ha');
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: 'Ke$ha', leet: [] })).toBe('q=Ke%24ha&l=');
+    // A digit is off by default, so a link that turns one on says which.
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: 'Blink-182', leet: ['8'] })).toBe('q=Blink-182&l=8');
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: 'Blink-182', leet: [] })).toBe('q=Blink-182');
+    // A character the input lacks is never written.
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: 'dormitory', leet: ['$'] })).toBe('q=dormitory');
+  });
+
+  it('reads back only characters the input has, that offer a letter and stand as themselves', () => {
+    expect(decodeQuery('#q=Ke%24ha').leet).toEqual(['$']);
+    expect(decodeQuery('#q=Ke%24ha&l=').leet).toEqual([]);
+    expect(decodeQuery('#q=Blink-182&l=18').leet).toEqual(['1', '8']);
+    expect(decodeQuery('#q=Blink-182&l=$').leet).toEqual([]);
+    expect(decodeQuery('#q=AT%26T&l=%26').leet).toEqual([]);
+    // A character read as a letter, or left out, is not read both ways too.
+    expect(decodeQuery('#q=Ke%24ha&r=%24:s').leet).toEqual([]);
+    expect(decodeQuery('#q=Ke%24ha&r=%24:drop').leet).toEqual([]);
+  });
+
+  it('round-trips a search with classes and readings together', () => {
+    for (const query of [
+      { ...DEFAULT_QUERY, input: 'Blink-182', classes: ['numerals', 'shorthand', 'blends'] as const, leet: ['8'] },
+      { ...DEFAULT_QUERY, input: 'Ke$ha', classes: ['symbols'] as const, leet: [] },
+      { ...DEFAULT_QUERY, input: '$5 off', leet: ['$'], reading: { '5': 'drop' } },
+    ]) {
+      const back = decodeQuery(`#${encodeQuery(query)}`);
+      expect([back.input, back.classes, back.leet, back.reading]).toEqual([query.input, [...query.classes], [...query.leet], query.reading]);
+    }
+  });
+});
+
 describe('the reading in the address', () => {
   it('writes only what differs from the defaults and reads back only what the input offers', () => {
     const blink = { ...DEFAULT_QUERY, input: 'Blink-182' };
@@ -263,7 +315,11 @@ describe('the reading in the address', () => {
     expect(encodeQuery({ ...blink, reading: { '182': 'spell' } })).toBe('q=Blink-182');
     // A reading the table does not offer is never written, and a link cannot make the page convert.
     expect(encodeQuery({ ...blink, reading: { '182': 'digits' } })).toBe('q=Blink-182');
-    expect(encodeQuery({ ...DEFAULT_QUERY, input: '2 Fast 2 Furious @', reading: { '2': 'too', '@': 'spell' } })).toBe('q=2%20Fast%202%20Furious%20%40');
+    // `@` reads both ways by default, so a query that reads it as itself alone says so with an empty `l`.
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: '2 Fast 2 Furious @', reading: { '2': 'too', '@': 'spell' } })).toBe(
+      'q=2%20Fast%202%20Furious%20%40&l=',
+    );
+    expect(encodeQuery({ ...DEFAULT_QUERY, input: '2 Fast 2 Furious @', leet: ['@'] })).toBe('q=2%20Fast%202%20Furious%20%40');
     expect(decodeQuery('#q=Blink-182&r=182:digits').reading).toEqual({});
     expect(decodeQuery('#q=Blink-182&r=182%3Adigits').reading).toEqual({});
     // An item is one character now; a run key names nothing.

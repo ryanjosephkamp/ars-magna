@@ -12,11 +12,13 @@ import type { Row } from '../state/resultBuffer.ts';
 import { countOrderings, nextOrdering, orderings } from '../lib/orderings.ts';
 import { displayOrder, type Chosen } from '../lib/chosen.ts';
 import type { Shareable } from '../lib/share.ts';
-import type { Reading } from '@ars-magna/engine';
+import { isTextItself, type ClassName, type Reading, type RowTag } from '@ars-magna/engine';
 
 import { buildHref } from '../lib/urlState.ts';
 import { discoveryFor, type Discovered, type RowDiscovery } from '../lib/inDiscoveries.ts';
-import { displayPhrase, type Forms } from '../lib/forms.ts';
+import type { Forms } from '../lib/forms.ts';
+import { classesOf, rowTerms, termClassesOf, termPhrase, type RowTerm } from '../lib/rowTerms.ts';
+import type { Terms } from '../lib/terms.ts';
 import type { Votes } from '../hits/useVotes.ts';
 import type { Promotions } from '../state/usePromotions.ts';
 import { useBlocked } from '../state/usePublishedHits.ts';
@@ -32,10 +34,14 @@ type Props = {
   rows: readonly Row[];
   /** The dictionary's listed forms, by the word they spell: how a row reads `dont` as `don't`. */
   forms: Forms;
+  /** The class files' terms, for a row that has one: its capitals, and what the panel says about it. */
+  terms: Terms;
+  /** A row's tag: the class of each term that is not a word, and how each word is written. */
+  tagOf(row: Row): RowTag | undefined;
   total: string;
   hasMore: boolean;
   onLoadMore(): void;
-  wordDetails(words: readonly string[]): Promise<WordDetail[]>;
+  wordDetails(terms: readonly RowTerm[]): Promise<WordDetail[]>;
   wordMasks(words: readonly string[]): Promise<number[]>;
   pinned: readonly string[];
   onTogglePin(phrase: string): void;
@@ -73,6 +79,8 @@ export type ShareContext = {
 export function ResultList({
   rows,
   forms,
+  terms,
+  tagOf,
   total,
   hasMore,
   onLoadMore,
@@ -234,6 +242,8 @@ export function ResultList({
               <ResultRow
                 row={row}
                 forms={forms}
+                terms={terms}
+                tag={tagOf(row)}
                 index={item.index}
                 expanded={expanded === item.index}
                 onToggle={toggle}
@@ -241,7 +251,7 @@ export function ResultList({
                 wordDetails={wordDetails}
                 wordMasks={wordMasks}
                 shown={displayOrder(chosen, row)}
-                isPinned={pinnedSet.has(displayPhrase(forms, displayOrder(chosen, row)))}
+                pinnedSet={pinnedSet}
                 onTogglePin={onTogglePin}
                 copied={copied}
                 onCopy={onCopy}
@@ -268,6 +278,8 @@ export function ResultList({
 function ResultRow({
   row,
   forms,
+  terms,
+  tag,
   shown,
   index,
   expanded,
@@ -275,7 +287,7 @@ function ResultRow({
   onFocus,
   wordDetails,
   wordMasks,
-  isPinned,
+  pinnedSet,
   onTogglePin,
   copied,
   onCopy,
@@ -288,15 +300,18 @@ function ResultRow({
   /** The engine's order: the row's identity and the root of its orderings. */
   row: Row;
   forms: Forms;
+  terms: Terms;
+  /** This row's tag, when any of its terms is not a plain word of the dictionary. */
+  tag: RowTag | undefined;
   /** The order on display: the reader's choice, or `row`, as letters-words. */
   shown: readonly string[];
   index: number;
   expanded: boolean;
   onToggle(index: number): void;
   onFocus(index: number): void;
-  wordDetails(words: readonly string[]): Promise<WordDetail[]>;
+  wordDetails(terms: readonly RowTerm[]): Promise<WordDetail[]>;
   wordMasks(words: readonly string[]): Promise<number[]>;
-  isPinned: boolean;
+  pinnedSet: ReadonlySet<string>;
   onTogglePin(phrase: string): void;
   copied: string | null;
   onCopy(key: string, text: string): void;
@@ -309,9 +324,12 @@ function ResultRow({
   promotions: Promotions | null;
 }) {
   // What the reader sees and copies: the words in the shown order, a listed
-  // form in place of a word that has no other spelling. Promote and the
-  // orderings work from the letters-words underneath.
-  const phrase = displayPhrase(forms, shown);
+  // form in place of a word that has no other spelling, a term written as its
+  // class writes it (`WTF`) and a word carrying the character its letter came
+  // from (`$hake`). Promote and the orderings work from the words underneath.
+  const shownTerms = useMemo(() => rowTerms({ row, shown, tag, forms, terms }), [row, shown, tag, forms, terms]);
+  const phrase = termPhrase(shownTerms);
+  const isPinned = pinnedSet.has(phrase);
   const [details, setDetails] = useState<WordDetail[] | null>(null);
   const [masks, setMasks] = useState<number[] | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -340,13 +358,13 @@ function ResultRow({
   useEffect(() => {
     if (!expanded || details) return;
     let live = true;
-    void wordDetails(row).then((result) => {
+    void wordDetails(shownTerms).then((result) => {
       if (live) setDetails(result);
     });
     return () => {
       live = false;
     };
-  }, [expanded, details, row, wordDetails]);
+  }, [expanded, details, shownTerms, wordDetails]);
 
   // Masks rank the alternate orderings. Fetched alongside the definitions and
   // for the same reason: only a row someone opened needs them.
@@ -363,6 +381,7 @@ function ResultRow({
 
   // Counting is a few multiplications; the orderings themselves are computed
   // only for a row somebody opened.
+  const rowClasses = classesOf(shownTerms);
   const orderCount = row.length > 1 ? countOrderings(row) : 1;
   const orders =
     expanded && orderCount > 1 ? orderings(row, ORDERINGS_SHOWN, masks ?? undefined) : [];
@@ -381,7 +400,21 @@ function ResultRow({
           <span className="w-10 shrink-0 pl-1 font-mono text-[11px] text-ink-faint tabular-nums">
             {index + 1}
           </span>
-          <span className="font-display flex-1 text-xl leading-snug text-ink">{phrase}</span>
+          {/* A term that is not a word of the dictionary is underlined, dotted:
+              the row still reads as a phrase, and the panel says what the term
+              is and where it comes from. */}
+          <span className="font-display flex-1 text-xl leading-snug text-ink">
+            {shownTerms.map((term, i) => (
+              <span key={`${term.word}-${i}`}>
+                {i > 0 ? ' ' : ''}
+                <span
+                  className={term.termClass ? 'underline decoration-dotted decoration-rule-strong underline-offset-4' : undefined}
+                >
+                  {term.display}
+                </span>
+              </span>
+            ))}
+          </span>
         </button>
 
         {/* Four actions no longer fit beside a phrase on a phone; below `sm`
@@ -407,7 +440,15 @@ function ResultRow({
           {discovery ? (
             <PublishedAction discovery={discovery} votes={votes} />
           ) : (
-            promotions && <PromoteAction words={shown} input={share.input} reading={share.reading} promotions={promotions} />
+            promotions && (
+              <PromoteAction
+                words={shown}
+                classes={termClassesOf(shownTerms)}
+                input={share.input}
+                reading={share.reading}
+                promotions={promotions}
+              />
+            )
           )}
         </span>
       </div>
@@ -428,7 +469,7 @@ function ResultRow({
               </p>
               <ul className="flex flex-wrap gap-x-4 gap-y-1">
                 {orders.map((order) => {
-                  const text = displayPhrase(forms, order);
+                  const text = termPhrase(rowTerms({ row, shown: order, tag, forms, terms }));
                   const current = text === phrase;
                   return (
                     <li key={text}>
@@ -451,7 +492,7 @@ function ResultRow({
 
           <div>
             <p className="mb-1.5 font-mono text-[11px] tracking-[0.08em] text-ink-faint uppercase">
-              Words
+              {rowClasses.length > 0 ? 'Words and terms' : 'Words'}
             </p>
             <WordDetails details={details} />
           </div>
@@ -481,12 +522,33 @@ function PublishedAction({ discovery, votes }: { discovery: RowDiscovery; votes:
   );
 }
 
-/** Promote, with its count, for a row that is not on Discover. Absent when promotions did not load, and for a blocked anagram. */
-function PromoteAction({ words, input, reading, promotions }: { words: readonly string[]; input: string; reading: Reading; promotions: Promotions }) {
+/**
+ * Promote, with its count, for a row that is not on Discover. Absent when
+ * promotions did not load, for a blocked anagram, and for a row that is the
+ * text itself: the search lists a re-spacing of the text, since `applesauce`
+ * is a different word from `apple sauce` and `blink 1 8 2` a different reading
+ * of `Blink-182`, but nothing goes to Discover as an anagram of the text it
+ * is, and `/api/promote` refuses it (`isTextItself`, the one module the page,
+ * Build and the API share).
+ */
+function PromoteAction({
+  words,
+  classes,
+  input,
+  reading,
+  promotions,
+}: {
+  words: readonly string[];
+  /** The class of each term that is not a word, keyed by the term, as a hit carries it. */
+  classes: Readonly<Record<string, ClassName>>;
+  input: string;
+  reading: Reading;
+  promotions: Promotions;
+}) {
   const key = promotionKey(words);
   const blocked = useBlocked(key);
   if (promotions.status !== 'open' && promotions.status !== 'closed') return null;
-  if (!promotable(input, words, reading) || blocked !== false) return null;
+  if (!promotable(input, words, reading) || isTextItself(input, words, reading) || blocked !== false) return null;
   const count = promotions.counts[key] ?? 0;
   return (
     <CountButton
@@ -496,7 +558,7 @@ function PromoteAction({ words, input, reading, promotions }: { words: readonly 
       busy={promotions.busy.has(key)}
       disabled={promotions.status === 'closed'}
       ariaLabel={`Promote ${words.join(' ')}, ${count} ${count === 1 ? 'promotion' : 'promotions'}`}
-      onClick={() => promotions.toggle(words)}
+      onClick={() => promotions.toggle(words, classes)}
       quiet
     />
   );

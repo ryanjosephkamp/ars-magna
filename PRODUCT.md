@@ -40,7 +40,11 @@ as a letter or a word, unless the reader chooses a leet reading for that one
 character and the result says so. An anagram rearranges what was typed; only
 spaces, punctuation, apostrophes, hyphens and capitals may be added or taken
 away. Every term of an anagram is a word of the dictionary or a term of a
-labelled class, and words alone is the default.
+labelled class, and words alone is the default: a class is turned on a tick at
+a time beside the dictionary, a term that is not a word is marked where it is
+shown and explained where it is opened, and the count line keeps one exact
+number, with what the classes would add stated beside it rather than mixed into
+it.
 
 Success is a user finding the specific rearrangement they were looking for, and
 trusting that if it were not shown, it does not exist.

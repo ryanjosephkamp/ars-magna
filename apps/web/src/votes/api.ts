@@ -19,6 +19,9 @@
 import { normalizeLetters } from '@ars-magna/engine/fold';
 import { fullReading, isReading, readingProblem } from '@ars-magna/engine/readings';
 import { isTextItself } from '@ars-magna/engine/identity';
+import { isClassName, type ClassName } from '@ars-magna/engine/protocol';
+
+import { isNumeral, type TermsFile } from '../lib/terms.ts';
 
 import {
   HIT_ID_PATTERN,
@@ -30,6 +33,7 @@ import {
   MAX_WHY,
   MAX_WORDS,
   PASS_TTL_MS,
+  POOL_PATTERN,
   VOTER_PATTERN,
   WORD_PATTERN,
   aboutProblem,
@@ -82,6 +86,12 @@ export type Deps = {
    * list in data/promotions/blocks.jsonl, which the build copies into hits.json.
    */
   blockedKeys(request: Request, env: Env): Promise<ReadonlySet<string>>;
+  /**
+   * The terms of the labelled classes, by the term: terms.json, built from the
+   * class files. A promoted term that is not a word of letters has to be one of
+   * these, or a numeral of the text's own digits.
+   */
+  terms(request: Request, env: Env): Promise<ReadonlyMap<string, ClassName>>;
 };
 
 /** What GET /api/votes returns. */
@@ -199,8 +209,10 @@ async function withoutBlocked(counts: Record<string, number>, blocked: ReadonlyS
 export async function getPromotions(request: Request, env: Env, deps?: Pick<Deps, 'blockedKeys'>): Promise<Response> {
   const params = new URL(request.url).searchParams;
   const letters = params.get('letters') ?? '';
-  if (!/^[a-z]+$/.test(letters) || letters.length > MAX_LETTERS) {
-    return refuse(400, 'bad-request', 'Send the letters to look up, a to z.');
+  // The pool, not the letters alone: a text with a digit or a symbol of the set
+  // is keyed by those characters too (D62), and its rows have promotions like any other.
+  if (!POOL_PATTERN.test(letters) || letters.length > MAX_LETTERS) {
+    return refuse(400, 'bad-request', 'Send the characters to look up: letters, digits and the symbols the search uses.');
   }
   const sorted = sortedLetters(letters);
   const voter = params.get('voter');
@@ -210,6 +222,44 @@ export async function getPromotions(request: Request, env: Env, deps?: Pick<Deps
   const counts = blocked ? await withoutBlocked(all, blocked) : all;
   const mine = voter && VOTER_PATTERN.test(voter) ? await readMyPromotions(env.DISCOVERIES_DB, voter, sorted) : [];
   return json({ open: promotionsOpen(env), counts, mine } satisfies PromotionsBody);
+}
+
+/**
+ * Why these terms cannot be promoted, or null: a term that is not a word of
+ * letters must be a term of a labelled class (`b8`, `&`, `wtf`) or a numeral
+ * the engine makes from the text's own digits (`182`). The site cannot check a
+ * word against the dictionary here — the artifact is the reader's, not the
+ * API's — but it can hold a term to the lists the site publishes.
+ */
+export function termProblem(words: readonly string[], terms: ReadonlyMap<string, ClassName>): string | null {
+  const unknown = words.find((word) => !/^[a-z]+$/.test(word) && !isNumeral(word) && !terms.has(word));
+  return unknown === undefined ? null : `${unknown} is not a word, and no class lists it.`;
+}
+
+/**
+ * The classes a submission names for its terms, checked: each key a term of
+ * the anagram, each value a class the site knows, and each term one that class
+ * could carry — the class its file gives it, `numerals` for a run of the
+ * text's own digits, or `names` and `leet` for a term of letters, which are
+ * the dictionary's to answer and not this API's. Null when any pair is wrong.
+ *
+ * A term can be two things at once: `2` is listed shorthand and a numeral the
+ * engine makes per query, so either class is right for it.
+ */
+function classesOf(value: unknown, words: readonly string[], terms: ReadonlyMap<string, ClassName>): Record<string, ClassName> | null {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) return null;
+  const out: Record<string, ClassName> = {};
+  for (const [term, name] of Object.entries(value as Record<string, unknown>)) {
+    if (!words.includes(term) || typeof name !== 'string' || !isClassName(name)) return null;
+    const fits =
+      terms.get(term) === name ||
+      (name === 'numerals' && isNumeral(term)) ||
+      ((name === 'names' || name === 'leet') && /^[a-z]+$/.test(term));
+    if (!fits) return null;
+    out[term] = name;
+  }
+  return out;
 }
 
 /** An optional note: absent, null or a string, tidied. Anything else is not a note. */
@@ -222,7 +272,10 @@ function note(value: unknown): string | null {
  * A submission's note, checked: the category, what the input is, why it is
  * good, the credit and the word requests. A refusal when any breaks its rule.
  */
-function submission(body: Record<string, unknown>, words: readonly string[]): Omit<SubmissionFields, 'input' | 'reading' | 'words' | 'tier'> | Response {
+function submission(
+  body: Record<string, unknown>,
+  words: readonly string[],
+): Omit<SubmissionFields, 'input' | 'reading' | 'classes' | 'words' | 'tier'> | Response {
   const category = body['category'];
   const about = note(body['about']);
   const why = note(body['why']);
@@ -289,8 +342,15 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
     return refuse(400, 'too-long', `A submission holds at most ${MAX_TYPED_LETTERS} letters.`);
   }
   if (!promotable(input, words, chosen)) {
-    return refuse(400, 'not-an-anagram', 'Those words do not use exactly the letters of the input.');
+    return refuse(400, 'not-an-anagram', 'Those words do not use exactly the characters of the input.');
   }
+  // Every term is a word of letters, a term of a labelled class, or a numeral
+  // of the text's own digits. Taking a promotion back always works.
+  const listed = await deps.terms(request, env);
+  const termIssue = on ? termProblem(words, listed) : null;
+  if (termIssue) return refuse(400, 'not-a-term', termIssue);
+  const classes = classesOf(body['classes'], words, listed);
+  if (classes === null) return refuse(400, 'bad-classes', 'Those terms and classes do not go together.');
   // The text's own words, in any order, and a re-spacing of it are the text, not an anagram of it.
   // Taking a promotion back always works, so only making one is refused.
   if (on && isTextItself(input, words, chosen)) {
@@ -318,7 +378,10 @@ export async function postPromote(request: Request, env: Env, deps: Deps): Promi
     return refuse(429, 'too-many', 'Too many promotions from this connection this hour. Try again later.');
   }
   const stored = reading ? JSON.stringify(reading) : null;
-  const fields = noted ? { input, reading: stored, words, tier, ...noted } : { input, reading: stored, words, tier, via: 'result' as const };
+  const storedClasses = Object.keys(classes).length > 0 ? JSON.stringify(classes) : null;
+  const fields = noted
+    ? { input, reading: stored, words, tier, ...noted, classes: storedClasses }
+    : { input, reading: stored, classes: storedClasses, words, tier, via: 'result' as const };
   const count = await setPromotion(env.DISCOVERIES_DB, key, voter, on, fields, new Date(now).toISOString());
   return json({ key, on, count });
 }
@@ -344,6 +407,20 @@ export async function guard(handler: () => Promise<Response>, message = 'Votes a
 type SiteList = { published: Published; blocked: ReadonlySet<string> };
 
 let siteList: { at: number; value: SiteList } | null = null;
+let termList: { at: number; value: ReadonlyMap<string, ClassName> } | null = null;
+
+/** terms.json, read once every five minutes, as hits.json is. */
+async function readTerms(request: Request, env: Env): Promise<ReadonlyMap<string, ClassName>> {
+  const now = Date.now();
+  if (termList && now - termList.at < 5 * 60_000) return termList.value;
+  const url = new URL('/terms.json', request.url);
+  const response = await (env.ASSETS ? env.ASSETS.fetch(new Request(url)) : fetch(url));
+  if (!response.ok) throw new Error(`terms.json answered ${response.status}`);
+  const body = (await response.json()) as TermsFile;
+  const value = new Map(body.terms.map((term) => [term.term, term.class]));
+  termList = { at: now, value };
+  return value;
+}
 
 /** hits.json, read once every five minutes. */
 async function readSiteList(request: Request, env: Env): Promise<SiteList> {
@@ -368,5 +445,6 @@ export function liveDeps(): Deps {
     fetch: (input, init) => fetch(input, init),
     published: async (request, env) => (await readSiteList(request, env)).published,
     blockedKeys: async (request, env) => (await readSiteList(request, env)).blocked,
+    terms: (request, env) => readTerms(request, env),
   };
 }

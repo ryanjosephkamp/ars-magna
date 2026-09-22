@@ -434,9 +434,23 @@ export class EngineCore {
     this.#port.post({ k: 'spellings', id, words });
   }
 
+  /**
+   * Whether a word is in the tier, or is a term of one of the classes asked
+   * for, and in the second case which class carries it: the classes are asked
+   * one at a time, in the table's order, so the answer is the same first class
+   * a row's tag names. Only a word no tier has costs those extra lookups, and
+   * only on the Build page, which asks once per word.
+   */
   #lookup(id: number, word: string, tier: Tier, classes: readonly ClassName[]): void {
-    const found = this.#require().has(normalizeLetters(word), tier, [...classes]);
-    this.#port.post({ k: 'lookup', id, found });
+    const engine = this.#require();
+    const letters = normalizeLetters(word);
+    const found = engine.has(letters, tier, [...classes]);
+    if (!found || classes.length === 0 || engine.has(letters, tier, [])) {
+      this.#port.post({ k: 'lookup', id, found });
+      return;
+    }
+    const termClass = CLASSES.filter((name) => classes.includes(name)).find((name) => engine.has(letters, tier, [name]));
+    this.#port.post(termClass ? { k: 'lookup', id, found, termClass } : { k: 'lookup', id, found });
   }
 
   /** Part-of-speech masks, so the interface can rank the alternate orderings

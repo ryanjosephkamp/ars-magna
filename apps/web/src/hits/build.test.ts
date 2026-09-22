@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FOLD,
   SECTIONS,
+  hitClasses,
   hitPage,
   inOrder,
   linkedSection,
@@ -60,6 +61,21 @@ describe('gallery build', () => {
     expect(toPublic(record({ submitter: 'mcp' })).submitter).toBeNull();
     // A shelf tag becomes the shelf, not a tag.
     expect(toPublic(record({ tags: ['classic', 'shelf:stretch'] }))).toMatchObject({ shelf: 'stretch', tags: ['classic'] });
+  });
+
+  it('carries the class of each term that is not a word, and names the classes for the row’s label', () => {
+    // Every hit today is words alone, so neither the field nor the label is there.
+    expect(toPublic(record({})).classes).toBeUndefined();
+    expect(hitClasses(toPublic(record({})))).toEqual([]);
+    const classed = toPublic(
+      record({ words: ['1', '2', 'link', 'b8'], display: '1 2 link b8', classes: { '1': 'shorthand', '2': 'shorthand', b8: 'blends' } }),
+    );
+    expect(classed.classes).toEqual({ '1': 'shorthand', '2': 'shorthand', b8: 'blends' });
+    // Once each, in the plan's table order, whatever order the terms read in.
+    expect(hitClasses(classed)).toEqual(['shorthand', 'blends']);
+    expect(hitClasses({ classes: { eiffel: 'names', '182': 'numerals' } })).toEqual(['numerals', 'names']);
+    // An empty map is no classes at all, so no row is labelled for nothing.
+    expect(toPublic(record({ classes: {} })).classes).toBeUndefined();
   });
 
   it('starts every row with no orderings, and reads an older list as having none of the newer fields', () => {
