@@ -1043,19 +1043,22 @@ the page and the API share, `isTextItself` in `packages/engine/src/identity.ts`,
 it splits a text into words as the engine does (`foldWords`). The search still lists a re-spacing, since
 "applesauce" is a different word from "apple sauce".
 
-**The checks.** *Letters match* compares the two boxes' letters, folded as the search folds them:
-apostrophes, hyphens and punctuation carry no letters; letters of other scripts, other symbols and what a
-reading leaves out are listed as skipped. A digit or a symbol of the pool is a character of the text as
-itself (see "Numbers and symbols"), which an anagram of the letters alone does not use and the search and
-`/api/promote` refuse; until roadmap N5 counts the pool on Build, the ledger lists such a run as skipped
-(`5 letters · 3 characters skipped: 182`), *Letters match* reads `No` while the text has one as itself, the
-verdict line names them once the letters are right (`The anagram does not use the text's 1, 8 and 2.`), and
-no Submit is offered. A reading that leaves the character out (`r=4:drop`, the five kept hits' Build links)
-matches as before. *Words known* reads each word between spaces against the tier the reader picks, and names a
-word it lacks: `doomer is in Extended, not Standard` for a word a wider tier has, `qzx is not in the dictionary`
-for one no tier has. A typed `don't` is the word `dont`, a listed form's letters, known at every tier (see
-"Add a form to the vocabulary"); a typed `dog's` is the word `dogs`, and keeps its apostrophe only if you set it
-on the hit's display at review.
+**The checks.** *Letters match* compares the two boxes' characters, folded as the search folds them:
+apostrophes, hyphens and punctuation carry nothing; letters of other scripts, symbols outside the set and
+what a reading leaves out are listed as skipped. A digit or a symbol of the pool is a character of the text
+as itself (see "Numbers and symbols"), so the ledger counts it as it counts a letter: "Blink-182" is
+`8 characters`, an anagram of it has to use the 1, the 8 and the 2, and one that does not reads
+`1 missing 1 · 1 missing 2 · 1 missing 8` as it would for a letter, with no Submit. `1 2 link b8` matches,
+and the verdict reads `All 8 characters used`. A reading that leaves the character out (`r=4:drop`, the
+five kept hits' Build links) owes it nothing and matches as before. *Words known* reads each term between
+spaces against the tier and the **Terms** classes the reader picks, and names what it finds:
+`doomer is in Extended, not Standard` for a word a wider tier has, `qzx is not in the dictionary` for one
+no tier has, `b8 is a blend` for a term of a class that is on, and `b8 is a blend, not turned on` for one
+whose class is off, since turning it on is one tick. A typed `don't` is the word `dont`, a listed form's
+letters, known at every tier (see "Add a form to the vocabulary"); a typed `dog's` is the word `dogs`, and
+keeps its apostrophe only if you set it on the hit's display at review. A submission records the classes
+beside the reading, and `/api/promote` refuses a term that is neither a word of letters, a numeral of the
+text's own digits, nor a term the class files list (`b9 is not a word, and no class lists it.`).
 
 **The analysis** beneath the boxes counts the letters and the words of each side, names the parts of speech
 the dictionary gives each word and how common it is, and, for the text alone, states how many anagrams the

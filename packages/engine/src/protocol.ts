@@ -33,9 +33,9 @@ export function isClassName(value: string): value is ClassName {
 }
 
 /**
- * The characters Search turns leet on for by default (roadmap N5): the three
- * symbols whose letter is plain. A digit in a text is usually a number, so
- * digits are off. The reader changes it a character at a time under the field.
+ * The characters Search turns leet on for by default: the three symbols whose
+ * letter is plain. A digit in a text is usually a number, so digits are off.
+ * The reader changes it a character at a time under the field.
  */
 export const SEARCH_LEET_DEFAULT: readonly string[] = ['$', '!', '@'];
 
