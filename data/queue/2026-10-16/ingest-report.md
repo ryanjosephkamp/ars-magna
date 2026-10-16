@@ -2,7 +2,7 @@
 
 Queue: /home/user/ars-magna/data/queue/2026-10-16
 Verdicts: 314 read · 314 valid · 0 rejected
-Hits: 0 new in data/hits.jsonl (0 accepted, 0 alternates proposed) · 223 near misses kept in judge-output.jsonl
+Hits: 63 new in data/hits.jsonl (63 accepted, 0 alternates proposed) · 223 near misses kept in judge-output.jsonl
 Candidates moved to enumerated: 0
 
 Merging this pull request accepts every hit under Interesting and A stretch. Greatest Hits changes only when the operator promotes a hit by name.
