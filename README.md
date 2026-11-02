@@ -306,7 +306,7 @@ scripts/readings.json  how digits and symbols read, shared by Rust and TypeScrip
 
 CI runs on pull requests, and on pushes to `main` that change more than the daily data files.
 The deploy workflow publishes `main` to Cloudflare Pages, project
-`ars-magna`, at <https://ars-magna.pages.dev>. It skips rather than failing when the
+`ars-magna`, at <https://ars-magna.pages.dev>, when it is run by hand. It skips rather than failing when the
 project variable below is unset, because a job that is always red trains people to stop
 reading it.
 
