@@ -1,0 +1,50 @@
+{
+  "name": "@ars-magna/hits",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Greatest Hits pipeline: find inputs, enumerate, prefilter, screen, judge, ingest, publish.",
+  "scripts": {
+    "fetch": "node --experimental-strip-types src/fetch.ts",
+    "enumerate": "node --experimental-strip-types src/enumerate.ts",
+    "prefilter": "node --experimental-strip-types src/prefilter.ts",
+    "screen": "node --experimental-strip-types src/screen.ts",
+    "judge": "node --experimental-strip-types src/judge.ts",
+    "ingest": "node --experimental-strip-types src/ingest.ts",
+    "publish": "node --experimental-strip-types src/publish.ts",
+    "set": "node --experimental-strip-types src/set.ts",
+    "requeue": "node --experimental-strip-types src/requeue.ts",
+    "backfill": "node --experimental-strip-types src/backfill.ts",
+    "desk": "node --experimental-strip-types src/desk.ts",
+    "justify": "node --experimental-strip-types src/justify.ts",
+    "describe": "node --experimental-strip-types src/describe.ts",
+    "sense": "node --experimental-strip-types src/sense.ts",
+    "glosses": "node --experimental-strip-types src/glosses.ts",
+    "tag": "node --experimental-strip-types src/tag.ts",
+    "monthly": "node --experimental-strip-types src/monthly.ts",
+    "order": "node --experimental-strip-types src/order.ts",
+    "display": "node --experimental-strip-types src/display.ts",
+    "input": "node --experimental-strip-types src/input.ts",
+    "read": "node --experimental-strip-types src/read.ts",
+    "judged-at": "node --experimental-strip-types src/judged-at.ts",
+    "request": "node --experimental-strip-types src/request.ts",
+    "promotions:export": "node --experimental-strip-types src/promotions/export.ts",
+    "promotions:review": "node --experimental-strip-types src/promotions/review.ts",
+    "promotions:ingest": "node --experimental-strip-types src/promotions/ingest.ts",
+    "promotions:apply": "node --experimental-strip-types src/promotions/apply.ts",
+    "promotions:block": "node --experimental-strip-types src/promotions/block.ts"
+  },
+  "dependencies": {
+    "@ars-magna/engine": "workspace:*",
+    "@huggingface/hub": "^2.17.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "exports": {
+    "./about": "./src/about.ts",
+    "./schema": "./src/schema.ts",
+    "./ids": "./src/ids.ts",
+    "./check": "./src/check.ts",
+    "./queue": "./src/queue.ts"
+  }
+}

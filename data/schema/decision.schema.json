@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/decision.schema.json",
+  "title": "The review's decision on a promoted anagram, as published",
+  "description": "data/promotions/decisions.jsonl: one line per decision `pnpm promotions:apply` published, after the operator merged the review in the private repository. It carries no text: the anagram is named by its code, and a hit id appears only for an anagram placed on a shelf or as an alternate. A later review of the same anagram is a new line.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "key_sha256",
+    "decided",
+    "promotions",
+    "outcome",
+    "model",
+    "rubric_version",
+    "review_version",
+    "judged_by",
+    "applied"
+  ],
+  "properties": {
+    "key_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The SHA-256 of the promotion key, as lowercase hex: the code an anagram is published under in place of its words."
+    },
+    "decided": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "promotions": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Its promotions when the review read it: it is read again once they have doubled."
+    },
+    "outcome": {
+      "enum": [
+        "interesting",
+        "stretch",
+        "alternate",
+        "near",
+        "none",
+        "withheld",
+        "words-missing"
+      ],
+      "description": "interesting and stretch: placed on that shelf. alternate: proposed, past the input's three shelf slots. near and none: not added. withheld: a private person, recorded with no scores. words-missing: a word is in no tier; read again once the export's check passes."
+    },
+    "relation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "reads": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "category": {
+      "enum": [
+        "people",
+        "companies",
+        "products",
+        "titles",
+        "places",
+        "phrases"
+      ]
+    },
+    "hit_id": {
+      "type": "string",
+      "pattern": "^[a-z]+:(people|companies|products|titles|places|phrases):[a-z]+(-[a-z]+)*$"
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rubric_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+$"
+    },
+    "review_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+$"
+    },
+    "judged_by": {
+      "enum": [
+        "routine",
+        "hand"
+      ]
+    },
+    "applied": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "withheld"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "relation": false,
+          "reads": false,
+          "category": false,
+          "hit_id": false
+        }
+      },
+      "else": {
+        "required": [
+          "relation",
+          "reads",
+          "category"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "enum": [
+              "interesting",
+              "stretch",
+              "alternate"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "hit_id"
+        ]
+      }
+    }
+  ]
+}

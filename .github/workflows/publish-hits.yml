@@ -1,0 +1,41 @@
+name: Publish hits
+
+# When a hit is accepted (a merge that touches data/hits.jsonl), rebuild the
+# dataset and push it to Hugging Face. Only accepted and featured rows are
+# published; the build is deterministic, so a merge that changes nothing
+# publishable is a no-op upload.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/hits.jsonl'
+      - 'tools/hits/templates/dataset-card.md'
+      - 'tools/hits/src/publish.ts'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-hits
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # The one secret the pipeline needs: a Hugging Face token with write
+    # access to the dataset. `gh secret set HF_TOKEN` prompts for it.
+    if: ${{ vars.PUBLISH_HITS != 'off' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Publish to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: pnpm hits:publish

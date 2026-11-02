@@ -1,0 +1,317 @@
+/**
+ * `pnpm hits:prefilter [--date=YYYY-MM-DD] [--per-input=500|all]`
+ *
+ * From everything the engine enumerated, keep what could possibly be a hit,
+ * put each phrase in the order that reads best, and score it — with no model.
+ * Hundreds of thousands of rows go in; what comes out goes to the screen
+ * (`pnpm hits:screen`), where a model keeps the phrases with any link to
+ * their input.
+ *
+ * The rules are deliberately blunt: everyday words only, a word under three
+ * letters only when `short-words.txt` lists it, at most five words, no word
+ * twice, and never the input re-spaced. They judge form, not meaning, so
+ * nothing apt is cut for reading awkwardly. `--per-input` bounds how many
+ * phrases of one input go to the screen, in `screenOrder`. Each phrase's word
+ * order is the one the site itself uses to display a result (`bestOrder`), so
+ * the screen sees the phrase the way a reader would.
+ */
+import { createReadStream } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { createInterface } from 'node:readline';
+
+import { bestOrder, isRespacing, scoreOrder } from '@ars-magna/engine';
+
+import { hitId, alphagram, isCategory, lettersOf, type Category } from './ids.ts';
+import { PREFILTERED, RAW, SUMMARY, flag, pickQueue } from './queue.ts';
+import { CANDIDATES_PATH, candidateSchema, readJsonl, today, writeJsonl, type Candidate, type CandidateRun } from './schema.ts';
+import type { ClassName } from '@ars-magna/engine/protocol';
+
+import { rubric } from './judge.ts';
+import { PRESETS, addRun, queueName, queueSettings, readQueueAdditions, readShortWords } from './settings.ts';
+
+/** One line of raw.jsonl, as `anagram batch` writes it. */
+export type RawRow = {
+  id: string;
+  input: string;
+  category: string;
+  count: string;
+  count_is_floor: boolean;
+  index: string;
+  sampled: boolean;
+  /** The anchor word the row's search required, when it came from one. */
+  anchor?: string;
+  words: string[];
+  zipf: number[];
+  /** Parallel to `words`: the narrowest tier each word belongs to, or a term's class name. */
+  tiers: string[];
+  pos: number[];
+  /** How the input's digits and symbols were read, every distinct one; absent for an input without any. */
+  reading?: Record<string, string>;
+  /** Each word of `words` that is a term of a class rather than a word of the dictionary, with its class; absent when every word is a word. */
+  classes?: Record<string, ClassName>;
+};
+
+/**
+ * One line of prefiltered.jsonl: a candidate hit, ordered and scored. A row
+ * rebuilt from the screen (`screened.jsonl`) has no `count`, `index` or
+ * `sampled`: the compact screen input does not carry them.
+ */
+export type Prefiltered = {
+  /** The hit id: candidate id plus the words as a multiset. */
+  id: string;
+  candidate_id: string;
+  input: string;
+  category: Category;
+  words: string[];
+  display: string;
+  letters: string;
+  prefilter_score: number;
+  tier: 'common' | 'standard' | 'full' | 'extended';
+  count?: string;
+  index?: string;
+  sampled?: boolean;
+  /** The anchor word of the search that found it, when one did. */
+  anchor?: string;
+  /** How the input's digits and symbols were read, every distinct one; absent for an input without any. */
+  reading?: Record<string, string>;
+  /** The class of each term that is not a word of the dictionary (decision D63); absent when every term is a word. */
+  classes?: Record<string, ClassName>;
+};
+
+export const RULES = {
+  maxWords: 5,
+  /** Shorter words pass only when the short-word allowlist names them. */
+  minWordLength: 3,
+  /** Every word must be in this tier. */
+  tier: 'common' as const,
+};
+
+/**
+ * Why a row was dropped, or `null` to keep it. Exposed so the tests can
+ * name the rule that fired. `allow` is the short-word allowlist, and
+ * `additions` the site's own words, which the engine searched beside Common
+ * and which carry the `extended` tier label rather than `common`.
+ */
+export function reject(
+  row: RawRow,
+  allow: ReadonlySet<string> = new Set(),
+  additions: ReadonlySet<string> = new Set(),
+): string | null {
+  if (row.words.length === 0 || row.words.length > RULES.maxWords) return 'word count';
+  // A term of a class is governed by its class, not by the word rules: a
+  // numeral or a shorthand character is one character long and in no tier.
+  const term = (w: string) => row.classes?.[w] !== undefined;
+  if (row.words.some((w) => w.length < RULES.minWordLength && !allow.has(w) && !term(w))) return 'short word';
+  if (new Set(row.words).size !== row.words.length) return 'repeated word';
+  // `tiers` is parallel to `words`, so an addition is excused by name rather
+  // than by its label. Excusing the label alone would let any rare word
+  // through the moment one addition appeared in the row.
+  if (row.tiers.some((t, i) => t !== RULES.tier && !additions.has(row.words[i] ?? '') && !term(row.words[i] ?? ''))) return 'rare word';
+  if (!isCategory(row.category)) return 'category';
+  // "Star Wars" -> "star wars", "The Godfather" -> "the god father": the
+  // input's own letters in the input's own order, in some arrangement of the
+  // words. A re-spacing, not an anagram. The rule is the engine's, shared with
+  // Build and the promotions API (`identity.ts`).
+  // The input's letters as the batch read it: by the row's reading, or, for a row from before phase N, with its digits dropped.
+  if (isRespacing(row.words, lettersOf(row.input, row.reading ?? null))) return 'identity';
+  return null;
+}
+
+/**
+ * The score: how well the words read in their best order, plus how common
+ * they are, minus a little for every extra word. Only the gaps matter — it is
+ * a sort key for the judge's queue and a tie-breaker in the dataset, not a
+ * grade. The zipf byte is `(zipf + 1) * 24`, so dividing by 24 puts it back
+ * on the zipf scale, where everyday words sit around 4 to 6.
+ */
+export function score(words: readonly string[], masks: readonly number[], zipf: readonly number[]): number {
+  const order = scoreOrder(words, masks);
+  const meanZipf = zipf.reduce((a, b) => a + b, 0) / Math.max(1, zipf.length) / 24 - 1;
+  const lengthPenalty = 2 * (words.length - 1);
+  return Math.round((order + 2 * meanZipf - lengthPenalty) * 100) / 100;
+}
+
+export function prefilterRow(
+  row: RawRow,
+  allow: ReadonlySet<string> = new Set(),
+  additions: ReadonlySet<string> = new Set(),
+): Prefiltered | null {
+  if (reject(row, allow, additions) !== null || !isCategory(row.category)) return null;
+  const ordered = bestOrder(row.words, row.pos);
+  const masks = ordered.map((w) => row.pos[row.words.indexOf(w)] ?? 0);
+  return {
+    id: hitId(row.input, row.category, row.words, row.reading ?? null),
+    candidate_id: row.id,
+    input: row.input,
+    category: row.category,
+    words: ordered,
+    display: ordered.join(' '),
+    letters: alphagram(row.input, row.reading ?? null),
+    ...(row.reading ? { reading: row.reading } : {}),
+    ...(row.classes ? { classes: row.classes } : {}),
+    prefilter_score: score(ordered, masks, row.zipf),
+    // The narrowest tier that holds every word, widest test first. A site
+    // addition is outside the pinned list entirely, so it has to be asked about
+    // before `full`, or an extended row would be recorded as a pinned one.
+    // A term's tier label is its class, which says nothing about the words'.
+    tier: row.tiers.includes('extended')
+      ? 'extended'
+      : row.tiers.includes('full')
+        ? 'full'
+        : row.tiers.includes('standard')
+          ? 'standard'
+          : 'common',
+    count: row.count,
+    index: row.index,
+    sampled: row.sampled,
+    ...(row.anchor ? { anchor: row.anchor } : {}),
+  };
+}
+
+const byScore = (a: Prefiltered, b: Prefiltered) => b.prefilter_score - a.prefilter_score || a.id.localeCompare(b.id);
+
+/**
+ * The order one input's phrases go to the screen in, and so which of them
+ * survive `--per-input`. Phrases from an anchor search come first, since each
+ * anchor was chosen for its link to the input. The rest take turns by word
+ * count, best-reading first within each count. The score favors fewer, more
+ * common words, so ranking by score alone pushes apt longer phrases far down:
+ * in the s2 gate run, "no untidy clothes" was 4,096th of 17,892 by score and
+ * 93rd taking turns, and 10 of 12 traced classics sat in the first 500
+ * taking turns against 5 by score.
+ */
+export function screenOrder(rows: readonly Prefiltered[]): Prefiltered[] {
+  const anchored = rows.filter((r) => r.anchor).sort(byScore);
+  const byLength = new Map<number, Prefiltered[]>();
+  for (const row of rows) {
+    if (row.anchor) continue;
+    byLength.set(row.words.length, [...(byLength.get(row.words.length) ?? []), row]);
+  }
+  const lists = [...byLength.entries()].sort((a, b) => a[0] - b[0]).map(([, list]) => list.sort(byScore));
+  const out = [...anchored];
+  const longest = Math.max(0, ...lists.map((l) => l.length));
+  for (let i = 0; i < longest; i++) {
+    for (const list of lists) if (i < list.length) out.push(list[i]!);
+  }
+  return out;
+}
+
+/**
+ * Every row that passed, deduplicated by hit id (two spellings of one word
+ * are two hits, but two orderings of one multiset are one), grouped by
+ * candidate in the order they arrived, each group in `screenOrder`. At most
+ * `perInput` per candidate go on to the screen.
+ */
+export function select(rows: readonly Prefiltered[], perInput = Infinity): Prefiltered[] {
+  const byCandidate = new Map<string, Map<string, Prefiltered>>();
+  for (const row of rows) {
+    const group = byCandidate.get(row.candidate_id) ?? new Map<string, Prefiltered>();
+    const existing = group.get(row.id);
+    if (!existing || existing.prefilter_score < row.prefilter_score) group.set(row.id, row);
+    byCandidate.set(row.candidate_id, group);
+  }
+  const out: Prefiltered[] = [];
+  for (const group of byCandidate.values()) out.push(...screenOrder([...group.values()]).slice(0, perInput));
+  return out;
+}
+
+/** `--per-input=N`, or `all` for no bound. */
+export function perInputFlag(value: string | undefined): number {
+  if (value === undefined) return PRESETS.routine.perInput ?? Infinity;
+  if (value === 'all') return Infinity;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`--per-input must be a positive whole number or all, not ${value}`);
+  return n;
+}
+
+/**
+ * A candidate the engine ran that left nothing for the judge is done: it
+ * moves to `enumerated` with a note, so the next night does not enumerate it
+ * again and again. Only candidates this run actually enumerated count
+ * (`ran`, from the batch summary), and only rows that passed the rules
+ * matter (`kept`), not the global cap, which guarantees every candidate its
+ * best row anyway. Returns the candidates it changed.
+ */
+export function settleEmpty(
+  candidates: Candidate[],
+  ran: ReadonlySet<string>,
+  kept: ReadonlySet<string>,
+  date: string,
+  run?: CandidateRun,
+): Candidate[] {
+  const settled: Candidate[] = [];
+  for (const c of candidates) {
+    if (c.status !== 'new' || !ran.has(c.id) || kept.has(c.id)) continue;
+    c.status = 'enumerated';
+    const note = `nothing keepable ${date}`;
+    c.notes = c.notes ? `${c.notes}; ${note}` : note;
+    if (run) addRun(c, run);
+    settled.push(c);
+  }
+  return settled;
+}
+
+async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  const dir = await pickQueue(argv);
+  const perInput = perInputFlag(flag(argv, 'per-input'));
+  const allow = await readShortWords();
+  const additions = await readQueueAdditions(dir);
+  if (additions.size > 0) console.log(`additions: ${additions.size}`);
+
+  const kept: Prefiltered[] = [];
+  const dropped = new Map<string, number>();
+  let seen = 0;
+
+  const lines = createInterface({ input: createReadStream(resolve(dir, RAW), 'utf8') });
+  for await (const line of lines) {
+    if (line.trim().length === 0) continue;
+    seen++;
+    const row = JSON.parse(line) as RawRow;
+    const why = reject(row, allow, additions);
+    if (why !== null) {
+      dropped.set(why, (dropped.get(why) ?? 0) + 1);
+      continue;
+    }
+    // `prefilterRow` runs `reject` again, so it needs the same additions:
+    // without them it quietly returns null and the row is lost without any
+    // rule being named for it.
+    const pre = prefilterRow(row, allow, additions);
+    if (pre) kept.push(pre);
+  }
+
+  const selected = select(kept, perInput);
+  const out = resolve(dir, PREFILTERED);
+  await writeFile(out, selected.map((r) => JSON.stringify(r)).join('\n') + (selected.length ? '\n' : ''));
+
+  const candidates = new Set(selected.map((r) => r.candidate_id)).size;
+  const unique = new Set(kept.map((r) => r.id)).size;
+  console.log(
+    `${seen.toLocaleString()} rows in · ${kept.length.toLocaleString()} pass the rules (${unique.toLocaleString()} distinct) · ` +
+      `${selected.length.toLocaleString()} kept for the screen across ${candidates} candidates` +
+      (Number.isFinite(perInput) ? ` (at most ${perInput} per input)` : ''),
+  );
+  for (const [why, n] of [...dropped.entries()].sort((a, b) => b[1] - a[1])) {
+    console.log(`  dropped ${n.toLocaleString().padStart(10)}  ${why}`);
+  }
+  console.log(`-> ${out}`);
+
+  // Close out the candidates that produced nothing keepable.
+  const summary = JSON.parse(await readFile(resolve(dir, SUMMARY), 'utf8')) as { candidates: { id: string }[] };
+  const ran = new Set(summary.candidates.map((c) => c.id));
+  const keptIds = new Set(kept.map((r) => r.candidate_id));
+  const validate = await candidateSchema();
+  const all = await readJsonl(CANDIDATES_PATH, validate);
+  const date = today();
+  const { version } = await rubric();
+  const settled = settleEmpty(all, ran, keptIds, date, { queue: queueName(dir), settings: await queueSettings(dir), rubric: version, date });
+  if (settled.length > 0) {
+    await writeJsonl(CANDIDATES_PATH, all, validate);
+    console.log(`${settled.length} candidates produced nothing keepable and moved to enumerated: ${settled.map((c) => c.input).join(', ')}`);
+  }
+}
+
+if (process.argv[1] && import.meta.filename === process.argv[1]) {
+  await main();
+}
