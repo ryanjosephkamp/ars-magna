@@ -1,15 +1,8 @@
 name: Deploy
 
+# A deploy changes the live site and applies migrations to its database, so it
+# runs only when started by hand (Actions, Deploy, Run workflow).
 on:
-  push:
-    branches: [main]
-    # The site does not read the queue, the candidates or the daily counts; the
-    # hits do (the gallery is built from data/hits.jsonl), and so does the block
-    # list (data/promotions/blocks.jsonl), so those still redeploy.
-    paths-ignore:
-      - 'data/queue/**'
-      - 'data/candidates.jsonl'
-      - 'data/counts/**'
   workflow_dispatch:
 
 concurrency:
