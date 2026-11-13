@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # A nightly queue commit, or the day's counts, change data, not code.
+    paths-ignore:
+      - 'data/queue/**'
+      - 'data/candidates.jsonl'
+      - 'data/counts/**'
+  pull_request:
+    paths-ignore:
+      - 'data/queue/**'
+      - 'data/candidates.jsonl'
+      - 'data/counts/**'
+
+# A newer push makes an in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Cheap, and needs neither the engine nor the pinned sources: it reads the
+      # committed dictionary to catch an addition English OpenList already
+      # carries, a malformed line, or a list over the cap.
+      - name: Vocabulary
+        run: pnpm vocab:check
+
+      # The wasm-bindgen output is generated, not committed, so a clean checkout
+      # has no `packages/engine/src/wasm/`. Typecheck and the TypeScript tests
+      # both import it, so the engine has to be built before either runs.
+      - name: Rust toolchain
+        run: rustup target add wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Pinned, never `latest`: the action's unauthenticated lookup falls back
+      # to v0.9.1 when rate limited, and v0.9.1 rejects `--no-pack`. Keep this in
+      # step with deploy.yml.
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: v0.15.0
+
+      - name: Build engine
+        run: pnpm wasm:build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: TypeScript tests
+        run: pnpm test
+
+      # The golden and oracle suites read the committed dictionary artifacts,
+      # so they exercise the real 378,844-word list rather than a fixture.
+      - name: Rust tests
+        run: cargo test --release --workspace
+
+      - name: Dictionary artifacts are reproducible
+        # Rebuilds from the pinned sources and fails if the committed artifacts
+        # drift. Skipped unless the build inputs changed, since it downloads
+        # ~42 MB of pinned source data.
+        if: contains(github.event.head_commit.message, '[dict]')
+        run: pnpm dict:fetch && pnpm dict:verify

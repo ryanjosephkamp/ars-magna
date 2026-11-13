@@ -1,0 +1,108 @@
+name: Hits nightly
+
+# The model-free half of the Greatest Hits pipeline, every night: find the
+# day's trending inputs, enumerate their anagrams with the Rust engine under
+# the routine preset (tools/hits/src/settings.ts), keep what passes the
+# prefilter's rules, and commit the compact screen input. Screening and
+# judging are a nightly routine that uses a language model (see "Curating
+# Discover" in the README), which reads what this job leaves behind and opens
+# a pull request; nothing lands in
+# the dataset without a person merging it.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Number of top trending titles to consider'
+        default: '150'
+      per_input:
+        description: 'Most phrases per input sent to the screen'
+        default: '500'
+
+concurrency:
+  group: hits-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `anagram batch` is native Rust; the runner ships a toolchain and the
+      # cache keeps the build to seconds after the first night.
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p anagram-cli
+
+      - name: Find trending candidates
+        run: pnpm hits:fetch --limit=${{ github.event.inputs.limit || '150' }}
+
+      - name: Enumerate
+        id: enumerate
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          # A second run on the same UTC day (a manual run after the scheduled
+          # one, or the reverse) gets its own folder, as a manual run does:
+          # the routine answers a folder once, and a folder that already holds a
+          # queue must not be overwritten. Every queue commits its summary.
+          if [ -e "data/queue/$DATE/summary.json" ]; then
+            for s in b c d e f g h; do
+              if [ ! -e "data/queue/$DATE$s/summary.json" ]; then DATE="$DATE$s"; break; fi
+            done
+          fi
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          pnpm hits:enumerate --date=$DATE --preset=routine
+
+      - name: Prefilter
+        run: pnpm hits:prefilter --date=${{ steps.enumerate.outputs.date }} --per-input=${{ github.event.inputs.per_input || '500' }}
+
+      - name: Write the screen input
+        run: pnpm hits:screen --date=${{ steps.enumerate.outputs.date }}
+
+      # The raw enumeration and the prefiltered rows are too big for git; they
+      # are kept for ninety days as an artifact. The screen input carries the
+      # phrases and their scores, which is all the routine needs.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raw-${{ steps.enumerate.outputs.date }}
+          path: |
+            data/queue/${{ steps.enumerate.outputs.date }}/raw.jsonl
+            data/queue/${{ steps.enumerate.outputs.date }}/prefiltered.jsonl
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Commit the queue
+        run: |
+          QUEUE=data/queue/${{ steps.enumerate.outputs.date }}
+          git config user.name "hits-nightly"
+          git config user.email "hits-nightly@users.noreply.github.com"
+          # additions.txt is the vocabulary this queue was enumerated with.
+          # Without it a later prefilter of the same queue, from a fresh
+          # checkout, would drop every row containing a site addition.
+          git add data/candidates.jsonl "$QUEUE/summary.json" "$QUEUE/additions.txt"
+          # A thin night writes no screen input; its summary is the record.
+          if ls "$QUEUE"/screen-input-*.md > /dev/null 2>&1; then
+            git add "$QUEUE"/screen-input-*.md "$QUEUE/screen-scores.txt"
+          fi
+          if git diff --cached --quiet; then
+            echo "nothing new tonight"
+            exit 0
+          fi
+          PHRASES=$(wc -l < "$QUEUE/prefiltered.jsonl" | tr -d ' ')
+          git commit -m "Hits queue ${{ steps.enumerate.outputs.date }}: $PHRASES phrases to screen"
+          git push

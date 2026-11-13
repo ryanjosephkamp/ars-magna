@@ -1,0 +1,19 @@
+{
+  "name": "@ars-magna/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server for the Ars Magna engine: solve, count, nth, explain_word, propose_hit.",
+  "bin": {
+    "ars-magna-mcp": "./bin/ars-magna-mcp.js"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/stdio.ts"
+  },
+  "dependencies": {
+    "@ars-magna/engine": "workspace:*",
+    "@ars-magna/hits": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "zod": "^3.25.0"
+  }
+}

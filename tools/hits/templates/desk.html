@@ -1,0 +1,1385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ars Magna Review Desk</title>
+<style>
+  /* The site's own tokens (apps/web/src/styles.css): ink on true white, one accent. */
+  :root {
+    color-scheme: light;
+    --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+    --ground: oklch(0.985 0 0);
+    --surface: oklch(1 0 0);
+    --sunken: oklch(0.962 0 0);
+    --ink: oklch(0.19 0 0);
+    --ink-soft: oklch(0.4 0 0);
+    --ink-faint: oklch(0.52 0 0);
+    --rule: oklch(0.915 0 0);
+    --rule-strong: oklch(0.82 0 0);
+    --accent: oklch(0.52 0.19 27);
+    --accent-hover: oklch(0.45 0.19 27);
+    --accent-wash: oklch(0.965 0.018 27);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font: 15px/1.5 var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  a { color: var(--accent); text-underline-offset: 0.15em; }
+  a:hover { color: var(--accent-hover); }
+  ::selection { background: var(--accent-wash); }
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  header { padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 0; }
+  h1 { font: 400 1.75rem/1.15 var(--font-display); margin: 0; }
+  .meta { color: var(--ink-soft); margin: 0.3rem 0 0; font-size: 0.875rem; }
+
+  nav[role='tablist'] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 1rem clamp(1rem, 3vw, 2.5rem) 0;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  nav button {
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0.4rem 0.6rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  nav button:hover { color: var(--ink); }
+  nav button[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--accent); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24rem;
+    gap: 2rem;
+    align-items: start;
+    padding: 1.25rem clamp(1rem, 3vw, 2.5rem) 4rem;
+  }
+  aside {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--rule);
+  }
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    aside { position: static; max-height: none; padding: 1.25rem 0 0; border-left: 0; border-top: 1px solid var(--rule-strong); }
+  }
+
+  h2 { font: 400 1.3rem/1.25 var(--font-display); margin: 0 0 0.6rem; text-wrap: balance; }
+  h3 { font: 600 0.9375rem/1.3 var(--font-sans); margin: 1.75rem 0 0.4rem; }
+  .label, h3 .category {
+    font: 600 0.6875rem/1 var(--font-sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  h3 .category { margin-left: 0.4rem; }
+  .label { display: block; margin: 0.75rem 0 0.3rem; }
+  .small { font-size: 0.8125rem; color: var(--ink-soft); }
+  .empty { color: var(--ink-soft); }
+  .problem { color: var(--accent-hover); font-size: 0.8125rem; margin: 0.25rem 0; }
+  p { max-width: 65ch; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 0 1.25rem; align-items: end; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--rule); }
+  th { font-size: 0.75rem; font-weight: 600; color: var(--ink-soft); border-bottom-color: var(--rule-strong); white-space: nowrap; }
+  td.phrase { font: 1.0625rem/1.35 var(--font-display); white-space: nowrap; }
+  td.scores, td.where { white-space: nowrap; }
+  td.scores { color: var(--ink-soft); }
+  .where-near { color: var(--ink-faint); }
+  .where-greatest { color: var(--accent); font-weight: 600; }
+  tr.pending td { background: var(--accent-wash); }
+
+  select, input[type='text'], textarea {
+    background: var(--surface);
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    padding: 0.3rem 0.45rem;
+    max-width: 100%;
+  }
+  textarea { width: 100%; min-height: 4.5rem; resize: vertical; }
+  td textarea { min-width: 17rem; min-height: 3.6rem; font-size: 0.8125rem; }
+  td input[type='text'] { min-width: 13rem; font-size: 0.8125rem; }
+  .control { display: grid; gap: 0.35rem; }
+  .sense-word { display: block; margin: 0.5rem 0 0.2rem; font: 1rem/1.3 var(--font-display); color: var(--ink); }
+  .senses input[type='text'] { width: 100%; }
+  fieldset { border: 0; padding: 0; margin: 0 0 0.75rem; }
+  .check { display: flex; gap: 0.5rem; align-items: center; margin: 0.4rem 0; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.6rem 0; }
+  button.act {
+    border: 1px solid var(--rule-strong);
+    background: var(--surface);
+    border-radius: 3px;
+    padding: 0.3rem 0.8rem;
+    cursor: pointer;
+  }
+  button.act:hover:not([disabled]) { border-color: var(--accent); color: var(--accent-hover); }
+  button.act.primary { border-color: var(--accent); color: var(--accent); }
+  button.act[disabled] { color: var(--ink-faint); cursor: default; }
+  button.link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    font-size: 0.8125rem;
+  }
+
+  ul.decisions { list-style: none; margin: 0 0 0.5rem; padding: 0; }
+  ul.decisions li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    margin: 0.3rem 0 0.5rem;
+    max-height: 20rem;
+    overflow: auto;
+    padding: 0.6rem 0.75rem;
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font: 0.75rem/1.55 var(--font-mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .copy-fallback { display: block; width: 100%; min-height: 8rem; margin-top: 0.4rem; font: 0.75rem/1.5 var(--font-mono); }
+
+  /* Reordering a row's words: tap them in the order they should read. */
+  .reading-was { display: block; font: 0.8125rem/1.4 var(--font-sans); color: var(--ink-soft); white-space: normal; }
+  .reorder { display: grid; gap: 0.4rem; margin-top: 0.4rem; white-space: normal; font: 0.8125rem/1.4 var(--font-sans); }
+  .reorder .placed { font: 1.0625rem/1.35 var(--font-display); min-height: 1.45rem; }
+  .reorder .placed .left { color: var(--ink-faint); }
+  .words { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  button.word {
+    min-height: 2.25rem;
+    padding: 0.2rem 0.7rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    background: var(--surface);
+    font: 1rem/1 var(--font-display);
+    cursor: pointer;
+  }
+  button.word:hover { border-color: var(--accent); color: var(--accent-hover); }
+  td.phrase .link { display: inline-block; margin-top: 0.2rem; }
+
+  /* The Promoted tab: what readers typed, shown as text, and the review's decision. */
+  .count { display: block; font: 1.25rem/1.2 var(--font-display); }
+  td.readers, td.review { min-width: 11rem; max-width: 20rem; font-size: 0.8125rem; overflow-wrap: anywhere; }
+  dl.note { margin: 0 0 0.6rem; padding: 0 0 0.6rem; border-bottom: 1px dashed var(--rule); }
+  dl.note:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+  dl.note dt { font: 600 0.6875rem/1.4 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); margin-top: 0.3rem; }
+  dl.note dd { margin: 0; white-space: pre-wrap; }
+  .kept { color: var(--ink-soft); }
+
+  /* A phone: a table's rows read top to bottom, each value under its column's name. */
+  @media (max-width: 640px) {
+    header, nav[role='tablist'], .layout { padding-left: 0.9rem; padding-right: 0.9rem; }
+    .toolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .toolbar label, .toolbar select, .toolbar input[type='text'] { width: 100%; }
+    .table-wrap { overflow-x: visible; }
+    table.rows thead { display: none; }
+    table.rows, table.rows tbody, table.rows tr, table.rows td { display: block; width: 100%; }
+    table.rows tr { padding: 0.75rem 0; border-bottom: 1px solid var(--rule-strong); }
+    table.rows td { border-bottom: 0; padding: 0.2rem 0; white-space: normal; }
+    table.rows td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-top: 0.3rem;
+      font: 600 0.6875rem/1.4 var(--font-sans);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+    table.rows td.phrase { font-size: 1.25rem; }
+    td.readers, td.review { min-width: 0; max-width: none; }
+    td textarea, td input[type='text'], td select { min-width: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ars Magna review desk</h1>
+  <p class="meta" id="meta"></p>
+</header>
+<nav role="tablist" aria-label="Desk sections" id="tabs"></nav>
+<div class="layout">
+  <main id="main"></main>
+  <aside id="aside" aria-label="Decisions"></aside>
+</div>
+<script type="application/json" id="desk-data">/*DESK_DATA*/</script>
+<script>
+/*DESK_COMPOSE*/
+</script>
+<script>
+(function () {
+  'use strict';
+
+  /* The engine's reading step, inlined above with compose: an input's numbers and symbols read as the site reads them. */
+  setReadings({ readInput: readInput, fullReading: fullReading, readingProblem: readingProblem, describeReading: describeReading, parseReading: parseReading, isPoolChar: isPoolChar });
+
+  var DATA = JSON.parse(document.getElementById('desk-data').textContent);
+  /* The Greatest Hits audit is this page with one tab: every anagram the site's Greatest Hits page shows. */
+  var AUDIT = DATA.mode === 'audit';
+  var STORE = AUDIT ? 'ars-magna-audit' : 'ars-magna-desk';
+  var TAG = new RegExp(DATA.tagPattern);
+  var ABOUT = new RegExp(DATA.aboutPattern, 'u');
+  var SENSE = new RegExp(DATA.senseRule.pattern, 'u');
+  var STATUSES = ['featured', 'accepted', 'proposed', 'retired'];
+  var STATUS_LABEL = { featured: 'Greatest Hits', accepted: 'accepted', proposed: 'proposed', retired: 'retired' };
+  var SHELF_LABEL = { greatest: 'Greatest Hits', interesting: 'Interesting', stretch: 'A stretch' };
+  var TABS = AUDIT ? [['audit', 'Greatest Hits page']] : [
+    ['review', 'Review'],
+    ['promoted', 'Promoted'],
+    ['collection', 'Collection'],
+    ['near', 'Near misses'],
+    ['seed', 'Seed'],
+    ['deep', 'Deep run'],
+    ['add', 'Add a hit'],
+  ];
+  var hitsById = new Map(DATA.hits.map(function (x) { return [x.id, x]; }));
+  var candidatesById = new Map(DATA.candidates.map(function (c) { return [c.id, c]; }));
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ tab: state.tab, queue: state.queue, decisions: state.decisions, notes: state.notes, branch: state.branch, order: state.order }));
+    } catch (e) { /* storage may be blocked; the page still works for this visit */ }
+  }
+
+  var saved = load();
+  var state = {
+    tab: TABS.some(function (t) { return t[0] === saved.tab; }) ? saved.tab : TABS[0][0],
+    queue: DATA.queues.some(function (q) { return q.name === saved.queue; }) ? saved.queue : (DATA.queues[0] ? DATA.queues[0].name : ''),
+    filter: '',
+    status: 'all',
+    category: 'all',
+    show: 'all',
+    /* Collection and audit: in their own order, or Most votes. */
+    order: saved.order === 'votes' ? 'votes' : '',
+    promotedShow: 'all',
+    promotedFilter: '',
+    decisions: Array.isArray(saved.decisions) ? saved.decisions : [],
+    notes: typeof saved.notes === 'string' ? saved.notes : '',
+    branch: typeof saved.branch === 'string' ? saved.branch : '',
+  };
+
+  /* An element with properties and children; text is always set as text. */
+  function h(tag, props) {
+    var el = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (key) {
+      var value = props[key];
+      if (value === false || value === null || value === undefined) return;
+      if (key === 'class') el.className = value;
+      else if (key.slice(0, 2) === 'on') el.addEventListener(key.slice(2), value);
+      else if (value === true) el.setAttribute(key, '');
+      else el.setAttribute(key, value);
+    });
+    Array.prototype.slice.call(arguments, 2).flat(Infinity).forEach(function (child) {
+      if (child === null || child === undefined || child === false) return;
+      el.append(child instanceof Node ? child : String(child));
+    });
+    return el;
+  }
+  function field(text, control) {
+    return h('label', {}, h('span', { class: 'label' }, text), control);
+  }
+
+  function keyOf(d) {
+    switch (d.kind) {
+      case 'status': case 'justify': case 'describe': case 'tag': case 'order': case 'note': case 'shelf': case 'display': return d.kind + ':' + d.id;
+      case 'sense': return 'sense:' + d.id + ':' + d.word;
+      case 'promote': return 'promote:' + d.id;
+      case 'block': return 'block:' + d.id;
+      case 'seed': return 'seed:' + candidateIdOf(d.input, d.category);
+      case 'add': return 'add:' + hitIdOf(d.input, d.category, d.phrase.split(/\s+/), readingOfAdd(d));
+      default: return d.kind;
+    }
+  }
+  function find(key) {
+    return state.decisions.find(function (d) { return keyOf(d) === key; });
+  }
+  function upsert(d) {
+    var key = keyOf(d);
+    state.decisions = state.decisions.filter(function (x) { return keyOf(x) !== key; }).concat([d]);
+    save();
+    renderAside();
+  }
+  function drop(key) {
+    state.decisions = state.decisions.filter(function (x) { return keyOf(x) !== key; });
+    save();
+    renderAside();
+  }
+  /* A row is pending when a decision names it, or says what its input is. */
+  function pendingFor(id) {
+    var input = candidateOfHit(id);
+    return state.decisions.some(function (d) { return d.id === id || (d.kind === 'describe' && d.id === input); });
+  }
+
+  function describe(d) {
+    switch (d.kind) {
+      case 'status': return d.id + ' to ' + STATUS_LABEL[d.status];
+      case 'justify': return d.id + ': new justification';
+      case 'describe': return d.id + ': what the input is';
+      case 'sense': return d.id + ': ' + (d.text ? 'sense of ' : 'clear the sense of ') + d.word;
+      case 'display': return d.id + (d.text ? ' shown as "' + d.text + '"' : ': display back to the words');
+      case 'tag': return d.id + ': ' + d.add.map(function (t) { return '+' + t; }).concat(d.remove.map(function (t) { return '-' + t; })).join(' ');
+      case 'promote': return d.id + ' from ' + d.queue + ', ' + d.status;
+      case 'order': return d.id + ' reads "' + d.words.join(' ') + '"' + (d.hit || find('promote:' + d.id) ? '' : ', once it is promoted');
+      case 'note': return d.id + ': a note for whoever applies it';
+      case 'shelf': return d.id + ' to ' + SHELF_LABEL[d.shelf];
+      case 'requeue': return 'Send back to new: ' + [
+        d.settingsBefore && 'settings before ' + d.settingsBefore,
+        d.rubricBefore && 'rubric before ' + d.rubricBefore,
+        d.category, d.source,
+        d.ids.length && d.ids.length + (d.ids.length === 1 ? ' id' : ' ids'),
+      ].filter(Boolean).join(', ');
+      case 'deep': return 'Deep run into data/queue/' + d.date;
+      case 'seed': return 'Seed ' + d.input + ' (' + d.category + (d.anchors.length ? '; anchors ' + d.anchors.join(' ') : '') + ')';
+      case 'add': return 'Add ' + d.input + (d.reading ? ' (' + d.reading + ')' : '') + ': ' + d.phrase;
+      case 'block': return 'Block "' + d.display + '" (code ' + d.id.slice(0, 12) + ')';
+      default: return d.kind;
+    }
+  }
+
+  function votesText(n) {
+    return n === 1 ? '1 vote' : n.toLocaleString('en-US') + ' votes';
+  }
+  /* Most votes first, a tie A to Z by input and then by anagram, as the site orders a section. */
+  function byVotes(a, b) {
+    return b.votes - a.votes || a.input.localeCompare(b.input, 'en', { sensitivity: 'base' }) ||
+      a.display.localeCompare(b.display, 'en') || a.id.localeCompare(b.id);
+  }
+  function orderSelect(own) {
+    var order = h('select', { 'aria-label': 'Order' }, h('option', { value: '' }, own), h('option', { value: 'votes' }, 'Most votes'));
+    order.value = state.order;
+    return order;
+  }
+
+  /* Where a hit sits: [label, class]. */
+  function whereOf(place) {
+    if (!place) return ['near miss', 'where-near'];
+    if (place.status === 'featured') return ['Greatest Hits', 'where-greatest'];
+    if (place.status === 'accepted') return [place.shelf === 'interesting' ? 'Interesting' : 'A stretch', ''];
+    if (place.status === 'retired') return ['retired', 'where-near'];
+    return [place.alternate ? 'alternate' : 'held back', ''];
+  }
+
+  function markRow(control, id) {
+    var row = control.closest('tr');
+    if (row) row.classList.toggle('pending', pendingFor(id));
+  }
+
+  /* The attributes every row carries, so a decision about its input can reach every row of that input. */
+  function rowAttrs(id) {
+    return { class: pendingFor(id) ? 'pending' : '', 'data-id': id, 'data-candidate': candidateOfHit(id) };
+  }
+
+  /* Why a sentence cannot say what an input is, checked as the schema checks it; empty when it can. */
+  function aboutProblemIn(text) {
+    var length = Array.from(text).length;
+    if (length > 200) return 'This sentence is ' + length + ' characters; keep it to 200.';
+    if (!ABOUT.test(text)) return 'Write one sentence on one line, ending with a full stop.';
+    return '';
+  }
+
+  /*
+   * What the input is: one sentence for every hit of that input, so the
+   * decision belongs to the input, and every row of it shows the same pending
+   * sentence. A sentence can be rewritten here but not removed; an unchanged
+   * one makes no decision.
+   */
+  function aboutControl(id, about, wikipedia, display) {
+    var input = candidateOfHit(id);
+    var key = 'describe:' + input;
+    var pending = find(key);
+    var area = h('textarea', { 'aria-label': 'What the input of ' + display + ' is', placeholder: 'One factual sentence about what the input is', 'data-about': input });
+    area.value = pending ? pending.text : about;
+    var problem = h('p', { class: 'problem', role: 'status', 'data-about-problem': input });
+    area.addEventListener('change', function () {
+      var text = area.value.replace(/\s+/g, ' ').trim();
+      var bad = text && text !== about ? aboutProblemIn(text) : '';
+      if (!text && about) {
+        area.value = about;
+        bad = 'A sentence can be rewritten here, not removed.';
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('p[data-about-problem]'), function (other) {
+        if (other.getAttribute('data-about-problem') === input) other.textContent = '';
+      });
+      problem.textContent = bad;
+      if (!text || text === about || bad) drop(key);
+      else upsert({ kind: 'describe', id: input, text: text });
+      var now = find(key);
+      Array.prototype.forEach.call(document.querySelectorAll('textarea[data-about]'), function (other) {
+        if (other !== area && other.getAttribute('data-about') === input) other.value = now ? now.text : about;
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('tr[data-candidate]'), function (row) {
+        if (row.getAttribute('data-candidate') === input) row.classList.toggle('pending', pendingFor(row.getAttribute('data-id')));
+      });
+    });
+    return h('div', {},
+      h('label', {}, h('span', { class: 'label' }, 'About the input'), area),
+      problem,
+      wikipedia ? h('div', { class: 'small' }, 'Wikipedia: ', h('a', { href: wikipedia, target: '_blank', rel: 'noopener noreferrer' }, articleTitle(wikipedia))) : null);
+  }
+
+  /* Why a sentence cannot be a sense, checked as the schema checks it; empty when it can. */
+  function senseProblemIn(text) {
+    var length = Array.from(text).length;
+    if (length > DATA.senseRule.max) return 'This sense is ' + length + ' characters; keep it to ' + DATA.senseRule.max + '.';
+    if (!SENSE.test(text)) return 'Write one sentence on one line, ending with a full stop.';
+    return '';
+  }
+
+  /*
+   * The sense each word of a hit reads in, in this anagram, written only where
+   * the dictionary's first sense, shown under the field, would not explain the
+   * reading or there is none. One decision per word: an emptied field clears
+   * the sense the hit has, and a field put back as it was makes no decision.
+   * Closed until opened, unless the hit has a sense or one is pending.
+   */
+  function senseControl(hit) {
+    var words = hit.words.filter(function (w, i) { return hit.words.indexOf(w) === i; });
+    var shown = Object.keys(hit.senses).length > 0 || words.some(function (w) { return find('sense:' + hit.id + ':' + w); });
+    var box = h('div', { class: 'senses', hidden: !shown },
+      h('span', { class: 'label' }, 'Senses in this anagram'),
+      words.map(function (word) { return senseField(hit, word); }));
+    var open = h('button', { class: 'link', type: 'button', hidden: shown, onclick: function () {
+      open.hidden = true;
+      box.hidden = false;
+      box.querySelector('input').focus();
+    } }, 'Senses of the words');
+    return h('div', {}, open, box);
+  }
+
+  function senseField(hit, word) {
+    var key = 'sense:' + hit.id + ':' + word;
+    var was = hit.senses[word] || '';
+    var judged = hit.judgeSenses[word] || '';
+    var pending = find(key);
+    var field = h('input', { type: 'text', 'aria-label': 'Sense of ' + word + ' in ' + hit.display, placeholder: 'Only where the dictionary does not fit' });
+    field.value = pending ? pending.text : was;
+    var gloss = DATA.glosses[word];
+    var problem = h('p', { class: 'problem', role: 'status' });
+    /* Where the judge proposed a sense: said under the field while it holds that sense, quoted while it holds another. */
+    var byJudge = h('div', { class: 'small' });
+    function showJudge() {
+      var now = field.value.replace(/\s+/g, ' ').trim();
+      byJudge.textContent = !judged ? '' : now === judged ? 'Proposed by the judge.' : 'The judge proposed: ' + judged;
+      byJudge.hidden = !judged;
+    }
+    field.addEventListener('change', function () {
+      var text = field.value.replace(/\s+/g, ' ').trim();
+      var bad = text && text !== was ? senseProblemIn(text) : '';
+      problem.textContent = bad;
+      if (text === was || bad) drop(key);
+      else upsert({ kind: 'sense', id: hit.id, word: word, text: text });
+      showJudge();
+      markRow(field, hit.id);
+    });
+    showJudge();
+    return h('div', {},
+      h('label', {}, h('span', { class: 'sense-word' }, word), field),
+      h('div', { class: 'small' }, 'Dictionary: ' + (gloss || 'no definition')),
+      byJudge,
+      problem);
+  }
+
+  /*
+   * How a hit reads on Discover: its words in order, as themselves or as
+   * listed forms (I'm, don't), with the marks the site allows and capitals for
+   * I, names, acronyms and the start of a sentence; never an exclamation mark
+   * (decision D27). Checked as hits:display checks it, against the order
+   * chosen above when one is pending. An emptied field returns the display to
+   * the words; a field put back as it was makes no decision. Closed until
+   * opened, unless the hit reads other than its words or a decision is pending.
+   */
+  function displayControl(hit) {
+    var key = 'display:' + hit.id;
+    var plain = hit.words.join(' ');
+    var was = hit.display;
+    var pending = find(key);
+    var shown = was !== plain || !!pending;
+    var field = h('input', { type: 'text', 'aria-label': 'How ' + plain + ' reads on Discover', placeholder: plain });
+    field.value = pending ? pending.text : was;
+    var problem = h('p', { class: 'problem', role: 'status' });
+    var byJudge = h('div', { class: 'small' });
+    function showJudge() {
+      var now = field.value.replace(/\s+/g, ' ').trim();
+      byJudge.textContent = !hit.judgeDisplay ? '' : now === hit.judgeDisplay ? 'Proposed by the judge.' : 'The judge proposed: ' + hit.judgeDisplay;
+      byJudge.hidden = !hit.judgeDisplay;
+    }
+    function wordsNow() {
+      var order = find('order:' + hit.id);
+      return order ? order.words : hit.words;
+    }
+    field.addEventListener('change', function () {
+      var text = field.value.replace(/\s+/g, ' ').trim();
+      var target = text || wordsNow().join(' ');
+      var bad = target === was ? '' : displayProblem(target, wordsNow(), DATA.forms, { possessives: true }) || '';
+      problem.textContent = bad ? bad.charAt(0).toUpperCase() + bad.slice(1) + '.' : '';
+      if (bad || target === was) drop(key);
+      else upsert({ kind: 'display', id: hit.id, text: text });
+      showJudge();
+      markRow(field, hit.id);
+    });
+    showJudge();
+    var box = h('div', { class: 'senses', hidden: !shown },
+      h('label', {}, h('span', { class: 'label' }, 'Display on Discover'), field),
+      h('div', { class: 'small' }, 'The words in order, as themselves or as listed forms, with apostrophe, hyphen, comma, full stop, question mark, colon, semicolon or quotation marks, and capitals for I, names, acronyms and the start of a sentence. Empty returns it to the words.'),
+      byJudge,
+      problem);
+    var open = h('button', { class: 'link', type: 'button', hidden: shown, onclick: function () {
+      open.hidden = true;
+      box.hidden = false;
+      field.focus();
+    } }, 'Display on Discover');
+    return h('div', {}, open, box);
+  }
+
+  /* An article's title from its address, as Wikipedia shows it. */
+  function articleTitle(url) {
+    var path = url.replace('https://en.wikipedia.org/wiki/', '');
+    try { path = decodeURIComponent(path); } catch (e) { /* shown as it is */ }
+    return path.replace(/_/g, ' ');
+  }
+
+  /*
+   * Rows drawn a batch at a time, with a button for the next batch while any
+   * remain. Thousands of rows, each with a select and a text box, stall a phone.
+   */
+  function batched(items, size, draw) {
+    var body = h('tbody');
+    var more = h('div', { class: 'actions' });
+    var shown = 0;
+    function next() {
+      items.slice(shown, shown + size).forEach(function (item) { body.append(draw(item)); });
+      shown = Math.min(items.length, shown + size);
+      var left = items.length - shown;
+      more.replaceChildren();
+      if (left > 0) more.append(h('button', { class: 'act', type: 'button', onclick: next }, 'Show ' + Math.min(size, left) + ' more (' + left + ' left)'));
+    }
+    next();
+    return { body: body, more: more };
+  }
+
+  /*
+   * A row's anagram, in the order chosen for it. With more than one distinct
+   * word it can be reordered: tap the words in the order they should read.
+   * Back in the order it had, the decision goes.
+   */
+  function phraseCell(id, words, hit, display) {
+    var key = 'order:' + id;
+    var original = words.split(' ');
+    /* How the row reads: a hit's display (forms, punctuation, capitals) over the same words, else the words. */
+    var shown = display || words;
+    var reading = h('span', {});
+    var was = h('span', { class: 'reading-was' });
+    var panel = h('div', { class: 'reorder', hidden: true });
+    var open = h('button', { class: 'link', type: 'button', 'aria-expanded': 'false' }, 'Reorder words');
+    var cell = h('td', { class: 'phrase' }, reading, was);
+    if (new Set(original).size < 2) { reading.textContent = shown; return cell; }
+
+    function current() {
+      var pending = find(key);
+      return pending ? pending.words : original;
+    }
+    function show() {
+      var pending = find(key);
+      reading.textContent = pending ? pending.words.join(' ') : shown;
+      was.textContent = pending ? 'was "' + shown + '"' : '';
+    }
+    function close() {
+      panel.hidden = true;
+      open.hidden = false;
+      open.setAttribute('aria-expanded', 'false');
+      panel.replaceChildren();
+    }
+    function start() {
+      var placed = [];
+      var left = current().slice();
+      var line = h('div', { class: 'placed', 'aria-live': 'polite' });
+      var buttons = h('div', { class: 'words' });
+      function draw() {
+        line.replaceChildren(placed.join(' '), left.length ? h('span', { class: 'left' }, (placed.length ? ' ' : '') + '…') : '');
+        buttons.replaceChildren.apply(buttons, left.map(function (word, i) {
+          return h('button', { class: 'word', type: 'button', onclick: function () {
+            placed.push(word);
+            left.splice(i, 1);
+            if (left.length) { draw(); buttons.querySelector('button').focus(); return; }
+            if (placed.join(' ') === words) drop(key);
+            else upsert({ kind: 'order', id: id, words: placed, hit: hit });
+            show();
+            close();
+            markRow(cell, id);
+            open.focus();
+          } }, word);
+        }));
+      }
+      panel.replaceChildren(
+        h('span', {}, 'Tap the words in the order they should read.'),
+        line,
+        buttons,
+        h('div', { class: 'actions' },
+          h('button', { class: 'link', type: 'button', onclick: function () { placed = []; left = current().slice(); draw(); } }, 'Start again'),
+          find(key) ? h('button', { class: 'link', type: 'button', onclick: function () { drop(key); show(); close(); markRow(cell, id); open.focus(); } }, 'Back to "' + shown + '"') : null,
+          h('button', { class: 'link', type: 'button', onclick: function () { close(); open.focus(); } }, 'Cancel')));
+      draw();
+      panel.hidden = false;
+      open.hidden = true;
+      open.setAttribute('aria-expanded', 'true');
+      buttons.querySelector('button').focus();
+    }
+    open.addEventListener('click', start);
+    show();
+    cell.append(open, panel);
+    return cell;
+  }
+
+  /* A note on one row for whoever applies it: why it matters, what to write, which order. It goes into the prompt under the row's id. */
+  function noteControl(id, display, hit) {
+    var key = 'note:' + id;
+    var pending = find(key);
+    var area = h('textarea', { 'aria-label': 'Note on ' + display + ' for whoever applies it', placeholder: 'Why it matters, what the justification should say, anything to change' });
+    area.value = pending ? pending.text : '';
+    var box = h('label', { hidden: !pending }, h('span', { class: 'label' }, 'Note for whoever applies it'), area);
+    var open = h('button', { class: 'link', type: 'button', hidden: !!pending, onclick: function () { open.hidden = true; box.hidden = false; area.focus(); } }, 'Add a note');
+    area.addEventListener('change', function () {
+      var text = area.value.trim();
+      if (!text) drop(key);
+      else upsert({ kind: 'note', id: id, display: display, text: text, hit: hit });
+      markRow(area, id);
+    });
+    return h('div', {}, open, box);
+  }
+
+  function statusSelect(hit) {
+    var status = h('select', { 'aria-label': 'Status of ' + hit.display },
+      h('option', { value: '' }, 'Keep: ' + STATUS_LABEL[hit.status]),
+      STATUSES.filter(function (s) { return s !== hit.status; }).map(function (s) {
+        return h('option', { value: s }, s === 'featured' ? 'Promote to Greatest Hits' : s === 'accepted' ? 'Accept' : s === 'proposed' ? 'Hold back as proposed' : 'Retire');
+      }));
+    var pendingStatus = find('status:' + hit.id);
+    if (pendingStatus) status.value = pendingStatus.status;
+    status.addEventListener('change', function () {
+      if (!status.value) drop('status:' + hit.id);
+      else upsert({ kind: 'status', id: hit.id, status: status.value });
+      markRow(status, hit.id);
+    });
+    return status;
+  }
+
+  /*
+   * The audit's label: the section the hit is in now, to start with, so a
+   * prompt copied without changes changes nothing. Greatest Hits and Remove
+   * from the page are statuses; Interesting and A stretch are shelves of an
+   * accepted hit, and moving between them sets a shelf tag where the judge's
+   * scores would put it elsewhere. Back on the label it had, its decisions go.
+   */
+  function labelSelect(hit) {
+    var now = hit.status === 'featured' ? 'featured' : hit.shelf;
+    var label = h('select', { 'aria-label': 'Label of ' + hit.display },
+      h('option', { value: 'featured' }, 'Greatest Hits'),
+      h('option', { value: 'interesting' }, 'Interesting'),
+      h('option', { value: 'stretch' }, 'A stretch'),
+      h('option', { value: 'retired' }, 'Remove from the page'));
+    var status = find('status:' + hit.id);
+    var shelf = find('shelf:' + hit.id);
+    label.value = status && status.status !== 'accepted' ? status.status : shelf ? shelf.shelf : now;
+    label.addEventListener('change', function () {
+      var value = label.value;
+      drop('status:' + hit.id);
+      drop('shelf:' + hit.id);
+      if (value === 'featured' || value === 'retired') {
+        if (value !== now) upsert({ kind: 'status', id: hit.id, status: value });
+      } else if (value !== now) {
+        if (hit.status !== 'accepted') upsert({ kind: 'status', id: hit.id, status: 'accepted' });
+        upsert({ kind: 'shelf', id: hit.id, shelf: value, judged: hit.judged, tags: hit.tags.filter(function (t) { return t.indexOf('shelf:') === 0; }) });
+      }
+      markRow(label, hit.id);
+    });
+    return label;
+  }
+
+  function hitControls(hit) {
+    var status = AUDIT ? labelSelect(hit) : statusSelect(hit);
+
+    var text = h('textarea', { 'aria-label': 'Justification of ' + hit.display, placeholder: 'One plain sentence for a reader' });
+    var pendingText = find('justify:' + hit.id);
+    text.value = pendingText ? pendingText.text : hit.justification;
+    text.addEventListener('change', function () {
+      var value = text.value.trim();
+      if (!value || value === hit.justification) drop('justify:' + hit.id);
+      else upsert({ kind: 'justify', id: hit.id, text: value });
+      markRow(text, hit.id);
+    });
+
+    var problem = h('p', { class: 'problem', role: 'status' });
+    var tags = h('input', { type: 'text', placeholder: '+tone:pun -subject:actor', 'aria-label': 'Tag changes for ' + hit.display });
+    var pendingTags = find('tag:' + hit.id);
+    if (pendingTags) {
+      tags.value = pendingTags.add.map(function (t) { return '+' + t; }).concat(pendingTags.remove.map(function (t) { return '-' + t; })).join(' ');
+    }
+    tags.addEventListener('change', function () {
+      var tokens = tags.value.split(/\s+/).filter(Boolean);
+      var bad = tokens.filter(function (t) { return !/^[+-]./.test(t) || (t[0] === '+' && !TAG.test(t.slice(1))); });
+      problem.textContent = bad.length ? 'Not a tag change the schema allows: ' + bad.join(' ') : '';
+      if (bad.length || !tokens.length) drop('tag:' + hit.id);
+      else upsert({
+        kind: 'tag',
+        id: hit.id,
+        add: tokens.filter(function (t) { return t[0] === '+'; }).map(function (t) { return t.slice(1); }),
+        remove: tokens.filter(function (t) { return t[0] === '-'; }).map(function (t) { return t.slice(1); }),
+      });
+      markRow(tags, hit.id);
+    });
+    return h('div', { class: 'control' }, status, text, aboutControl(hit.id, hit.about, hit.wikipedia, hit.display), senseControl(hit), displayControl(hit), tags, problem, noteControl(hit.id, hit.display, true));
+  }
+
+  function nearControls(row, queue) {
+    var key = 'promote:' + row.id;
+    var pending = find(key);
+    var choice = h('select', { 'aria-label': 'Decision for ' + row.display },
+      h('option', { value: '' }, 'Leave it'),
+      h('option', { value: 'accepted' }, 'Accept'),
+      h('option', { value: 'proposed' }, 'Add as proposed'));
+    if (pending) choice.value = pending.status;
+    var text = h('textarea', { 'aria-label': 'Justification of ' + row.display, placeholder: 'One plain sentence for a reader' });
+    text.value = pending ? pending.justification : row.justification;
+    function sync() {
+      if (!choice.value) drop(key);
+      // The row's own judge, so ingest records the model that gave this verdict.
+      else upsert({ kind: 'promote', queue: queue.name, model: row.model || queue.model, id: row.id, status: choice.value, justification: text.value.trim(), judged: row.justification });
+      markRow(choice, row.id);
+    }
+    choice.addEventListener('change', sync);
+    text.addEventListener('change', function () { if (choice.value) sync(); });
+    var known = candidatesById.get(row.candidate_id);
+    return h('div', { class: 'control' }, choice, text, aboutControl(row.id, known ? known.about : '', known ? known.wikipedia : '', row.display), noteControl(row.id, row.display, false));
+  }
+
+  function rowTable(rows, withQueue, size) {
+    var table = batched(rows, size, function (r) {
+      var queue = DATA.queues.find(function (q) { return q.name === r.queue; });
+      var hit = r.hit ? hitsById.get(r.id) : null;
+      var where = whereOf(r.hit);
+      return h('tr', rowAttrs(r.id),
+        withQueue ? [h('td', { class: 'scores', 'data-label': 'Queue' }, r.queue), h('td', { 'data-label': 'Input' }, r.input)] : null,
+        phraseCell(r.id, hit ? hit.words.join(' ') : r.display, !!hit, hit ? hit.display : ''),
+        h('td', { class: 'scores', 'data-label': 'Scores' }, 'relation ' + r.relation, h('br'), 'reads ' + r.reads),
+        h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
+          r.tone.length ? h('div', { class: 'small' }, r.tone.map(function (t) { return 'tone:' + t; }).join(' ')) : null),
+        h('td', { class: 'small', 'data-label': 'Judge' }, r.model ? h('div', {}, r.model) : null, r.rationale),
+        h('td', { 'data-label': 'Decision' }, hit ? hitControls(hit) : nearControls(r, queue)));
+    });
+    return h('div', {},
+      h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
+        h('thead', {}, h('tr', {},
+          withQueue ? [h('th', {}, 'Queue'), h('th', {}, 'Input')] : null,
+          h('th', {}, 'Anagram'), h('th', {}, 'Scores'), h('th', {}, 'Where'), h('th', {}, 'Judge'), h('th', {}, 'Decision'))),
+        table.body)),
+      table.more);
+  }
+
+  function withQueueName(rows, name) {
+    return rows.map(function (r) { return Object.assign({ queue: name }, r); });
+  }
+
+  /** The models that gave a queue's verdicts, with how many each gave when there is more than one. */
+  function judgedBy(q) {
+    var models = q.models && q.models.length ? q.models : [{ model: q.model, verdicts: q.judged }];
+    if (models.length === 1) return models[0].model;
+    return models.map(function (m) { return m.model + ' (' + m.verdicts.toLocaleString('en-US') + ')'; }).join(', ');
+  }
+
+  function renderReview(main) {
+    if (!DATA.queues.length) {
+      main.append(h('h2', {}, 'Review'), h('p', { class: 'empty' }, 'No judged queue under data/queue/ yet.'));
+      return;
+    }
+    var queue = DATA.queues.find(function (q) { return q.name === state.queue; }) || DATA.queues[0];
+    var select = h('select', { 'aria-label': 'Queue' }, DATA.queues.map(function (q) {
+      return h('option', { value: q.name }, q.name + ', judged by ' + judgedBy(q));
+    }));
+    select.value = queue.name;
+    select.addEventListener('change', function () { state.queue = select.value; save(); render(); });
+    var inFile = queue.rows.filter(function (r) { return r.hit; }).length;
+    main.append(
+      h('h2', {}, 'Queue ' + queue.name),
+      h('div', { class: 'toolbar' }, field('Queue', select)),
+      h('p', { class: 'small' }, queue.judged + ' verdicts. ' + inFile + ' of these rows are in data/hits.jsonl and ' + (queue.rows.length - inFile) +
+        ' are near misses. Rows the judge found no link in are not shown.'));
+    var groups = new Map();
+    queue.rows.forEach(function (r) {
+      if (!groups.has(r.candidate_id)) groups.set(r.candidate_id, []);
+      groups.get(r.candidate_id).push(r);
+    });
+    if (!groups.size) main.append(h('p', { class: 'empty' }, 'Nothing in this queue has any link to its input.'));
+    groups.forEach(function (rows) {
+      main.append(h('h3', {}, rows[0].input, h('span', { class: 'category' }, rows[0].category)), rowTable(withQueueName(rows, queue.name), false, 5));
+    });
+  }
+
+  function renderCollection(main) {
+    var counts = {};
+    DATA.hits.forEach(function (x) { counts[x.status] = (counts[x.status] || 0) + 1; });
+    var filter = h('input', { type: 'text', placeholder: 'Input, anagram or tag', 'aria-label': 'Filter the collection' });
+    filter.value = state.filter;
+    var status = h('select', { 'aria-label': 'Status' },
+      h('option', { value: 'all' }, 'Every status (' + DATA.hits.length + ')'),
+      STATUSES.map(function (s) { return h('option', { value: s }, STATUS_LABEL[s] + ' (' + (counts[s] || 0) + ')'); }));
+    status.value = state.status;
+    var order = orderSelect('As in the file');
+    var list = h('div');
+    function draw() {
+      var q = state.filter.trim().toLowerCase();
+      var hits = DATA.hits.filter(function (x) {
+        return (state.status === 'all' || x.status === state.status) &&
+          (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
+      });
+      if (state.order === 'votes') hits = hits.slice().sort(byVotes);
+      var table = batched(hits, 50, function (x) {
+        var where = whereOf(x);
+        return h('tr', rowAttrs(x.id),
+          h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
+          phraseCell(x.id, x.words.join(' '), true, x.display),
+          h('td', { class: 'where ' + where[1], 'data-label': 'Where' }, where[0],
+            x.relation !== null ? h('div', { class: 'small' }, 'relation ' + x.relation + ', reads ' + x.reads) : null,
+            x.votes ? h('div', { class: 'small' }, votesText(x.votes)) : null),
+          h('td', { class: 'small', 'data-label': 'Tags' }, x.tags.join(' ')),
+          h('td', { 'data-label': 'Decision' }, hitControls(x)));
+      });
+      list.replaceChildren(
+        h('p', { class: 'small', role: 'status' }, hits.length + ' of ' + DATA.hits.length + ' hits'),
+        h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Input'), h('th', {}, 'Anagram'), h('th', {}, 'Where'), h('th', {}, 'Tags'), h('th', {}, 'Decision'))),
+          table.body)),
+        table.more);
+    }
+    filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
+    status.addEventListener('change', function () { state.status = status.value; draw(); });
+    order.addEventListener('change', function () { state.order = order.value; save(); draw(); });
+    main.append(h('h2', {}, 'Collection'), h('div', { class: 'toolbar' }, field('Filter', filter), field('Status', status), field('Order', order)), list);
+    draw();
+  }
+
+  function renderNear(main) {
+    var rows = [];
+    DATA.queues.forEach(function (q) {
+      rows = rows.concat(withQueueName(q.rows.filter(function (r) { return !r.hit; }), q.name));
+    });
+    rows.sort(function (a, b) { return b.relation - a.relation || b.reads - a.reads || b.queue.localeCompare(a.queue); });
+    main.append(
+      h('h2', {}, 'Near misses'),
+      h('p', { class: 'small' }, rows.length + ' rows from ' + DATA.queues.length + ' queues are not in data/hits.jsonl. ' +
+        'Accepting one adds it from its queue\'s verdicts; one without a justification goes in as proposed until it has one.'));
+    if (!rows.length) { main.append(h('p', { class: 'empty' }, 'None.')); return; }
+    main.append(rowTable(rows, true, 50));
+  }
+
+  var OUTCOME_LABEL = {
+    place: 'Placed',
+    near: 'Left out: a near miss',
+    none: 'Left out: no link to its input',
+    private: 'Withheld: a private person',
+    'words-missing': 'Waiting on a word the dictionary lacks',
+  };
+  var KEPT = { keep: 'kept', drop: 'dropped' };
+
+  /* Where a promoted anagram stands, for the Show filter. */
+  function promotedState(p) {
+    if (p.blocked) return 'blocked';
+    if (!p.review) return 'waiting';
+    return p.review.outcome === 'place' ? 'placed' : 'left';
+  }
+
+  /* One reader's note, each field shown as the text it is. */
+  function noteList(n) {
+    function item(label, value) { return value ? [h('dt', {}, label), h('dd', {}, value)] : null; }
+    return h('dl', { class: 'note' },
+      item('Input as typed', n.input),
+      item('What the input is', n.about),
+      item('Why it is good', n.why),
+      item('Credit', n.credit),
+      item('Category', n.category),
+      item('Words it asks for', n.missing.join(', ')),
+      item('Sent', n.created.slice(0, 10)));
+  }
+
+  function reviewCell(p) {
+    var r = p.review;
+    if (!r) {
+      return h('td', { class: 'review', 'data-label': 'Review' },
+        h('div', {}, p.checked ? 'Not reviewed yet.' : 'Not reviewed: it waits until the dictionary has ' + p.unknown.join(', ') + '.'));
+    }
+    var published = p.applied
+      ? 'Published by the routine on ' + p.applied.date + ' (' + p.applied.outcome + ').'
+      : r.outcome === 'place' ? 'Approved; the next routine run publishes it.' : '';
+    return h('td', { class: 'review', 'data-label': 'Review' },
+      h('div', { class: r.outcome === 'place' ? '' : 'where-near' }, OUTCOME_LABEL[r.outcome] || r.outcome),
+      h('div', { class: 'small' }, 'Decided ' + r.decided + ' at ' + r.promotions + (r.promotions === 1 ? ' promotion' : ' promotions') +
+        (r.relation !== null ? '; relation ' + r.relation + ', reads ' + r.reads : '') + (r.category ? '; ' + r.category : '')),
+      r.justification ? h('p', {}, r.justification) : null,
+      r.rationale ? h('div', { class: 'small' }, r.rationale) : null,
+      r.readerAbout || r.credit ? h('div', { class: 'kept' },
+        [r.readerAbout && 'What the input is: ' + KEPT[r.readerAbout], r.credit && 'Credit: ' + KEPT[r.credit]].filter(Boolean).join(' · ')) : null,
+      r.requests.length ? h('div', { class: 'kept' }, 'Word requests forwarded: ' + r.requests.join(', ')) : null,
+      published ? h('div', { class: 'small' }, published) : null,
+      h('div', { class: 'small' }, r.model + ', ' + (r.judgedBy === 'hand' ? 'reviewed by hand' : 'reviewed by the routine')));
+  }
+
+  /* The one decision an anagram that is not a hit takes here: block it. The command carries its code alone. */
+  function blockControl(p) {
+    if (p.blocked) return h('div', { class: 'small' }, 'Blocked. Its promotions are no longer counted, and the review skips it.');
+    var key = 'block:' + p.code;
+    var choice = h('select', { 'aria-label': 'Decision for ' + p.words.join(' ') },
+      h('option', { value: '' }, 'Leave it'),
+      h('option', { value: 'block' }, 'Block it'));
+    if (find(key)) choice.value = 'block';
+    choice.addEventListener('change', function () {
+      if (choice.value) upsert({ kind: 'block', id: p.code, display: p.words.join(' ') });
+      else drop(key);
+      markRow(choice, p.code);
+    });
+    return h('div', { class: 'control' }, choice,
+      h('div', { class: 'small' }, 'Blocking hides its Promote and Submit, and leaves it out of the counts and the review. The command names its code, never its words.'));
+  }
+
+  function renderPromoted(main) {
+    main.append(h('h2', {}, 'Promoted'));
+    if (!DATA.promoted) {
+      main.append(h('p', { class: 'empty' }, 'This desk was built without the private repository, so it shows no promotions. ' +
+        'Build it with pnpm hits:desk --promotions=../ars-magna-promotions to see them.'));
+      return;
+    }
+    var rows = DATA.promotions;
+    var counts = { all: rows.length, notes: 0, waiting: 0, placed: 0, left: 0, blocked: 0 };
+    rows.forEach(function (p) {
+      counts[promotedState(p)] += 1;
+      if (p.notes.length) counts.notes += 1;
+    });
+    var filter = h('input', { type: 'text', placeholder: 'Input or anagram', 'aria-label': 'Filter the promoted anagrams' });
+    filter.value = state.promotedFilter;
+    var show = h('select', { 'aria-label': 'Show' }, [
+      ['all', 'Every promoted anagram'],
+      ['notes', 'With a note from Build'],
+      ['waiting', 'Not reviewed yet'],
+      ['placed', 'Placed by the review'],
+      ['left', 'Left out by the review'],
+      ['blocked', 'Blocked'],
+    ].map(function (o) { return h('option', { value: o[0] }, o[1] + ' (' + counts[o[0]] + ')'); }));
+    show.value = state.promotedShow;
+    var list = h('div');
+
+    function row(p) {
+      var hit = p.hit ? hitsById.get(p.hit) : null;
+      var searchedAs = p.searches.filter(function (s) { return s.input !== p.input || p.searches.length > 1; });
+      return h('tr', rowAttrs(p.hit || p.code),
+        h('td', { 'data-label': 'Promoted' },
+          h('span', { class: 'count', 'aria-label': p.count + (p.count === 1 ? ' promotion' : ' promotions') }, String(p.count)),
+          h('div', {}, p.input),
+          searchedAs.length ? h('div', { class: 'small' }, 'Searched as ' + searchedAs.map(function (s) { return s.input + ' (' + s.n + ')'; }).join(', ')) : null,
+          h('div', { class: 'small' }, [p.fromSearch && p.fromSearch + ' from a search', p.typed && p.typed + ' from Build'].filter(Boolean).join(', ')),
+          h('div', { class: 'small' }, p.first === p.last ? p.first : p.first + ' to ' + p.last)),
+        hit ? phraseCell(hit.id, hit.words.join(' '), true, hit.display) : h('td', { class: 'phrase', 'data-label': 'Anagram' }, p.words.join(' '),
+          p.unknown.length ? h('span', { class: 'reading-was' }, 'Not in the dictionary: ' + p.unknown.join(', ')) : null),
+        h('td', { class: 'readers', 'data-label': 'From readers' },
+          p.notes.length ? p.notes.map(noteList) : h('span', { class: 'small' }, 'Promoted from a search, with no note.')),
+        reviewCell(p),
+        h('td', { 'data-label': 'Decision' },
+          hit ? [h('div', { class: 'small' }, 'A hit now: ' + whereOf(hit)[0] + (hit.votes ? ', ' + votesText(hit.votes) : '') + '.'), hitControls(hit)] : blockControl(p)));
+    }
+    function draw() {
+      var q = state.promotedFilter.trim().toLowerCase();
+      var shown = rows.filter(function (p) {
+        var kind = promotedState(p);
+        return (state.promotedShow === 'all' || (state.promotedShow === 'notes' ? p.notes.length > 0 : kind === state.promotedShow)) &&
+          (!q || (p.input + ' ' + p.words.join(' ') + ' ' + p.searches.map(function (s) { return s.input; }).join(' ')).toLowerCase().indexOf(q) >= 0);
+      });
+      var table = batched(shown, 50, row);
+      list.replaceChildren(
+        h('p', { class: 'small', role: 'status' }, shown.length + ' of ' + rows.length + ' promoted anagrams'),
+        shown.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Promoted'), h('th', {}, 'Anagram'), h('th', {}, 'From readers'), h('th', {}, 'Review'), h('th', {}, 'Decision'))),
+          table.body)) : h('p', { class: 'empty' }, 'None here.'),
+        table.more);
+    }
+    filter.addEventListener('input', function () { state.promotedFilter = filter.value; draw(); });
+    show.addEventListener('change', function () { state.promotedShow = show.value; draw(); });
+    main.append(
+      h('p', { class: 'small' }, rows.length + ' anagrams readers promoted, from the export of ' + DATA.promoted.export + ' in ' + DATA.promoted.from +
+        ', most promoted first. ' + counts.notes + ' came with a note from Build. What readers typed is shown exactly as they typed it, and nothing in it has been checked.'),
+      h('p', { class: 'small' }, 'An anagram becomes a hit only through a review you merge in ' + DATA.promoted.from +
+        '. Once the routine has published it, its row has a hit\'s controls; until then you can block it. This page holds what readers typed, so it stays private.'),
+      h('div', { class: 'toolbar' }, field('Filter', filter), field('Show', show)),
+      list);
+    draw();
+  }
+
+  function renderSeed(main) {
+    var text = h('textarea', { rows: '8', 'aria-label': 'Inputs to seed', placeholder: 'The countryside | phrases | city dust\nSagrada Família | places' });
+    var out = h('div');
+    function check() {
+      out.replaceChildren();
+      var parsed = parseSeeds(text.value, DATA.candidates.map(function (c) { return c.id; }));
+      if (parsed.problems.length) out.append(h('div', {}, parsed.problems.map(function (p) { return h('p', { class: 'problem' }, p); })));
+      if (!parsed.seeds.length) {
+        if (!parsed.problems.length) out.append(h('p', { class: 'empty' }, 'Nothing to seed.'));
+        return;
+      }
+      var note = h('p', { class: 'small', role: 'status' });
+      out.append(
+        h('div', { class: 'table-wrap' }, h('table', {},
+          h('thead', {}, h('tr', {}, h('th', {}, 'Id'), h('th', {}, 'Input'), h('th', {}, 'Category'), h('th', {}, 'Anchors'))),
+          h('tbody', {}, parsed.seeds.map(function (s) {
+            return h('tr', {}, h('td', { class: 'small' }, candidateIdOf(s.input, s.category)), h('td', {}, s.input), h('td', {}, s.category), h('td', {}, s.anchors.join(' ')));
+          })))),
+        h('div', { class: 'actions' }, h('button', { class: 'act primary', type: 'button', onclick: function () {
+          parsed.seeds.forEach(upsert);
+          note.textContent = parsed.seeds.length + (parsed.seeds.length === 1 ? ' seed' : ' seeds') + ' added to the decisions.';
+        } }, 'Add to the decisions')),
+        note);
+    }
+    main.append(
+      h('h2', {}, 'Seed candidates'),
+      h('p', { class: 'small' }, 'One input per line: input | category | anchor words. The category defaults to phrases, and anchors are optional. ' +
+        'Each id is checked against the ' + DATA.candidates.length + ' candidates already in the pool.'),
+      text,
+      h('div', { class: 'actions' }, h('button', { class: 'act', type: 'button', onclick: check }, 'Check')),
+      out);
+  }
+
+  function renderDeep(main) {
+    var older = DATA.candidates.filter(function (c) { return c.status === 'enumerated' && c.settings !== 's2'; }).length;
+    var settings = h('input', { type: 'checkbox', checked: true });
+    var rubric = h('input', { type: 'checkbox' });
+    var category = h('select', { 'aria-label': 'Category' }, h('option', { value: '' }, 'Any category'), DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
+    var source = h('select', { 'aria-label': 'Source' }, h('option', { value: '' }, 'Any source'), ['manual', 'trending', 'submission'].map(function (s) { return h('option', { value: s }, s); }));
+    var ids = h('textarea', { 'aria-label': 'Candidate ids', placeholder: 'Candidate ids, one per line (optional)' });
+    var date = h('input', { type: 'text', value: DATA.today, 'aria-label': 'Queue folder' });
+    var perInput = h('input', { type: 'text', value: DATA.deepPerInput === null ? 'all' : String(DATA.deepPerInput), 'aria-label': 'Phrases per input' });
+    var problem = h('p', { class: 'problem', role: 'alert' });
+    var note = h('p', { class: 'small', role: 'status' });
+    var prompt = h('pre', {});
+    var live = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
+
+    function scope() {
+      var list = ids.value.split(/\s+/).filter(Boolean);
+      var when = [settings.checked ? 'processed under settings older than s2' : '', rubric.checked ? 'judged under a rubric older than v2' : ''].filter(Boolean).join(' and ');
+      var who = list.length
+        ? 'the candidates ' + list.join(', ')
+        : 'candidates in ' + (category.value ? 'the ' + category.value + ' category' : 'every category, one category at a time') +
+          (source.value ? ' from source ' + source.value : '') + (when ? ', ' + when : '');
+      var seeds = state.decisions.filter(function (d) { return d.kind === 'seed'; });
+      return who + (seeds.length ? '; plus these seeds from the review desk: ' + seeds.map(function (s) {
+        return s.input + ' | ' + s.category + (s.anchors.length ? ' | ' + s.anchors.join(' ') : '');
+      }).join('; ') : '') + '. Name queue folders from ' + date.value + ' on.';
+    }
+    function size() {
+      return perInput.value === 'all' ? 'no bound per input, with the deep preset' : perInput.value + ' phrases per input, with the deep preset';
+    }
+    function draw() { prompt.textContent = fillDeepRunPrompt(DATA.deepRun, scope(), size()); }
+    [settings, rubric, category, source, ids, date, perInput].forEach(function (el) {
+      el.addEventListener('input', draw);
+      el.addEventListener('change', draw);
+    });
+
+    main.append(
+      h('h2', {}, 'Deep run'),
+      h('p', { class: 'small' }, 'A deep run sends candidates back to new, enumerates them with the deep preset one category at a time, screens and judges them with separate model runs, and opens a pull request per category. ' +
+        older + ' enumerated candidates last ran under settings older than s2. At 300 phrases per input, expect about 11,000 phrases and an hour of screening for every 50 long inputs.'),
+      h('fieldset', {},
+        h('label', { class: 'check' }, settings, 'Processed under settings older than s2'),
+        h('label', { class: 'check' }, rubric, 'Judged under a rubric older than v2'),
+        h('div', { class: 'toolbar' }, field('Category', category), field('Source', source), field('First queue folder', date), field('Phrases per input', perInput)),
+        field('Ids', ids)),
+      problem,
+      h('div', { class: 'actions' },
+        h('button', { class: 'act primary', type: 'button', onclick: function () { copy(prompt.textContent, live); } }, 'Copy deep-run prompt'),
+        h('button', { class: 'act', type: 'button', onclick: function () {
+          var list = ids.value.split(/\s+/).filter(Boolean);
+          if (!/^\d{4}-\d{2}-\d{2}[a-z]?$/.test(date.value)) { problem.textContent = 'Name the queue folder as a date, such as ' + DATA.today + 'b.'; return; }
+          if (!/^(\d+|all)$/.test(perInput.value)) { problem.textContent = 'Phrases per input is a whole number, or all.'; return; }
+          if (!settings.checked && !rubric.checked && !category.value && !source.value && !list.length) { problem.textContent = 'Choose which candidates to send back.'; return; }
+          problem.textContent = '';
+          upsert({ kind: 'requeue', ids: list, settingsBefore: settings.checked ? 's2' : '', rubricBefore: rubric.checked ? 'v2' : '', category: category.value, source: source.value });
+          upsert({ kind: 'deep', date: date.value, perInput: perInput.value });
+          note.textContent = 'Added to the decisions.';
+          draw();
+        } }, 'Add to the decisions')),
+      live,
+      note,
+      h('span', { class: 'label' }, 'Deep-run prompt'),
+      prompt);
+    draw();
+  }
+
+  /* What each section of the site's page means, as the audit and the page say it. */
+  var SECTION_NOTE = {
+    greatest: 'The best of them, picked by hand.',
+    interesting: 'Names the original, or has a clear, specific link to it.',
+    stretch: 'A looser link, arguable in a sentence.',
+  };
+
+  /*
+   * The Greatest Hits audit: every published hit in the section it is in now,
+   * Greatest Hits, then Interesting, then A stretch. Within each, the judge's
+   * Greatest Hits suggestions come first, then the strongest link.
+   */
+  function renderAudit(main) {
+    function suggested(x) { return x.tags.indexOf('greatest-candidate') >= 0; }
+    function strength(a, b) {
+      return Number(suggested(b)) - Number(suggested(a)) || (b.relation || 0) - (a.relation || 0) ||
+        (b.reads || 0) - (a.reads || 0) || b.added.localeCompare(a.added) || a.id.localeCompare(b.id);
+    }
+    function onShelf(shelf) {
+      return DATA.hits.filter(function (x) { return (x.status === 'featured' || x.status === 'accepted') && x.shelf === shelf; }).sort(strength);
+    }
+    var greatest = onShelf('greatest');
+    var interesting = onShelf('interesting');
+    var stretch = onShelf('stretch');
+    var total = greatest.length + interesting.length + stretch.length;
+
+    var filter = h('input', { type: 'text', placeholder: 'Input, anagram or tag', 'aria-label': 'Filter the anagrams' });
+    filter.value = state.filter;
+    var category = h('select', { 'aria-label': 'Category' },
+      h('option', { value: 'all' }, 'Every category'),
+      DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
+    category.value = state.category;
+    var show = h('select', { 'aria-label': 'Show' },
+      h('option', { value: 'all' }, 'Every anagram'),
+      h('option', { value: 'suggested' }, 'Suggested for Greatest Hits'),
+      h('option', { value: 'changed' }, 'Changed here'));
+    show.value = state.show;
+    var order = orderSelect('Strongest link first');
+    var list = h('div');
+
+    function row(x) {
+      return h('tr', rowAttrs(x.id),
+        h('td', { 'data-label': 'Input' }, x.input, h('div', { class: 'small' }, x.category + ', added ' + x.added)),
+        phraseCell(x.id, x.words.join(' '), true, x.display),
+        h('td', { class: 'small', 'data-label': 'Judge' },
+          x.relation !== null ? 'relation ' + x.relation + ', reads ' + x.reads : 'not judged',
+          x.votes ? h('div', {}, votesText(x.votes)) : null,
+          suggested(x) ? h('div', { class: 'where-greatest' }, 'Suggested for Greatest Hits') : null),
+        h('td', { 'data-label': 'Label' }, hitControls(x)));
+    }
+    function section(shelf, hits) {
+      var q = state.filter.trim().toLowerCase();
+      var shown = hits.filter(function (x) {
+        return (state.category === 'all' || x.category === state.category) &&
+          (state.show === 'all' || (state.show === 'suggested' ? suggested(x) : pendingFor(x.id))) &&
+          (!q || (x.input + ' ' + x.display + ' ' + x.tags.join(' ')).toLowerCase().indexOf(q) >= 0);
+      });
+      if (state.order === 'votes') shown = shown.slice().sort(byVotes);
+      var out = [
+        h('h3', {}, SHELF_LABEL[shelf], h('span', { class: 'category' }, shown.length === hits.length ? String(hits.length) : shown.length + ' of ' + hits.length)),
+        h('p', { class: 'small' }, SECTION_NOTE[shelf]),
+      ];
+      if (!shown.length) return out.concat(h('p', { class: 'empty' }, 'None here.'));
+      var table = batched(shown, 50, row);
+      return out.concat(
+        h('div', { class: 'table-wrap' }, h('table', { class: 'rows' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Input'), h('th', {}, 'Anagram'), h('th', {}, 'Judge'), h('th', {}, 'Label'))),
+          table.body)),
+        table.more);
+    }
+    function draw() {
+      list.replaceChildren.apply(list, section('greatest', greatest).concat(section('interesting', interesting), section('stretch', stretch)));
+    }
+    filter.addEventListener('input', function () { state.filter = filter.value; draw(); });
+    category.addEventListener('change', function () { state.category = category.value; draw(); });
+    show.addEventListener('change', function () { state.show = show.value; draw(); });
+    order.addEventListener('change', function () { state.order = order.value; save(); draw(); });
+    main.append(
+      h('h2', {}, 'The Discover page'),
+      h('p', { class: 'small' }, 'Every anagram the site shows, ' + total + ' in all, each labelled with the section it is in now: ' + greatest.length +
+        ' in Greatest Hits, ' + interesting.length + ' in Interesting and ' + stretch.length + ' in A stretch. A prompt copied without changes changes nothing. ' +
+        'Change a label to move an anagram to another section or off the page, and edit a justification, what its input is, the sense a word reads in or how it reads on Discover, reorder the words or add a note as in the review desk.'),
+      h('div', { class: 'toolbar' }, field('Filter', filter), field('Category', category), field('Show', show), field('Order', order)),
+      list);
+    draw();
+  }
+
+  function renderAdd(main) {
+    var input = h('input', { type: 'text', 'aria-label': 'Input' });
+    var category = h('select', { 'aria-label': 'Category' }, DESK_CATEGORIES.map(function (c) { return h('option', { value: c }, c); }));
+    category.value = 'phrases';
+    var phrase = h('input', { type: 'text', 'aria-label': 'Anagram' });
+    /* How the input's numbers and symbols are read, where the defaults will not do: 4:drop, 2:too, 182:digits. */
+    var reading = h('input', { type: 'text', 'aria-label': 'Reading', placeholder: 'left out' });
+    function readingChosen() {
+      var text = reading.value.trim();
+      if (!text) return { map: undefined, problem: null };
+      var map = parseReading(text);
+      if (!map) return { map: undefined, problem: 'A reading is written item:name, comma-separated: 4:drop, 2:too, 182:digits.' };
+      var problem = readingProblem(input.value, map);
+      return { map: map, problem: problem ? 'That reading does not fit the input: ' + problem + '.' : null };
+    }
+    var tier = h('select', { 'aria-label': 'Tier' }, ['common', 'standard', 'full'].map(function (t) { return h('option', { value: t }, t); }));
+    var why = h('textarea', { 'aria-label': 'Justification', placeholder: 'One plain sentence for a reader' });
+    var preview = h('p', { class: 'small', role: 'status' });
+    var problem = h('p', { class: 'problem', role: 'alert' });
+    function update() {
+      var chosen = readingChosen();
+      if (chosen.problem) { preview.textContent = chosen.problem; return; }
+      var read = describeReading(input.value, chosen.map);
+      if (!input.value.trim() || !phrase.value.trim()) {
+        preview.textContent = (read ? read + '. ' : '') + 'The id appears here once the input and the anagram are filled in.';
+        return;
+      }
+      preview.textContent = (read ? read + '. ' : '') + 'Id ' + hitIdOf(input.value, category.value, phrase.value.split(/\s+/), chosen.map) +
+        (phraseFits(input.value, phrase.value, chosen.map) ? '' : '. The letters differ from the input\'s.');
+    }
+    input.addEventListener('input', update);
+    phrase.addEventListener('input', update);
+    reading.addEventListener('input', update);
+    category.addEventListener('change', update);
+    main.append(
+      h('h2', {}, 'Add a hit'),
+      h('p', { class: 'small' }, 'For an anagram you already know. The commands check it with the engine, record it with propose_hit, and accept it.'),
+      h('fieldset', {},
+        h('div', { class: 'toolbar' }, field('Input', input), field('Category', category)),
+        h('div', { class: 'toolbar' }, field('Anagram, words in reading order', phrase), field('Tier', tier)),
+        h('div', { class: 'toolbar' }, field('Reading of numbers and symbols (every item is left out; 4:drop)', reading)),
+        field('Justification', why)),
+      preview,
+      problem,
+      h('div', { class: 'actions' }, h('button', { class: 'act primary', type: 'button', onclick: function () {
+        if (!input.value.trim() || !phrase.value.trim() || !why.value.trim()) { problem.textContent = 'Fill in the input, the anagram and a justification.'; return; }
+        var chosen = readingChosen();
+        if (chosen.problem) { problem.textContent = chosen.problem; return; }
+        if (!phraseFits(input.value, phrase.value, chosen.map)) { problem.textContent = 'The anagram does not use exactly the input\'s letters.'; return; }
+        problem.textContent = '';
+        var added = { kind: 'add', input: input.value.trim(), category: category.value, phrase: phrase.value.trim(), tier: tier.value, justification: why.value.trim() };
+        if (reading.value.trim()) added.reading = reading.value.trim();
+        upsert(added);
+        preview.textContent = 'Added to the decisions.';
+      } }, 'Add to the decisions')));
+    update();
+  }
+
+  /*
+   * Copy to the clipboard. Inside a sandboxed frame, such as a hosted
+   * page, the clipboard can be refused; then the text is left selected in a
+   * box to copy by hand, and the page never claims a copy it did not make.
+   */
+  async function copy(text, live) {
+    try {
+      await navigator.clipboard.writeText(text);
+      live.textContent = 'Copied.';
+      return;
+    } catch (e) { /* fall through to a box the text can be copied from */ }
+    var area = h('textarea', { class: 'copy-fallback', readonly: true, 'aria-label': 'Text to copy' });
+    area.value = text;
+    live.replaceChildren(area);
+    area.focus();
+    area.select();
+    var copied = false;
+    try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+    if (copied) { live.textContent = 'Copied.'; return; }
+    live.replaceChildren(h('span', {}, 'This page cannot reach the clipboard here. The text is selected below; copy it from there.'), area);
+    area.focus();
+    area.select();
+  }
+
+  function renderAside() {
+    var aside = document.getElementById('aside');
+    aside.replaceChildren();
+    var count = state.decisions.length;
+    aside.append(h('h2', {}, 'Decisions'));
+    if (!count) {
+      aside.append(h('p', { class: 'empty' }, AUDIT
+        ? 'Nothing changed yet. Every anagram keeps its label until you change it here.'
+        : 'Nothing decided yet. Change a status, edit a justification, what an input is, the sense a word reads in or how it reads on Discover, reorder the words, add a note or promote a near miss, and it appears here.'));
+    } else {
+      aside.append(
+        h('ul', { class: 'decisions' }, state.decisions.map(function (d) {
+          return h('li', {}, h('span', {}, describe(d)), h('button', { class: 'link', type: 'button', onclick: function () { drop(keyOf(d)); render(); } }, 'Remove'));
+        })),
+        h('button', { class: 'link', type: 'button', onclick: function () { state.decisions = []; save(); render(); } }, 'Clear all'));
+    }
+
+    var branch = h('select', { 'aria-label': 'Branch' },
+      h('option', { value: '' }, 'A new branch off main'),
+      DATA.queues.map(function (q) { return h('option', { value: 'hits/' + q.name }, 'The routine\'s branch hits/' + q.name); }));
+    branch.value = state.branch;
+    branch.addEventListener('change', function () { state.branch = branch.value; save(); renderAside(); });
+    var notes = h('textarea', { 'aria-label': 'Notes for whoever applies it', placeholder: 'Anything to know before applying' });
+    notes.value = state.notes;
+    notes.addEventListener('change', function () { state.notes = notes.value; save(); renderAside(); });
+
+    var composed = composeCommands(state.decisions, DATA.today);
+    var commands = composed.commands.join('\n');
+    var branchText = state.branch
+      ? 'the routine\'s branch ' + state.branch + ': check it out with gh pr checkout, or git switch ' + state.branch
+      : 'a new branch off an up-to-date main named ' + (AUDIT ? 'greatest-hits-audit-' : 'desk-') + DATA.today;
+    var prompt = fillPrompt(DATA.applyDesk, composed.commands, [state.notes.trim()].concat(composed.notes).filter(Boolean).join('\n'), branchText, composed.rowNotes);
+    var live = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
+    aside.append(
+      field('Work on', branch),
+      field('Notes', notes),
+      h('span', { class: 'label' }, 'Commands'),
+      h('pre', {}, commands || '# nothing decided yet'),
+      h('div', { class: 'actions' },
+        h('button', { class: 'act', type: 'button', disabled: !count, onclick: function () { copy(commands, live); } }, 'Copy commands'),
+        h('button', { class: 'act primary', type: 'button', disabled: !count, onclick: function () { copy(prompt, live); } }, 'Copy prompt')),
+      live,
+      h('span', { class: 'label' }, 'Prompt'),
+      h('pre', {}, prompt));
+  }
+
+  function render() {
+    document.getElementById('tabs').replaceChildren.apply(document.getElementById('tabs'), TABS.map(function (t) {
+      return h('button', { role: 'tab', type: 'button', 'aria-selected': String(state.tab === t[0]), onclick: function () { state.tab = t[0]; save(); render(); } }, t[1]);
+    }));
+    document.getElementById('tabs').hidden = TABS.length < 2;
+    var main = document.getElementById('main');
+    main.replaceChildren();
+    ({ audit: renderAudit, review: renderReview, promoted: renderPromoted, collection: renderCollection, near: renderNear, seed: renderSeed, deep: renderDeep, add: renderAdd })[state.tab](main);
+    renderAside();
+  }
+
+  var byStatus = STATUSES.map(function (s) {
+    var n = DATA.hits.filter(function (x) { return x.status === s; }).length;
+    return n + ' ' + STATUS_LABEL[s];
+  }).join(', ');
+  document.getElementById('meta').textContent = 'Built ' + DATA.generated.slice(0, 16).replace('T', ' ') + ' UTC from the repository. ' +
+    (AUDIT
+      ? 'The Greatest Hits page shows ' + DATA.hits.filter(function (x) { return x.status === 'featured' || x.status === 'accepted'; }).length + ' anagrams. '
+      : DATA.hits.length + ' hits (' + byStatus + '), ' + DATA.queues.length + ' judged queues' +
+        (DATA.promoted ? ', ' + DATA.promotions.length + ' promoted anagrams. ' : '. ')) +
+    (DATA.votesDate ? 'Votes from the counts of ' + DATA.votesDate + '. ' : '') +
+    'Decisions are kept in this browser until you clear them.';
+  render();
+})();
+</script>
+</body>
+</html>

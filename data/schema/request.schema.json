@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ars-magna.pages.dev/schema/request.schema.json",
+  "title": "A word the pipeline proposes for the vocabulary",
+  "description": "A request is a proposal, never an admission. A word joins the vocabulary only when the operator accepts it by name and merges the pull request that adds it to additions.jsonl.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["word", "source", "from", "why", "seen", "status"],
+  "properties": {
+    "word": {
+      "type": "string",
+      "pattern": "^[a-z]+$",
+      "maxLength": 45,
+      "description": "The normalized search form, as it would be added."
+    },
+    "source": {
+      "enum": ["judge", "submission", "anchor"],
+      "description": "judge: a model proposed it while judging. submission: a reader's anagram needed it. anchor: a seeded anchor word the engine could not find, which is as often a typo as a real word."
+    },
+    "from": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where it came from: a queue name, an issue URL, or a candidate id."
+    },
+    "why": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "One line on why it was proposed."
+    },
+    "gloss": {
+      "type": "string",
+      "maxLength": 160,
+      "description": "A proposed one-sentence meaning. Absent from a submission, where no model is in the loop."
+    },
+    "trace": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A proposed source. Unverified: a model can invent a plausible URL, so this is checked by hand before the word is accepted."
+    },
+    "seen": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "status": {
+      "enum": ["open", "declined"],
+      "description": "open: waiting on the operator. declined: refused, and never proposed again. An accepted word leaves this file and appears in additions.jsonl."
+    }
+  }
+}

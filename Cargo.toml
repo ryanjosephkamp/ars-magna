@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["crates/anagram-core", "crates/anagram-cli", "crates/anagram-wasm"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/ryanjosephkamp/ars-magna"
+
+[workspace.dependencies]
+anagram-core = { path = "crates/anagram-core" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+# Keep debug symbols out of the wasm payload.
+[profile.release.package.anagram-wasm]
+opt-level = 3

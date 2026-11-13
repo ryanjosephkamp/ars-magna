@@ -1,0 +1,187 @@
+/**
+ * The votes and promotions database, through the part of Cloudflare D1's
+ * interface the API uses. The tests give it SQLite in memory with the same
+ * migrations.
+ */
+
+export type D1Result<T> = { results: T[] };
+
+export interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement;
+  first<T = Record<string, unknown>>(): Promise<T | null>;
+  all<T = Record<string, unknown>>(): Promise<D1Result<T>>;
+  run(): Promise<unknown>;
+}
+
+export interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+  /** Runs the statements in one transaction and returns each one's rows. */
+  batch<T = Record<string, unknown>>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
+}
+
+/** Every hit's vote count above zero. */
+export async function readCounts(db: D1Database): Promise<Record<string, number>> {
+  const { results } = await db.prepare('SELECT hit_id, count FROM vote_counts WHERE count > 0').all<{ hit_id: string; count: number }>();
+  return Object.fromEntries(results.map((r) => [r.hit_id, r.count]));
+}
+
+/** The hits one voter has voted for. */
+export async function readMine(db: D1Database, voter: string): Promise<string[]> {
+  const { results } = await db.prepare('SELECT hit_id FROM votes WHERE voter = ? ORDER BY hit_id').bind(voter).all<{ hit_id: string }>();
+  return results.map((r) => r.hit_id);
+}
+
+/**
+ * Casts or takes back one voter's vote for a hit and returns the hit's count.
+ * Casting twice or taking back a vote never cast changes nothing. The count is
+ * recounted in the same transaction, so it cannot drift from the votes.
+ */
+export async function setVote(db: D1Database, hitId: string, voter: string, on: boolean, at: string): Promise<number> {
+  const change = on
+    ? db.prepare('INSERT INTO votes (hit_id, voter, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING').bind(hitId, voter, at)
+    : db.prepare('DELETE FROM votes WHERE hit_id = ? AND voter = ?').bind(hitId, voter);
+  const recount = db
+    .prepare(
+      'INSERT INTO vote_counts (hit_id, count) VALUES (?, (SELECT COUNT(*) FROM votes WHERE hit_id = ?)) ' +
+        'ON CONFLICT (hit_id) DO UPDATE SET count = excluded.count',
+    )
+    .bind(hitId, hitId);
+  const read = db.prepare('SELECT count FROM vote_counts WHERE hit_id = ?').bind(hitId);
+  const results = await db.batch<{ count: number }>([change, recount, read]);
+  return results[2]?.results[0]?.count ?? 0;
+}
+
+/** The first and last keys of one set of letters: every key between them is `letters:` and some words. */
+function keyRange(letters: string): [string, string] {
+  // `;` is the character after `:`, so the range holds exactly these letters' keys.
+  return [`${letters}:`, `${letters};`];
+}
+
+/** Every promotion count above zero for one set of sorted letters. */
+export async function readPromotionCounts(db: D1Database, letters: string): Promise<Record<string, number>> {
+  const { results } = await db
+    .prepare('SELECT key, count FROM promotion_counts WHERE key > ? AND key < ? AND count > 0')
+    .bind(...keyRange(letters))
+    .all<{ key: string; count: number }>();
+  return Object.fromEntries(results.map((r) => [r.key, r.count]));
+}
+
+/** The anagrams of one set of letters a voter has promoted. */
+export async function readMyPromotions(db: D1Database, voter: string, letters: string): Promise<string[]> {
+  const { results } = await db
+    .prepare('SELECT key FROM promotions WHERE voter = ? AND key > ? AND key < ? ORDER BY key')
+    .bind(voter, ...keyRange(letters))
+    .all<{ key: string }>();
+  return results.map((r) => r.key);
+}
+
+/** What a promotion from a search records beyond its key and voter. */
+export type PromotionFields = {
+  input: string;
+  reading: string | null;
+  /** The class of each term that is not a word, as JSON, or null when every term is a word. */
+  classes: string | null;
+  words: readonly string[];
+  tier: string;
+  via: 'result';
+};
+
+/** What a submission from the Build page records: a promotion with a note. Empty notes are kept as null. */
+export type SubmissionFields = {
+  input: string;
+  /** The reading of every number and symbol of the input, as JSON, or null for an input without any. */
+  reading: string | null;
+  /** The class of each term that is not a word of the dictionary, as JSON, or null. */
+  classes: string | null;
+  words: readonly string[];
+  tier: string;
+  via: 'typed';
+  category: string;
+  about: string;
+  why: string;
+  credit: string;
+  /** Words the dictionary has at no tier: word requests. */
+  missing: readonly string[];
+};
+
+const orNull = (text: string): string | null => (text.length > 0 ? text : null);
+
+/**
+ * Makes or takes back one voter's promotion of an anagram and returns its
+ * count. Promoting twice keeps the first promotion as it was; taking back one
+ * never made changes nothing. The count is recounted in the same transaction.
+ *
+ * A submission is the voter's promotion too, so it writes the same row: over a
+ * promotion from a search it adds the note, and a second submission replaces
+ * the note. The row keeps when it was first made, and the count stays one per
+ * voter.
+ */
+export async function setPromotion(
+  db: D1Database,
+  key: string,
+  voter: string,
+  on: boolean,
+  fields: PromotionFields | SubmissionFields,
+  at: string,
+): Promise<number> {
+  let change: D1PreparedStatement;
+  if (!on) {
+    change = db.prepare('DELETE FROM promotions WHERE key = ? AND voter = ?').bind(key, voter);
+  } else if (fields.via === 'typed') {
+    change = db
+      .prepare(
+        'INSERT INTO promotions (key, voter, input, reading, classes, words, tier, via, category, about, why, credit, missing, created_at) ' +
+          "VALUES (?, ?, ?, ?, ?, ?, ?, 'typed', ?, ?, ?, ?, ?, ?) " +
+          'ON CONFLICT (key, voter) DO UPDATE SET input = excluded.input, reading = excluded.reading, classes = excluded.classes, ' +
+          "words = excluded.words, tier = excluded.tier, via = 'typed', " +
+          'category = excluded.category, about = excluded.about, why = excluded.why, credit = excluded.credit, missing = excluded.missing',
+      )
+      .bind(
+        key,
+        voter,
+        fields.input,
+        fields.reading,
+        fields.classes,
+        fields.words.join(' '),
+        fields.tier,
+        fields.category,
+        orNull(fields.about),
+        orNull(fields.why),
+        orNull(fields.credit),
+        orNull(fields.missing.join(' ')),
+        at,
+      );
+  } else {
+    change = db
+      .prepare(
+        'INSERT INTO promotions (key, voter, input, reading, classes, words, tier, via, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+      )
+      .bind(key, voter, fields.input, fields.reading, fields.classes, fields.words.join(' '), fields.tier, fields.via, at);
+  }
+  const recount = db
+    .prepare(
+      'INSERT INTO promotion_counts (key, count) VALUES (?, (SELECT COUNT(*) FROM promotions WHERE key = ?)) ' +
+        'ON CONFLICT (key) DO UPDATE SET count = excluded.count',
+    )
+    .bind(key, key);
+  const read = db.prepare('SELECT count FROM promotion_counts WHERE key = ?').bind(key);
+  const results = await db.batch<{ count: number }>([change, recount, read]);
+  return results[2]?.results[0]?.count ?? 0;
+}
+
+/**
+ * Counts one action against a key's hourly limit and says whether it is still
+ * within it. The first action of a new hour clears the hours before it.
+ */
+export async function withinLimit(db: D1Database, key: string, bucket: string, limit: number): Promise<boolean> {
+  const row = await db
+    .prepare(
+      'INSERT INTO rate_limits (key, bucket, count) VALUES (?, ?, 1) ' +
+        'ON CONFLICT (key, bucket) DO UPDATE SET count = count + 1 RETURNING count',
+    )
+    .bind(key, bucket)
+    .first<{ count: number }>();
+  const count = row?.count ?? 1;
+  if (count === 1) await db.prepare('DELETE FROM rate_limits WHERE bucket < ?').bind(bucket).run();
+  return count <= limit;
+}

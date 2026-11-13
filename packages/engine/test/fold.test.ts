@@ -1,0 +1,200 @@
+/**
+ * The fold has to agree with the Rust `normalize()` byte for byte, so the
+ * table here is the same one `crates/anagram-core/src/counts.rs` checks.
+ */
+import { describe, expect, it } from 'vitest';
+
+import { foldChar, foldLetters, foldWords, isSkipped, normalizeLetters, poolChars } from '../src/fold.ts';
+import { FOLD_RANGES, FOLD_TABLE } from '../src/foldTable.ts';
+
+/** `[input, letters, skipped]` — mirrored in the Rust unit tests. */
+export const FOLD_CASES: readonly (readonly [string, string, number])[] = [
+  ['Beyoncé Knowles', 'beyonceknowles', 0],
+  ['Penélope Cruz', 'penelopecruz', 0],
+  ['Zoë Kravitz', 'zoekravitz', 0],
+  ['Renée Zellweger', 'reneezellweger', 0],
+  ['Björk', 'bjork', 0],
+  ['Motörhead', 'motorhead', 0],
+  ['Straße', 'strasse', 0],
+  ['Ærø', 'aero', 0],
+  ['Łódź', 'lodz', 0],
+  ['Þórður', 'thordur', 0],
+  ['İstanbul', 'istanbul', 0],
+  ['Ryan Joseph Kamp', 'ryanjosephkamp', 0],
+  ["O'Brien-Smith", 'obriensmith', 0],
+  // A digit is a character of the pool (the literal rule); a closing exclamation mark is punctuation.
+  ['Route 66!', 'route66', 0],
+  ['Ben Shelton 🎾 2026', 'benshelton2026', 1],
+  ['Владимир', '', 8],
+  ['東京', '', 2],
+  ['', '', 0],
+  ['1234!!', '1234', 0],
+  ['!! ??', '', 0],
+  ['Beverly Hills 90210', 'beverlyhills90210', 0],
+  // The symbols of the set are characters of the pool wherever they stand; `!` and `?` only inside a word.
+  ['Blink-182', 'blink182', 0],
+  ['Ke$ha', 'ke$ha', 0],
+  ['P!nk wh?t Hello! what?', 'p!nkwh?thellowhat', 0],
+  ['AT&T C++ 50% #1 @home $5', 'at&tc++50%#1@home$5', 0],
+  ['$5 off', '$5off', 0],
+  // A symbol outside the set is skipped and counted, like a letter of another script.
+  ['a ~ b | c', 'abc', 0],
+  ['a © b', 'ab', 1],
+];
+
+describe('foldLetters', () => {
+  it.each(FOLD_CASES)('folds %j', (input, letters, skipped) => {
+    expect(foldLetters(input)).toEqual({ letters, skipped });
+  });
+
+  it('gives an accented spelling the same letters as its plain one', () => {
+    expect(normalizeLetters('Beyoncé')).toBe(normalizeLetters('Beyonce'));
+    expect(normalizeLetters('Straße')).toBe(normalizeLetters('Strasse'));
+    expect(normalizeLetters('Björk')).toBe(normalizeLetters('Bjork'));
+  });
+
+  it('matches the dictionary build for its two accented surfaces', () => {
+    expect(normalizeLetters('norteño')).toBe('norteno');
+    expect(normalizeLetters('peléan')).toBe('pelean');
+  });
+
+  it('agrees with the browser NFKD over every code point the table covers', () => {
+    // The table is generated, so this is the check that it was generated
+    // right and has not been hand-edited since.
+    const special: Record<string, string> = {
+      ß: 'ss', ẞ: 'ss', æ: 'ae', Æ: 'ae', œ: 'oe', Œ: 'oe', ø: 'o', Ø: 'o',
+      đ: 'd', Đ: 'd', ł: 'l', Ł: 'l', þ: 'th', Þ: 'th', ð: 'd', Ð: 'd', ı: 'i',
+    };
+    let checked = 0;
+    for (const [lo, hi] of FOLD_RANGES) {
+      for (let cp = lo; cp <= hi; cp++) {
+        const char = String.fromCodePoint(cp);
+        let expected = special[char];
+        if (expected === undefined) {
+          expected = '';
+          for (const piece of char.normalize('NFKD')) {
+            if (/^\p{M}$/u.test(piece)) continue;
+            const lower = piece.toLowerCase();
+            if (/^[a-z]$/.test(lower)) expected += lower;
+          }
+        }
+        expect(foldChar(char), `U+${cp.toString(16)} ${char}`).toBe(expected);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(600);
+    for (const char of Object.keys(FOLD_TABLE)) {
+      const cp = char.codePointAt(0)!;
+      expect(FOLD_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi), char).toBe(true);
+    }
+  });
+
+  it('does not count spaces or punctuation as skipped', () => {
+    expect(foldLetters('  d o r m i t o r y  ').skipped).toBe(0);
+    expect(foldLetters("Dor-mit'ory").skipped).toBe(0);
+  });
+
+  it('says which single characters are skipped, as foldLetters counts them', () => {
+    for (const char of ['½', 'Ж', '中', '\u{263A}', '©']) expect(isSkipped(char), char).toBe(true);
+    // A digit and a symbol of the set are characters of the pool, not skipped; `!` alone is punctuation.
+    for (const char of ['a', 'Z', 'é', 'ß', ' ', "'", '-', '.', ',', '&', '’', '—', '4', '$', '!', '~', '|']) expect(isSkipped(char), char).toBe(false);
+    for (const [input, , skipped] of FOLD_CASES) {
+      expect([...input].filter(isSkipped).length, input).toBe(skipped);
+    }
+  });
+});
+
+/** Code points, so no editor or tool can turn an escape into the character it names. */
+const at = (code: number) => String.fromCodePoint(code);
+
+/** `[input, words]` — mirrored in `text_words_are_split_on_whitespace_alone` in `counts.rs`. */
+export const WORD_CASES: readonly (readonly [string, readonly string[]])[] = [
+  ['apple sauce', ['apple', 'sauce']],
+  ['  Apple\tSAUCE\n', ['apple', 'sauce']],
+  ['applesauce', ['applesauce']],
+  // A hyphen and an apostrophe carry no letters and end no word.
+  ['apple-sauce', ['applesauce']],
+  ["O'Brien Smith", ['obrien', 'smith']],
+  // A piece that folds to nothing is not a word; an ampersand and a number are tokens of the pool.
+  ['apple & sauce 2026', ['apple', '&', 'sauce', '2026']],
+  ['apple ?? sauce', ['apple', 'sauce']],
+  ['Beyoncé Knowles', ['beyonce', 'knowles']],
+  ['Straße 9', ['strasse', '9']],
+  ['Blink-182 Ke$ha', ['blink182', 'ke$ha']],
+  [`apple${at(0xa0)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0x85)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0x2028)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0x3000)}sauce`, ['apple', 'sauce']],
+  [`apple${at(0xfeff)}sauce`, ['apple', 'sauce']],
+  // A zero-width space is not whitespace to Unicode, so it ends no word.
+  [`apple${at(0x200b)}sauce`, ['applesauce']],
+  ['', []],
+  ['1234 !!', ['1234']],
+  ['!! ??', []],
+];
+
+/** Unicode White_Space, plus U+FEFF: the same list `counts.rs` checks Rust's against. */
+const WORD_BREAKS = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
+  0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
+];
+
+describe('poolChars', () => {
+  it('gives one entry per character typed, with what each puts into the pool', () => {
+    expect(poolChars('Ke$ha')).toEqual([
+      { char: 'K', pool: 'k' },
+      { char: 'e', pool: 'e' },
+      { char: '$', pool: '$' },
+      { char: 'h', pool: 'h' },
+      { char: 'a', pool: 'a' },
+    ]);
+    // A letter that folds to two carries both; a space and a hyphen carry nothing.
+    expect(poolChars('Straße-x').map((c) => c.pool)).toEqual(['s', 't', 'r', 'a', 'ss', 'e', '', 'x']);
+    // A `!` inside a word is a character of the pool; one at the end is punctuation.
+    expect(poolChars('$h!t!').map((c) => c.pool)).toEqual(['$', 'h', '!', 't', '']);
+  });
+
+  it('reads each character as the reading says, and gives nothing for one left out', () => {
+    expect(poolChars('Ke$ha', { $: 's' }).map((c) => c.pool)).toEqual(['k', 'e', 's', 'h', 'a']);
+    expect(poolChars('Ke$ha', { $: 'drop' }).map((c) => c.pool)).toEqual(['k', 'e', '', 'h', 'a']);
+    expect(poolChars('Reacher season 4', { '4': 'drop' }).at(-1)).toEqual({ char: '4', pool: '' });
+  });
+
+  it('joins back to exactly what the fold makes of the text, whatever the reading', () => {
+    const cases: [string, Record<string, string>][] = [
+      ['Blink-182', {}],
+      ['Blink-182', { '8': 'b' }],
+      ['Blink-182', { '1': 'drop', '2': 'z' }],
+      ['Beyoncé 4 & 44 Ж', {}],
+      ['Beyoncé 4 & 44 Ж', { '4': 'drop' }],
+      ['$h!t? really', {}],
+      ["jack-o'-lantern, it's.", {}],
+      ['the 1,000th man', {}],
+      ['Straße', {}],
+    ];
+    for (const [input, reading] of cases) {
+      expect(poolChars(input, reading).map((c) => c.pool).join(''), input).toBe(foldLetters(input, reading).letters);
+    }
+  });
+});
+
+describe('foldWords', () => {
+  it.each(WORD_CASES)('splits %j', (input, words) => {
+    expect(foldWords(input)).toEqual(words);
+  });
+
+  it('joins back to exactly the letters the search uses', () => {
+    for (const [input] of [...FOLD_CASES, ...WORD_CASES]) {
+      expect(foldWords(input).join('')).toBe(normalizeLetters(input));
+    }
+  });
+
+  it('ends a word at the characters the engine ends one at, and no others', () => {
+    const breaks = new Set(WORD_BREAKS);
+    for (let code = 0; code <= 0xffff; code++) {
+      if (code >= 0xd800 && code <= 0xdfff) continue;
+      const words = foldWords(`a${at(code)}b`);
+      expect(words.length === 2, `U+${code.toString(16).padStart(4, '0')}`).toBe(breaks.has(code));
+    }
+  });
+});

@@ -1,0 +1,3327 @@
+{
+ "head": {
+  "vars": [
+   "title",
+   "item",
+   "class",
+   "root",
+   "subjectLabel"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q108532383"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "tennis player"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q5"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q5"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Ben Shelton"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q190192"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "science fiction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Dune (novel)"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "weapons industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft construction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q190192"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "adventure fiction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Dune (novel)"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aircraft industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q190192"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "soft science fiction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Dune (novel)"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q190192"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "social science fiction"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Dune (novel)"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q190192"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "planetary romance"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7725634"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Dune (novel)"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2995256"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q936518"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6881511"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q4830453"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "aerospace industry"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q66"
+    },
+    "subjectLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "space-based economy"
+    },
+    "class": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q891723"
+    },
+    "root": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q783794"
+    },
+    "title": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Boeing"
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@ars-magna/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm run data && vite",
+    "build": "pnpm run data && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "data": "pnpm run hits && pnpm run terms",
+    "hits": "node --experimental-strip-types scripts/build-hits.ts",
+    "terms": "node --experimental-strip-types scripts/build-terms.ts"
+  },
+  "dependencies": {
+    "@ars-magna/engine": "workspace:*",
+    "@tanstack/react-virtual": "^3.13.12",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "tailwindcss": "^4.1.13",
+    "vite": "^7.1.5"
+  }
+}

@@ -1,0 +1,4 @@
+# The site additions this queue was enumerated with, from
+# data/vocabulary/additions.jsonl. Written by hits:enumerate; do not edit.
+doomer
+onsen

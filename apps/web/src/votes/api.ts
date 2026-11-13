@@ -1,0 +1,450 @@
+/**
+ * The vote and promotion API, as plain request handlers.
+ * `apps/web/functions/api/` wires them to Cloudflare Pages Functions; the
+ * tests call them directly.
+ *
+ *   GET  /api/votes?voter=               every hit's count, and which hits this voter voted for
+ *   POST /api/pass                       {voter, token}: the Turnstile check, once a visit; returns a signed pass
+ *   POST /api/vote                       {hit_id, on, voter, pass}: casts or takes back a vote; returns the count
+ *   GET  /api/promotions?letters=&voter= one set of letters' promotion counts, and which this voter promoted;
+ *                                        a blocked anagram's promotions are left out of the counts
+ *   POST /api/promote                    {input, words, tier, on, voter, pass}: makes or takes back a promotion;
+ *                                        with via "typed", category and optional about, why, credit and missing,
+ *                                        a submission from the Build page
+ *
+ * Votes attach to published hit ids only; promotions to any other anagram. A
+ * POST must be JSON, which a page on another site cannot send here without a
+ * CORS preflight this API never grants.
+ */
+import { normalizeLetters } from '@ars-magna/engine/fold';
+import { fullReading, isReading, readingProblem } from '@ars-magna/engine/readings';
+import { isTextItself } from '@ars-magna/engine/identity';
+import { isClassName, type ClassName } from '@ars-magna/engine/protocol';
+
+import { isNumeral, type TermsFile } from '../lib/terms.ts';
+
+import {
+  HIT_ID_PATTERN,
+  LIMITS,
+  MAX_CREDIT,
+  MAX_INPUT,
+  MAX_LETTERS,
+  MAX_TYPED_LETTERS,
+  MAX_WHY,
+  MAX_WORDS,
+  PASS_TTL_MS,
+  POOL_PATTERN,
+  VOTER_PATTERN,
+  WORD_PATTERN,
+  aboutProblem,
+  connectionKey,
+  hourBucket,
+  isCategory,
+  isTier,
+  keySha256,
+  promotable,
+  promotionKey,
+  signPass,
+  sortedLetters,
+  tidyNote,
+  verifyPass,
+} from './core.ts';
+import {
+  readCounts,
+  readMine,
+  readMyPromotions,
+  readPromotionCounts,
+  setPromotion,
+  setVote,
+  withinLimit,
+  type D1Database,
+  type SubmissionFields,
+} from './store.ts';
+
+export type Env = {
+  DISCOVERIES_DB: D1Database;
+  TURNSTILE_SECRET: string;
+  /** Hashes connection addresses for rate limits and signs passes. */
+  IP_HASH_SECRET: string;
+  /** "false" pauses voting; anything else, or nothing, leaves it open. */
+  VOTES_OPEN?: string;
+  /** "false" pauses promotions; anything else, or nothing, leaves them open. */
+  PROMOTIONS_OPEN?: string;
+  /** Pages' own static files, where hits.json is read from. */
+  ASSETS?: { fetch(request: Request): Promise<Response> };
+};
+
+/** What is on Discover: the hit ids that take votes, and their promotion keys, which take no promotions. */
+export type Published = { ids: ReadonlySet<string>; keys: ReadonlySet<string> };
+
+export type Deps = {
+  now(): number;
+  fetch(input: string, init?: RequestInit): Promise<Response>;
+  published(request: Request, env: Env): Promise<Published>;
+  /**
+   * The codes (`keySha256`) of the anagrams that may not be promoted: the block
+   * list in data/promotions/blocks.jsonl, which the build copies into hits.json.
+   */
+  blockedKeys(request: Request, env: Env): Promise<ReadonlySet<string>>;
+  /**
+   * The terms of the labelled classes, by the term: terms.json, built from the
+   * class files. A promoted term that is not a word of letters has to be one of
+   * these, or a numeral of the text's own digits.
+   */
+  terms(request: Request, env: Env): Promise<ReadonlyMap<string, ClassName>>;
+};
+
+/** What GET /api/votes returns. */
+export type VotesBody = { open: boolean; counts: Record<string, number>; mine: string[] };
+
+/** What GET /api/promotions returns: counts and this voter's promotions, keyed by promotion key. */
+export type PromotionsBody = { open: boolean; counts: Record<string, number>; mine: string[] };
+
+export const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+function refuse(status: number, error: string, message: string): Response {
+  return json({ error, message }, status);
+}
+
+const votesOpen = (env: Env): boolean => env.VOTES_OPEN !== 'false';
+const promotionsOpen = (env: Env): boolean => env.PROMOTIONS_OPEN !== 'false';
+const ipOf = (request: Request): string => request.headers.get('cf-connecting-ip') ?? '';
+
+async function readJson(request: Request): Promise<Record<string, unknown> | null> {
+  if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) return null;
+  try {
+    const body: unknown = await request.json();
+    return body !== null && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether Cloudflare accepts a Turnstile token. Any failure to ask counts as no. */
+export async function verifyTurnstile(token: string, secret: string, ip: string, fetchImpl: Deps['fetch']): Promise<boolean> {
+  const form = new FormData();
+  form.append('secret', secret);
+  form.append('response', token);
+  if (ip) form.append('remoteip', ip);
+  try {
+    const response = await fetchImpl(TURNSTILE_VERIFY, { method: 'POST', body: form });
+    if (!response.ok) return false;
+    const result = (await response.json()) as { success?: unknown };
+    return result.success === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getVotes(request: Request, env: Env): Promise<Response> {
+  const voter = new URL(request.url).searchParams.get('voter');
+  const counts = await readCounts(env.DISCOVERIES_DB);
+  const mine = voter && VOTER_PATTERN.test(voter) ? await readMine(env.DISCOVERIES_DB, voter) : [];
+  return json({ open: votesOpen(env), counts, mine } satisfies VotesBody);
+}
+
+/** The check before a visit's first vote or promotion: open while either is. */
+export async function postPass(request: Request, env: Env, deps: Deps): Promise<Response> {
+  if (!votesOpen(env) && !promotionsOpen(env)) return refuse(503, 'closed', 'Votes and promotions are paused.');
+  const body = await readJson(request);
+  const voter = body?.['voter'];
+  const token = body?.['token'];
+  if (typeof voter !== 'string' || !VOTER_PATTERN.test(voter) || typeof token !== 'string' || token.length === 0 || token.length > 2048) {
+    return refuse(400, 'bad-request', 'Send JSON with a voter id and a Turnstile token.');
+  }
+  const now = deps.now();
+  const connection = await connectionKey(env.IP_HASH_SECRET, ipOf(request), now);
+  if (!(await withinLimit(env.DISCOVERIES_DB, `pass:${connection}`, hourBucket(now), LIMITS.pass))) {
+    return refuse(429, 'too-many', 'Too many checks from this connection this hour. Try again later.');
+  }
+  if (!(await verifyTurnstile(token, env.TURNSTILE_SECRET, ipOf(request), deps.fetch))) {
+    return refuse(403, 'check-failed', 'The check did not pass. Try again.');
+  }
+  const expires = now + PASS_TTL_MS;
+  return json({ pass: await signPass(env.IP_HASH_SECRET, voter, expires), expires });
+}
+
+export async function postVote(request: Request, env: Env, deps: Deps): Promise<Response> {
+  if (!votesOpen(env)) return refuse(503, 'closed', 'Voting is paused.');
+  const body = await readJson(request);
+  const hitId = body?.['hit_id'];
+  const voter = body?.['voter'];
+  const on = body?.['on'];
+  const pass = body?.['pass'];
+  if (typeof hitId !== 'string' || !HIT_ID_PATTERN.test(hitId) || typeof voter !== 'string' || !VOTER_PATTERN.test(voter) || typeof on !== 'boolean') {
+    return refuse(400, 'bad-request', 'Send JSON with a hit_id, a voter id and on.');
+  }
+  const now = deps.now();
+  if (typeof pass !== 'string' || !(await verifyPass(env.IP_HASH_SECRET, voter, pass, now))) {
+    return refuse(403, 'no-pass', 'The check before voting has expired. Vote again to renew it.');
+  }
+  if (!(await deps.published(request, env)).ids.has(hitId)) {
+    return refuse(404, 'unknown-hit', 'That anagram is not on Discover.');
+  }
+  const connection = await connectionKey(env.IP_HASH_SECRET, ipOf(request), now);
+  if (!(await withinLimit(env.DISCOVERIES_DB, `vote:${connection}`, hourBucket(now), LIMITS.vote))) {
+    return refuse(429, 'too-many', 'Too many votes from this connection this hour. Try again later.');
+  }
+  const count = await setVote(env.DISCOVERIES_DB, hitId, voter, on, new Date(now).toISOString());
+  return json({ hit_id: hitId, on, count });
+}
+
+/** Counts with every blocked anagram left out. */
+async function withoutBlocked(counts: Record<string, number>, blocked: ReadonlySet<string>): Promise<Record<string, number>> {
+  if (blocked.size === 0) return counts;
+  const kept: Record<string, number> = {};
+  for (const [key, count] of Object.entries(counts)) {
+    if (!blocked.has(await keySha256(key))) kept[key] = count;
+  }
+  return kept;
+}
+
+export async function getPromotions(request: Request, env: Env, deps?: Pick<Deps, 'blockedKeys'>): Promise<Response> {
+  const params = new URL(request.url).searchParams;
+  const letters = params.get('letters') ?? '';
+  // The pool, not the letters alone: a text with a digit or a symbol of the set
+  // is keyed by those characters too (D62), and its rows have promotions like any other.
+  if (!POOL_PATTERN.test(letters) || letters.length > MAX_LETTERS) {
+    return refuse(400, 'bad-request', 'Send the characters to look up: letters, digits and the symbols the search uses.');
+  }
+  const sorted = sortedLetters(letters);
+  const voter = params.get('voter');
+  const all = await readPromotionCounts(env.DISCOVERIES_DB, sorted);
+  // The counts do not wait on the block list: if hits.json cannot be read, they are shown whole.
+  const blocked = deps ? await deps.blockedKeys(request, env).catch(() => null) : null;
+  const counts = blocked ? await withoutBlocked(all, blocked) : all;
+  const mine = voter && VOTER_PATTERN.test(voter) ? await readMyPromotions(env.DISCOVERIES_DB, voter, sorted) : [];
+  return json({ open: promotionsOpen(env), counts, mine } satisfies PromotionsBody);
+}
+
+/**
+ * Why these terms cannot be promoted, or null: a term that is not a word of
+ * letters must be a term of a labelled class (`b8`, `&`, `wtf`) or a numeral
+ * the engine makes from the text's own digits (`182`). The site cannot check a
+ * word against the dictionary here — the artifact is the reader's, not the
+ * API's — but it can hold a term to the lists the site publishes.
+ */
+export function termProblem(words: readonly string[], terms: ReadonlyMap<string, ClassName>): string | null {
+  const unknown = words.find((word) => !/^[a-z]+$/.test(word) && !isNumeral(word) && !terms.has(word));
+  return unknown === undefined ? null : `${unknown} is not a word, and no class lists it.`;
+}
+
+/**
+ * The classes a submission names for its terms, checked: each key a term of
+ * the anagram, each value a class the site knows, and each term one that class
+ * could carry — the class its file gives it, `numerals` for a run of the
+ * text's own digits, or `names` and `leet` for a term of letters, which are
+ * the dictionary's to answer and not this API's. Null when any pair is wrong.
+ *
+ * A term can be two things at once: `2` is listed shorthand and a numeral the
+ * engine makes per query, so either class is right for it.
+ */
+function classesOf(value: unknown, words: readonly string[], terms: ReadonlyMap<string, ClassName>): Record<string, ClassName> | null {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) return null;
+  const out: Record<string, ClassName> = {};
+  for (const [term, name] of Object.entries(value as Record<string, unknown>)) {
+    if (!words.includes(term) || typeof name !== 'string' || !isClassName(name)) return null;
+    const fits =
+      terms.get(term) === name ||
+      (name === 'numerals' && isNumeral(term)) ||
+      ((name === 'names' || name === 'leet') && /^[a-z]+$/.test(term));
+    if (!fits) return null;
+    out[term] = name;
+  }
+  return out;
+}
+
+/** An optional note: absent, null or a string, tidied. Anything else is not a note. */
+function note(value: unknown): string | null {
+  if (value === undefined || value === null) return '';
+  return typeof value === 'string' ? tidyNote(value) : null;
+}
+
+/**
+ * A submission's note, checked: the category, what the input is, why it is
+ * good, the credit and the word requests. A refusal when any breaks its rule.
+ */
+function submission(
+  body: Record<string, unknown>,
+  words: readonly string[],
+): Omit<SubmissionFields, 'input' | 'reading' | 'classes' | 'words' | 'tier'> | Response {
+  const category = body['category'];
+  const about = note(body['about']);
+  const why = note(body['why']);
+  const credit = note(body['credit']);
+  const missing = body['missing'] ?? [];
+  if (
+    !isCategory(category) ||
+    about === null ||
+    why === null ||
+    credit === null ||
+    !Array.isArray(missing) ||
+    !missing.every((w): w is string => typeof w === 'string' && words.includes(w))
+  ) {
+    return refuse(400, 'bad-request', 'Send JSON with an input, its words, a tier, a category, a voter id and on.');
+  }
+  const problem = about.length > 0 ? aboutProblem(about) : null;
+  if (problem) return refuse(400, 'about', problem);
+  if ([...why].length > MAX_WHY) return refuse(400, 'too-long-note', `Keep why it is good to ${MAX_WHY} characters.`);
+  if ([...credit].length > MAX_CREDIT) return refuse(400, 'too-long-note', `Keep the credit to ${MAX_CREDIT} characters.`);
+  return { via: 'typed', category, about, why, credit, missing: [...new Set(missing)] };
+}
+
+export async function postPromote(request: Request, env: Env, deps: Deps): Promise<Response> {
+  const body = await readJson(request);
+  const via = body?.['via'] ?? 'result';
+  const typed = via === 'typed';
+  if (!promotionsOpen(env)) return refuse(503, 'closed', typed ? 'Submissions are paused.' : 'Promotions are paused.');
+  const input = body?.['input'];
+  const words = body?.['words'];
+  const tier = body?.['tier'];
+  const voter = body?.['voter'];
+  const on = body?.['on'];
+  const pass = body?.['pass'];
+  const readingSent = body?.['reading'];
+  if (
+    !body ||
+    (via !== 'result' && !typed) ||
+    typeof input !== 'string' ||
+    input.trim().length === 0 ||
+    input.length > MAX_INPUT ||
+    (readingSent !== undefined && readingSent !== null && !isReading(readingSent)) ||
+    !Array.isArray(words) ||
+    words.length === 0 ||
+    words.length > MAX_WORDS ||
+    !words.every((w): w is string => typeof w === 'string' && WORD_PATTERN.test(w)) ||
+    !isTier(tier) ||
+    typeof voter !== 'string' ||
+    !VOTER_PATTERN.test(voter) ||
+    typeof on !== 'boolean'
+  ) {
+    return refuse(400, 'bad-request', 'Send JSON with an input, its words, a tier, a voter id and on.');
+  }
+  // How the input's numbers and symbols are read: what was sent, checked against what the input offers,
+  // else the defaults. What is stored is the reading of every item, so the review needs no table.
+  const chosen = isReading(readingSent) ? readingSent : {};
+  const readingIssue = readingProblem(input, chosen);
+  if (readingIssue) return refuse(400, 'bad-reading', `That reading does not fit the input: ${readingIssue}.`);
+  const reading = fullReading(input, chosen);
+  const letters = normalizeLetters(input, chosen).length;
+  if (letters > MAX_LETTERS) {
+    return refuse(400, 'too-long', 'That input has more letters than a promotion can hold.');
+  }
+  if (typed && on && letters > MAX_TYPED_LETTERS) {
+    return refuse(400, 'too-long', `A submission holds at most ${MAX_TYPED_LETTERS} letters.`);
+  }
+  if (!promotable(input, words, chosen)) {
+    return refuse(400, 'not-an-anagram', 'Those words do not use exactly the characters of the input.');
+  }
+  // Every term is a word of letters, a term of a labelled class, or a numeral
+  // of the text's own digits. Taking a promotion back always works.
+  const listed = await deps.terms(request, env);
+  const termIssue = on ? termProblem(words, listed) : null;
+  if (termIssue) return refuse(400, 'not-a-term', termIssue);
+  const classes = classesOf(body['classes'], words, listed);
+  if (classes === null) return refuse(400, 'bad-classes', 'Those terms and classes do not go together.');
+  // The text's own words, in any order, and a re-spacing of it are the text, not an anagram of it.
+  // Taking a promotion back always works, so only making one is refused.
+  if (on && isTextItself(input, words, chosen)) {
+    return refuse(400, 'text-itself', 'That is the text itself, not an anagram of it.');
+  }
+  // Taking a submission back needs no note; making one needs a good one.
+  const noted = typed && on ? submission(body, words) : null;
+  if (noted instanceof Response) return noted;
+  const now = deps.now();
+  if (typeof pass !== 'string' || !(await verifyPass(env.IP_HASH_SECRET, voter, pass, now))) {
+    return refuse(403, 'no-pass', 'The check has expired. Press again to renew it.');
+  }
+  const key = promotionKey(words);
+  // Taking a promotion back always works; making one does not for an anagram
+  // already on Discover, or one that is blocked.
+  if (on && (await deps.published(request, env)).keys.has(key)) {
+    return refuse(409, 'published', 'That anagram is on Discover already. Vote for it instead.');
+  }
+  if (on && (await deps.blockedKeys(request, env)).has(await keySha256(key))) {
+    return refuse(403, 'blocked', 'That anagram cannot be promoted.');
+  }
+  // A submission is a promotion, and counts against the same hourly limit.
+  const connection = await connectionKey(env.IP_HASH_SECRET, ipOf(request), now);
+  if (!(await withinLimit(env.DISCOVERIES_DB, `promote:${connection}`, hourBucket(now), LIMITS.promote))) {
+    return refuse(429, 'too-many', 'Too many promotions from this connection this hour. Try again later.');
+  }
+  const stored = reading ? JSON.stringify(reading) : null;
+  const storedClasses = Object.keys(classes).length > 0 ? JSON.stringify(classes) : null;
+  const fields = noted
+    ? { input, reading: stored, words, tier, ...noted, classes: storedClasses }
+    : { input, reading: stored, classes: storedClasses, words, tier, via: 'result' as const };
+  const count = await setPromotion(env.DISCOVERIES_DB, key, voter, on, fields, new Date(now).toISOString());
+  return json({ key, on, count });
+}
+
+/** Any method but POST on an endpoint that only takes POST. */
+export async function onlyPost(): Promise<Response> {
+  return new Response(JSON.stringify({ error: 'method', message: 'Use POST.' }), {
+    status: 405,
+    headers: { allow: 'POST', 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+/** Turns anything a handler throws into a plain 500, never a stack trace. */
+export async function guard(handler: () => Promise<Response>, message = 'Votes are not available right now.'): Promise<Response> {
+  try {
+    return await handler();
+  } catch {
+    return refuse(500, 'unavailable', message);
+  }
+}
+
+/** What hits.json tells the API: what is on Discover, and the codes of the blocked anagrams. */
+type SiteList = { published: Published; blocked: ReadonlySet<string> };
+
+let siteList: { at: number; value: SiteList } | null = null;
+let termList: { at: number; value: ReadonlyMap<string, ClassName> } | null = null;
+
+/** terms.json, read once every five minutes, as hits.json is. */
+async function readTerms(request: Request, env: Env): Promise<ReadonlyMap<string, ClassName>> {
+  const now = Date.now();
+  if (termList && now - termList.at < 5 * 60_000) return termList.value;
+  const url = new URL('/terms.json', request.url);
+  const response = await (env.ASSETS ? env.ASSETS.fetch(new Request(url)) : fetch(url));
+  if (!response.ok) throw new Error(`terms.json answered ${response.status}`);
+  const body = (await response.json()) as TermsFile;
+  const value = new Map(body.terms.map((term) => [term.term, term.class]));
+  termList = { at: now, value };
+  return value;
+}
+
+/** hits.json, read once every five minutes. */
+async function readSiteList(request: Request, env: Env): Promise<SiteList> {
+  const now = Date.now();
+  if (siteList && now - siteList.at < 5 * 60_000) return siteList.value;
+  const url = new URL('/hits.json', request.url);
+  const response = await (env.ASSETS ? env.ASSETS.fetch(new Request(url)) : fetch(url));
+  if (!response.ok) throw new Error(`hits.json answered ${response.status}`);
+  const body = (await response.json()) as { hits: { id: string; words: string[] }[]; blocked?: string[] };
+  const value: SiteList = {
+    published: { ids: new Set(body.hits.map((h) => h.id)), keys: new Set(body.hits.map((h) => promotionKey(h.words))) },
+    blocked: new Set(body.blocked ?? []),
+  };
+  siteList = { at: now, value };
+  return value;
+}
+
+/** The live dependencies: the clock, the network, and hits.json. */
+export function liveDeps(): Deps {
+  return {
+    now: () => Date.now(),
+    fetch: (input, init) => fetch(input, init),
+    published: async (request, env) => (await readSiteList(request, env)).published,
+    blockedKeys: async (request, env) => (await readSiteList(request, env)).blocked,
+    terms: (request, env) => readTerms(request, env),
+  };
+}
