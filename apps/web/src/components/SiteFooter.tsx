@@ -78,7 +78,7 @@ const PROFILES: Profile[] = [
   {
     title: 'LinkedIn',
     label: 'Ryan Kamp on LinkedIn',
-    href: 'https://www.linkedin.com/in/rjk1999',
+    href: 'https://www.linkedin.com/in/ryanjosephkamp/',
     icon: (
       <path
         fill="currentColor"
