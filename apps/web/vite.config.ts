@@ -31,7 +31,10 @@ function precacheManifest(): Plugin {
       this.emitFile({
         type: 'asset',
         fileName: 'precache.json',
-        source: `${JSON.stringify({ files: ['/index.html', '/hits.html', '/build.html', '/how.html', '/hits.json', ...files] }, null, 2)}\n`,
+        // The four page shells, then the files from public/ the pages fetch at
+        // run time (the gallery's hits, the class terms, and the icon and
+        // manifest), which a first visit fetches before the worker exists.
+        source: `${JSON.stringify({ files: ['/index.html', '/hits.html', '/build.html', '/how.html', '/hits.json', '/terms.json', '/icon.svg', '/manifest.webmanifest', ...files] }, null, 2)}\n`,
       });
     },
   };

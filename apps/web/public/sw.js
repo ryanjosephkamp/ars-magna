@@ -23,16 +23,17 @@
  * - The dictionary artifacts under `/dict/` are left to the engine's own cache.
  *
  * Bumping `CACHE` makes the next activation delete the previous cache, and with
- * it anything stale a returning visitor still holds. `main.tsx` fills the same
- * cache and names it too; the two must match.
+ * it anything stale a returning visitor still holds. `offline.ts` fills the
+ * same cache and names it too; the two must match. v3 replaced v2, whose page
+ * shells were redirected responses no navigation could use.
  *
- * Filling the cache is the page's job (see `warmCache` in `main.tsx`), because
+ * Filling the cache is the page's job (see `warmCache` in `offline.ts`), because
  * two of the files that matter most can never be captured here: everything on a
  * first visit is fetched before this worker activates, and a module worker's own
  * script request bypasses the `fetch` handler entirely. The page knows the real
  * filenames from `precache.json` and can simply put them in.
  */
-const CACHE = 'ars-magna-v2';
+const CACHE = 'ars-magna-v3';
 const SHELL = '/index.html';
 const HITS_SHELL = '/hits.html';
 const BUILD_SHELL = '/build.html';
@@ -52,6 +53,21 @@ function shellFor(pathname) {
   if (pathname === '/build' || pathname === BUILD_SHELL) return BUILD_SHELL;
   if (pathname === '/hits' || pathname === HITS_SHELL || pathname.startsWith('/hits/')) return HITS_SHELL;
   return SHELL;
+}
+
+/**
+ * The shell a navigation's own response is, or null when it is some other
+ * page: a page's addresses with and without `.html`, and nothing else. A
+ * per-hit page under `/hits/` is a page of its own, not the gallery, and an
+ * unknown path is not the search page.
+ */
+function ownShell(pathname) {
+  const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  if (path === '/' || path === SHELL) return SHELL;
+  if (path === '/hits' || path === HITS_SHELL) return HITS_SHELL;
+  if (path === '/build' || path === BUILD_SHELL) return BUILD_SHELL;
+  if (path === '/how' || path === HOW_SHELL) return HOW_SHELL;
+  return null;
 }
 
 /**
@@ -135,19 +151,30 @@ self.addEventListener('fetch', (event) => {
     // Network-first for the page itself, so a deploy is picked up on the next
     // load rather than being pinned until the cache is cleared. Offline, a
     // per-hit page falls back to the gallery shell, which reads the hash.
+    //
+    // A page's own response is kept as its shell, under either address. Only
+    // a plain 200 is: a navigation sees a redirect as an opaque response, and
+    // a redirected response is one the browser refuses for a navigation, so
+    // either would leave the page blank offline.
     const shell = shellFor(url.pathname);
+    const own = ownShell(url.pathname);
     event.respondWith(
       (async () => {
         try {
           const fresh = await fetch(request);
-          if (url.pathname === shell) {
+          if (own !== null && fresh.ok && !fresh.redirected) {
             const cache = await caches.open(CACHE);
-            void cache.put(shell, fresh.clone());
+            void cache.put(own, fresh.clone());
           }
           return fresh;
         } catch {
           const cached = await caches.match(shell);
-          return cached ?? Response.error();
+          if (!cached) return Response.error();
+          // A shell cached as a redirected response is copied into a plain
+          // one, the only kind a navigation accepts.
+          return cached.redirected
+            ? new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers: cached.headers })
+            : cached;
         }
       })(),
     );

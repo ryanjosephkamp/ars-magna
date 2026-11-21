@@ -57,6 +57,40 @@ async function fetchOne(url: string, fetchImpl: typeof fetch): Promise<ArrayBuff
 }
 
 /**
+ * The manifest, from the network first so a rebuilt dictionary is picked up on
+ * the next load, and from Cache Storage when the network cannot be reached.
+ * It is the one dictionary file whose name carries no hash, so the artifacts'
+ * cache-first rule cannot apply to it; with no stored copy the engine could
+ * not start offline, though every artifact the manifest names was cached. An
+ * answer from the host that is not OK still fails the load, as it always has.
+ */
+async function fetchManifest(url: string, fetchImpl: typeof fetch): Promise<Manifest> {
+  let response: globalThis.Response;
+  try {
+    response = await fetchImpl(url);
+  } catch (error) {
+    if (typeof caches !== 'undefined') {
+      try {
+        const cached = await (await caches.open(CACHE_NAME)).match(url);
+        if (cached) return (await cached.json()) as Manifest;
+      } catch {
+        // No Cache Storage here; the network's error is the one to report.
+      }
+    }
+    throw error;
+  }
+  if (!response.ok) throw new Error(`${url} -> HTTP ${response.status}`);
+  if (typeof caches !== 'undefined') {
+    try {
+      await (await caches.open(CACHE_NAME)).put(url, response.clone());
+    } catch {
+      // Cache Storage is unavailable in some private-browsing modes; the load goes on.
+    }
+  }
+  return (await response.json()) as Manifest;
+}
+
+/**
  * Fetch an artifact, preferring the pre-compressed sibling.
  *
  * The dictionary is `application/octet-stream`, which Cloudflare will not
@@ -200,10 +234,7 @@ export class EngineCore {
       return;
     }
 
-    const manifestUrl = `${baseUrl}/manifest.json`;
-    const response = await fetchImpl(manifestUrl);
-    if (!response.ok) throw new Error(`${manifestUrl} -> HTTP ${response.status}`);
-    const manifest = (await response.json()) as Manifest;
+    const manifest = await fetchManifest(`${baseUrl}/manifest.json`, fetchImpl);
 
     const full = manifest.files.full;
     const tiers = manifest.files.tiers;

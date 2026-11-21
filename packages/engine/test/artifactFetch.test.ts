@@ -11,7 +11,7 @@
  * These tests drive all three cases through the real core, because the failure
  * being guarded against is silent by nature.
  */
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { brotliCompressSync } from 'node:zlib';
@@ -146,5 +146,34 @@ describe.skipIf(!built)('artifact fetching', () => {
     expect(rows).toContain('silent');
     expect(rows).not.toContain('listen');
     expect(rows).toContain('in lets');
+  });
+
+  it('starts offline from the manifest and artifacts an earlier load cached', async () => {
+    // Cache Storage, as a browser keeps it between visits.
+    const stored = new Map<string, Response>();
+    vi.stubGlobal('caches', {
+      open: async () => ({
+        match: async (url: string) => stored.get(url)?.clone(),
+        put: async (url: string, response: Response) => void stored.set(url, response.clone()),
+        delete: async (url: string) => stored.delete(url),
+      }),
+    });
+    try {
+      const online = await boot('decoded');
+      expect(online.port.last('ready')).toBeDefined();
+      expect(stored.has('/dict/manifest.json')).toBe(true);
+
+      // Offline: every request fails, as fetch does with no network.
+      const port = new Collector();
+      const offline = (async () => {
+        throw new TypeError('Failed to fetch');
+      }) as typeof fetch;
+      const core = new EngineCore(port, { wasmInput: await readFile(wasmPath), fetchImpl: offline });
+      await core.handle({ k: 'init', id: 1, baseUrl: '/dict' });
+      expect(port.last('error')).toBeUndefined();
+      expect(port.last('ready')?.counts.full).toBe(378_879);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

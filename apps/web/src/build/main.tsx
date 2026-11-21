@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BuildPage } from './BuildPage.tsx';
+import { startOffline } from '../offline.ts';
 import '../styles.css';
 
 const root = document.getElementById('root');
@@ -11,3 +12,5 @@ createRoot(root).render(
     <BuildPage />
   </StrictMode>,
 );
+
+startOffline();

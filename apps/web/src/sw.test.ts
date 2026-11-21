@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 // sandbox with a fake network and a fake Cache Storage, the way a browser would
 // run it, rather than imported.
 const SW = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-const MAIN = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
+const OFFLINE = readFileSync(new URL('./offline.ts', import.meta.url), 'utf8');
 const ORIGIN = 'https://ars-magna.pages.dev';
 
 type Listener = (event: Record<string, unknown>) => void;
@@ -18,9 +18,20 @@ const pathOf = (key: Key): string => new URL(typeof key === 'string' ? key : key
 type Setup = {
   online?: boolean;
   cached?: Record<string, string>;
+  /** Paths whose cached copy is a redirected response, as Cloudflare's 308s left them. */
+  cachedRedirected?: string[];
   network?: Record<string, string>;
+  /** Paths the network answers with a response that followed a redirect. */
+  networkRedirected?: string[];
   cacheNames?: string[];
 };
+
+/** A response that followed a redirect, which a navigation refuses. */
+function redirected(body: string): Response {
+  const response = new Response(body);
+  Object.defineProperty(response, 'redirected', { value: true });
+  return response;
+}
 
 function worker(setup: Setup = {}) {
   const listeners = new Map<string, Listener>();
@@ -31,7 +42,8 @@ function worker(setup: Setup = {}) {
   const cache = {
     match: async (key: Key) => {
       const body = stored.get(pathOf(key));
-      return body === undefined ? undefined : new Response(body);
+      if (body === undefined) return undefined;
+      return setup.cachedRedirected?.includes(pathOf(key)) ? redirected(body) : new Response(body);
     },
     put: async (key: Key, response: Response) => {
       stored.set(pathOf(key), await response.text());
@@ -61,21 +73,27 @@ function worker(setup: Setup = {}) {
       fetched.push(path);
       if (setup.online === false) throw new TypeError('Failed to fetch');
       const body = setup.network?.[path];
-      return body === undefined ? new Response('not found', { status: 404 }) : new Response(body);
+      if (body === undefined) return new Response('not found', { status: 404 });
+      return setup.networkRedirected?.includes(path) ? redirected(body) : new Response(body);
     },
   };
   runInNewContext(SW, sandbox);
 
-  /** What the worker answers for a GET, or undefined when it leaves the request to the browser. */
-  async function get(path: string, mode = 'cors'): Promise<string | undefined> {
-    let answer: Promise<Response> | undefined;
+  /** The response the worker gives for a GET, or undefined when it leaves the request to the browser. */
+  async function answer(path: string, mode = 'cors'): Promise<Response | undefined> {
+    let response: Promise<Response> | undefined;
     listeners.get('fetch')?.({
       request: { method: 'GET', url: ORIGIN + path, mode },
-      respondWith: (response: Promise<Response>) => {
-        answer = response;
+      respondWith: (r: Promise<Response>) => {
+        response = r;
       },
     });
-    return answer === undefined ? undefined : (await answer).text();
+    return response === undefined ? undefined : await response;
+  }
+
+  /** What the worker answers for a GET, or undefined when it leaves the request to the browser. */
+  async function get(path: string, mode = 'cors'): Promise<string | undefined> {
+    return (await answer(path, mode))?.text();
   }
 
   async function activate(): Promise<void> {
@@ -89,7 +107,7 @@ function worker(setup: Setup = {}) {
   }
 
   const strategyFor = sandbox['strategyFor'] as (pathname: string, mode: string) => string;
-  return { get, activate, strategyFor, stored, fetched, deleted };
+  return { get, answer, activate, strategyFor, stored, fetched, deleted };
 }
 
 const cacheName = /const CACHE = '([^']+)';/.exec(SW)?.[1];
@@ -178,6 +196,42 @@ describe('service worker', () => {
   });
 
   it('names the same cache as the page that fills it', () => {
-    expect(/caches\.open\('([^']+)'\)/.exec(MAIN)?.[1]).toBe(cacheName);
+    expect(/caches\.open\('([^']+)'\)/.exec(OFFLINE)?.[1]).toBe(cacheName);
+  });
+
+  it('keeps a page fetched at the address the site links to as that page’s shell', async () => {
+    const sw = worker({ network: { '/hits': 'gallery', '/build': 'build', '/how': 'how', '/': 'search' } });
+    await sw.get('/hits', 'navigate');
+    await sw.get('/build', 'navigate');
+    await sw.get('/how', 'navigate');
+    await sw.get('/', 'navigate');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(Object.fromEntries(sw.stored)).toEqual({
+      '/hits.html': 'gallery',
+      '/build.html': 'build',
+      '/how.html': 'how',
+      '/index.html': 'search',
+    });
+  });
+
+  it('never keeps a per-hit page, an unknown path, a redirect, or an error as a shell', async () => {
+    const sw = worker({
+      network: { '/hits/dirty-room': 'one hit', '/nowhere': 'search?', '/hits.html': 'redirected gallery' },
+      networkRedirected: ['/hits.html'],
+    });
+    await sw.get('/hits/dirty-room', 'navigate');
+    await sw.get('/nowhere', 'navigate');
+    await sw.get('/hits.html', 'navigate');
+    await sw.get('/build', 'navigate');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sw.stored.size).toBe(0);
+  });
+
+  it('serves a shell cached as a redirected response as a plain one offline', async () => {
+    // What every visitor before v3 holds: Cloudflare's 308 from /hits.html to /hits, followed and cached.
+    const sw = worker({ online: false, cached: { '/hits.html': 'gallery shell' }, cachedRedirected: ['/hits.html'] });
+    const response = await sw.answer('/hits', 'navigate');
+    expect(response?.redirected).toBe(false);
+    expect(await response?.text()).toBe('gallery shell');
   });
 });
