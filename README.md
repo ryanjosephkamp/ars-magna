@@ -6,7 +6,7 @@
 
 ![Searching for Clint Eastwood, scrolling Discover, and building "dirty room" from "Dormitory"](docs/demo.gif)
 
-Give the site any text, and it returns every way those exact letters can be rearranged into real English words. Spaces move freely, every letter is used exactly once, nothing is added, and nothing is dropped. The exact count comes first, even when it runs into the millions.
+Give the site any text, and it returns every way those exact letters can be rearranged into real English words. Spaces move freely, every letter is used exactly once, nothing is added, and nothing is dropped. The exact count comes first, even when it runs into the millions. A search that runs past ten seconds stops, shows a minimum count with the anagrams found so far, and says so.
 
 The search uses no AI: it is deterministic, and it is checked against a brute-force search on known cases. It runs in your browser, so after one visit it works with no network at all.
 

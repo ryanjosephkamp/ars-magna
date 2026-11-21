@@ -65,7 +65,7 @@ export function SearchField({ value, onChange, letters, skipped, items, leet, on
             {letters.length} {[...letters].some(isPoolChar) ? 'character' : 'letter'}
             {letters.length === 1 ? '' : 's'}
             <span className="mx-2 text-rule-strong">·</span>
-            <span className="tracking-[0.18em] uppercase">{[...letters].sort().join('')}</span>
+            <span className="tracking-[0.18em] uppercase break-all">{[...letters].sort().join('')}</span>
             {skipped > 0 && (
               <>
                 <span className="mx-2 text-rule-strong">·</span>

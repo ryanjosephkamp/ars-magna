@@ -190,6 +190,20 @@ export class ArsMagnaClient {
   }
 
   /**
+   * Stop the active query. Nothing more arrives for it, and a worker still
+   * busy with it is killed and replaced, as `solve` does for the query after
+   * it, since the search cannot be interrupted from inside. A query that has
+   * finished leaves its worker as it is.
+   */
+  cancel(): void {
+    if (this.#inFlight !== 0 && this.#respawn) this.#restart();
+    this.#handlers.delete(this.#activeQuery);
+    this.#activeQuery = 0;
+    this.#inFlight = 0;
+    this.#pagePending = -1;
+  }
+
+  /**
    * Request more results for the active query. A page already asked for and
    * not yet answered is not asked for again; it is asked again only after its
    * batch arrives, or once a new query replaces the one it belonged to.
