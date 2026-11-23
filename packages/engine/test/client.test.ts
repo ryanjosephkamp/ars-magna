@@ -165,7 +165,7 @@ describe('ArsMagnaClient', () => {
     expect(workers).toHaveLength(2);
     expect(workers[1]!.sent.map((m) => m.k)).toEqual(['init']);
     expect(client.busy).toBe(false);
-    // Nothing arrives for the cancelled query, even from the old worker.
+    // Nothing arrives for the canceled query, even from the old worker.
     first!.reply({ k: 'count', id, total: '9', candidates: 1, textLeftOut: false, unused: '', leet: [] });
     expect(counts).toBe(0);
 

@@ -22,7 +22,7 @@ function engine(c: ReturnType<typeof clock>, ms: (maxNodes?: number) => number, 
       const delay = ms(maxNodes);
       if (Number.isFinite(delay)) {
         void c.wait(delay).then(() => {
-          // A search the client has moved past (replaced or cancelled) says nothing more.
+          // A search the client has moved past (replaced or canceled) says nothing more.
           if (id !== current) return;
           handlers.onCount?.(answer(maxNodes), 9, false, '', []);
           handlers.onBatch?.(0, [['few', 'qi', 'jog', 'kudzu', 'vex', 'bronchothermoplasty']], true, maxNodes !== undefined);
