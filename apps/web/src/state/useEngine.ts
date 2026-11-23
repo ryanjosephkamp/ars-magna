@@ -10,6 +10,7 @@ import {
   type Query,
 } from '@ars-magna/engine';
 import { results } from './resultBuffer.ts';
+import { timedSearch } from './timedSearch.ts';
 
 /** How many results to materialize up front, and per "show more". */
 const PAGE = 250;
@@ -52,6 +53,14 @@ export type SearchState = {
    * milliseconds between the dictionary arriving and the first search.
    */
   answered: boolean;
+  /**
+   * The search passed its time limit before its count arrived, so what the
+   * page shows came from the short search after it: the count is a floor and
+   * the list is incomplete, and the page says so (see `timedSearch.ts`).
+   */
+  limited: boolean;
+  /** The short search ran out of time too, or found nothing: the page says the search stopped, in place of a count. */
+  stopped: boolean;
 };
 
 export function useResults() {
@@ -70,6 +79,8 @@ export function useEngine(query: Query) {
     textLeftOut: false,
     unused: '',
     answered: false,
+    limited: false,
+    stopped: false,
   });
 
   // Boot the worker once.
@@ -97,15 +108,17 @@ export function useEngine(query: Query) {
 
     if (normalizeLetters(query.input, query.reading).length === 0) {
       results.reset();
-      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false, unused: '', answered: false }));
+      setState((s) => ({ ...s, searching: false, error: null, candidates: 0, countedLetters: null, textLeftOut: false, unused: '', answered: false, limited: false, stopped: false }));
       return;
     }
 
+    let abandon: (() => void) | null = null;
     const timer = setTimeout(() => {
       results.reset();
-      setState((s) => ({ ...s, searching: true, error: null, textLeftOut: false, unused: '', answered: false }));
+      setState((s) => ({ ...s, searching: true, error: null, textLeftOut: false, unused: '', answered: false, limited: false, stopped: false }));
 
-      client.solve(
+      abandon = timedSearch(
+        client,
         query,
         {
           onCount: (total, candidates, textLeftOut, unused) => {
@@ -121,12 +134,24 @@ export function useEngine(query: Query) {
             // not fit the letters, leaves the query with no results.
             setState((s) => ({ ...s, searching: false, error: { code, message }, answered: true }));
           },
+          // The full search ran out of time: the short one starts on an empty list.
+          onLimit: () => {
+            results.reset();
+            setState((s) => ({ ...s, searching: true, limited: true, answered: false }));
+          },
+          onStopped: () => {
+            results.reset();
+            setState((s) => ({ ...s, searching: false, stopped: true, answered: false }));
+          },
         },
         PAGE,
       );
     }, DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abandon?.();
+    };
     // `state.engine.state` is the only part of state this depends on; including
     // the whole object would re-run the query on every unrelated state change.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -153,6 +153,32 @@ describe('ArsMagnaClient', () => {
     expect(second.terminated).toBe(false);
   });
 
+  it('cancels a search still running by replacing its worker, and leaves an idle one alone', () => {
+    const { client, workers } = connectRespawning();
+    const [first] = workers;
+    ready(first!, 0);
+
+    let counts = 0;
+    const id = client.solve({ ...QUERY, input: 'the quick brown fox jumps over the lazy dog' }, { onCount: () => counts++ });
+    client.cancel();
+    expect(first!.terminated).toBe(true);
+    expect(workers).toHaveLength(2);
+    expect(workers[1]!.sent.map((m) => m.k)).toEqual(['init']);
+    expect(client.busy).toBe(false);
+    // Nothing arrives for the canceled query, even from the old worker.
+    first!.reply({ k: 'count', id, total: '9', candidates: 1, textLeftOut: false, unused: '', leet: [] });
+    expect(counts).toBe(0);
+
+    // A search that has answered leaves its worker as it is.
+    const second = workers[1]!;
+    ready(second, second.sent[0]!.id);
+    const done = client.solve({ ...QUERY, input: 'listen' }, {});
+    second.reply({ k: 'solved', id: done, stats: { candidates: 1, elapsedMs: 1 } });
+    client.cancel();
+    expect(second.terminated).toBe(false);
+    expect(workers).toHaveLength(2);
+  });
+
   it('asks for a page once until its batch arrives, then again, and afresh for a new query', () => {
     const { client, worker } = connect();
     ready(worker, 0);

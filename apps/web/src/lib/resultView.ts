@@ -118,3 +118,10 @@ export function queryNotice(error: { readonly code: ErrorCode; readonly message:
       return `The search failed. ${error.message}`;
   }
 }
+
+/**
+ * What the page says in place of the count when a search ran out of time
+ * twice: the full search, and the short one after it (see `timedSearch.ts`).
+ */
+export const SEARCH_STOPPED =
+  'This text takes too long to search, so the search stopped. Raising the minimum word length or lowering the maximum number of words will let it finish.';

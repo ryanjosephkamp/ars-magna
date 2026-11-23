@@ -20,7 +20,7 @@ import type { WordDetail } from './components/WordDetails.tsx';
 import { ResultToolbar } from './components/ResultToolbar.tsx';
 import { SiteFooter } from './components/SiteFooter.tsx';
 import { SiteHeader } from './components/SiteHeader.tsx';
-import { applyView, countLineOf, queryNotice, type SortMode } from './lib/resultView.ts';
+import { applyView, countLineOf, queryNotice, SEARCH_STOPPED, type SortMode } from './lib/resultView.ts';
 import { displayPhrase, displayWord, formsFrom } from './lib/forms.ts';
 import {
   FILTER_COUNT_LIMIT_MS,
@@ -113,7 +113,7 @@ export function App() {
   const items = useMemo(() => readItems(input, filters.reading), [input, filters.reading]);
 
   const {
-    engine, searching, error, candidates, countedLetters, textLeftOut, unused, answered, forms: formList, termCounts, loadMore, collect, at, surpriseMe,
+    engine, searching, error, candidates, countedLetters, textLeftOut, unused, answered, limited, stopped, forms: formList, termCounts, loadMore, collect, at, surpriseMe,
     spellings, masks, has, countWith,
   } = useEngine(query);
   const results = useResults();
@@ -559,7 +559,9 @@ export function App() {
 
           {engine.state === 'ready' && hasQuery && queryError && <Notice>{queryNotice(queryError)}</Notice>}
 
-          {engine.state === 'ready' && hasQuery && !queryError && (
+          {engine.state === 'ready' && hasQuery && !queryError && stopped && <Notice>{SEARCH_STOPPED}</Notice>}
+
+          {engine.state === 'ready' && hasQuery && !queryError && !stopped && (
             <>
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 border-b border-rule-strong pb-3">
                 {/* The line keeps the number's height while it waits, so the count arriving moves nothing. */}
@@ -622,7 +624,7 @@ export function App() {
                 )}
               </div>
 
-              {results.truncated && (
+              {(results.truncated || (limited && total.startsWith('>'))) && (
                 <p className="border-b border-rule px-3 py-2.5 text-sm text-ink-soft">
                   This search hit its time limit, so the count is a minimum and the list is
                   incomplete.{' '}
